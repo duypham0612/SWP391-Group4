@@ -43,24 +43,26 @@ public class UserDAO {
         return null;
     }
 
-    // Kiểm tra xem Username hoặc Email đã tồn tại hay chưa
-    public boolean isUsernameOrEmailExists(String username, String email) {
-        String sql = "SELECT COUNT(*) FROM Users WHERE Username = ? OR Email = ?";
+    // Kiểm tra xem Username, Email hoặc Phone đã tồn tại hay chưa
+    public boolean isUserExists(String username, String email, String phone) {
+        String sql = "SELECT COUNT(*) FROM Users WHERE Username = ? OR Email = ? OR Phone = ?";
         try (Connection conn = new DBContext().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, username);
             ps.setString(2, email);
+            ps.setString(3, phone);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
                     return rs.getInt(1) > 0;
                 }
             }
         } catch (Exception e) {
-            System.out.println("Loi ham isUsernameOrEmailExists trong UserDAO: " + e.getMessage());
+            System.out.println("Loi ham isUserExists trong UserDAO: " + e.getMessage());
             e.printStackTrace();
         }
         return false;
     }
+
 
     // Đăng ký tài khoản mới cho Khách hàng (mặc định RoleID = 2, IsActive = 1)
     public boolean registerUser(User user) {
