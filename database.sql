@@ -67,7 +67,12 @@ CREATE TABLE [Categories] (
     [CategoryID] int IDENTITY(1,1) NOT NULL,
     [CategoryName] nvarchar(100) NOT NULL,
     [Description] nvarchar(255) NULL,
-    PRIMARY KEY ([CategoryID])
+    PRIMARY KEY ([CategoryID]),
+    CONSTRAINT [UQ__Categori__8517B2E019858C29] UNIQUE ([CategoryName]),
+    CONSTRAINT [UQ__Categori__8517B2E00A539514] UNIQUE ([CategoryName]),
+    CONSTRAINT [UQ__Categori__8517B2E03DC2134C] UNIQUE ([CategoryName]),
+    CONSTRAINT [UQ__Categori__8517B2E0F1E76669] UNIQUE ([CategoryName]),
+    CONSTRAINT [UQ__Categori__8517B2E018D3CD13] UNIQUE ([CategoryName])
 );
 GO
 
@@ -241,7 +246,12 @@ CREATE TABLE [Roles] (
     [RoleID] int IDENTITY(1,1) NOT NULL,
     [RoleName] nvarchar(50) NOT NULL,
     [Description] nvarchar(255) NULL,
-    PRIMARY KEY ([RoleID])
+    PRIMARY KEY ([RoleID]),
+    CONSTRAINT [UQ__Roles__8A2B6160DCEC36C4] UNIQUE ([RoleName]),
+    CONSTRAINT [UQ__Roles__8A2B6160B3C81F43] UNIQUE ([RoleName]),
+    CONSTRAINT [UQ__Roles__8A2B61600F5DF67B] UNIQUE ([RoleName]),
+    CONSTRAINT [UQ__Roles__8A2B6160EA52F5D0] UNIQUE ([RoleName]),
+    CONSTRAINT [UQ__Roles__8A2B6160BC9A3FD8] UNIQUE ([RoleName])
 );
 GO
 
@@ -286,7 +296,22 @@ CREATE TABLE [Users] (
     [RoleID] int NULL,
     [IsActive] bit NULL DEFAULT ((1)),
     [CreatedAt] datetime NULL DEFAULT (getdate()),
-    PRIMARY KEY ([UserID])
+    PRIMARY KEY ([UserID]),
+    CONSTRAINT [UQ__Users__5C7E359E260B02CA] UNIQUE ([Phone]),
+    CONSTRAINT [UQ__Users__536C85E44D534923] UNIQUE ([Username]),
+    CONSTRAINT [UQ__Users__536C85E4549304CC] UNIQUE ([Username]),
+    CONSTRAINT [UQ__Users__A9D10534FD79A8A8] UNIQUE ([Email]),
+    CONSTRAINT [UQ__Users__A9D105342853D7AA] UNIQUE ([Email]),
+    CONSTRAINT [UQ__Users__A9D105349F3F313D] UNIQUE ([Email]),
+    CONSTRAINT [UQ__Users__536C85E482E2171F] UNIQUE ([Username]),
+    CONSTRAINT [UQ__Users__5C7E359E61334DEC] UNIQUE ([Phone]),
+    CONSTRAINT [UQ__Users__5C7E359E59243501] UNIQUE ([Phone]),
+    CONSTRAINT [UQ__Users__536C85E491C1BCC8] UNIQUE ([Username]),
+    CONSTRAINT [UQ__Users__5C7E359E25A99C71] UNIQUE ([Phone]),
+    CONSTRAINT [UQ__Users__5C7E359E5242981C] UNIQUE ([Phone]),
+    CONSTRAINT [UQ__Users__A9D10534BB166829] UNIQUE ([Email]),
+    CONSTRAINT [UQ__Users__A9D10534DA914232] UNIQUE ([Email]),
+    CONSTRAINT [UQ__Users__536C85E4C63B408F] UNIQUE ([Username])
 );
 GO
 
@@ -303,7 +328,12 @@ CREATE TABLE [Vouchers] (
     [StartDate] date NULL,
     [EndDate] date NULL,
     [IsActive] bit NULL DEFAULT ((1)),
-    PRIMARY KEY ([VoucherID])
+    PRIMARY KEY ([VoucherID]),
+    CONSTRAINT [UQ__Vouchers__7F0ABCA9908828BE] UNIQUE ([VoucherCode]),
+    CONSTRAINT [UQ__Vouchers__7F0ABCA954A6C9F7] UNIQUE ([VoucherCode]),
+    CONSTRAINT [UQ__Vouchers__7F0ABCA9BE7CD998] UNIQUE ([VoucherCode]),
+    CONSTRAINT [UQ__Vouchers__7F0ABCA950AFC538] UNIQUE ([VoucherCode]),
+    CONSTRAINT [UQ__Vouchers__7F0ABCA9D5F2A559] UNIQUE ([VoucherCode])
 );
 GO
 
