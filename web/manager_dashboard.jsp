@@ -25,7 +25,7 @@
     <!-- Header / Subheader Section -->
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-            <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Chào buổi sáng, Admin!</h1>
+            <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Chào buổi sáng, Manager!</h1>
             <p class="text-xs text-slate-400 font-medium mt-1">Đây là những gì đang diễn ra tại cửa hàng của bạn hôm nay.</p>
         </div>
         
