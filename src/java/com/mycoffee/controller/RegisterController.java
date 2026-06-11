@@ -43,9 +43,9 @@ public class RegisterController extends HttpServlet {
             return;
         }
 
-        // Kiểm tra xem Username hoặc Email đã tồn tại chưa
-        if (userDAO.isUsernameOrEmailExists(username, email)) {
-            request.setAttribute("error", "Tên đăng nhập hoặc Email đã được sử dụng!");
+        // Kiểm tra xem Username, Email hoặc Phone đã tồn tại chưa
+        if (userDAO.isUserExists(username, email, phone)) {
+            request.setAttribute("error", "Tên đăng nhập, Email hoặc Số điện thoại đã được sử dụng!");
             // Giữ lại các giá trị cũ nhập vào để tiện nhập lại
             request.setAttribute("oldUsername", username);
             request.setAttribute("oldFullName", fullName);
