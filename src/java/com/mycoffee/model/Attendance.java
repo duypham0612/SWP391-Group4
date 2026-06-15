@@ -33,7 +33,7 @@ public class Attendance {
         this.shiftName = shiftName;
     }
 
-    // --- CÁC HÀM BỔ SUNG ĐỂ HIỂN THỊ ĐẸP RA GIAO DIỆN ---
+
 
     // Trả về ngày định dạng: dd/MM/yyyy (Ví dụ: 14/06/2026)
     public String getFormattedDate() {

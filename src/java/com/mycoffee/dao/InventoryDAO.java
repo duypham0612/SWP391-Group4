@@ -28,22 +28,32 @@ public class InventoryDAO {
                 + "JOIN Ingredients ing ON i.IngredientID = ing.IngredientID "
                 + "WHERE i.BranchID = ?";
 
-        try (Connection conn = new DBContext().getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try {
+            // 1. Gọi kết nối Database từ lớp DBContext của nhóm bạn
+            Connection conn = new DBContext().getConnection();
+            PreparedStatement ps = conn.prepareStatement(sql);
             ps.setInt(1, branchId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    Inventory item = new Inventory();
-                    item.setBranchId(rs.getInt("BranchID"));
-                    item.setIngredientId(rs.getInt("IngredientID"));
-                    item.setQuantity(rs.getDouble("Quantity"));
-                    item.setMinRequired(rs.getDouble("MinRequired"));
-                    item.setLastUpdated(rs.getTimestamp("LastUpdated"));
-                    item.setIngredientName(rs.getString("IngredientName"));
-                    item.setUnit(rs.getString("Unit"));
-                    list.add(item);
-                }
+            ResultSet rs = ps.executeQuery();
+
+            // 2. Vòng lặp đọc dữ liệu từ SQL Server và gán vào Object Inventory trong Java
+            while (rs.next()) {
+                Inventory item = new Inventory();
+                item.setBranchId(rs.getInt("BranchID"));
+                item.setIngredientId(rs.getInt("IngredientID"));
+                item.setQuantity(rs.getDouble("Quantity"));
+                item.setMinRequired(rs.getDouble("MinRequired"));
+                item.setLastUpdated(rs.getTimestamp("LastUpdated"));
+
+                // Gán thêm thông tin tên và đơn vị từ bảng Ingredients để hiển thị lên giao diện Web
+                item.setIngredientName(rs.getString("IngredientName"));
+                item.setUnit(rs.getString("Unit"));
+
+                list.add(item);
             }
+            // 3. Đóng kết nối để tiết kiệm tài nguyên hệ thống
+            rs.close();
+            ps.close();
+            conn.close();
         } catch (Exception e) {
             System.out.println("Loi ham getInventoryByBranch trong InventoryDAO: " + e.getMessage());
             e.printStackTrace();

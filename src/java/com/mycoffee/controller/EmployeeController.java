@@ -67,88 +67,74 @@ public class EmployeeController extends HttpServlet {
     }
 
     @Override
-    protected void doPost(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-
+    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         request.setCharacterEncoding("UTF-8");
-        response.setCharacterEncoding("UTF-8");
-
         String action = request.getParameter("action");
 
-        // Xử lý thay đổi Role nhanh từ bảng
-        if ("quickRole".equals(action)) {
-            try {
-                int id = Integer.parseInt(request.getParameter("id"));
-                int roleId = Integer.parseInt(request.getParameter("roleId"));
-                dao.updateEmployeeRole(id, roleId);
-            } catch (NumberFormatException e) {
-                e.printStackTrace();
-            }
-            response.sendRedirect(request.getContextPath() + "/admin/employees");
-            return;
-        }
-
-        // Lấy dữ liệu từ form
-        String name = request.getParameter("fullName");
-        String email = request.getParameter("email");
-        String password = request.getParameter("password");
-        String roleIdStr = request.getParameter("roleId");
-
-        // ==================== THÊM MỚI NHÂN VIÊN ====================
+        // ==================== 1. THÊM MỚI NHÂN VIÊN ====================
         if ("insert".equals(action)) {
+            String username = request.getParameter("username"); 
+            String fullName = request.getParameter("fullName");
+            String email = request.getParameter("email");
+            String password = request.getParameter("password");
+            String roleIdStr = request.getParameter("roleId");
+            String phone = request.getParameter("phone");
+            
             try {
-                // Debug log (bạn có thể comment sau khi test ổn)
-                System.out.println("====== KIỂM TRA DỮ LIỆU ĐẦU VÀO TỪ POPUP ======");
-                System.out.println("Họ và tên: " + name);
-                System.out.println("Email: " + email);
-                System.out.println("Mật khẩu: " + (password != null && !password.isEmpty() ? "[Đã nhận]" : "TRỐNG/NULL"));
-                System.out.println("Mã vai trò: " + roleIdStr);
-                System.out.println("=============================================");
-
-                // Kiểm tra dữ liệu đầu vào
-                if (name == null || name.trim().isEmpty() ||
-                    email == null || email.trim().isEmpty() ||
-                    password == null || password.trim().isEmpty() ||
-                    roleIdStr == null || roleIdStr.trim().isEmpty()) {
-                    
-                    System.out.println("⚠️ LỖI: Thiếu thông tin bắt buộc!");
-                    response.sendRedirect(request.getContextPath() + "/admin/employees?error=missingFields");
-                    return;
-                }
-
                 int roleId = Integer.parseInt(roleIdStr.trim());
-                boolean isInserted = dao.addEmployee(name.trim(), email.trim(), password, roleId);
-
-                if (isInserted) {
-                    System.out.println("🎉 THÀNH CÔNG: Nhân viên mới đã được thêm vào Database!");
-                    response.sendRedirect(request.getContextPath() + "/admin/employees?success=added");
+                
+                // Gọi hàm nạp đầy đủ thông tin độc lập sang DAO
+                String result = dao.addEmployeeDetailed(username, fullName, email, password, roleId, phone);
+                
+                if ("SUCCESS".equals(result)) {
+                    response.sendRedirect(request.getContextPath() + "/admin/employees?success=true");
+                } else if ("DUPLICATE_USERNAME".equals(result)) {
+                    response.sendRedirect(request.getContextPath() + "/admin/employees?error=duplicateUser");
+                } else if ("DUPLICATE_EMAIL".equals(result)) {
+                    response.sendRedirect(request.getContextPath() + "/admin/employees?error=duplicateEmail");
+                } else if ("DUPLICATE_PHONE".equals(result)) {
+                    response.sendRedirect(request.getContextPath() + "/admin/employees?error=duplicatePhone");
                 } else {
-                    System.out.println("❌ THẤT BẠI: Không thêm được vào Database (có thể email đã tồn tại)");
-                    response.sendRedirect(request.getContextPath() + "/admin/employees?error=insertFailed");
+                    response.sendRedirect(request.getContextPath() + "/admin/employees?error=systemError");
                 }
 
             } catch (NumberFormatException e) {
                 System.out.println("❌ LỖI: Mã vai trò không hợp lệ!");
                 response.sendRedirect(request.getContextPath() + "/admin/employees?error=invalidRole");
             } catch (Exception e) {
-                System.out.println("❌ LỖI HỆ THỐNG:");
                 e.printStackTrace();
                 response.sendRedirect(request.getContextPath() + "/admin/employees?error=systemError");
             }
             return;
         }
 
-        // ==================== CẬP NHẬT NHÂN VIÊN ====================
+        // ==================== 2. CẬP NHẬT NHÂN VIÊN ====================
         if ("update".equals(action)) {
-            try {
-                int id = Integer.parseInt(request.getParameter("id"));
-                int roleId = Integer.parseInt(roleIdStr);
-                boolean isActive = "Đang làm".equals(request.getParameter("status"));
+            // Khai báo và hứng đầy đủ dữ liệu từ form sửa gửi lên
+            String idStr = request.getParameter("id");
+            String username = request.getParameter("username"); 
+            String fullName = request.getParameter("fullName");
+            String email = request.getParameter("email");
+            String phone = request.getParameter("phone");
+            String roleIdStr = request.getParameter("roleId");
+            String status = request.getParameter("status");
 
-                boolean updated = dao.updateEmployee(id, name, email, roleId, isActive);
+            try {
+                int id = Integer.parseInt(idStr.trim());
+                int roleId = Integer.parseInt(roleIdStr.trim());
+                boolean isActive = "Đang làm".equals(status) || "1".equals(status) || "true".equalsIgnoreCase(status);
+
+                // Gọi hàm xử lý cập nhật có lọc trùng thông minh từ DAO
+                String checkResult = dao.updateEmployeeDetailed(id, username, fullName, email, phone, roleId, isActive);
                 
-                if (updated) {
+                if ("SUCCESS".equals(checkResult)) {
                     response.sendRedirect(request.getContextPath() + "/admin/employees?success=updated");
+                } else if ("DUPLICATE_USERNAME".equals(checkResult)) {
+                    response.sendRedirect(request.getContextPath() + "/admin/employees?error=updateDuplicateUser");
+                } else if ("DUPLICATE_EMAIL".equals(checkResult)) {
+                    response.sendRedirect(request.getContextPath() + "/admin/employees?error=updateDuplicateEmail");
+                } else if ("DUPLICATE_PHONE".equals(checkResult)) {
+                    response.sendRedirect(request.getContextPath() + "/admin/employees?error=updateDuplicatePhone");
                 } else {
                     response.sendRedirect(request.getContextPath() + "/admin/employees?error=updateFailed");
                 }
@@ -159,7 +145,7 @@ public class EmployeeController extends HttpServlet {
             return;
         }
 
-        // Mặc định redirect về danh sách
+        // Mặc định không khớp action nào thì redirect về danh sách chính
         response.sendRedirect(request.getContextPath() + "/admin/employees");
     }
 }
