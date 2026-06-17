@@ -17,7 +17,7 @@
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
-        body { background-color: var(--bg-color); color: var(--text-color); padding: 5px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        body { background-color: var(--bg-color); color: var(--text-color); padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
         
         .form-container {
             background: var(--white);
@@ -33,6 +33,7 @@
         
         .form-group { margin-bottom: 20px; }
         .form-group label { display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px; color: #444; }
+        .form-group label span { color: red; }
         
         .form-control {
             width: 100%;
@@ -54,6 +55,8 @@
             font-size: 14px;
             font-weight: 600;
             cursor: pointer;
+            text-align: center;
+            text-decoration: none;
         }
         .btn-submit { background-color: var(--primary-color); color: white; }
         .btn-cancel { background-color: #E0E0E0; color: #444; }
@@ -68,6 +71,30 @@
             </h2>
         </div>
 
+        <%-- Hiển thị thông báo lỗi cục bộ tại trang Form chỉnh sửa nếu có --%>
+        <c:if test="${param.error != null}">
+            <div style="background: #fee; color: #c00; padding: 12px; border-radius: 6px; margin-bottom: 20px; font-size: 14px;">
+                <strong>Lỗi thực thi:</strong> 
+                <c:choose>
+                    <c:when test="${param.error eq 'updateDuplicateUser' || param.error eq 'duplicateUser'}">
+                        ❌ Tên tài khoản (Username) đã có người sử dụng.
+                    </c:when>
+                    <c:when test="${param.error eq 'updateDuplicateEmail' || param.error eq 'duplicateEmail'}">
+                        ❌ Địa chỉ Email đã tồn tại.
+                    </c:when>
+                    <c:when test="${param.error eq 'updateDuplicatePhone' || param.error eq 'duplicatePhone'}">
+                        ❌ Số điện thoại đã được đăng ký.
+                    </c:when>
+                    <c:when test="${param.error eq 'updateAdminExists' || param.error eq 'adminExists'}">
+                        ❌ Hệ thống đã tồn tại 1 Admin duy nhất! Không được chỉ định thêm quyền này.
+                    </c:when>
+                    <c:otherwise>
+                        ❌ Thao tác không thành công, vui lòng kiểm tra lại.
+                    </c:otherwise>
+                </c:choose>
+            </div>
+        </c:if>
+
         <form action="${pageContext.request.contextPath}/admin/employees" method="POST">
             <input type="hidden" name="action" value="${isEdit ? 'update' : 'insert'}">
             <c:if test="${isEdit}">
@@ -75,29 +102,38 @@
             </c:if>
             
             <div class="form-group">
-                <label>Họ và Tên:</label>
-                <input type="text" name="fullName" class="form-control" required value="${isEdit ? employee.fullName : ''}">
+                <label>Tài khoản đăng nhập (Username): <c:if test="${!isEdit}"><span>*</span></c:if></label>
+                <input type="text" name="username" class="form-control" ${isEdit ? 'readonly style="background:#f5f5f5;"' : 'required'} value="${isEdit ? employee.username : ''}" placeholder="Ví dụ: duypham0612">
+            </div>
+            
+            <div class="form-group">
+                <label>Họ và Tên: <span>*</span></label>
+                <input type="text" name="fullName" class="form-control" required value="${isEdit ? employee.fullName : ''}" placeholder="Nguyễn Văn A">
             </div>
 
             <div class="form-group">
-                <label>Địa chỉ Email:</label>
-                <input type="email" name="email" class="form-control" required value="${isEdit ? employee.email : ''}">
+                <label>Địa chỉ Email: <span>*</span></label>
+                <input type="email" name="email" class="form-control" required value="${isEdit ? employee.email : ''}" placeholder="example@mycoffee.com">
+            </div>
+
+            <div class="form-group">
+                <label>Số điện thoại: <span>*</span></label>
+                <input type="text" name="phone" class="form-control" required value="${isEdit ? employee.phone : ''}" placeholder="Nhập số điện thoại...">
             </div>
 
             <c:if test="${!isEdit}">
                 <div class="form-group">
-                    <label>Mật khẩu khởi tạo:</label>
-                    <input type="password" name="password" class="form-control" required>
+                    <label>Mật khẩu khởi tạo: <span>*</span></label>
+                    <input type="password" name="password" class="form-control" required placeholder="Mật khẩu đăng nhập ban đầu">
                 </div>
             </c:if>
 
             <div class="form-group">
-                <label>Chức vụ:</label>
+                <label>Chức vụ: <span>*</span></label>
                 <select name="roleId" class="form-control" required>
                     <option value="">-- Chọn chức vụ --</option>
                     <c:forEach items="${roles}" var="role">
-                        <option value="${role.roleId}" 
-                            ${isEdit && employee.roleName eq role.roleName ? 'selected' : ''}>
+                        <option value="${role.roleId}" ${isEdit && employee.roleId == role.roleId ? 'selected' : ''}>
                             ${role.roleName}
                         </option>
                     </c:forEach>
@@ -106,10 +142,10 @@
 
             <c:if test="${isEdit}">
                 <div class="form-group">
-                    <label>Tình trạng:</label>
+                    <label>Tình trạng: <span>*</span></label>
                     <select name="status" class="form-control">
                         <option value="Đang làm" ${employee.status eq 'Đang làm' ? 'selected' : ''}>Đang làm</option>
-                        <option value="Nghỉ việc" ${employee.status eq 'Nghỉ việc' ? 'selected' : ''}>Nghỉ việc</option>
+                        <option value="Nghỉ việc" ${employee.status eq 'Nghỉ việc' ? 'selected' : ''}>Tạm Nghỉ</option>
                     </select>
                 </div>
             </c:if>

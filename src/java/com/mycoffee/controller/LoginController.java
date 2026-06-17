@@ -18,66 +18,59 @@ public class LoginController extends HttpServlet {
             throws ServletException, IOException {
         HttpSession session = request.getSession();
         String action = request.getParameter("action");
+        
         if ("logout".equals(action)) {
             session.invalidate();
-            response.sendRedirect("login");
+            response.sendRedirect(request.getContextPath() + "/login");
             return;
         }
 
-        // Nếu user đã đăng nhập rồi thì chuyển hướng thẳng đến trang tương ứng với vai trò
+        // KIỂM TRA ĐĂNG NHẬP: Phải kiểm tra null trước khi gọi getRoleId()
         User loggedInUser = (User) session.getAttribute("user");
         if (loggedInUser != null) {
             if (loggedInUser.getRoleId() == 1) {
-                response.sendRedirect("manager-dashboard");
+                response.sendRedirect(request.getContextPath() + "/admin/admin-dashboard");
             } else {
-                response.sendRedirect("menu");
+                response.sendRedirect(request.getContextPath() + "/menu");
             }
-            return;
+            return; // Dừng lại ở đây, không forward sang login.jsp nữa
         }
         
-        // Forward sang trang giao diện login.jsp
+        // Nếu chưa đăng nhập thì mới forward sang trang login
         request.getRequestDispatcher("login.jsp").forward(request, response);
     }
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        
-        // Thiết lập UTF-8
         request.setCharacterEncoding("UTF-8");
         response.setCharacterEncoding("UTF-8");
 
-        // 1. Nhận thông số từ Form Đăng nhập
         String username = request.getParameter("username");
         String password = request.getParameter("password");
-        
-        // 2. Khởi tạo DAO để kiểm tra đăng nhập
+
         UserDAO dao = new UserDAO();
         User user = dao.checkLogin(username, password);
-        
+
         if (user != null) {
-            // ĐÃ SỬA: KIỂM TRA TRẠNG THÁI HOẠT ĐỘNG TRƯỚC KHI CHO VÀO PHIÊN ĐĂNG NHẬP
             if (!user.isIsActive()) {
-                // Tài khoản bị khóa (IsActive = false / 0)
-                request.setAttribute("error", "Tài khoản bị vô hiệu hóa (Vui lòng liên hệ admin)!");
-                request.setAttribute("savedUsername", username); // Giữ lại tên đăng nhập trên ô input
+                request.setAttribute("error", "Tài khoản bị vô hiệu hóa!");
+                request.setAttribute("savedUsername", username);
                 request.getRequestDispatcher("login.jsp").forward(request, response);
-                return; // Dừng hàm ngay lập tức
+                return;
             }
 
-            // Đăng nhập THÀNH CÔNG: Lưu user vào Session và chuyển hướng dựa theo Vai trò (RoleID)
             HttpSession session = request.getSession();
             session.setAttribute("user", user);
-            
+
             if (user.getRoleId() == 1) {
-                response.sendRedirect("manager-dashboard");
+                response.sendRedirect(request.getContextPath() + "/admin/admin-dashboard");
             } else {
-                response.sendRedirect("menu");
+                response.sendRedirect(request.getContextPath() + "/menu");
             }
         } else {
-            // Đăng nhập THẤT BẠI: Sai tên tài khoản hoặc sai mật khẩu
             request.setAttribute("error", "Tài khoản hoặc mật khẩu không chính xác!");
-            request.setAttribute("savedUsername", username); // Lưu lại username để điền lại vào form
+            request.setAttribute("savedUsername", username);
             request.getRequestDispatcher("login.jsp").forward(request, response);
         }
     }
