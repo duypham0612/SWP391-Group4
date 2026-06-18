@@ -56,8 +56,14 @@
 
                     // Tạo data-status để JS nhận diện filter
                     String dataStatus = isEmpty ? "empty" : "occupied";
+
+                    // Logic Link: Nếu bàn trống thì tạo order mới. Nếu có khách thì không cho tạo đơn đè lên.
+                    // Ở các sprint sau, link occupied sẽ trỏ vào "?action=view&orderId=..."
+                    String posLink = isEmpty ? "pos?action=create&tableId=" + t.getTableId() : "#";
         %>
-            <button class="table-card relative flex flex-col items-center justify-center p-6 rounded-3xl border-2 shadow-sm transition-all duration-300 transform hover:-translate-y-1 group <%= bgClass %>" data-status="<%= dataStatus %>">
+            <a href="<%= posLink %>" <%= !isEmpty ? "onclick=\"alert('Bàn này đang có khách, không thể mở đơn mới!'); return false;\"" : "" %>
+               class="table-card relative flex flex-col items-center justify-center p-6 rounded-3xl border-2 shadow-sm transition-all duration-300 transform hover:-translate-y-1 group <%= bgClass %>"
+               data-status="<%= dataStatus %>">
 
                 <i class="fa-solid fa-mug-saucer text-4xl mb-3 <%= iconClass %> group-hover:scale-110 transition-transform"></i>
 
@@ -72,7 +78,7 @@
                         <i class="fa-solid fa-qrcode text-xs"></i>
                     </div>
                 <% } %>
-            </button>
+            </a>
         <%
                 }
             }
@@ -83,7 +89,6 @@
 <jsp:include page="common/footer.jsp" />
 
 <script>
-    // Hàm mở/đóng Dropdown với Animation mượt
     function toggleDropdown() {
         const menu = document.getElementById('dropdown-menu');
         const icon = document.getElementById('filter-icon');
@@ -91,7 +96,6 @@
         if (menu.classList.contains('hidden')) {
             menu.classList.remove('hidden');
             icon.classList.add('rotate-180');
-            // Delay siêu nhỏ để animation scale/opacity hoạt động
             setTimeout(() => {
                 menu.classList.remove('opacity-0', 'scale-95');
                 menu.classList.add('opacity-100', 'scale-100');
@@ -101,7 +105,6 @@
         }
     }
 
-    // Hàm đóng Dropdown
     function closeDropdown() {
         const menu = document.getElementById('dropdown-menu');
         const icon = document.getElementById('filter-icon');
@@ -112,10 +115,9 @@
 
         setTimeout(() => {
             menu.classList.add('hidden');
-        }, 200); // Đợi animation CSS chạy xong
+        }, 200);
     }
 
-    // Lắng nghe sự kiện click ra ngoài để đóng menu
     window.addEventListener('click', function(e) {
         const filterContainer = document.getElementById('tableFilter');
         if (!filterContainer.contains(e.target)) {
@@ -126,28 +128,21 @@
         }
     });
 
-    // Hàm thực thi lọc dữ liệu bàn
     function applyFilter(status, text, event) {
-        event.preventDefault(); // Ngăn trình duyệt nhảy lên đầu trang do thẻ <a>
+        event.preventDefault();
 
-        // 1. Cập nhật Text hiển thị trên nút
         document.getElementById('filter-text').innerText = text;
-
-        // 2. Đóng menu lại
         closeDropdown();
 
-        // 3. Chạy logic ẩn/hiện các bàn
         const cards = document.querySelectorAll('.table-card');
         cards.forEach(card => {
             const cardStatus = card.getAttribute('data-status');
 
             if (status === 'all' || cardStatus === status) {
-                // Mở lại card (reset display css, fadeIn)
                 card.style.display = '';
                 card.classList.remove('opacity-0', 'scale-95');
                 card.classList.add('opacity-100', 'scale-100');
             } else {
-                // Ẩn card đi
                 card.style.display = 'none';
                 card.classList.remove('opacity-100', 'scale-100');
                 card.classList.add('opacity-0', 'scale-95');
