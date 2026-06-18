@@ -4,10 +4,10 @@
 <%@page import="java.text.SimpleDateFormat"%>
 
 <%-- Nhúng Header dùng chung --%>
-<jsp:include page="common/header.jsp" />
+<jsp:include page="/common/header.jsp" />
 
 <%-- Nhúng Sidebar dùng chung --%>
-<jsp:include page="common/sidebar.jsp" />
+<jsp:include page="/common/sidebar.jsp" />
 
 <%
     // Lấy thông số từ Servlet
@@ -433,4 +433,4 @@
 </script>
 
 <%-- Nhúng Footer dùng chung --%>
-<jsp:include page="common/footer.jsp" />
+<jsp:include page="/common/footer.jsp" />

@@ -27,7 +27,7 @@ public class InventoryController extends HttpServlet {
         request.setAttribute("khoHang", inventoryList);
 
         // 5. Điều hướng (Forward) toàn bộ dữ liệu này sang file giao diện manager_inventory.jsp để hiển thị
-        request.getRequestDispatcher("manager_inventory.jsp").forward(request, response);
+        request.getRequestDispatcher("/views/manager/manager_inventory.jsp").forward(request, response);
     }
 
     @Override
