@@ -53,7 +53,7 @@ public class DashboardController extends HttpServlet {
         request.setAttribute("todayAttendance", attendanceList);
         
         // Forward sang trang giao diện manager_dashboard.jsp
-        request.getRequestDispatcher("manager_dashboard.jsp").forward(request, response);
+        request.getRequestDispatcher("/views/manager/manager_dashboard.jsp").forward(request, response);
     }
 
     @Override
