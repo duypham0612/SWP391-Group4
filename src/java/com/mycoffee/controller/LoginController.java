@@ -27,7 +27,7 @@ public class LoginController extends HttpServlet {
         // Nếu user đã đăng nhập rồi thì chuyển hướng thẳng đến trang tương ứng với vai trò
         User loggedInUser = (User) session.getAttribute("user");
         if (loggedInUser != null) {
-            if (loggedInUser.getRoleId() == 1) {
+            if (loggedInUser.getRoleId() == 2) {
                 response.sendRedirect("manager-dashboard");
             } else {
                 response.sendRedirect("menu");
@@ -60,7 +60,7 @@ public class LoginController extends HttpServlet {
             HttpSession session = request.getSession();
             session.setAttribute("user", user);
             
-            if (user.getRoleId() == 1) {
+            if (user.getRoleId() == 2) {
                 response.sendRedirect("manager-dashboard");
             } else {
                 response.sendRedirect("menu");
