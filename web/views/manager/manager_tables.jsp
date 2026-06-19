@@ -13,14 +13,14 @@
     SimpleDateFormat sdfTime = new SimpleDateFormat("HH:mm");
 %>
 
-<div class="space-y-8 fade-in">
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+<div class="space-y-8 fade-in w-full px-4">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mt-2">
         <div>
             <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Quản Lý Sơ Đồ & Đặt Bàn</h1>
             <p class="text-xs text-slate-400 font-medium mt-1">Theo dõi trạng thái bàn trực tiếp và điều phối lịch hẹn của khách hàng.</p>
         </div>
         
-        <button onclick="openReservationModal()" class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#006064] hover:bg-[#004d40] text-white text-xs font-bold transition-all shadow-md">
+        <button onclick="openReservationModal()" class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#006064] hover:bg-[#004d40] text-white text-xs font-bold transition-all shadow-md self-start md:self-auto">
             <i class="fa-solid fa-calendar-plus text-xs"></i>
             <span>Đặt bàn trước</span>
         </button>
@@ -42,16 +42,24 @@
                 <% 
                     if (tableList != null) {
                         for(Table t : tableList) { 
-                            String status = t.getStatus(); // 'Empty', 'Reserved', 'Serving'
+                            String status = (t.getStatus() != null) ? t.getStatus().trim() : "Empty";
+                            
+                            // Cấu hình màu mặc định: BÀN TRỐNG (Màu Xanh Lá)
                             String bgClass = "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100/70";
                             String iconColor = "text-emerald-500";
+                            String textStatusDisplay = "Trống";
                             
-                            if("Reserved".equals(status)) {
+                            // Kiểm tra trạng thái ĐÃ ĐẶT TRƯỚC (Màu Vàng)
+                            if("Reserved".equalsIgnoreCase(status) || "Đã đặt".equalsIgnoreCase(status)) {
                                 bgClass = "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100/70";
                                 iconColor = "text-amber-500";
-                            } else if ("Serving".equals(status)) {
+                                textStatusDisplay = "Đã đặt trước";
+                            } 
+                            // 🛠️ ĐÃ SỬA: Chuyển điều kiện so sánh thành "Occupied" theo dữ liệu Database thực tế (Màu Đỏ)
+                            else if ("Occupied".equalsIgnoreCase(status) || "Serving".equalsIgnoreCase(status) || "Đang phục vụ".equalsIgnoreCase(status) || "Đang ngồi".equalsIgnoreCase(status)) {
                                 bgClass = "bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100/70";
                                 iconColor = "text-rose-500";
+                                textStatusDisplay = "Đang phục vụ";
                             }
                 %>
                 <div onclick="handleTableClick(<%= t.getTableID() %>, '<%= status %>')" class="<%= bgClass %> p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between h-28 shadow-sm">
@@ -62,7 +70,7 @@
                     <div class="mt-2">
                         <p class="text-[10px] font-medium opacity-60">Sức chứa: <%= t.getCapacity() %> người</p>
                         <p class="text-[11px] font-bold mt-1 uppercase tracking-wide">
-                            <%= "Empty".equals(status) ? "Trống" : ("Reserved".equals(status) ? "Đã đặt trước" : "Đang phục vụ") %>
+                            <%= textStatusDisplay %>
                         </p>
                     </div>
                 </div>
@@ -70,7 +78,7 @@
                         }
                     } else { 
                 %>
-                    <div class="col-span-full text-center text-xs py-8 text-slate-400">Không tìm thấy dữ liệu bàn.</div>
+                    <div class="col-span-full text-center text-xs py-8 text-slate-400">Không tìm thấy dữ liệu bàn trên hệ thống.</div>
                 <% } %>
             </div>
         </div>
@@ -100,8 +108,7 @@
                             </div>
                         </div>
                         <div class="text-right">
-                            <span class="text-xs font-black text-slate-700 block"><%= sdfTime.format(res.getReservationTime()) %></span>
-                            <%-- ĐÃ SỬA: Thêm contextPath vào thuộc tính action của form check-in --%>
+                            <span class="text-xs font-black text-slate-700 block"><%= (res.getReservationTime() != null) ? sdfTime.format(res.getReservationTime()) : "--:--" %></span>
                             <form action="${pageContext.request.contextPath}/manager-tables" method="POST" class="inline mt-1">
                                 <input type="hidden" name="action" value="checkin">
                                 <input type="hidden" name="resId" value="<%= res.getReservationID() %>">
@@ -128,7 +135,6 @@
             <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Tạo phiếu đặt bàn trước</h3>
             <button onclick="closeReservationModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
         </div>
-        <%-- ĐÃ SỬA: Thêm contextPath vào thuộc tính action của form đặt lịch hẹn mới --%>
         <form action="${pageContext.request.contextPath}/manager-tables" method="POST" class="space-y-3 text-xs">
             <input type="hidden" name="action" value="add">
             
@@ -146,7 +152,8 @@
                     <select name="tableId" class="w-full border p-2 rounded-xl focus:outline-none">
                         <% if (tableList != null) {
                             for(Table t : tableList) { 
-                                if("Empty".equals(t.getStatus())) { %>
+                                String statusT = t.getStatus();
+                                if("Empty".equalsIgnoreCase(statusT) || "Trống".equalsIgnoreCase(statusT)) { %>
                                     <option value="<%= t.getTableID() %>"><%= t.getTableName() %> (Sức chứa: <%= t.getCapacity() %>)</option>
                         <%      }
                             }
@@ -176,13 +183,12 @@
     }
 
     function handleTableClick(tableId, currentStatus) {
-        if (currentStatus === 'Empty') {
-            // Hỏi nhanh xem muốn mở bàn trực tiếp hay đặt hẹn trước
+        var statusNorm = currentStatus.toLowerCase().trim();
+        if (statusNorm === 'empty' || statusNorm === 'trống') {
             if(confirm("Bàn đang trống. Bạn muốn chuyển trạng thái sang 'Đang ngồi phục vụ' trực tiếp không?")) {
-                <%-- ĐÃ SỬA: Tích hợp contextPath động vào câu lệnh JavaScript chuyển đổi URL --%>
                 window.location.href = "${pageContext.request.contextPath}/manager-tables?action=quickOpen&tableId=" + tableId;
             }
-        } else if (currentStatus === 'Serving') {
+        } else if (statusNorm === 'occupied' || statusNorm === 'serving' || statusNorm === 'đang phục vụ' || statusNorm === 'đang ngồi') {
             alert("Bàn này đang có khách ngồi. Hệ thống sẽ điều hướng qua trang quản lý Order của bàn!");
             // window.location.href = "${pageContext.request.contextPath}/manager-orders?tableId=" + tableId;
         }

@@ -8,8 +8,7 @@
     boolean isDashboard = currentUri.contains("manager-dashboard");
     boolean isInventory = currentUri.contains("manager-inventory");
     boolean isAttendance = currentUri.contains("manager-attendance");
-    boolean isTables = currentUri.contains("manager-tables"); // Đã kích hoạt biến nhận diện trang bàn
-    
+    boolean isTables = currentUri.contains("manager-tables");
 
     // Lấy thông tin user đăng nhập từ Session
     User loggedInUser = (User) session.getAttribute("user");
@@ -17,12 +16,12 @@
     String shortName = "";
     if (fullName != null && !fullName.trim().isEmpty()) {
         String[] parts = fullName.split(" ");
-        shortName = parts[parts.length - 1]; // Lấy tên cuối
+        shortName = parts[parts.length - 1];
     } else {
         shortName = "AD";
     }
 
-    // ĐÃ THÊM: Lấy danh sách bàn được gửi từ ManagerTableController để phục vụ cho ô chọn bàn trong Modal
+    // Lấy danh sách bàn được gửi từ ManagerTableController để phục vụ cho ô chọn bàn trong Modal
     List<Table> modalTableList = (List<Table>) request.getAttribute("tableList");
 %>
 <aside class="w-64 bg-slate-50 border-r border-slate-200/60 flex flex-col h-full z-20">
@@ -136,72 +135,3 @@
     </header>
 
     <main class="flex-1 overflow-y-auto p-8 bg-[#f4f7fc]/40">
-
-        <div class="max-w-xl mx-auto bg-white rounded-3xl border border-slate-200/80 shadow-xl p-7 z-30 relative my-6">
-            <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
-                <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wide">Tạo phiếu đặt bàn trước</h3>
-                <span class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
-            </div>
-
-            <form action="${pageContext.request.contextPath}/manager-tables" method="POST" class="flex flex-col gap-5">
-                <input type="hidden" name="action" value="add">
-
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Tên khách hàng</label>
-                    <input type="text" name="customerName" required placeholder="Nhập tên khách hàng đặt trước..." class="w-full bg-slate-50 text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all font-medium text-slate-800 placeholder:text-slate-400">
-                </div>
-
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Số điện thoại</label>
-                    <input type="tel" name="phone" required placeholder="Nhập số điện thoại liên hệ..." class="w-full bg-slate-50 text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all font-medium text-slate-800 placeholder:text-slate-400">
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="flex flex-col gap-1.5">
-                        <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Chọn bàn</label>
-                        <select name="tableId" required class="w-full bg-slate-50 text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all font-medium text-slate-700">
-                            <option value="" disabled selected>-- Chọn bàn trống --</option>
-                            <% 
-                                if (modalTableList != null && !modalTableList.isEmpty()) {
-                                    boolean hasAvailableTable = false;
-                                    for (Table t : modalTableList) {
-                                        // Lọc trạng thái hiển thị các bàn trống
-                                        if ("Empty".equalsIgnoreCase(t.getStatus()) || "Available".equalsIgnoreCase(t.getStatus()) || "Trống".equalsIgnoreCase(t.getStatus())) {
-                                            hasAvailableTable = true;
-                            %>
-                            <option value="<%= t.getTableID() %>">
-                                <%= t.getTableName() %> (Sức chứa: <%= t.getCapacity() %> người)
-                            </option>
-                            <% 
-                                        }
-                                    }
-                                    if (!hasAvailableTable) {
-                            %>
-                            <option value="" disabled>Hết bàn trống trên hệ thống!</option>
-                            <%
-                                    }
-                                } else {
-                            %>
-                            <option value="" disabled>Không tìm thấy dữ liệu bàn nào</option>
-                            <% 
-                                }
-                            %>
-                        </select>
-                    </div>
-
-                    <div class="flex flex-col gap-1.5">
-                        <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Giờ hẹn đến</label>
-                        <input type="datetime-local" name="resTime" required class="w-full bg-slate-50 text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all font-medium text-slate-700">
-                    </div>
-                </div>
-
-                <div class="flex items-center justify-end gap-3 border-t border-slate-100 pt-5 mt-2">
-                    <button type="button" onclick="window.history.back();" class="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-500 text-xs font-bold hover:bg-slate-50 transition-all">
-                        Hủy
-                    </button>
-                    <button type="submit" class="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-md shadow-teal-600/10 transition-all">
-                        Xác nhận đặt
-                    </button>
-                </div>
-            </form>
-        </div>
