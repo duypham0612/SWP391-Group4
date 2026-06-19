@@ -51,6 +51,12 @@
             <span>Quản lý bàn</span>
         </a>
 
+        <!-- Item: Sơ đồ bàn -->
+        <a href="pos-tables" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-50 text-slate-600 hover:text-[#006064] transition-colors">
+            <i class="fa-solid fa-border-all text-lg"></i>
+            <span class="text-sm font-bold">Sơ đồ bàn</span>
+        </a>
+
         <!-- Item: Thực đơn -->
         <a href="#" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-all duration-200">
             <i class="fa-solid fa-utensils text-sm w-4 text-center text-slate-400"></i>
