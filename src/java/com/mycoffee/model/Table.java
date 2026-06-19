@@ -1,12 +1,13 @@
 package com.mycoffee.model;
 
 public class Table {
+
     private int tableID;
     private Integer branchID;
     private String tableName;
     private String qrCodeURL;
     private String status;
-    private int capacity; // THÊM MỚI TRƯỜNG NÀY
+    private int capacity;
 
     public Table() {
     }
@@ -17,7 +18,7 @@ public class Table {
         this.tableName = tableName;
         this.qrCodeURL = qrCodeURL;
         this.status = status;
-        this.capacity = capacity; // THÊM MỚI
+        this.capacity = capacity; 
     }
 
     public int getTableID() {
@@ -60,7 +61,6 @@ public class Table {
         this.status = status;
     }
 
-    // THÊM MỚI GETTER VÀ SETTER CHO CAPACITY
     public int getCapacity() {
         return capacity;
     }
