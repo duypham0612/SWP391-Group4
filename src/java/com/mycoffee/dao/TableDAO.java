@@ -10,10 +10,9 @@ import java.util.List;
 
 public class TableDAO {
 
-    // Lấy danh sách bàn theo BranchID
     public List<Table> getTablesByBranch(int branchId) {
         List<Table> list = new ArrayList<>();
-        String sql = "SELECT TableID, BranchID, TableName, QRCodeURL, Status FROM Tables WHERE BranchID = ?";
+        String sql = "SELECT TableID, BranchID, TableName, QRCodeURL, Status, Capacity FROM Tables WHERE BranchID = ?";
 
         try (Connection conn = new DBContext().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -22,11 +21,14 @@ public class TableDAO {
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     Table table = new Table();
-                    table.setTableId(rs.getInt("TableID"));
-                    table.setBranchId(rs.getInt("BranchID"));
+                    
+                    table.setTableID(rs.getInt("TableID"));
+                    table.setBranchID(rs.getInt("BranchID"));
                     table.setTableName(rs.getString("TableName"));
-                    table.setQrCodeUrl(rs.getString("QRCodeURL"));
+                    table.setQrCodeURL(rs.getString("QRCodeURL"));
                     table.setStatus(rs.getString("Status"));
+                    table.setCapacity(rs.getInt("Capacity"));
+                    
                     list.add(table);
                 }
             }
