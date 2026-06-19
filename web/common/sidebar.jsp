@@ -36,7 +36,7 @@
     </div>
 
     <nav class="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
-        <a href="manager-dashboard" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 <%= isDashboard ? "bg-sky-50 text-sky-600" : "text-slate-500 hover:bg-slate-100 hover:text-slate-800" %>">
+        <a href="${pageContext.request.contextPath}/manager-dashboard" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 <%= isDashboard ? "bg-sky-50 text-sky-600" : "text-slate-500 hover:bg-slate-100 hover:text-slate-800" %>">
             <i class="fa-solid fa-grid-2-dash text-sm w-4 text-center <%= isDashboard ? "text-sky-600" : "text-slate-400" %>"></i>
             <span>Tổng quan</span>
         </a>
@@ -56,12 +56,12 @@
             <span>Thực đơn</span>
         </a>
 
-        <a href="manager-inventory" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 <%= isInventory ? "bg-sky-50 text-sky-600" : "text-slate-500 hover:bg-slate-100 hover:text-slate-800" %>">
+        <a href="${pageContext.request.contextPath}/manager-inventory" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 <%= isInventory ? "bg-sky-50 text-sky-600" : "text-slate-500 hover:bg-slate-100 hover:text-slate-800" %>">
             <i class="fa-solid fa-box-open text-sm w-4 text-center <%= isInventory ? "text-sky-600" : "text-slate-400" %>"></i>
             <span>Kho nguyên liệu</span>
         </a>
 
-        <a href="manager-attendance" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 <%= isAttendance ? "bg-sky-50 text-sky-600" : "text-slate-500 hover:bg-slate-100 hover:text-slate-800" %>">
+        <a href="${pageContext.request.contextPath}/manager-attendance" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 <%= isAttendance ? "bg-sky-50 text-sky-600" : "text-slate-500 hover:bg-slate-100 hover:text-slate-800" %>">
             <i class="fa-solid fa-user-clock text-sm w-4 text-center <%= isAttendance ? "text-sky-600" : "text-slate-400" %>"></i>
             <span>Nhân viên</span>
         </a>
@@ -125,7 +125,7 @@
             <div class="w-px h-6 bg-slate-200"></div>
 
             <a 
-                href="login?action=logout" 
+                href="${pageContext.request.contextPath}/login?action=logout" 
                 class="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold transition-all border border-red-100/50 shadow-sm"
                 >
                 <i class="fa-solid fa-right-from-bracket text-xs"></i>

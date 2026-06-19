@@ -298,6 +298,7 @@
             <div class="flex items-center justify-between">
                 <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Đơn hàng gần đây</h3>
                 <a href="#" class="text-xs font-bold text-[#006064] hover:text-[#004d40]">Xuất báo cáo</a>
+                <a href="pos-tables" class="text-xs font-bold text-[#006064] hover:text-[#004d40]">Xem sơ đồ bàn</a>
             </div>
 
             <!-- Table of orders -->
