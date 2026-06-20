@@ -30,10 +30,10 @@
                 </div>
             </div>
 
-            <button onclick="window.location.reload();" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#006064] text-xs font-bold text-white shadow-sm hover:bg-[#004d40] transition-all">
+            <a href="pos?action=reset_all" onclick="return confirm('Hành động này sẽ hủy tất cả các đơn hàng đang chờ và làm trống mọi bàn. Bạn có chắc chắn?');" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#006064] text-xs font-bold text-white shadow-sm hover:bg-[#004d40] transition-all">
                 <i class="fa-solid fa-arrows-rotate text-teal-100"></i>
-                Làm mới
-            </button>
+                Làm mới sơ đồ
+            </a>
         </div>
     </div>
 
@@ -57,11 +57,10 @@
                     // Tạo data-status để JS nhận diện filter
                     String dataStatus = isEmpty ? "empty" : "occupied";
 
-                    // Logic Link: Nếu bàn trống thì tạo order mới. Nếu có khách thì không cho tạo đơn đè lên.
-                    // Ở các sprint sau, link occupied sẽ trỏ vào "?action=view&orderId=..."
-                    String posLink = isEmpty ? "pos?action=create&tableId=" + t.getTableId() : "#";
+                    // ĐƯỜNG DẪN MỚI THÔNG MINH CHO MỌI TRƯỜNG HỢP
+                    String posLink = "pos?action=open_table&tableId=" + t.getTableId();
         %>
-            <a href="<%= posLink %>" <%= !isEmpty ? "onclick=\"alert('Bàn này đang có khách, không thể mở đơn mới!'); return false;\"" : "" %>
+            <a href="<%= posLink %>"
                class="table-card relative flex flex-col items-center justify-center p-6 rounded-3xl border-2 shadow-sm transition-all duration-300 transform hover:-translate-y-1 group <%= bgClass %>"
                data-status="<%= dataStatus %>">
 

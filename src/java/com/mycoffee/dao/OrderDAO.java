@@ -1,8 +1,8 @@
 package com.mycoffee.dao;
 
 import com.mycoffee.context.DBContext;
-import com.mycoffee.model.OrderDetail;
 import com.mycoffee.model.Order;
+import com.mycoffee.model.OrderDetail;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -12,52 +12,40 @@ import java.util.List;
 
 public class OrderDAO {
 
-    // Chức năng 2: Tạo Order mới khi click vào bàn trống
     public int createNewOrder(int branchId, int tableId, int cashierId) {
         int orderId = -1;
         String insertOrderSql = "INSERT INTO Orders (BranchID, TableID, CashierID, OrderType, OrderStatus, OrderDate) VALUES (?, ?, ?, 'Dine-in', 'Pending', GETDATE())";
         String updateTableSql = "UPDATE Tables SET Status = 'Occupied' WHERE TableID = ?";
 
         try (Connection conn = new DBContext().getConnection()) {
-            conn.setAutoCommit(false); // Bật Transaction để đảm bảo an toàn dữ liệu
-
-            // 1. Tạo Order mới và lấy về OrderID vừa tạo
+            conn.setAutoCommit(false);
             try (PreparedStatement psOrder = conn.prepareStatement(insertOrderSql, Statement.RETURN_GENERATED_KEYS)) {
                 psOrder.setInt(1, branchId);
                 psOrder.setInt(2, tableId);
                 psOrder.setInt(3, cashierId);
                 psOrder.executeUpdate();
-
                 try (ResultSet rs = psOrder.getGeneratedKeys()) {
-                    if (rs.next()) {
-                        orderId = rs.getInt(1);
-                    }
+                    if (rs.next()) orderId = rs.getInt(1);
                 }
             }
-
-            // 2. Cập nhật trạng thái bàn thành Đang sử dụng (Occupied)
             try (PreparedStatement psTable = conn.prepareStatement(updateTableSql)) {
                 psTable.setInt(1, tableId);
                 psTable.executeUpdate();
             }
-
-            conn.commit(); // Hoàn tất Transaction
-        } catch (Exception e) {
-            System.out.println("Lỗi tạo order: " + e.getMessage());
-        }
+            conn.commit();
+        } catch (Exception e) { e.printStackTrace(); }
         return orderId;
     }
 
-    // Chức năng 3: Thêm hoặc cập nhật số lượng món ăn trong Order
     public void addOrUpdateOrderDetail(int orderId, int productId, int quantity, double unitPrice) {
         String checkSql = "SELECT Quantity FROM OrderDetails WHERE OrderID = ? AND ProductID = ?";
         String insertSql = "INSERT INTO OrderDetails (OrderID, ProductID, Quantity, UnitPrice, ItemStatus) VALUES (?, ?, ?, ?, 'Pending')";
         String updateSql = "UPDATE OrderDetails SET Quantity = Quantity + ? WHERE OrderID = ? AND ProductID = ?";
         String deleteSql = "DELETE FROM OrderDetails WHERE OrderID = ? AND ProductID = ?";
-        String updateTotalOrderSql = "UPDATE Orders SET TotalAmount = (SELECT COALESCE(SUM(Quantity * UnitPrice), 0) FROM OrderDetails WHERE OrderID = ?), FinalAmount = (SELECT COALESCE(SUM(Quantity * UnitPrice), 0) FROM OrderDetails WHERE OrderID = ?) WHERE OrderID = ?";
+
+        String updateTotalOrderSql = "UPDATE Orders SET TotalAmount = (SELECT COALESCE(SUM(Quantity * UnitPrice), 0) FROM OrderDetails WHERE OrderID = ?), DiscountAmount = 0, FinalAmount = (SELECT COALESCE(SUM(Quantity * UnitPrice), 0) FROM OrderDetails WHERE OrderID = ?) WHERE OrderID = ?";
 
         try (Connection conn = new DBContext().getConnection()) {
-            // Kiểm tra xem món này đã có trong Order chưa
             boolean exists = false;
             int currentQty = 0;
             try (PreparedStatement psCheck = conn.prepareStatement(checkSql)) {
@@ -71,7 +59,6 @@ public class OrderDAO {
                 }
             }
 
-            // Nếu Số lượng cộng thêm bị âm và tổng qty <= 0 -> Xóa món khỏi Order
             if (exists && (currentQty + quantity <= 0)) {
                 try (PreparedStatement psDelete = conn.prepareStatement(deleteSql)) {
                     psDelete.setInt(1, orderId);
@@ -79,7 +66,6 @@ public class OrderDAO {
                     psDelete.executeUpdate();
                 }
             } else if (exists) {
-                // Đã có -> Cập nhật cộng/trừ dồn số lượng
                 try (PreparedStatement psUpdate = conn.prepareStatement(updateSql)) {
                     psUpdate.setInt(1, quantity);
                     psUpdate.setInt(2, orderId);
@@ -87,7 +73,6 @@ public class OrderDAO {
                     psUpdate.executeUpdate();
                 }
             } else if (quantity > 0) {
-                // Chưa có -> Thêm mới vào Order
                 try (PreparedStatement psInsert = conn.prepareStatement(insertSql)) {
                     psInsert.setInt(1, orderId);
                     psInsert.setInt(2, productId);
@@ -97,20 +82,61 @@ public class OrderDAO {
                 }
             }
 
-            // Cập nhật lại Tổng tiền (TotalAmount) của đơn hàng
             try (PreparedStatement psUpdateTotal = conn.prepareStatement(updateTotalOrderSql)) {
                 psUpdateTotal.setInt(1, orderId);
                 psUpdateTotal.setInt(2, orderId);
                 psUpdateTotal.setInt(3, orderId);
                 psUpdateTotal.executeUpdate();
             }
-
-        } catch (Exception e) {
-            System.out.println("Lỗi thêm/xóa món: " + e.getMessage());
-        }
+        } catch (Exception e) { e.printStackTrace(); }
     }
 
-    // Lấy thông tin tổng quan của Order (kèm Tên Bàn)
+    // UPDATE: Tích hợp logic MaxDiscount vào việc tính tiền
+    public void applyVoucher(int orderId, String voucherCode) {
+        String getVoucher = "SELECT TOP 1 DiscountValue, IsPercentage, MaxDiscount FROM Vouchers WHERE VoucherCode = ? AND IsActive = 1 AND UsedCount < UsageLimit";
+        String updateOrder = "UPDATE Orders SET DiscountAmount = ?, FinalAmount = TotalAmount - ? WHERE OrderID = ?";
+
+        try (Connection conn = new DBContext().getConnection()) {
+            double discountValue = 0;
+            boolean isPercentage = false;
+            Double maxDiscount = null;
+
+            try (PreparedStatement ps1 = conn.prepareStatement(getVoucher)) {
+                ps1.setString(1, voucherCode);
+                try (ResultSet rs = ps1.executeQuery()) {
+                    if (rs.next()) {
+                        discountValue = rs.getDouble("DiscountValue");
+                        isPercentage = rs.getBoolean("IsPercentage");
+                        Object maxDiscObj = rs.getObject("MaxDiscount");
+                        if (maxDiscObj != null) maxDiscount = ((Number) maxDiscObj).doubleValue();
+                    }
+                }
+            }
+
+            double totalAmount = getOrderById(orderId).getTotalAmount();
+            double discountAmount = isPercentage ? totalAmount * (discountValue / 100.0) : discountValue;
+
+            // Xử lý "Cắt ngọn" nếu số tiền giảm vượt qua MaxDiscount cho phép
+            if (isPercentage && maxDiscount != null && maxDiscount > 0) {
+                if (discountAmount > maxDiscount) {
+                    discountAmount = maxDiscount;
+                }
+            }
+
+            // Chống âm tiền đơn hàng
+            if (discountAmount > totalAmount) {
+                discountAmount = totalAmount;
+            }
+
+            try (PreparedStatement ps2 = conn.prepareStatement(updateOrder)) {
+                ps2.setDouble(1, discountAmount);
+                ps2.setDouble(2, discountAmount);
+                ps2.setInt(3, orderId);
+                ps2.executeUpdate();
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
     public Order getOrderById(int orderId) {
         String sql = "SELECT o.*, t.TableName FROM Orders o JOIN Tables t ON o.TableID = t.TableID WHERE o.OrderID = ?";
         try (Connection conn = new DBContext().getConnection();
@@ -120,8 +146,10 @@ public class OrderDAO {
                 if (rs.next()) {
                     Order order = new Order();
                     order.setOrderId(rs.getInt("OrderID"));
+                    order.setTableId(rs.getInt("TableID"));
                     order.setTotalAmount(rs.getDouble("TotalAmount"));
-                    // Tạm dùng OrderType chứa TableName để đẩy ra UI cho gọn
+                    order.setDiscountAmount(rs.getDouble("DiscountAmount"));
+                    order.setFinalAmount(rs.getDouble("FinalAmount"));
                     order.setOrderType(rs.getString("TableName"));
                     return order;
                 }
@@ -130,7 +158,6 @@ public class OrderDAO {
         return null;
     }
 
-    // Lấy danh sách các món đã thêm vào Order
     public List<OrderDetail> getOrderDetails(int orderId) {
         List<OrderDetail> list = new ArrayList<>();
         String sql = "SELECT od.*, p.ProductName FROM OrderDetails od JOIN Products p ON od.ProductID = p.ProductID WHERE od.OrderID = ?";
@@ -144,12 +171,57 @@ public class OrderDAO {
                     od.setProductId(rs.getInt("ProductID"));
                     od.setQuantity(rs.getInt("Quantity"));
                     od.setUnitPrice(rs.getDouble("UnitPrice"));
-                    // Tạm mượn Note để chứa ProductName hiển thị ra View
                     od.setNote(rs.getString("ProductName"));
                     list.add(od);
                 }
             }
         } catch (Exception e) { e.printStackTrace(); }
         return list;
+    }
+
+    public int getPendingOrderIdByTable(int tableId) {
+        String sql = "SELECT OrderID FROM Orders WHERE TableID = ? AND OrderStatus = 'Pending'";
+        try (Connection conn = new DBContext().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, tableId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt("OrderID");
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+        return -1;
+    }
+
+    public void cancelOrder(int orderId, int tableId) {
+        String updateOrder = "UPDATE Orders SET OrderStatus = 'Cancelled' WHERE OrderID = ?";
+        String updateTable = "UPDATE Tables SET Status = 'Empty' WHERE TableID = ?";
+        try (Connection conn = new DBContext().getConnection()) {
+            conn.setAutoCommit(false);
+            try (PreparedStatement ps1 = conn.prepareStatement(updateOrder)) {
+                ps1.setInt(1, orderId);
+                ps1.executeUpdate();
+            }
+            try (PreparedStatement ps2 = conn.prepareStatement(updateTable)) {
+                ps2.setInt(1, tableId);
+                ps2.executeUpdate();
+            }
+            conn.commit();
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    public void resetAllTables(int branchId) {
+        String cancelOrders = "UPDATE Orders SET OrderStatus = 'Cancelled' WHERE BranchID = ? AND OrderStatus = 'Pending'";
+        String resetTables = "UPDATE Tables SET Status = 'Empty' WHERE BranchID = ?";
+        try (Connection conn = new DBContext().getConnection()) {
+            conn.setAutoCommit(false);
+            try (PreparedStatement ps1 = conn.prepareStatement(cancelOrders)) {
+                ps1.setInt(1, branchId);
+                ps1.executeUpdate();
+            }
+            try (PreparedStatement ps2 = conn.prepareStatement(resetTables)) {
+                ps2.setInt(1, branchId);
+                ps2.executeUpdate();
+            }
+            conn.commit();
+        } catch (Exception e) { e.printStackTrace(); }
     }
 }
