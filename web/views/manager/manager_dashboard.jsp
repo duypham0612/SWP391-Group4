@@ -4,10 +4,10 @@
 <%@page import="java.text.SimpleDateFormat"%>
 
 <%-- Nhúng Header dùng chung --%>
-<jsp:include page="common/header.jsp" />
+<jsp:include page="/common/header.jsp" />
 
 <%-- Nhúng Sidebar dùng chung --%>
-<jsp:include page="common/sidebar.jsp" />
+<jsp:include page="/common/sidebar.jsp" />
 
 <%
     // Lấy thông số từ Servlet
@@ -25,7 +25,7 @@
     <!-- Header / Subheader Section -->
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-            <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Chào buổi sáng, Admin!</h1>
+            <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Chào buổi sáng, Manager!</h1>
             <p class="text-xs text-slate-400 font-medium mt-1">Đây là những gì đang diễn ra tại cửa hàng của bạn hôm nay.</p>
         </div>
         
@@ -298,6 +298,7 @@
             <div class="flex items-center justify-between">
                 <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Đơn hàng gần đây</h3>
                 <a href="#" class="text-xs font-bold text-[#006064] hover:text-[#004d40]">Xuất báo cáo</a>
+                <a href="pos-tables" class="text-xs font-bold text-[#006064] hover:text-[#004d40]">Xem sơ đồ bàn</a>
             </div>
 
             <!-- Table of orders -->
@@ -433,4 +434,4 @@
 </script>
 
 <%-- Nhúng Footer dùng chung --%>
-<jsp:include page="common/footer.jsp" />
+<jsp:include page="/common/footer.jsp" />
