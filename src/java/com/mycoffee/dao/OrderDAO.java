@@ -1,8 +1,10 @@
 package com.mycoffee.dao;
 
 import com.mycoffee.context.DBContext;
+import com.mycoffee.model.CartItem;
 import com.mycoffee.model.Order;
 import com.mycoffee.model.OrderDetail;
+import com.mycoffee.model.Product;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -11,6 +13,78 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class OrderDAO {
+
+    public int createCustomerOrder(int branchId, int tableId, Integer customerId, List<CartItem> cart, String note) {
+        if (cart == null || cart.isEmpty()) {
+            return -1;
+        }
+
+        int orderId = -1;
+        double totalAmount = 0;
+        for (CartItem item : cart) {
+            totalAmount += item.getLineTotal();
+        }
+
+        String insertOrderSql = "INSERT INTO Orders "
+                + "(BranchID, TableID, CustomerID, CashierID, OrderType, TotalAmount, DiscountAmount, FinalAmount, OrderStatus, OrderDate) "
+                + "VALUES (?, ?, CASE WHEN EXISTS (SELECT 1 FROM Customers WHERE CustomerID = ?) THEN ? ELSE NULL END, "
+                + "NULL, N'Eat-in', ?, 0, ?, N'Pending', GETDATE())";
+        String insertDetailSql = "INSERT INTO OrderDetails (OrderID, ProductID, Quantity, UnitPrice, Note, ItemStatus) "
+                + "VALUES (?, ?, ?, ?, ?, N'Pending')";
+        String updateTableSql = "UPDATE Tables SET Status = N'Occupied' WHERE TableID = ?";
+
+        try (Connection conn = new DBContext().getConnection()) {
+            conn.setAutoCommit(false);
+
+            try (PreparedStatement psOrder = conn.prepareStatement(insertOrderSql, Statement.RETURN_GENERATED_KEYS)) {
+                psOrder.setInt(1, branchId);
+                psOrder.setInt(2, tableId);
+                psOrder.setInt(3, customerId != null ? customerId : -1);
+                psOrder.setInt(4, customerId != null ? customerId : -1);
+                psOrder.setDouble(5, totalAmount);
+                psOrder.setDouble(6, totalAmount);
+                psOrder.executeUpdate();
+
+                try (ResultSet rs = psOrder.getGeneratedKeys()) {
+                    if (rs.next()) {
+                        orderId = rs.getInt(1);
+                    }
+                }
+            }
+
+            if (orderId <= 0) {
+                conn.rollback();
+                return -1;
+            }
+
+            try (PreparedStatement psDetail = conn.prepareStatement(insertDetailSql)) {
+                for (CartItem item : cart) {
+                    Product product = item.getProduct();
+                    if (product == null || item.getQuantity() <= 0) {
+                        continue;
+                    }
+                    psDetail.setInt(1, orderId);
+                    psDetail.setInt(2, product.getProductId());
+                    psDetail.setInt(3, item.getQuantity());
+                    psDetail.setDouble(4, product.getBasePrice());
+                    psDetail.setString(5, note);
+                    psDetail.addBatch();
+                }
+                psDetail.executeBatch();
+            }
+
+            try (PreparedStatement psTable = conn.prepareStatement(updateTableSql)) {
+                psTable.setInt(1, tableId);
+                psTable.executeUpdate();
+            }
+
+            conn.commit();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return -1;
+        }
+        return orderId;
+    }
 
     public int createNewOrder(int branchId, int tableId, int cashierId) {
         int orderId = -1;

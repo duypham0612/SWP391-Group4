@@ -67,14 +67,14 @@ public class UserDAO {
 
     /**
      * Đăng ký tài khoản mới cho Khách hàng.
-     * BẢO MẬT: RoleID được SET CỨNG = 4 (Customer) tại đây.
+     * BẢO MẬT: RoleID được SET CỨNG = 5 (Customer) tại đây.
      * Tuyệt đối KHÔNG nhận RoleID từ phía client truyền lên.
      * Sau khi insert Users thành công, tự động insert bản ghi vào bảng Customers
      * để kích hoạt tính năng tích điểm. Toàn bộ thực hiện trong 1 TRANSACTION.
      */
     public boolean registerUser(User user) {
-        // ĐẶT CỨNG RoleID = 4 (Customer) — không lấy từ client
-        final int CUSTOMER_ROLE_ID = 4;
+        // ĐẶT CỨNG RoleID = 5 (Customer) — không lấy từ client
+        final int CUSTOMER_ROLE_ID = 5;
 
         String sqlInsertUser = "INSERT INTO Users (Username, Password, FullName, Email, Phone, RoleID, IsActive, CreatedAt) "
                              + "VALUES (?, ?, ?, ?, ?, ?, 1, GETDATE())";

@@ -58,7 +58,7 @@
                     String dataStatus = isEmpty ? "empty" : "occupied";
 
                     // ĐƯỜNG DẪN MỚI THÔNG MINH CHO MỌI TRƯỜNG HỢP
-                    String posLink = "pos?action=open_table&tableId=" + t.getTableId();
+                    String posLink = "pos?action=open_table&tableId=" + t.getTableID();
         %>
             <a href="<%= posLink %>"
                class="table-card relative flex flex-col items-center justify-center p-6 rounded-3xl border-2 shadow-sm transition-all duration-300 transform hover:-translate-y-1 group <%= bgClass %>"
@@ -72,7 +72,7 @@
                     <%= statusText %>
                 </span>
 
-                <% if (t.getQrCodeUrl() != null && !t.getQrCodeUrl().isEmpty()) { %>
+                <% if (t.getQrCodeURL() != null && !t.getQrCodeURL().isEmpty()) { %>
                     <div class="absolute top-3 right-3 text-slate-300">
                         <i class="fa-solid fa-qrcode text-xs"></i>
                     </div>
