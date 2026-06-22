@@ -67,11 +67,11 @@ public class LoginController extends HttpServlet {
 
     /**
      * Chuyển hướng người dùng đến trang tương ứng với vai trò (RoleID).
-     * RoleID theo DB: 1 = Admin, 2 = Branch Manager, 3 = Employee, 4 = Customer
+     * RoleID theo DB: 1 = Admin, 2 = Branch Manager, 3 = Cashier, 4 = Barista, 5 = Customer
      *
      * PHÂN QUYỀN:
-     *   - RoleID 1, 2, 3 → Trang quản trị (admin-dashboard, manager-dashboard, table-layout)
-     *   - RoleID 4       → Trang khách hàng (menu) — chỉ được dùng tính năng tại bàn
+     *   - RoleID 1, 2, 3, 4 → Trang quản trị/nhân viên (admin, manager, POS, kitchen)
+     *   - RoleID 5          → Trang khách hàng (menu) — chỉ được dùng tính năng tại bàn
      */
     private void redirectByRole(int roleId, HttpServletRequest request, HttpServletResponse response) throws IOException {
         String contextPath = request.getContextPath();
@@ -82,10 +82,13 @@ public class LoginController extends HttpServlet {
             case 2: // Branch Manager — Quản lý chi nhánh
                 response.sendRedirect(contextPath + "/manager-dashboard");
                 break;
-            case 3: // Employee — Nhân viên cửa hàng
-                response.sendRedirect(contextPath + "/table-layout");
+            case 3: // Cashier & Inventory Staff — Thu ngân & Kho
+                response.sendRedirect(contextPath + "/pos-tables");
                 break;
-            case 4: // Customer — Khách hàng thành viên (chỉ dùng web gọi món)
+            case 4: // Barista — Pha chế
+                response.sendRedirect(contextPath + "/kitchen"); // Hoặc trang order list của pha chế
+                break;
+            case 5: // Customer — Khách hàng thành viên (chỉ dùng web gọi món)
                 response.sendRedirect(contextPath + "/menu");
                 break;
             default:

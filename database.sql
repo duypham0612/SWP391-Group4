@@ -293,23 +293,26 @@ GO
 INSERT INTO [Roles] ([RoleName], [Description]) VALUES 
 (N'Admin', N'Quản trị viên hệ thống chuỗi'),
 (N'Branch Manager', N'Quản lý chi nhánh'),
-(N'Employee', N'Nhân viên cửa hàng'),
+(N'Cashier & Inventory Staff', N'Nhân viên thu ngân và kho'),
+(N'Barista', N'Nhân viên pha chế'),
 (N'Customer', N'Khách hàng thành viên');
 
 INSERT INTO [Users] ([Username], [Password], [FullName], [Email], [Phone], [RoleID], [IsActive]) VALUES 
 ('admin1', 'hashed_pwd_123', N'Nguyễn Văn Admin', 'admin@cafe.com', '0911111111', 1, 1),
 ('manager1', 'hashed_pwd_123', N'Trần Chi Nhánh', 'manager1@cafe.com', '0922222222', 2, 1),
-('staff1', 'hashed_pwd_123', N'Lê Pha Chế', 'staff1@cafe.com', '0933333333', 3, 1),
-('khachhang1', 'hashed_pwd_123', N'Phan Khách Quen', 'khach1@gmail.com', '0944444444', 4, 1);
+('staff1', 'hashed_pwd_123', N'Lê Thu Ngân', 'staff1@cafe.com', '0933333333', 3, 1),
+('staff2', 'hashed_pwd_123', N'Phạm Pha Chế', 'staff2@cafe.com', '0955555555', 4, 1),
+('khachhang1', 'hashed_pwd_123', N'Phan Khách Quen', 'khach1@gmail.com', '0944444444', 5, 1);
 
 INSERT INTO [Branches] ([BranchName], [Address], [Phone], [ManagerID]) VALUES 
 (N'My Coffee House - Cầu Giấy', N'Số 1 Dịch Vọng Hậu, Cầu Giấy, Hà Nội', '024777888', 2);
 
--- Đăng ký khách hàng thành viên dựa trên UserID = 4
-INSERT INTO [Customers] ([CustomerID], [MemberRank], [CurrentPoints]) VALUES (4, N'Vàng', 150);
+-- Đăng ký khách hàng thành viên dựa trên UserID = 5
+INSERT INTO [Customers] ([CustomerID], [MemberRank], [CurrentPoints]) VALUES (5, N'Vàng', 150);
 
--- Đăng ký nhân viên dựa trên UserID = 3 làm việc tại BranchID = 1
+-- Đăng ký nhân viên dựa trên UserID = 3 và 4 làm việc tại BranchID = 1
 INSERT INTO [Employees] ([EmployeeID], [BranchID], [SalaryRate]) VALUES (3, 1, 25000.00);
+INSERT INTO [Employees] ([EmployeeID], [BranchID], [SalaryRate]) VALUES (4, 1, 26000.00);
 
 -- Tạo bàn test cho chi nhánh Cầu Giấy
 INSERT INTO [Tables] ([BranchID], [TableName], [QRCodeURL], [Status]) VALUES 

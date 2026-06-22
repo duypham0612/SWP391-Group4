@@ -28,6 +28,8 @@ public class AdminDashboardController extends HttpServlet {
                 response.sendRedirect(request.getContextPath() + "/manager-dashboard");
             } else if (roleId == 3) {
                 response.sendRedirect(request.getContextPath() + "/pos-tables");
+            } else if (roleId == 4) {
+                response.sendRedirect(request.getContextPath() + "/kitchen");
             } else {
                 response.sendRedirect(request.getContextPath() + "/login");
             }
