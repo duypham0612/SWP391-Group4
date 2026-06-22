@@ -22,7 +22,7 @@ public class AttendanceController extends HttpServlet {
         List<Attendance> attendanceList = dao.getTodayAttendanceByBranch(branchId);
         
         request.setAttribute("danhSachChamCong", attendanceList);
-        request.getRequestDispatcher("manager_attendance.jsp").forward(request, response);
+        request.getRequestDispatcher("/views/manager/manager_attendance.jsp").forward(request, response);
     }
 
     @Override

@@ -10,7 +10,7 @@ public class DBContext {
     private final String dbName = "MyCoffeeHouse"; 
     private final String portNumber = "1433";    
     private final String userID = "sa";         
-    private final String password = "123";   
+    private final String password = "sa";   
 
     public Connection getConnection() throws Exception {
         String url = "jdbc:sqlserver://" + serverName + ":" + portNumber + ";databaseName=" + dbName + ";encrypt=true;trustServerCertificate=true;";
