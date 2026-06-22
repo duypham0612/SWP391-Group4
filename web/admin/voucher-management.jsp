@@ -322,7 +322,7 @@
                         <label for="isActive" class="font-bold text-slate-700 select-none cursor-pointer">Kích hoạt chương trình ngay lập tức</label>
                     </div>
                     <div class="flex justify-end gap-2 border-t border-slate-100 pt-4 mt-2">
-                        <button type="button" onclick="toggleModal(false)" class="px-4 py-2 font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-xl transition">Hủy bỏ</button>
+                        <button type="button" onclick="toggleModal(false)" class="px-4 py-2 font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-xl transition">Hủy bỏ !</button>
                         <button type="submit" id="submitBtn" class="px-4 py-2 font-bold text-white bg-cyan-700 hover:bg-cyan-800 rounded-xl shadow-md shadow-cyan-700/10 transition">Lưu vào Hệ thống</button>
                     </div>
                 </form>
