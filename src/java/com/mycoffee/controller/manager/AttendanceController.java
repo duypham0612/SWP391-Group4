@@ -15,10 +15,20 @@ public class AttendanceController extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        
+        // AuthFilter đã lo phần login. Ở đây check role: chỉ Admin/Manager mới được xem
+        jakarta.servlet.http.HttpSession session = request.getSession(false);
+        com.mycoffee.model.User user = (session != null) ? (com.mycoffee.model.User) session.getAttribute("user") : null;
+        int roleId = (user != null) ? user.getRoleId() : 0;
+
+        if (roleId != 1 && roleId != 2) {
+            response.sendRedirect(request.getContextPath() + "/pos-tables");
+            return;
+        }
+
         AttendanceDAO dao = new AttendanceDAO();
-        int branchId = 1; // Mặc định chi nhánh 1
-        
+        // Tạm thời fix chi nhánh = 1. Sau này lấy theo bảng Employees
+        int branchId = 1; 
+
         List<Attendance> attendanceList = dao.getTodayAttendanceByBranch(branchId);
         
         request.setAttribute("danhSachChamCong", attendanceList);
