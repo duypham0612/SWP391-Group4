@@ -138,9 +138,10 @@
                 </div>
             </div>
 
-            <button class="w-full py-4 rounded-xl bg-[#006064] hover:bg-[#004d40] text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2">
-                <i class="fa-solid fa-money-bill-wave"></i> Tiến hành Thanh toán
-            </button>
+            <a href="pos?action=checkout&orderId=<%= order.getOrderId() %>"
+               class="w-full py-4 rounded-xl bg-[#006064] hover:bg-[#004d40] text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer block text-center">
+                <i class="fa-solid fa-qrcode"></i> Tiến hành Thanh toán VietQR
+            </a>
         </div>
     </div>
 </div>
@@ -151,7 +152,6 @@
     function toggleVoucherDropdown() {
         const menu = document.getElementById('voucher-menu');
         const icon = document.getElementById('voucher-icon');
-
         if (menu.classList.contains('hidden')) {
             menu.classList.remove('hidden');
             icon.classList.add('rotate-180');
@@ -167,31 +167,21 @@
     function closeVoucherDropdown() {
         const menu = document.getElementById('voucher-menu');
         const icon = document.getElementById('voucher-icon');
-
         if(menu) {
             menu.classList.remove('opacity-100', 'scale-100');
             menu.classList.add('opacity-0', 'scale-95');
             icon.classList.remove('rotate-180');
-
-            setTimeout(() => {
-                menu.classList.add('hidden');
-            }, 200);
+            setTimeout(() => { menu.classList.add('hidden'); }, 200);
         }
     }
 
     function selectVoucher(code, displayText, event) {
         event.preventDefault();
-
-        // Cập nhật text hiển thị trên UI
         document.getElementById('voucher-text').innerText = displayText;
-
-        // Gắn mã code vào thẻ input hidden để gửi xuống Controller
         document.getElementById('hiddenVoucherCode').value = code;
-
         closeVoucherDropdown();
     }
 
-    // Đóng dropdown khi click ra ngoài
     window.addEventListener('click', function(e) {
         const container = document.getElementById('voucherDropdownContainer');
         if (container && !container.contains(e.target)) {
