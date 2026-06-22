@@ -23,10 +23,12 @@ public class PosOrderController extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        HttpSession session = request.getSession();
-        User user = (User) session.getAttribute("user");
-        if (user == null || (user.getRoleId() > 3)) {
-            response.sendRedirect("login");
+        HttpSession session = request.getSession(false);
+        User user = (session != null) ? (User) session.getAttribute("user") : null;
+        int roleId = (user != null) ? user.getRoleId() : 0;
+
+        if (roleId != 1 && roleId != 2 && roleId != 3) {
+            response.sendRedirect(request.getContextPath() + "/login");
             return;
         }
 

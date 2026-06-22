@@ -22,18 +22,27 @@ public class ManagerTableController extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        HttpSession session = request.getSession();
-        Integer branchId = (Integer) session.getAttribute("branchId");
+        HttpSession session = request.getSession(false);
+        com.mycoffee.model.User user = (session != null) ? (com.mycoffee.model.User) session.getAttribute("user") : null;
+        int roleId = (user != null) ? user.getRoleId() : 0;
+
+        // Chỉ Admin và Manager được phép vào trang này
+        if (roleId != 1 && roleId != 2) {
+            response.sendRedirect(request.getContextPath() + "/pos-tables");
+            return;
+        }
+
+        Integer branchId = (session != null) ? (Integer) session.getAttribute("branchId") : null;
         if (branchId == null) {
             branchId = 1; // Fallback chạy thử nghiệm
         }
         String action = request.getParameter("action");
 
-        // Giữ lại quickOpen ở doGet nếu bạn có đường link thẻ <a> nào sử dụng query string trực tiếp
         if ("quickOpen".equals(action)) {
             int tableId = Integer.parseInt(request.getParameter("tableId"));
             dao.updateTableStatus(tableId, "Serving");
 
+            // SỬA: Redirect về URL Servlet một cách an toàn
             response.sendRedirect(request.getContextPath() + "/manager-tables");
             return;
         }
@@ -53,47 +62,19 @@ public class ManagerTableController extends HttpServlet {
             throws ServletException, IOException {
         request.setCharacterEncoding("UTF-8");
         String action = request.getParameter("action");
-        String tableIdStr = request.getParameter("tableId");
 
-        // BẮT CÁC HÀNH ĐỘNG TỪ FORM ẨN (hiddenActionForm) GỬI LÊN
-        if ("cancelReservation".equals(action)) {
-            // 1. XỬ LÝ HỦY ĐẶT TRƯỚC: Chuyển trạng thái bàn về 'Empty'
-            if (tableIdStr != null && !tableIdStr.isEmpty()) {
-                int tableId = Integer.parseInt(tableIdStr);
-                
-                // Cập nhật trạng thái bàn về trống
-                dao.updateTableStatus(tableId, "Empty");
-                
-                // (Tùy chọn bổ sung): Nếu trong DB của bạn cần cập nhật phiếu đặt lịch hẹn đó thành 'Cancelled'
-                // Bạn có thể viết thêm hàm dưới đây trong TableReservationDAO nếu cần quản lý lịch sử:
-                // dao.cancelActiveReservationByTable(tableId);
-            }
-
-        } else if ("resetTable".equals(action)) {
-            // 2. XỬ LÝ DỌN BÀN & TRẢ VỀ TRỐNG: Chuyển trạng thái bàn về 'Empty'
-            if (tableIdStr != null && !tableIdStr.isEmpty()) {
-                int tableId = Integer.parseInt(tableIdStr);
-                
-                // Cập nhật trạng thái bàn về trống để đón khách tiếp theo
-                dao.updateTableStatus(tableId, "Empty");
-            }
-
-        } else if ("quickOpen".equals(action)) {
-            // 3. XỬ LÝ MỞ BÀN NGAY (Khi nút bấm submit qua form ẩn POST)
-            if (tableIdStr != null && !tableIdStr.isEmpty()) {
-                int tableId = Integer.parseInt(tableIdStr);
-                dao.updateTableStatus(tableId, "Serving");
-            }
-
-        } else if ("add".equals(action)) {
-            // 4. XỬ LÝ TẠO PHIẾU ĐẶT TRƯỚC (Giữ nguyên logic của bạn)
+        if ("add".equals(action)) {
             String customerName = request.getParameter("customerName");
             String phone = request.getParameter("phone");
+
+            // ĐỌC DỮ LIỆU DƯỚI DẠNG CHUỖI TRƯỚC
+            String tableIdStr = request.getParameter("tableId");
             String resTimeStr = request.getParameter("resTime");
 
+            // BẪY LỖI: Kiểm tra xem các trường quan trọng có bị rỗng hay không
             if (tableIdStr != null && !tableIdStr.trim().isEmpty() && resTimeStr != null && !resTimeStr.trim().isEmpty()) {
                 try {
-                    int tableId = Integer.parseInt(tableIdStr);
+                    int tableId = Integer.parseInt(tableIdStr); // Lúc này mới ép kiểu an toàn
                     Timestamp resTime = Timestamp.valueOf(resTimeStr.replace("T", " ") + ":00");
 
                     Reservation res = new Reservation();
@@ -107,13 +88,13 @@ public class ManagerTableController extends HttpServlet {
                     dao.createNewReservation(res);
                     dao.updateTableStatus(tableId, "Reserved");
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    e.printStackTrace(); // Bắt các lỗi định dạng ngày tháng hoặc ép số nếu có
                 }
             }
 
         } else if ("checkin".equals(action)) {
-            // 5. XỬ LÝ NHẬN BÀN TỪ LỊCH HẸN (Giữ nguyên logic của bạn)
             String resIdStr = request.getParameter("resId");
+            String tableIdStr = request.getParameter("tableId");
 
             if (resIdStr != null && !resIdStr.isEmpty() && tableIdStr != null && !tableIdStr.isEmpty()) {
                 int resId = Integer.parseInt(resIdStr);
@@ -124,7 +105,6 @@ public class ManagerTableController extends HttpServlet {
             }
         }
 
-        // Tải lại trang sơ đồ bàn sau khi xử lý thành công để hiển thị màu sắc mới
         response.sendRedirect(request.getContextPath() + "/manager-tables");
     }
 }

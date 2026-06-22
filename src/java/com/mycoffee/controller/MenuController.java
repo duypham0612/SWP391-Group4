@@ -1,5 +1,7 @@
 package com.mycoffee.controller;
 
+import com.mycoffee.dao.CustomerDAO;
+import com.mycoffee.model.Customer;
 import com.mycoffee.model.User;
 import java.io.IOException;
 import jakarta.servlet.ServletException;
@@ -12,19 +14,23 @@ import jakarta.servlet.http.HttpSession;
 @WebServlet(name = "MenuController", urlPatterns = {"/menu"})
 public class MenuController extends HttpServlet {
 
+    private final CustomerDAO customerDAO = new CustomerDAO();
+
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        
-        // Kiểm tra đăng nhập
-        HttpSession session = request.getSession();
+
+        // AuthFilter đã kiểm tra đăng nhập — chỉ cần lấy user từ session
+        HttpSession session = request.getSession(false);
         User user = (User) session.getAttribute("user");
-        if (user == null) {
-            response.sendRedirect("login");
-            return;
+
+        // Nếu là Customer (RoleID=4), đẩy thêm thông tin điểm tích lũy lên JSP
+        if (user != null && user.getRoleId() == 4) {
+            Customer customer = customerDAO.getCustomerById(user.getUserId());
+            request.setAttribute("customerInfo", customer);
         }
 
-        // Chuyển hướng sang giao diện menu.jsp
         request.getRequestDispatcher("menu.jsp").forward(request, response);
     }
 }
+

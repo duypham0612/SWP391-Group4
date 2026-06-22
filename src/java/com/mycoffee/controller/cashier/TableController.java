@@ -19,12 +19,13 @@ public class TableController extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        // 1. KIỂM TRA BẢO MẬT (Chỉ Admin, Manager hoặc Cashier mới được xem)
-        HttpSession session = request.getSession();
-        User user = (User) session.getAttribute("user");
+        // 1. AuthFilter đã xử lý login, ở đây chỉ check RoleID (Admin, Manager, Employee)
+        HttpSession session = request.getSession(false);
+        User user = (session != null) ? (User) session.getAttribute("user") : null;
+        int roleId = (user != null) ? user.getRoleId() : 0;
 
-        if (user == null || (user.getRoleId() != 1 && user.getRoleId() != 2 && user.getRoleId() != 3)) {
-            response.sendRedirect("login");
+        if (roleId != 1 && roleId != 2 && roleId != 3) {
+            response.sendRedirect(request.getContextPath() + "/login");
             return;
         }
 
