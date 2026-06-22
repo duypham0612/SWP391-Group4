@@ -69,6 +69,14 @@ public class OrderService {
         orderDAO.cancelOrder(orderId, tableId);
     }
 
+    // THÊM MỚI: Hàm hủy bàn trực tiếp chỉ cần TableID (Dành cho Sơ đồ bàn)
+    public void cancelOrderByTableId(int tableId) {
+        int orderId = orderDAO.getPendingOrderIdByTable(tableId);
+        if (orderId > 0) {
+            orderDAO.cancelOrder(orderId, tableId);
+        }
+    }
+
     public void resetBranchTables(int branchId) {
         orderDAO.resetAllTables(branchId);
     }
