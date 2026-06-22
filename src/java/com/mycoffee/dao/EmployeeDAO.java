@@ -2,6 +2,7 @@ package com.mycoffee.dao;
 
 import com.mycoffee.model.Employee;
 import com.mycoffee.model.Role;
+import com.mycoffee.model.Shift;
 import com.mycoffee.context.DBContext;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -16,32 +17,39 @@ public class EmployeeDAO {
         return new DBContext().getConnection();
     }
 
-    // 1. LẤY TẤT CẢ NHÂN VIÊN (Bổ sung Username, Phone, RoleID)
+    // 1. LẤY TẤT CẢ NHÂN VIÊN (GIỮ LẠI NẾU NƠI KHÁC CẦN DÙNG)
     public List<Employee> getAllEmployees() {
         List<Employee> list = new ArrayList<>();
-        // Đã THÊM: u.Username, u.Phone, u.RoleID vào câu SQL
-        String sql = "SELECT u.UserID, u.Username, u.FullName, u.Email, u.Phone, u.RoleID, r.RoleName, u.IsActive, u.ShiftID "
+        String sql = "SELECT u.UserID, u.Username, u.FullName, u.Email, u.Phone, u.RoleID, r.RoleName, u.IsActive, u.ShiftID, "
+                + "s.ShiftName, s.StartTime, s.EndTime "
                 + "FROM Users u "
                 + "JOIN Roles r ON u.RoleID = r.RoleID "
+                + "LEFT JOIN Shifts s ON u.ShiftID = s.ShiftID "
                 + "WHERE r.RoleName != 'Customer'";
 
         try (Connection conn = getConnection(); PreparedStatement ps = conn.prepareStatement(sql); ResultSet rs = ps.executeQuery()) {
 
             while (rs.next()) {
                 int id = rs.getInt("UserID");
-                String username = rs.getString("Username"); // Mới bổ sung
+                String username = rs.getString("Username");
                 String name = rs.getString("FullName");
                 String email = rs.getString("Email");
-                String phone = rs.getString("Phone");       // Mới bổ sung
-                int roleId = rs.getInt("RoleID");           // Mới bổ sung
+                String phone = rs.getString("Phone");
+                int roleId = rs.getInt("RoleID");
                 String role = rs.getString("RoleName");
                 boolean isActive = rs.getBoolean("IsActive");
                 int shiftId = rs.getInt("ShiftID");
 
                 String status = isActive ? "Đang làm" : "Nghỉ việc";
-                String shift = "Chưa xếp ca";
 
-                // Khởi tạo đối tượng dựa trên Constructor đầy đủ thuộc tính mới
+                String shiftName = rs.getString("ShiftName");
+                String startTime = rs.getString("StartTime");
+                String endTime = rs.getString("EndTime");
+                String shift = "Chưa xếp ca";
+                if (shiftName != null) {
+                    shift = shiftName + " (" + startTime + " - " + endTime + ")";
+                }
+
                 Employee emp = new Employee(id, username, null, name, email, phone, roleId, role, status, shift, shiftId);
                 list.add(emp);
             }
@@ -51,29 +59,101 @@ public class EmployeeDAO {
         return list;
     }
 
-    // 2. LẤY THÔNG TIN 1 NHÂN VIÊN THEO ID (Bổ sung các trường để điền vào Form Edit)
-    public Employee getEmployeeById(int id) {
-        // Đã THÊM: u.Username, u.Phone, u.RoleID vào câu SQL
-        String sql = "SELECT u.UserID, u.Username, u.FullName, u.Email, u.Phone, u.RoleID, r.RoleName, u.IsActive, u.ShiftID "
+    // ========== BỔ SUNG: LẤY NHÂN VIÊN PHÂN TRANG (MỖI TRANG 10 NHÂN VIÊN) ==========
+    public List<Employee> getEmployeesByPage(int page, int pageSize) {
+        List<Employee> list = new ArrayList<>();
+        int offset = (page - 1) * pageSize;
+
+        String sql = "SELECT u.UserID, u.Username, u.FullName, u.Email, u.Phone, u.RoleID, r.RoleName, u.IsActive, u.ShiftID, "
+                + "s.ShiftName, s.StartTime, s.EndTime "
                 + "FROM Users u "
                 + "JOIN Roles r ON u.RoleID = r.RoleID "
+                + "LEFT JOIN Shifts s ON u.ShiftID = s.ShiftID "
+                + "WHERE r.RoleName != 'Customer' "
+                + "ORDER BY u.UserID ASC " // Bắt buộc cần ORDER BY trước OFFSET
+                + "OFFSET ? ROWS FETCH NEXT ? ROWS ONLY";
+
+        try (Connection conn = getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, offset);
+            ps.setInt(2, pageSize);
+            
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    int id = rs.getInt("UserID");
+                    String username = rs.getString("Username");
+                    String name = rs.getString("FullName");
+                    String email = rs.getString("Email");
+                    String phone = rs.getString("Phone");
+                    int roleId = rs.getInt("RoleID");
+                    String role = rs.getString("RoleName");
+                    boolean isActive = rs.getBoolean("IsActive");
+                    int shiftId = rs.getInt("ShiftID");
+
+                    String status = isActive ? "Đang làm" : "Nghỉ việc";
+
+                    String shiftName = rs.getString("ShiftName");
+                    String startTime = rs.getString("StartTime");
+                    String endTime = rs.getString("EndTime");
+                    String shift = "Chưa xếp ca";
+                    if (shiftName != null) {
+                        shift = shiftName + " (" + startTime + " - " + endTime + ")";
+                    }
+
+                    Employee emp = new Employee(id, username, null, name, email, phone, roleId, role, status, shift, shiftId);
+                    list.add(emp);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
+    // ========== BỔ SUNG: ĐẾM TỔNG SỐ LƯỢNG NHÂN VIÊN ==========
+    public int getTotalEmployeeCount() {
+        String sql = "SELECT COUNT(*) FROM Users u JOIN Roles r ON u.RoleID = r.RoleID WHERE r.RoleName != 'Customer'";
+        try (Connection conn = getConnection(); PreparedStatement ps = conn.prepareStatement(sql); ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+
+    // 2. LẤY THÔNG TIN 1 NHÂN VIÊN THEO ID
+    public Employee getEmployeeById(int id) {
+        String sql = "SELECT u.UserID, u.Username, u.FullName, u.Email, u.Phone, u.RoleID, r.RoleName, u.IsActive, u.ShiftID, "
+                + "s.ShiftName, s.StartTime, s.EndTime "
+                + "FROM Users u "
+                + "JOIN Roles r ON u.RoleID = r.RoleID "
+                + "LEFT JOIN Shifts s ON u.ShiftID = s.ShiftID "
                 + "WHERE u.UserID = ?";
         try (Connection conn = getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
 
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
+                    String shiftName = rs.getString("ShiftName");
+                    String startTime = rs.getString("StartTime");
+                    String endTime = rs.getString("EndTime");
+                    String shift = "Chưa xếp ca";
+                    if (shiftName != null) {
+                        shift = shiftName + " (" + startTime + " - " + endTime + ")";
+                    }
+
                     return new Employee(
                             rs.getInt("UserID"),
-                            rs.getString("Username"), // Ánh xạ chuẩn vào form
-                            null, // Password không hiển thị lên form edit
+                            rs.getString("Username"),
+                            null,
                             rs.getString("FullName"),
                             rs.getString("Email"),
-                            rs.getString("Phone"), // Ánh xạ chuẩn vào form
-                            rs.getInt("RoleID"), // Ánh xạ chuẩn vào thẻ <select> chức vụ
+                            rs.getString("Phone"),
+                            rs.getInt("RoleID"),
                             rs.getString("RoleName"),
                             rs.getBoolean("IsActive") ? "Đang làm" : "Nghỉ việc",
-                            "Chưa xếp ca",
+                            shift,
                             rs.getInt("ShiftID")
                     );
                 }
@@ -84,7 +164,28 @@ public class EmployeeDAO {
         return null;
     }
 
-    // THÊM MỚI: HÀM CẬP NHẬT NHANH CA LÀM VIỆC XUỐNG DATABASE
+    // THÊM MỚI: HÀM LẤY TOÀN BỘ CA LÀM VIỆC TỪ TABLE [dbo].[Shifts]
+    public List<Shift> getAllShifts() {
+        List<Shift> list = new ArrayList<>();
+        String sql = "SELECT ShiftID, ShiftName, StartTime, EndTime FROM Shifts";
+
+        try (Connection conn = getConnection(); PreparedStatement ps = conn.prepareStatement(sql); ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+                Shift s = new Shift();
+                s.setShiftId(rs.getInt("ShiftID"));
+                s.setShiftName(rs.getString("ShiftName"));
+                s.setStartTime(rs.getTime("StartTime"));
+                s.setEndTime(rs.getTime("EndTime"));
+                list.add(s);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
+    // CẬP NHẬT NHANH CA LÀM VIỆC XUỐNG DATABASE
     public boolean updateEmployeeShift(int userId, int shiftId) {
         String sql = "UPDATE Users SET ShiftID = ? WHERE UserID = ?";
         try (Connection conn = getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -194,7 +295,7 @@ public class EmployeeDAO {
         }
     }
 
-    // 4. CẬP NHẬT NHÂN VIÊN
+    // 4. CẬP NHẬT NHÂN VIÊN TRƠN
     public boolean updateEmployee(int id, String name, String email, int roleId, boolean isActive) {
         String sql = "UPDATE Users SET FullName = ?, Email = ?, RoleID = ?, IsActive = ? WHERE UserID = ?";
         try (Connection conn = getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -292,7 +393,6 @@ public class EmployeeDAO {
             }
             return "SUCCESS";
         } catch (Exception e) {
-            // Nhận diện lỗi ném ra từ hàm bổ trợ để trả về đúng trạng thái cho Servlet xử lý điều hướng
             if (e.getMessage() != null && e.getMessage().startsWith("DUPLICATE_")) {
                 return e.getMessage();
             }
@@ -311,7 +411,7 @@ public class EmployeeDAO {
         }
     }
 
-    // 9. HÀM BỔ TRỢ: ĐẾM SỐ LƯỢNG ADMIN KHÁC
+    // 9. ĐẾM SỐ LƯỢNG ADMIN KHÁC
     public boolean checkAdminExistsExcept(int currentUserId) {
         String sql = "SELECT COUNT(*) FROM Users WHERE RoleID = 1 AND UserID != ?";
         try (Connection conn = getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -326,8 +426,8 @@ public class EmployeeDAO {
         }
         return false;
     }
-    // 10. XÓA NHÂN VIÊN (Xóa bảng Employees trước, Users sau để tránh lỗi khóa ngoại)
 
+    // 10. XÓA NHÂN VIÊN
     public boolean deleteEmployee(int userId) {
         String deleteEmpSql = "DELETE FROM Employees WHERE EmployeeID = ?";
         String deleteUserSql = "DELETE FROM Users WHERE UserID = ?";
@@ -335,22 +435,20 @@ public class EmployeeDAO {
         Connection conn = null;
         try {
             conn = getConnection();
-            conn.setAutoCommit(false); // Bật Transaction
+            conn.setAutoCommit(false);
 
-            // Lệnh 1: Xóa trong bảng dữ liệu mở rộng Employees trước
             try (PreparedStatement psEmp = conn.prepareStatement(deleteEmpSql)) {
                 psEmp.setInt(1, userId);
                 psEmp.executeUpdate();
             }
 
-            // Lệnh 2: Xóa tài khoản gốc trong bảng Users
             int rowsAffected = 0;
             try (PreparedStatement psUser = conn.prepareStatement(deleteUserSql)) {
                 psUser.setInt(1, userId);
                 rowsAffected = psUser.executeUpdate();
             }
 
-            conn.commit(); // Thành công thì commit
+            conn.commit();
             return rowsAffected > 0;
         } catch (Exception e) {
             if (conn != null) {

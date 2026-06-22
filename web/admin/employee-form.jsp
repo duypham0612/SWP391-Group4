@@ -95,7 +95,7 @@
             </div>
         </c:if>
 
-        <form action="${pageContext.request.contextPath}/admin/employees" method="POST">
+        <form action="${pageContext.request.contextPath}/admin/employees" method="POST" onsubmit="return validateForm()">
             <input type="hidden" name="action" value="${isEdit ? 'update' : 'insert'}">
             <c:if test="${isEdit}">
                 <input type="hidden" name="id" value="${employee.id}">
@@ -106,19 +106,24 @@
                 <input type="text" name="username" class="form-control" ${isEdit ? 'readonly style="background:#f5f5f5;"' : 'required'} value="${isEdit ? employee.username : ''}" placeholder="Ví dụ: duypham0612">
             </div>
             
+            <%-- KHÔNG KHÓA: Admin hay nhân viên thường đều sửa được họ tên --%>
             <div class="form-group">
                 <label>Họ và Tên: <span>*</span></label>
                 <input type="text" name="fullName" class="form-control" required value="${isEdit ? employee.fullName : ''}" placeholder="Nguyễn Văn A">
             </div>
 
+            <%-- KHÔNG KHÓA: Admin hay nhân viên thường đều sửa được email --%>
             <div class="form-group">
                 <label>Địa chỉ Email: <span>*</span></label>
                 <input type="email" name="email" class="form-control" required value="${isEdit ? employee.email : ''}" placeholder="example@mycoffee.com">
             </div>
 
+            <%-- KHÔNG KHÓA: Admin hay nhân viên thường đều sửa được số điện thoại --%>
             <div class="form-group">
                 <label>Số điện thoại: <span>*</span></label>
-                <input type="text" name="phone" class="form-control" required value="${isEdit ? employee.phone : ''}" placeholder="Nhập số điện thoại...">
+                <input type="tel" name="phone" class="form-control" required 
+                       pattern="0[0-9]{9}" title="Số điện thoại phải gồm 10 chữ số bắt đầu bằng số 0"
+                       value="${isEdit ? employee.phone : ''}" placeholder="Ví dụ: 0912345678">
             </div>
 
             <c:if test="${!isEdit}">
@@ -130,7 +135,8 @@
 
             <div class="form-group">
                 <label>Chức vụ: <span>*</span></label>
-                <select name="roleId" class="form-control" required>
+                <%-- KHÓA: Nếu sửa tài khoản admin thì disabled select để không cho đổi chức vụ --%>
+                <select name="roleId" class="form-control" required ${isEdit && employee.username eq 'admin' ? 'disabled style="background:#f5f5f5;"' : ''}>
                     <option value="">-- Chọn chức vụ --</option>
                     <c:forEach items="${roles}" var="role">
                         <option value="${role.roleId}" ${isEdit && employee.roleId == role.roleId ? 'selected' : ''}>
@@ -138,15 +144,33 @@
                         </option>
                     </c:forEach>
                 </select>
+                <%-- Input ẩn giữ giá trị roleId truyền về cho Controller khi select bị disabled --%>
+                <c:if test="${isEdit && employee.username eq 'admin'}">
+                    <input type="hidden" name="roleId" value="${employee.roleId}">
+                </c:if>
             </div>
 
             <c:if test="${isEdit}">
                 <div class="form-group">
                     <label>Tình trạng: <span>*</span></label>
-                    <select name="status" class="form-control">
-                        <option value="Đang làm" ${employee.status eq 'Đang làm' ? 'selected' : ''}>Đang làm</option>
-                        <option value="Nghỉ việc" ${employee.status eq 'Nghỉ việc' ? 'selected' : ''}>Tạm Nghỉ</option>
-                    </select>
+                    <c:choose>
+                        <%-- KHÓA: Nếu là tài khoản admin, ép cứng trạng thái thành "Đang quản lý" và disabled --%>
+                        <c:when test="${employee.username eq 'admin'}">
+                            <select name="status" class="form-control" disabled style="background:#f5f5f5;">
+                                <option value="Đang làm" selected>Đang quản lý</option>
+                            </select>
+                            <%-- Input ẩn giữ giá trị status truyền về cho Controller --%>
+                            <input type="hidden" name="status" value="Đang làm">
+                        </c:when>
+                        
+                        <%-- MỞ: Đối với các tài khoản nhân viên khác --%>
+                        <c:otherwise>
+                            <select name="status" class="form-control">
+                                <option value="Đang làm" ${employee.status eq 'Đang làm' ? 'selected' : ''}>Đang làm</option>
+                                <option value="Nghỉ việc" ${employee.status eq 'Nghỉ việc' ? 'selected' : ''}>Nghỉ việc</option>
+                            </select>
+                        </c:otherwise>
+                    </c:choose>
                 </div>
             </c:if>
 
@@ -156,5 +180,15 @@
             </div>
         </form>
     </div>
+
+    <script>
+        function validateForm() {
+            const inputs = document.querySelectorAll('input[type="text"], input[type="email"], input[type="tel"]');
+            inputs.forEach(input => {
+                input.value = input.value.trim();
+            });
+            return true;
+        }
+    </script>
 </body>
 </html>
