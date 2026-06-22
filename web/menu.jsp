@@ -45,10 +45,16 @@
         }
     </style>
 </head>
-<body class="bg-[#f4f7fc]/50 min-h-screen flex flex-col font-sans">
+<body class="bg-[#f4f7fc]/50 h-screen flex font-sans overflow-hidden">
 
-    <!-- Top Navigation Header -->
-    <header class="h-20 bg-white border-b border-slate-200/50 flex items-center justify-between px-8 shadow-sm sticky top-0 z-50">
+    <!-- Sidebar -->
+    <jsp:include page="common/sidebar_customer.jsp" />
+
+    <!-- Main Wrapper -->
+    <div class="flex-1 flex flex-col h-screen overflow-hidden relative bg-[#f4f7fc]/50">
+
+        <!-- Top Navigation Header -->
+        <header class="h-20 bg-white border-b border-slate-200/50 flex items-center justify-between px-8 shadow-sm shrink-0 z-40">
         <!-- Logo -->
         <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-xl bg-[#006064] flex items-center justify-center text-white shadow-md shadow-[#006064]/20">
@@ -88,7 +94,8 @@
     </header>
 
     <!-- Main Content Area -->
-    <main class="flex-1 max-w-7xl w-full mx-auto p-8 flex flex-col lg:flex-row gap-8">
+    <main class="flex-1 overflow-y-auto p-6 md:p-8">
+        <div class="max-w-7xl w-full mx-auto flex flex-col lg:flex-row gap-8 relative">
         
         <!-- Left Side: Menu Grid (Width 2/3) -->
         <div class="flex-1 space-y-8 fade-in">
@@ -278,12 +285,14 @@
                 </button>
             </div>
         </aside>
+        </div>
     </main>
 
     <!-- Footer -->
-    <footer class="bg-white border-t border-slate-200/50 py-6 text-center text-[10px] text-slate-400 font-semibold mt-12">
+    <footer class="bg-white border-t border-slate-200/50 py-6 text-center text-[10px] text-slate-400 font-semibold mt-auto shrink-0 z-40 relative">
         &copy; 2026 Coffee House Management System. All rights reserved.
     </footer>
+    </div>
 
     <!-- Interactive script -->
     <script>
