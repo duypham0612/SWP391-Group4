@@ -1,15 +1,11 @@
 <%@page contentType="text/html" pageEncoding="UTF-8"%>
-<%@page import="com.mycoffee.model.User"%>
+<%@taglib prefix="c" uri="jakarta.tags.core" %>
+<%@taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 
 <jsp:include page="/common/header.jsp" />
 <jsp:include page="/common/sidebar_admin.jsp" />
 
-<%
-    User adminUser = (User) session.getAttribute("user");
-    String adminName = (adminUser != null) ? adminUser.getFullName() : "Admin";
-%>
-
-<%-- Wrapper content (sidebar_admin.jsp không mở thẻ này nên ta mở ở đây) --%>
+<%-- Wrapper content --%>
 <div class="flex-1 flex flex-col overflow-hidden">
 
     <%-- Topbar --%>
@@ -34,9 +30,9 @@
     <%-- Main content --%>
     <main class="flex-1 overflow-y-auto p-8 bg-[#f4f7fc]/60">
 
-        <%-- Welcome --%>
+        <%-- Welcome (Thay thế Scriptlet bằng Expression Language ${...} tối ưu hơn) --%>
         <div class="mb-8">
-            <h2 class="text-2xl font-bold text-slate-800">Xin chào, <%= adminName %>! 👋</h2>
+            <h2 class="text-2xl font-bold text-slate-800">Xin chào, ${sessionScope.user.fullName != null ? sessionScope.user.fullName : 'Admin'}! 👋</h2>
             <p class="text-sm text-slate-400 font-medium mt-1">Đây là tổng quan toàn hệ thống chuỗi My Coffee House.</p>
         </div>
 
@@ -61,10 +57,11 @@
                         <i class="fa-solid fa-users text-sky-600 text-xs"></i>
                     </div>
                 </div>
-                <p class="text-2xl font-extrabold text-slate-800">—</p>
+                <p class="text-2xl font-extrabold text-slate-800">12</p>
                 <p class="text-[10px] text-slate-400 font-medium mt-1">Nhân viên + Khách hàng</p>
             </div>
 
+            <%-- Đổ dữ liệu doanh thu tối ưu từ bản dưới vào giao diện đẹp của bản trên --%>
             <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
                 <div class="flex items-center justify-between mb-3">
                     <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Doanh thu hôm nay</span>
@@ -72,19 +69,21 @@
                         <i class="fa-solid fa-sack-dollar text-emerald-600 text-xs"></i>
                     </div>
                 </div>
-                <p class="text-2xl font-extrabold text-slate-800">—</p>
+                <p class="text-2xl font-extrabold text-slate-800">
+                    <fmt:formatNumber value="${stats.totalRevenue}" type="currency" currencySymbol="đ" maxFractionDigits="0"/>
+                </p>
                 <p class="text-[10px] text-emerald-500 font-bold mt-1">Toàn chuỗi</p>
             </div>
 
             <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
                 <div class="flex items-center justify-between mb-3">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Order đang xử lý</span>
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sắp hết hàng</span>
                     <div class="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center">
-                        <i class="fa-solid fa-receipt text-amber-600 text-xs"></i>
+                        <i class="fa-solid fa-triangle-exclamation text-amber-600 text-xs"></i>
                     </div>
                 </div>
-                <p class="text-2xl font-extrabold text-slate-800">—</p>
-                <p class="text-[10px] text-amber-500 font-bold mt-1">Realtime</p>
+                <p class="text-2xl font-extrabold text-slate-800">${stats.lowStockCount}</p>
+                <p class="text-[10px] text-amber-500 font-bold mt-1">Cần nhập kho</p>
             </div>
         </div>
 
@@ -92,44 +91,24 @@
         <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
             <h3 class="text-sm font-bold text-slate-700 uppercase tracking-wide mb-4">Truy cập nhanh</h3>
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-
-                <a href="${pageContext.request.contextPath}/admin-branches"
-                   class="flex flex-col items-center gap-2 p-4 rounded-xl bg-slate-50 hover:bg-violet-50 hover:border-violet-200 border border-slate-200 transition-all group">
-                    <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 group-hover:bg-violet-100 flex items-center justify-center transition-all">
-                        <i class="fa-solid fa-code-branch text-slate-500 group-hover:text-violet-600 text-sm"></i>
-                    </div>
+                <a href="${pageContext.request.contextPath}/admin-branches" class="flex flex-col items-center gap-2 p-4 rounded-xl bg-slate-50 hover:bg-violet-50 hover:border-violet-200 border border-slate-200 transition-all group">
+                    <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 group-hover:bg-violet-100 flex items-center justify-center transition-all"><i class="fa-solid fa-code-branch text-slate-500 group-hover:text-violet-600 text-sm"></i></div>
                     <span class="text-[11px] font-bold text-slate-600 group-hover:text-violet-700 text-center">Chi nhánh</span>
                 </a>
-
-                <a href="${pageContext.request.contextPath}/admin-accounts"
-                   class="flex flex-col items-center gap-2 p-4 rounded-xl bg-slate-50 hover:bg-sky-50 hover:border-sky-200 border border-slate-200 transition-all group">
-                    <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 group-hover:bg-sky-100 flex items-center justify-center transition-all">
-                        <i class="fa-solid fa-user-pen text-slate-500 group-hover:text-sky-600 text-sm"></i>
-                    </div>
+                <a href="${pageContext.request.contextPath}/admin-accounts" class="flex flex-col items-center gap-2 p-4 rounded-xl bg-slate-50 hover:bg-sky-50 hover:border-sky-200 border border-slate-200 transition-all group">
+                    <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 group-hover:bg-sky-100 flex items-center justify-center transition-all"><i class="fa-solid fa-user-pen text-slate-500 group-hover:text-sky-600 text-sm"></i></div>
                     <span class="text-[11px] font-bold text-slate-600 group-hover:text-sky-700 text-center">Tài khoản</span>
                 </a>
-
-                <a href="${pageContext.request.contextPath}/admin-menu"
-                   class="flex flex-col items-center gap-2 p-4 rounded-xl bg-slate-50 hover:bg-orange-50 hover:border-orange-200 border border-slate-200 transition-all group">
-                    <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 group-hover:bg-orange-100 flex items-center justify-center transition-all">
-                        <i class="fa-solid fa-book-open text-slate-500 group-hover:text-orange-600 text-sm"></i>
-                    </div>
+                <a href="${pageContext.request.contextPath}/admin-menu" class="flex flex-col items-center gap-2 p-4 rounded-xl bg-slate-50 hover:bg-orange-50 hover:border-orange-200 border border-slate-200 transition-all group">
+                    <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 group-hover:bg-orange-100 flex items-center justify-center transition-all"><i class="fa-solid fa-book-open text-slate-500 group-hover:text-orange-600 text-sm"></i></div>
                     <span class="text-[11px] font-bold text-slate-600 group-hover:text-orange-700 text-center">Menu</span>
                 </a>
-
-                <a href="${pageContext.request.contextPath}/admin-voucher"
-                   class="flex flex-col items-center gap-2 p-4 rounded-xl bg-slate-50 hover:bg-pink-50 hover:border-pink-200 border border-slate-200 transition-all group">
-                    <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 group-hover:bg-pink-100 flex items-center justify-center transition-all">
-                        <i class="fa-solid fa-ticket text-slate-500 group-hover:text-pink-600 text-sm"></i>
-                    </div>
+                <a href="#" class="flex flex-col items-center gap-2 p-4 rounded-xl bg-slate-50 hover:bg-pink-50 hover:border-pink-200 border border-slate-200 transition-all group">
+                    <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 group-hover:bg-pink-100 flex items-center justify-center transition-all"><i class="fa-solid fa-ticket text-slate-500 group-hover:text-pink-600 text-sm"></i></div>
                     <span class="text-[11px] font-bold text-slate-600 group-hover:text-pink-700 text-center">Voucher</span>
                 </a>
-
-                <a href="${pageContext.request.contextPath}/admin-report"
-                   class="flex flex-col items-center gap-2 p-4 rounded-xl bg-slate-50 hover:bg-emerald-50 hover:border-emerald-200 border border-slate-200 transition-all group">
-                    <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 group-hover:bg-emerald-100 flex items-center justify-center transition-all">
-                        <i class="fa-solid fa-chart-column text-slate-500 group-hover:text-emerald-600 text-sm"></i>
-                    </div>
+                <a href="#" class="flex flex-col items-center gap-2 p-4 rounded-xl bg-slate-50 hover:bg-emerald-50 hover:border-emerald-200 border border-slate-200 transition-all group">
+                    <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 group-hover:bg-emerald-100 flex items-center justify-center transition-all"><i class="fa-solid fa-chart-column text-slate-500 group-hover:text-emerald-600 text-sm"></i></div>
                     <span class="text-[11px] font-bold text-slate-600 group-hover:text-emerald-700 text-center">Báo cáo</span>
                 </a>
             </div>

@@ -5,8 +5,8 @@
 <%@page import="com.mycoffee.model.OrderDetail"%>
 <%@page import="com.mycoffee.model.Voucher"%>
 
-<jsp:include page="common/header.jsp" />
-<jsp:include page="common/sidebar.jsp" />
+<jsp:include page="/common/header.jsp" />
+<jsp:include page="/common/sidebar.jsp" />
 
 <%
     Order order = (Order) request.getAttribute("order");

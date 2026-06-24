@@ -20,6 +20,7 @@ public class TableController extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
+        // 1. AuthFilter đã xử lý login, ở đây chỉ check RoleID (Admin, Manager, Employee)
         HttpSession session = request.getSession(false);
         User user = (session != null) ? (User) session.getAttribute("user") : null;
         int roleId = (user != null) ? user.getRoleId() : 0;
@@ -29,14 +30,16 @@ public class TableController extends HttpServlet {
             return;
         }
 
+        // 2. LẤY DATA
+        // Tạm thời fix cứng Branch = 1. Sau này sẽ query BranchID dựa vào user.getUserId() từ bảng Employees.
         int branchId = 1;
         TableDAO tableDAO = new TableDAO();
         List<Table> tableList = tableDAO.getTablesByBranch(branchId);
 
-        // 2. ĐỔI THÀNH "tableList" ĐỂ KHỚP HOÀN TOÀN VỚI FILE JSP CỦA BẠN
+        // 3. ĐỔI THÀNH "tableList" ĐỂ KHỚP HOÀN TOÀN VỚI TÊN BIẾN TRONG FILE JSP CỦA BẠN
         request.setAttribute("tableList", tableList); 
         
-        // 3. THÊM DẤU GẠCH CHÉO / TRƯỚC table_layout.jsp ĐỂ AN TOÀN ĐƯỜNG DẪN
+        // 4. ĐƯỜNG DẪN TUYỆT ĐỐI CHUẨN ĐỂ TRÁNH LỖI 404 KHI FORWARD TRANG VIEW
         request.getRequestDispatcher("/views/cashier/table_layout.jsp").forward(request, response);
     }
 }

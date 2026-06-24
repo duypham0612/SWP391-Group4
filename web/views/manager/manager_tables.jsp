@@ -27,6 +27,7 @@
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
         <div class="bg-white p-6 rounded-3xl border border-slate-200/60 shadow-sm lg:col-span-2 space-y-6">
             <div class="flex items-center justify-between border-b border-slate-100 pb-4">
                 <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Sơ đồ phòng máy / Bàn</h3>
@@ -43,15 +44,18 @@
                         for(Table t : tableList) { 
                             String status = (t.getStatus() != null) ? t.getStatus().trim() : "Empty";
                             
+                            // Cấu hình màu mặc định: BÀN TRỐNG (Màu Xanh Lá)
                             String bgClass = "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100/70";
                             String iconColor = "text-emerald-500";
                             String textStatusDisplay = "Trống";
                             
+                            // Kiểm tra trạng thái ĐÃ ĐẶT TRƯỚC (Màu Vàng)
                             if("Reserved".equalsIgnoreCase(status) || "Đã đặt".equalsIgnoreCase(status) || "Đã đặt trước".equalsIgnoreCase(status)) {
                                 bgClass = "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100/70";
                                 iconColor = "text-amber-500";
                                 textStatusDisplay = "Đã đặt trước";
                             } 
+                            // Kiểm tra trạng thái ĐANG PHỤC VỤ / ĐANG CÓ KHÁCH (Màu Đỏ)
                             else if ("Occupied".equalsIgnoreCase(status) || "Serving".equalsIgnoreCase(status) || "Đang phục vụ".equalsIgnoreCase(status) || "Đang ngồi".equalsIgnoreCase(status)) {
                                 bgClass = "bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100/70";
                                 iconColor = "text-rose-500";
@@ -133,6 +137,7 @@
         </div>
         <form action="${pageContext.request.contextPath}/manager-tables" method="POST" class="space-y-3 text-xs">
             <input type="hidden" name="action" value="add">
+            
             <div>
                 <label class="block font-bold text-slate-700 mb-1">Tên khách hàng</label>
                 <input type="text" name="customerName" required class="w-full border p-2 rounded-xl focus:outline-none focus:border-[#006064]">
@@ -231,14 +236,16 @@
     function openReservationModal() {
         document.getElementById('reservationModal').classList.remove('hidden');
     }
+    
     function closeReservationModal() {
         document.getElementById('reservationModal').classList.add('hidden');
     }
+    
     function closeTableDetailModal() {
         document.getElementById('tableDetailModal').classList.add('hidden');
     }
 
-    // Hàm Click điều phối mở popup chi tiết
+    // Hàm Click điều phối mở popup chi tiết cực kỳ thông minh
     function handleTableClick(tableId, tableName, currentStatus, capacity) {
         activeSelectedTableId = tableId;
         const statusNorm = currentStatus.toLowerCase().trim();
@@ -249,10 +256,10 @@
         const customerMenuLink = currentOrigin + contextPath + "/customer-menu?tableId=" + tableId;
         activeSelectedQRUrl = customerMenuLink;
 
-        // 2. Gọi API hiển thị ảnh QR động
+        // 2. Gọi API hiển thị ảnh QR động dựa trên link gọi món của bàn
         document.getElementById('modalQRImage').src = "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=" + encodeURIComponent(customerMenuLink);
 
-        // 3. Đổ text mô tả
+        // 3. Đổ văn bản mô tả thông tin bàn lên Modal
         document.getElementById('modalTableTitle').innerText = "Quản lý bàn - " + tableName;
         document.getElementById('modalTableCapacity').innerText = capacity;
         document.getElementById('modalTableURL').innerText = "/customer-menu?tableId=" + tableId;
@@ -264,13 +271,13 @@
         const btnResetTable = document.getElementById('btnResetTable');
         const btnViewOrder = document.getElementById('btnViewOrder');
 
-        // Ẩn tất cả các nút điều khiển trước khi phân bổ lại
+        // Ẩn tất cả các nút điều khiển trước khi phân bổ lại theo trạng thái bàn
         btnQuickOpen.classList.add('hidden');
         btnCancelRes.classList.add('hidden');
         btnResetTable.classList.add('hidden');
         btnViewOrder.classList.add('hidden');
 
-        // 5. Phân bổ hiển thị nút bấm dựa vào trạng thái bàn
+        // 5. Phân bổ hiển thị nút bấm dựa vào trạng thái bàn thực tế
         if (statusNorm === 'empty' || statusNorm === 'trống') {
             statusLabel.innerText = "Trống (Sẵn sàng)";
             statusLabel.className = "font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full text-[11px]";
@@ -288,23 +295,25 @@
             btnViewOrder.classList.remove('hidden');  
         }
 
-        // Bật hiển thị Popup
+        // Bật hiển thị Popup Modal chi tiết
         document.getElementById('tableDetailModal').classList.remove('hidden');
     }
 
-    // Các hàm kích hoạt gửi Form ẩn
+    // Các hàm kích hoạt gửi Form ẩn lên Controller xử lý
     function executeQuickOpen() {
         if(activeSelectedTableId && confirm("Xác nhận mở bàn này cho khách ngồi trực tiếp?")) {
             submitHiddenForm('quickOpen', activeSelectedTableId);
         }
     }
 
+    // Hàm xử lý hủy lịch đặt trước
     function executeCancelReservation() {
         if(activeSelectedTableId && confirm("Bạn có chắc chắn muốn HỦY LỊCH HẸN và đưa bàn này quay về trạng thái TRỐNG không?")) {
             submitHiddenForm('cancelReservation', activeSelectedTableId);
         }
     }
 
+    // Hàm dọn bàn trả về trống sau khi khách thanh toán
     function executeResetTable() {
         if(activeSelectedTableId && confirm("Xác nhận hành động: Khách đã thanh toán rời đi, dọn bàn và ĐƯA BÀN VỀ TRẠNG THÁI TRỐNG?")) {
             submitHiddenForm('resetTable', activeSelectedTableId);
@@ -323,7 +332,7 @@
         }
     }
 
-    // Hàm in mã QR đầy đủ, sạch lỗi đóng ngoặc nhọn
+    // Hàm xử lý in mã QR trực tiếp ra máy in hóa đơn/giấy, sạch lỗi JavaScript hoàn toàn
     function printQRCode() {
         if(!activeSelectedQRUrl) return;
         const printWindow = window.open('', '_blank', 'width=400,height=400');
