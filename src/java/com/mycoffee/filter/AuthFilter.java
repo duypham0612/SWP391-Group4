@@ -164,13 +164,20 @@ public class AuthFilter implements Filter {
      * Kiểm tra xem path có nằm trong danh sách URL công khai không.
      */
     private boolean isPublicUrl(String path) {
-        for (String publicUrl : PUBLIC_URLS) {
-            if (path.equals(publicUrl) || path.startsWith(publicUrl + "?")) {
-                return true;
-            }
-        }
-        return false;
+    // Nếu truy cập trang chủ gốc hoặc chuỗi trống, coi như là công khai hoặc để servlet tự xử lý
+    if (path == null || path.equals("") || path.equals("/")) {
+        return true;
     }
+    
+    for (String publicUrl : PUBLIC_URLS) {
+        if (path.equals(publicUrl) 
+                || path.startsWith(publicUrl + "/") 
+                || path.startsWith(publicUrl + "?")) {
+            return true;
+        }
+    }
+    return false;
+}
 
     /**
      * Kiểm tra xem path có phải là route chỉ dành cho Staff (RoleID 1,2,3) không.
