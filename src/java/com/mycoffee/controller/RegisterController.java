@@ -24,7 +24,8 @@ public class RegisterController extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        // Thiết lập bảng mã UTF-8
+        
+        // Thiết lập bảng mã UTF-8 chống lỗi font Tiếng Việt
         request.setCharacterEncoding("UTF-8");
         response.setCharacterEncoding("UTF-8");
 
@@ -34,44 +35,55 @@ public class RegisterController extends HttpServlet {
         String email = request.getParameter("email");
         String phone = request.getParameter("phone");
 
-        // Validate đầu vào đơn giản
+        // 1. Validate kiểm tra rỗng các trường bắt buộc
         if (username == null || username.trim().isEmpty() ||
             password == null || password.trim().isEmpty() ||
-            fullName == null || fullName.trim().isEmpty()) {
-            request.setAttribute("error", "Vui lòng nhập đầy đủ các trường bắt buộc.");
+            fullName == null || fullName.trim().isEmpty() ||
+            email == null || email.trim().isEmpty()) {
+            
+            request.setAttribute("error", "Vui lòng điền đầy đủ các thông tin bắt buộc.");
+            keepOldInputValues(request, username, fullName, email, phone);
             request.getRequestDispatcher("register.jsp").forward(request, response);
             return;
         }
 
-        // Kiểm tra xem Username, Email hoặc Phone đã tồn tại chưa
-        if (userDAO.isUserExists(username, email, phone)) {
-            request.setAttribute("error", "Tên đăng nhập, Email hoặc Số điện thoại đã được sử dụng!");
-            // Giữ lại các giá trị cũ nhập vào để tiện nhập lại
-            request.setAttribute("oldUsername", username);
-            request.setAttribute("oldFullName", fullName);
-            request.setAttribute("oldEmail", email);
-            request.setAttribute("oldPhone", phone);
+        // 2. Sử dụng checkDuplicateFields từ UserDAO để lấy thông báo lỗi chi tiết (Định dạng SĐT + Trùng lặp)
+        String duplicateError = userDAO.checkDuplicateFields(username.trim(), email.trim(), phone);
+        if (duplicateError != null) {
+            request.setAttribute("error", duplicateError); // Trả về câu lỗi chính xác từ DB (ví dụ: "Địa chỉ email đã tồn tại!")
+            keepOldInputValues(request, username, fullName, email, phone);
             request.getRequestDispatcher("register.jsp").forward(request, response);
             return;
         }
 
-        // Tạo đối tượng User mới
+        // 3. Đóng gói dữ liệu vào đối tượng Model mới
         User newUser = new User();
-        newUser.setUsername(username);
-        newUser.setPassword(password);
-        newUser.setFullName(fullName);
-        newUser.setEmail(email);
-        newUser.setPhone(phone);
+        newUser.setUsername(username.trim());
+        newUser.setPassword(password); // Nên mã hóa password nếu hệ thống có tầng mã hóa băm (BCrypt/MD5)
+        newUser.setFullName(fullName.trim());
+        newUser.setEmail(email.trim());
+        newUser.setPhone(phone != null ? phone.trim() : null);
 
-        // Lưu vào CSDL
+        // 4. Gọi hàm xử lý đăng ký (Transaction tạo cả bên bảng Users và Customers)
         boolean isSuccess = userDAO.registerUser(newUser);
 
         if (isSuccess) {
             // Chuyển hướng sang trang đăng nhập kèm cờ thông báo đăng ký thành công
-            response.sendRedirect("login?registered=success");
+            response.sendRedirect(request.getContextPath() + "/login?registered=success");
         } else {
-            request.setAttribute("error", "Đăng ký thất bại! Vui lòng thử lại sau.");
+            request.setAttribute("error", "Hệ thống gặp sự cố khi tạo tài khoản. Vui lòng thử lại sau!");
+            keepOldInputValues(request, username, fullName, email, phone);
             request.getRequestDispatcher("register.jsp").forward(request, response);
         }
+    }
+
+    /**
+     * Hàm phụ trợ giữ lại dữ liệu cũ người dùng đã điền, tránh việc phải nhập lại từ đầu khi lỗi.
+     */
+    private void keepOldInputValues(HttpServletRequest request, String username, String fullName, String email, String phone) {
+        request.setAttribute("oldUsername", username);
+        request.setAttribute("oldFullName", fullName);
+        request.setAttribute("oldEmail", email);
+        request.setAttribute("oldPhone", phone);
     }
 }
