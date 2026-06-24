@@ -52,15 +52,15 @@
         }
         switch (product.getCategoryId()) {
             case 1:
-                return "https://source.unsplash.com/900x700/?latte,coffee";
+                return "https://images.unsplash.com/photo-1511920170033-f8396924c348?w=900&h=700&fit=crop";
             case 2:
-                return "https://source.unsplash.com/900x700/?frappuccino,drink";
+                return "https://images.unsplash.com/photo-1556881286-fc6915169721?w=900&h=700&fit=crop";
             case 3:
-                return "https://source.unsplash.com/900x700/?fruit-tea,iced-tea";
+                return "https://images.unsplash.com/photo-1558160074-4d7d8bdf4256?w=900&h=700&fit=crop";
             case 4:
-                return "https://source.unsplash.com/900x700/?hot-chocolate,cocoa";
+                return "https://images.unsplash.com/photo-1542990253-0d0f5be5f0ed?w=900&h=700&fit=crop";
             default:
-                return "https://source.unsplash.com/900x700/?croissant,pastry";
+                return "https://images.unsplash.com/photo-1495147466023-e6a4b37bb78e?w=900&h=700&fit=crop";
         }
     }
 %>
@@ -182,7 +182,7 @@
             overflow: hidden;
             background:
                 linear-gradient(90deg, rgba(0,82,204,.95) 0%, rgba(0,82,204,.78) 36%, rgba(0,0,0,.08) 64%),
-                url("https://source.unsplash.com/1400x640/?iced-tea,berries") center/cover;
+                url("https://images.unsplash.com/photo-1558160074-4d7d8bdf4256?w=1400&h=640&fit=crop") center/cover;
             box-shadow: 0 22px 44px rgba(66,82,110,.14);
         }
 

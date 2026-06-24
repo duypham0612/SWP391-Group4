@@ -18,6 +18,14 @@ public class Product {
         this.categoryId = categoryId;
     }
 
+    public Product(int productId, String productName, double basePrice, int categoryId, String imageUrl) {
+        this.productId = productId;
+        this.productName = productName;
+        this.basePrice = basePrice;
+        this.categoryId = categoryId;
+        this.imageUrl = imageUrl;
+    }
+
     public Product(int productId, String productName, double basePrice, int categoryId,
                    String categoryName, String imageUrl, String description) {
         this.productId = productId;

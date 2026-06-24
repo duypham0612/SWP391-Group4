@@ -48,6 +48,7 @@
             ? (String) request.getAttribute("selectedTableName") : "Chưa chọn bàn";
     boolean qrScanned = request.getAttribute("qrScanned") != null
             ? (Boolean) request.getAttribute("qrScanned") : false;
+    boolean testTableSelected = "test".equals(session.getAttribute("customerTableSelectionMode"));
     String addItemHref = qrScanned ? contextPath + "/customer-menu" : "javascript:void(0)";
     String addItemClick = qrScanned ? "" : "onclick=\"openQrScanner()\"";
 
@@ -208,6 +209,45 @@
             gap: 12px;
             box-shadow: 0 14px 26px rgba(0,82,204,.2);
             cursor: pointer;
+        }
+
+        .test-table-form {
+            width: min(330px, 100%);
+            margin-top: 18px;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 10px;
+        }
+
+        .test-table-select {
+            min-width: 0;
+            height: 48px;
+            border: 1px solid #C7D2EA;
+            border-radius: 12px;
+            background: #F8FAFF;
+            padding: 0 12px;
+            color: #172B4D;
+            font-size: 14px;
+            font-weight: 700;
+            outline: none;
+        }
+
+        .test-table-btn {
+            height: 48px;
+            border: 0;
+            border-radius: 12px;
+            background: #FFAB00;
+            padding: 0 16px;
+            color: #172B4D;
+            font-size: 14px;
+            font-weight: 900;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .test-table-btn:disabled {
+            cursor: not-allowed;
+            opacity: .55;
         }
 
         .scan-modal {
@@ -377,10 +417,12 @@
                             <% if (qrScanned) { %>
                             <div class="mt-9 inline-flex items-center gap-3 rounded-full bg-[#DDF9FF] text-[#006C80] px-6 py-3 text-[15px] font-black">
                                 <span class="w-3 h-3 rounded-full bg-[#00A3BF]"></span>
-                                Đã nhận diện thành công
+                                <%= testTableSelected ? "Đã chọn bàn test" : "Đã nhận diện thành công" %>
                             </div>
                             <p class="mt-6 max-w-[320px] text-[17px] leading-7 font-medium text-[#172B4D]">
-                                Mã bàn đã được xác thực. Bạn có thể bắt đầu chọn món ngay.
+                                <%= testTableSelected
+                                        ? "Bàn test đã được xác nhận. Bạn có thể bắt đầu chọn món ngay."
+                                        : "Mã bàn đã được xác thực. Bạn có thể bắt đầu chọn món ngay." %>
                             </p>
                             <% } else { %>
                             <button type="button" class="camera-btn" onclick="openQrScanner()">
@@ -390,6 +432,24 @@
                             <p class="mt-6 max-w-[320px] text-[17px] leading-7 font-medium text-[#172B4D]">
                                 Mở camera và quét mã QR trên bàn để hệ thống nhận đúng vị trí của bạn.
                             </p>
+                            <% } %>
+
+                            <form action="<%= contextPath %>/customer-qr-order" method="post" class="test-table-form">
+                                <select name="tableId" class="test-table-select" aria-label="Chọn bàn để test" <%= tables.isEmpty() ? "disabled" : "" %>>
+                                    <% if (tables.isEmpty()) { %>
+                                        <option value="">Không còn bàn trống</option>
+                                    <% } else { %>
+                                        <% for (Table table : tables) { %>
+                                            <option value="<%= table.getTableID() %>" <%= table.getTableID() == selectedTableId ? "selected" : "" %>><%= safe(table.getTableName()) %></option>
+                                        <% } %>
+                                    <% } %>
+                                </select>
+                                <button type="submit" class="test-table-btn" <%= tables.isEmpty() ? "disabled" : "" %>>
+                                    <i class="fa-solid fa-chair mr-2"></i>Chọn bàn test
+                                </button>
+                            </form>
+                            <% if (testTableSelected && qrScanned) { %>
+                                <p class="mt-3 text-[12px] font-bold text-[#7A5200]">Chế độ test đang bật</p>
                             <% } %>
                         </div>
 

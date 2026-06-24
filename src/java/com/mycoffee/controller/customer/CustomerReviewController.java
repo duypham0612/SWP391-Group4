@@ -31,7 +31,7 @@ public class CustomerReviewController extends HttpServlet {
         HttpSession session = request.getSession(false);
         User user = session != null ? (User) session.getAttribute("user") : null;
 
-        if (user != null && user.getRoleId() == 5) {
+        if (user != null && user.getRoleId() == User.ROLE_CUSTOMER) {
             Customer customer = customerDAO.getCustomerById(user.getUserId());
             request.setAttribute("customerInfo", customer);
 

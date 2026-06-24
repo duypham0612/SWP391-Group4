@@ -46,15 +46,15 @@
         }
         switch (product.getCategoryId()) {
             case 1:
-                return "https://source.unsplash.com/1100x900/?latte,coffee";
+                return "https://images.unsplash.com/photo-1511920170033-f8396924c348?w=1100&h=900&fit=crop";
             case 2:
-                return "https://source.unsplash.com/1100x900/?frappuccino,drink";
+                return "https://images.unsplash.com/photo-1556881286-fc6915169721?w=1100&h=900&fit=crop";
             case 3:
-                return "https://source.unsplash.com/1100x900/?fruit-tea,iced-tea";
+                return "https://images.unsplash.com/photo-1558160074-4d7d8bdf4256?w=1100&h=900&fit=crop";
             case 4:
-                return "https://source.unsplash.com/1100x900/?hot-chocolate,cocoa";
+                return "https://images.unsplash.com/photo-1542990253-0d0f5be5f0ed?w=1100&h=900&fit=crop";
             default:
-                return "https://source.unsplash.com/1100x900/?croissant,pastry";
+                return "https://images.unsplash.com/photo-1495147466023-e6a4b37bb78e?w=1100&h=900&fit=crop";
         }
     }
 %>

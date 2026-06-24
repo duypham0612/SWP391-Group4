@@ -49,16 +49,26 @@
             } else {
                 for (Table t : list) {
                     boolean isEmpty = "Empty".equalsIgnoreCase(t.getStatus());
+                    boolean isSelected = "Selected".equalsIgnoreCase(t.getStatus());
                     String bgClass = isEmpty ? "bg-white border-slate-200 hover:border-[#006064]" : "bg-orange-50 border-orange-200 hover:border-orange-400";
                     String textClass = isEmpty ? "text-slate-700" : "text-orange-700";
                     String statusText = isEmpty ? "Trống" : "Đang phục vụ";
                     String iconClass = isEmpty ? "text-slate-300" : "text-orange-400";
+                    String statusBadgeClass = isEmpty ? "bg-slate-100 text-slate-500" : "bg-orange-100 text-orange-600 animate-pulse";
+
+                    if (isSelected) {
+                        bgClass = "bg-blue-50 border-blue-200";
+                        textClass = "text-blue-700";
+                        statusText = "Khách đang chọn";
+                        iconClass = "text-blue-400";
+                        statusBadgeClass = "bg-blue-100 text-blue-600";
+                    }
 
                     // Tạo data-status để JS nhận diện filter
                     String dataStatus = isEmpty ? "empty" : "occupied";
 
                     // ĐƯỜNG DẪN MỚI THÔNG MINH CHO MỌI TRƯỜNG HỢP
-                    String posLink = "pos?action=open_table&tableId=" + t.getTableID();
+                    String posLink = isSelected ? "javascript:void(0)" : "pos?action=open_table&tableId=" + t.getTableID();
         %>
             <a href="<%= posLink %>"
                class="table-card relative flex flex-col items-center justify-center p-6 rounded-3xl border-2 shadow-sm transition-all duration-300 transform hover:-translate-y-1 group <%= bgClass %>"
@@ -68,7 +78,7 @@
 
                 <h3 class="text-sm font-extrabold <%= textClass %>"><%= t.getTableName() %></h3>
 
-                <span class="mt-2 px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase <%= isEmpty ? "bg-slate-100 text-slate-500" : "bg-orange-100 text-orange-600 animate-pulse" %>">
+                <span class="mt-2 px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase <%= statusBadgeClass %>">
                     <%= statusText %>
                 </span>
 
