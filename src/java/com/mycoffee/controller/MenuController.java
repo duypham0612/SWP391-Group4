@@ -28,8 +28,8 @@ public class MenuController extends HttpServlet {
         HttpSession session = request.getSession();
         User user = (User) session.getAttribute("user");
 
-        // Nếu là Customer (RoleID=5), đẩy thêm thông tin điểm tích lũy lên JSP
-        if (user != null && user.getRoleId() == 5) {
+        // Nếu là Customer, đẩy thêm thông tin điểm tích lũy lên JSP.
+        if (user != null && user.getRoleId() == User.ROLE_CUSTOMER) {
             Customer customer = customerDAO.getCustomerById(user.getUserId());
             request.setAttribute("customerInfo", customer);
         }

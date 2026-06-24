@@ -23,13 +23,13 @@ public class AdminDashboardController extends HttpServlet {
         int roleId = (user != null) ? user.getRoleId() : 0;
 
         // Chỉ Admin (RoleID = 1) mới được vào
-        if (roleId != 1) {
-            if (roleId == 2) {
+        if (roleId != User.ROLE_ADMIN) {
+            if (roleId == User.ROLE_BRANCH_MANAGER) {
                 response.sendRedirect(request.getContextPath() + "/manager-dashboard");
-            } else if (roleId == 3) {
+            } else if (roleId == User.ROLE_EMPLOYEE) {
                 response.sendRedirect(request.getContextPath() + "/pos-tables");
-            } else if (roleId == 4) {
-                response.sendRedirect(request.getContextPath() + "/kitchen");
+            } else if (roleId == User.ROLE_CUSTOMER) {
+                response.sendRedirect(request.getContextPath() + "/menu");
             } else {
                 response.sendRedirect(request.getContextPath() + "/login");
             }
@@ -41,4 +41,3 @@ public class AdminDashboardController extends HttpServlet {
                .forward(request, response);
     }
 }
-

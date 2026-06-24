@@ -31,7 +31,7 @@ public class CustomerPurchaseHistoryController extends HttpServlet {
             filter = "all";
         }
 
-        if (user != null && user.getRoleId() == 5) {
+        if (user != null && user.getRoleId() == User.ROLE_CUSTOMER) {
             List<Order> orders = orderDAO.getOrdersByCustomerId(user.getUserId());
             Map<Integer, List<OrderDetail>> orderDetailsMap = new HashMap<>();
             for (Order order : orders) {
