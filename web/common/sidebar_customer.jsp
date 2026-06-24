@@ -1,4 +1,4 @@
-<%@page contentType="text/html" pageEncoding="UTF-8"%>
+<%@page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
 <%@page import="com.mycoffee.model.User"%>
 <%@page import="com.mycoffee.model.Customer"%>
 <%
@@ -84,6 +84,28 @@
         box-shadow: 0 10px 22px rgba(0,82,204,.22);
     }
 
+    .customer-logout-top {
+        margin: 0 24px 18px;
+        height: 42px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        background: #FFEBE6;
+        color: #DE350B;
+        border: 1px solid #FFBDAD;
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 900;
+        transition: background .18s ease, transform .18s ease;
+    }
+
+    .customer-logout-top:hover {
+        background: #FFDDD6;
+        transform: translateY(-1px);
+    }
+
     .customer-nav {
         padding: 8px 24px 28px;
     }
@@ -110,6 +132,7 @@
 
     .customer-nav-item.active {
         color: var(--customer-primary);
+        background: #EAF0FF;
         font-weight: 800;
     }
 
@@ -146,6 +169,11 @@
         </div>
         <button type="button" class="customer-upgrade">Nâng cấp hạng</button>
     </div>
+
+    <a href="${pageContext.request.contextPath}/login?action=logout" class="customer-logout-top">
+        <i class="fa-solid fa-right-from-bracket"></i>
+        <span>Đăng xuất</span>
+    </a>
 
     <nav class="customer-nav flex-1">
         <a href="${pageContext.request.contextPath}/customer-menu" class="customer-nav-item <%= isMenu ? "active" : "" %>">
@@ -188,9 +216,5 @@
 
     <div class="px-10 pb-8">
         <div class="text-[11px] font-bold text-[#6B778C] truncate"><%= fullName %></div>
-        <a href="${pageContext.request.contextPath}/login?action=logout" class="mt-2 inline-flex items-center gap-2 text-[12px] font-bold text-[#DE350B] no-underline">
-            <i class="fa-solid fa-right-from-bracket"></i>
-            <span>Đăng xuất</span>
-        </a>
     </div>
 </aside>
