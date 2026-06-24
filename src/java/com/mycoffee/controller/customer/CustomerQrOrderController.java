@@ -24,6 +24,7 @@ public class CustomerQrOrderController extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
+        request.setCharacterEncoding("UTF-8");
         HttpSession session = request.getSession();
         User user = (User) session.getAttribute("user");
 
@@ -34,18 +35,36 @@ public class CustomerQrOrderController extends HttpServlet {
 
         List<Table> tables = tableDAO.getTablesForCustomerCheckout(DEFAULT_BRANCH_ID);
         int tableIdFromQr = parseInt(request.getParameter("tableId"), 0);
-        boolean qrScanned = tableIdFromQr > 0;
-        int selectedTableId = tableIdFromQr;
-        if (selectedTableId <= 0) {
+        boolean scannedFromCamera = "1".equals(request.getParameter("scan"));
+        boolean qrVerified = session.getAttribute("customerQrVerified") instanceof Boolean
+                && (Boolean) session.getAttribute("customerQrVerified");
+
+        int selectedTableId = 0;
+        if (scannedFromCamera) {
+            selectedTableId = tableIdFromQr;
+        } else if (qrVerified) {
             Object savedTableId = session.getAttribute("customerTableId");
             if (savedTableId instanceof Integer) {
                 selectedTableId = (Integer) savedTableId;
             }
+        } else if (tableIdFromQr > 0) {
+            session.setAttribute("cartError", "Vui lòng dùng nút quét QR bằng camera để xác thực bàn trước khi gửi order.");
         }
-        if (selectedTableId <= 0 && !tables.isEmpty()) {
-            selectedTableId = tables.get(0).getTableID();
+
+        boolean selectedTableAvailable = isTableAvailable(tables, selectedTableId);
+        if (selectedTableId > 0 && !selectedTableAvailable) {
+            session.removeAttribute("customerTableId");
+            session.removeAttribute("customerQrVerified");
+            session.setAttribute("cartError", "Bàn này hiện không còn trống. Vui lòng quét bàn khác.");
+            selectedTableId = 0;
+            qrVerified = false;
         }
-        session.setAttribute("customerTableId", selectedTableId);
+
+        if (scannedFromCamera && selectedTableId > 0 && selectedTableAvailable) {
+            session.setAttribute("customerTableId", selectedTableId);
+            session.setAttribute("customerQrVerified", true);
+            qrVerified = true;
+        }
 
         String selectedTableName = "Chưa chọn bàn";
         for (Table table : tables) {
@@ -56,10 +75,19 @@ public class CustomerQrOrderController extends HttpServlet {
         }
 
         request.setAttribute("tables", tables);
-        request.setAttribute("selectedTableId", selectedTableId);
+        request.setAttribute("selectedTableId", qrVerified ? selectedTableId : 0);
         request.setAttribute("selectedTableName", selectedTableName);
-        request.setAttribute("qrScanned", qrScanned);
+        request.setAttribute("qrScanned", qrVerified && selectedTableId > 0);
         request.getRequestDispatcher("customer_qr_order.jsp").forward(request, response);
+    }
+
+    private boolean isTableAvailable(List<Table> tables, int tableId) {
+        for (Table table : tables) {
+            if (table.getTableID() == tableId) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private int parseInt(String value, int defaultValue) {

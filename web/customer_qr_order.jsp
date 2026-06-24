@@ -1,4 +1,4 @@
-<%@page contentType="text/html" pageEncoding="UTF-8"%>
+<%@page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
 <%@page import="com.mycoffee.model.CartItem"%>
 <%@page import="com.mycoffee.model.Product"%>
 <%@page import="com.mycoffee.model.Table"%>
@@ -48,6 +48,8 @@
             ? (String) request.getAttribute("selectedTableName") : "Chưa chọn bàn";
     boolean qrScanned = request.getAttribute("qrScanned") != null
             ? (Boolean) request.getAttribute("qrScanned") : false;
+    String addItemHref = qrScanned ? contextPath + "/customer-menu" : "javascript:void(0)";
+    String addItemClick = qrScanned ? "" : "onclick=\"openQrScanner()\"";
 
     NumberFormat currency = NumberFormat.getInstance(new Locale("vi", "VN"));
     int cartCount = 0;
@@ -74,14 +76,15 @@
             theme: {
                 extend: {
                     fontFamily: {
-                        sans: ['Be Vietnam Pro', 'Outfit', 'sans-serif']
+                        sans: ['Roboto', 'sans-serif']
                     }
                 }
             }
         }
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
         :root {
             --primary: #0052CC;
@@ -189,6 +192,61 @@
             box-shadow: 0 18px 36px rgba(0,82,204,.22);
         }
 
+        .camera-btn {
+            margin-top: 26px;
+            height: 54px;
+            padding: 0 24px;
+            border: 0;
+            border-radius: 16px;
+            background: var(--primary);
+            color: #fff;
+            font-size: 15px;
+            font-weight: 900;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            box-shadow: 0 14px 26px rgba(0,82,204,.2);
+            cursor: pointer;
+        }
+
+        .scan-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 80;
+            background: rgba(9, 30, 66, .54);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        .scan-modal.active {
+            display: flex;
+        }
+
+        .scan-panel {
+            width: min(480px, 100%);
+            border-radius: 28px;
+            background: #fff;
+            box-shadow: 0 30px 80px rgba(9, 30, 66, .28);
+            padding: 24px;
+        }
+
+        #qrCameraReader {
+            overflow: hidden;
+            border-radius: 22px;
+            border: 1px solid #DFE6F8;
+            background: #F4F6FF;
+        }
+
+        .scan-message {
+            min-height: 22px;
+            color: #DE350B;
+            font-size: 13px;
+            font-weight: 800;
+        }
+
         .qty-control {
             min-width: 118px;
             height: 42px;
@@ -286,21 +344,16 @@
                             </div>
                         </div>
                     <% } else { %>
-                        <form action="<%= contextPath %>/customer-qr-order" method="get" class="table-chip">
+                        <div class="table-chip">
                             <div class="w-14 h-14 rounded-full bg-[#0052CC] text-white flex items-center justify-center text-[24px]">
                                 <i class="fa-solid fa-chair"></i>
                             </div>
                             <div>
-                                <div class="text-[13px] uppercase tracking-wide font-black text-[#172B4D]">Chọn bàn để test</div>
-                                <select name="tableId" onchange="this.form.submit()" class="mt-1 bg-transparent text-[30px] leading-none font-black text-[#002B7F] outline-none">
-                                    <% for (Table table : tables) { %>
-                                        <option value="<%= table.getTableID() %>" <%= table.getTableID() == selectedTableId ? "selected" : "" %>>
-                                            <%= safe(table.getTableName()) %>
-                                        </option>
-                                    <% } %>
-                                </select>
+                                <div class="text-[13px] uppercase tracking-wide font-black text-[#172B4D]">Chưa xác thực bàn</div>
+                                <div class="mt-1 text-[30px] leading-none font-black text-[#002B7F]">Quét QR</div>
+                                <div class="mt-2 text-[12px] font-bold text-[#42526E]">Bắt buộc quét QR tại bàn để gửi order</div>
                             </div>
-                        </form>
+                        </div>
                     <% } %>
                 </div>
 
@@ -321,6 +374,7 @@
                             <div class="qr-frame">
                                 <i class="fa-solid fa-qrcode"></i>
                             </div>
+                            <% if (qrScanned) { %>
                             <div class="mt-9 inline-flex items-center gap-3 rounded-full bg-[#DDF9FF] text-[#006C80] px-6 py-3 text-[15px] font-black">
                                 <span class="w-3 h-3 rounded-full bg-[#00A3BF]"></span>
                                 Đã nhận diện thành công
@@ -328,9 +382,18 @@
                             <p class="mt-6 max-w-[320px] text-[17px] leading-7 font-medium text-[#172B4D]">
                                 Mã bàn đã được xác thực. Bạn có thể bắt đầu chọn món ngay.
                             </p>
+                            <% } else { %>
+                            <button type="button" class="camera-btn" onclick="openQrScanner()">
+                                <i class="fa-solid fa-camera"></i>
+                                <span>Quét QR bằng camera</span>
+                            </button>
+                            <p class="mt-6 max-w-[320px] text-[17px] leading-7 font-medium text-[#172B4D]">
+                                Mở camera và quét mã QR trên bàn để hệ thống nhận đúng vị trí của bạn.
+                            </p>
+                            <% } %>
                         </div>
 
-                        <a href="<%= contextPath %>/customer-menu" class="blue-cta mt-8 min-h-[118px] px-8 flex items-center justify-between no-underline">
+                        <a href="<%= addItemHref %>" <%= addItemClick %> class="blue-cta mt-8 min-h-[118px] px-8 flex items-center justify-between no-underline">
                             <div class="flex items-center gap-5">
                                 <div class="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center text-[32px]">
                                     <i class="fa-regular fa-square-plus"></i>
@@ -408,7 +471,7 @@
 
                             <div class="grid grid-cols-1 md:grid-cols-[210px_1fr] gap-5 mt-7">
                                 <button type="submit" form="clearCartForm" class="outline-action">Hủy giỏ</button>
-                                <button type="submit" class="primary-action" <%= cart.isEmpty() ? "disabled" : "" %>>
+                                <button type="submit" class="primary-action" <%= (cart.isEmpty() || selectedTableId <= 0) ? "disabled" : "" %>>
                                     Gửi Order
                                     <i class="fa-regular fa-paper-plane ml-3"></i>
                                 </button>
@@ -424,5 +487,109 @@
             </div>
         </main>
     </div>
+
+    <div id="scanModal" class="scan-modal" aria-hidden="true">
+        <div class="scan-panel">
+            <div class="flex items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-[24px] leading-tight font-black text-[#002B7F]">Quét QR bàn</h2>
+                    <p class="mt-1 text-[13px] font-semibold text-[#42526E]">Đưa mã QR trên bàn vào khung camera.</p>
+                </div>
+                <button type="button" onclick="closeQrScanner()" class="w-10 h-10 rounded-full bg-[#EAF0FF] text-[#0052CC] font-black">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div id="qrCameraReader" class="mt-5"></div>
+            <div id="scanMessage" class="scan-message mt-4"></div>
+        </div>
+    </div>
+
+    <script>
+        let qrScanner = null;
+        let scannerRunning = false;
+
+        function extractTableId(text) {
+            if (!text) {
+                return null;
+            }
+
+            const value = String(text).trim();
+            if (/^\d+$/.test(value)) {
+                return value;
+            }
+
+            try {
+                const url = new URL(value, window.location.origin);
+                const tableId = url.searchParams.get("tableId");
+                if (tableId && /^\d+$/.test(tableId)) {
+                    return tableId;
+                }
+            } catch (error) {
+                const queryMatch = value.match(/[?&]tableId=(\d+)/i);
+                if (queryMatch) {
+                    return queryMatch[1];
+                }
+            }
+
+            const looseMatch = value.match(/table(?:Id)?[-=:/]*(\d+)/i);
+            return looseMatch ? looseMatch[1] : null;
+        }
+
+        async function openQrScanner() {
+            const modal = document.getElementById("scanModal");
+            const message = document.getElementById("scanMessage");
+            modal.classList.add("active");
+            modal.setAttribute("aria-hidden", "false");
+            message.textContent = "";
+
+            if (!window.Html5Qrcode) {
+                message.textContent = "Không tải được bộ quét QR. Vui lòng kiểm tra kết nối mạng hoặc chọn bàn thủ công.";
+                return;
+            }
+
+            if (!qrScanner) {
+                qrScanner = new Html5Qrcode("qrCameraReader");
+            }
+
+            if (scannerRunning) {
+                return;
+            }
+
+            try {
+                await qrScanner.start(
+                    { facingMode: "environment" },
+                    { fps: 10, qrbox: { width: 250, height: 250 } },
+                    async function(decodedText) {
+                        const tableId = extractTableId(decodedText);
+                        if (!tableId) {
+                            message.textContent = "QR chưa đúng định dạng bàn. Vui lòng thử mã khác.";
+                            return;
+                        }
+
+                        await closeQrScanner();
+                        window.location.href = "<%= contextPath %>/customer-qr-order?scan=1&tableId=" + encodeURIComponent(tableId);
+                    },
+                    function() {}
+                );
+                scannerRunning = true;
+            } catch (error) {
+                message.textContent = "Không mở được camera. Hãy cấp quyền camera cho trình duyệt hoặc chọn bàn thủ công.";
+            }
+        }
+
+        async function closeQrScanner() {
+            const modal = document.getElementById("scanModal");
+            if (qrScanner && scannerRunning) {
+                try {
+                    await qrScanner.stop();
+                    scannerRunning = false;
+                } catch (error) {
+                    scannerRunning = false;
+                }
+            }
+            modal.classList.remove("active");
+            modal.setAttribute("aria-hidden", "true");
+        }
+    </script>
 </body>
 </html>
