@@ -9,24 +9,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ProductDAO {
-
     public List<Product> getAllAvailableProducts() {
         List<Product> list = new ArrayList<>();
-        // Bổ sung cột Description vào câu lệnh SELECT
-        String sql = "SELECT ProductID, ProductName, BasePrice, CategoryID, ImageURL, Description FROM Products WHERE IsAvailable = 1";
-        try (Connection conn = new DBContext().getConnection(); 
-             PreparedStatement ps = conn.prepareStatement(sql); 
+        String sql = "SELECT p.ProductID, p.ProductName, p.BasePrice, p.CategoryID, "
+                   + "c.CategoryName, p.ImageURL, p.Description "
+                   + "FROM Products p "
+                   + "LEFT JOIN Categories c ON p.CategoryID = c.CategoryID "
+                   + "WHERE p.IsAvailable = 1 "
+                   + "ORDER BY p.CategoryID, p.ProductName";
+        try (Connection conn = new DBContext().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
-                Product p = new Product(
-                        rs.getInt("ProductID"),
-                        rs.getString("ProductName"),
-                        rs.getDouble("BasePrice"),
-                        rs.getInt("CategoryID"),
-                        rs.getString("ImageURL")
-                );
-                p.setDescription(rs.getString("Description")); // Đổ dữ liệu Description vào Model
-                list.add(p);
+                list.add(mapProduct(rs));
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -34,24 +29,39 @@ public class ProductDAO {
         return list;
     }
 
-    // Lấy danh sách các món ĐÃ BỊ ẨN (IsAvailable = 0)
+    public Product getAvailableProductById(int productId) {
+        String sql = "SELECT p.ProductID, p.ProductName, p.BasePrice, p.CategoryID, "
+                   + "c.CategoryName, p.ImageURL, p.Description "
+                   + "FROM Products p "
+                   + "LEFT JOIN Categories c ON p.CategoryID = c.CategoryID "
+                   + "WHERE p.ProductID = ? AND p.IsAvailable = 1";
+        try (Connection conn = new DBContext().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, productId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return mapProduct(rs);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
     public List<Product> getHiddenProducts() {
         List<Product> list = new ArrayList<>();
-        // Bổ sung cột Description vào câu lệnh SELECT
-        String sql = "SELECT ProductID, ProductName, BasePrice, CategoryID, ImageURL, Description FROM Products WHERE IsAvailable = 0";
-        try (Connection conn = new DBContext().getConnection(); 
-             PreparedStatement ps = conn.prepareStatement(sql); 
+        String sql = "SELECT p.ProductID, p.ProductName, p.BasePrice, p.CategoryID, "
+                   + "c.CategoryName, p.ImageURL, p.Description "
+                   + "FROM Products p "
+                   + "LEFT JOIN Categories c ON p.CategoryID = c.CategoryID "
+                   + "WHERE ISNULL(p.IsAvailable, 1) = 0 "
+                   + "ORDER BY p.ProductName";
+        try (Connection conn = new DBContext().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
-                Product p = new Product(
-                        rs.getInt("ProductID"),
-                        rs.getString("ProductName"),
-                        rs.getDouble("BasePrice"),
-                        rs.getInt("CategoryID"),
-                        rs.getString("ImageURL")
-                );
-                p.setDescription(rs.getString("Description")); // Đổ dữ liệu Description vào Model
-                list.add(p);
+                list.add(mapProduct(rs));
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -59,17 +69,16 @@ public class ProductDAO {
         return list;
     }
 
-    // Thêm sản phẩm mới kèm Hình ảnh và Mô tả
-    public boolean addProduct(Product p) {
-        // Bổ sung cột Description vào INSERT
-        String sql = "INSERT INTO Products (ProductName, BasePrice, CategoryID, ImageURL, Description, IsAvailable) VALUES (?, ?, ?, ?, ?, 1)";
-        try (Connection conn = new DBContext().getConnection(); 
+    public boolean addProduct(Product product) {
+        String sql = "INSERT INTO Products (ProductName, CategoryID, BasePrice, ImageURL, Description, IsAvailable) "
+                   + "VALUES (?, ?, ?, ?, ?, 1)";
+        try (Connection conn = new DBContext().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, p.getProductName());
-            ps.setDouble(2, p.getBasePrice());
-            ps.setInt(3, p.getCategoryId());
-            ps.setString(4, p.getImageUrl());
-            ps.setString(5, p.getDescription()); // Set giá trị Description vào câu lệnh SQL
+            ps.setString(1, product.getProductName());
+            ps.setInt(2, product.getCategoryId());
+            ps.setDouble(3, product.getBasePrice());
+            ps.setString(4, product.getImageUrl());
+            ps.setString(5, product.getDescription());
             return ps.executeUpdate() > 0;
         } catch (Exception e) {
             e.printStackTrace();
@@ -77,18 +86,18 @@ public class ProductDAO {
         return false;
     }
 
-    // Cập nhật thông tin sản phẩm, Hình ảnh mới và Mô tả
-    public boolean updateProduct(Product p) {
-        // Bổ sung cột Description vào UPDATE
-        String sql = "UPDATE Products SET ProductName = ?, BasePrice = ?, CategoryID = ?, ImageURL = ?, Description = ? WHERE ProductID = ?";
-        try (Connection conn = new DBContext().getConnection(); 
+    public boolean updateProduct(Product product) {
+        String sql = "UPDATE Products "
+                   + "SET ProductName = ?, CategoryID = ?, BasePrice = ?, ImageURL = ?, Description = ? "
+                   + "WHERE ProductID = ?";
+        try (Connection conn = new DBContext().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, p.getProductName());
-            ps.setDouble(2, p.getBasePrice());
-            ps.setInt(3, p.getCategoryId());
-            ps.setString(4, p.getImageUrl());
-            ps.setString(5, p.getDescription()); // Set giá trị Description vào câu lệnh SQL
-            ps.setInt(6, p.getProductId());
+            ps.setString(1, product.getProductName());
+            ps.setInt(2, product.getCategoryId());
+            ps.setDouble(3, product.getBasePrice());
+            ps.setString(4, product.getImageUrl());
+            ps.setString(5, product.getDescription());
+            ps.setInt(6, product.getProductId());
             return ps.executeUpdate() > 0;
         } catch (Exception e) {
             e.printStackTrace();
@@ -96,11 +105,20 @@ public class ProductDAO {
         return false;
     }
 
-    // Xóa mềm sản phẩm (IsAvailable = 0)
     public boolean deleteProduct(int productId) {
-        String sql = "UPDATE Products SET IsAvailable = 0 WHERE ProductID = ?";
-        try (Connection conn = new DBContext().getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, productId);
+        return setProductAvailability(productId, false);
+    }
+
+    public boolean restoreProduct(int productId) {
+        return setProductAvailability(productId, true);
+    }
+
+    private boolean setProductAvailability(int productId, boolean isAvailable) {
+        String sql = "UPDATE Products SET IsAvailable = ? WHERE ProductID = ?";
+        try (Connection conn = new DBContext().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setBoolean(1, isAvailable);
+            ps.setInt(2, productId);
             return ps.executeUpdate() > 0;
         } catch (Exception e) {
             e.printStackTrace();
@@ -108,15 +126,15 @@ public class ProductDAO {
         return false;
     }
 
-    // Khôi phục sản phẩm (IsAvailable = 1)
-    public boolean restoreProduct(int productId) {
-        String sql = "UPDATE Products SET IsAvailable = 1 WHERE ProductID = ?";
-        try (Connection conn = new DBContext().getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, productId);
-            return ps.executeUpdate() > 0;
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return false;
+    private Product mapProduct(ResultSet rs) throws Exception {
+        return new Product(
+                rs.getInt("ProductID"),
+                rs.getString("ProductName"),
+                rs.getDouble("BasePrice"),
+                rs.getInt("CategoryID"),
+                rs.getString("CategoryName"),
+                rs.getString("ImageURL"),
+                rs.getString("Description")
+        );
     }
 }
