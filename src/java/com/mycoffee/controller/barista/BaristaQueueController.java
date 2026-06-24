@@ -27,7 +27,7 @@ public class BaristaQueueController extends HttpServlet {
             throws ServletException, IOException {
         HttpSession session = request.getSession();
         User user = (User) session.getAttribute("user");
-        if (user == null || user.getRoleId() > 4) {
+        if (user == null || user.getRoleId() != 4) {
             response.sendRedirect("login");
             return;
         }
@@ -48,7 +48,7 @@ public class BaristaQueueController extends HttpServlet {
         request.setCharacterEncoding("UTF-8");
         HttpSession session = request.getSession();
         User user = (User) session.getAttribute("user");
-        if (user == null || user.getRoleId() > 4) {
+        if (user == null || user.getRoleId() != 4) {
             writeJson(response, "{\"ok\":false,\"error\":\"unauthorized\"}");
             return;
         }

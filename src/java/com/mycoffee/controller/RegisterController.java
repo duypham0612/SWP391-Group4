@@ -34,24 +34,46 @@ public class RegisterController extends HttpServlet {
         String email = request.getParameter("email");
         String phone = request.getParameter("phone");
 
-        // Validate đầu vào đơn giản
-        if (username == null || username.trim().isEmpty() ||
-            password == null || password.trim().isEmpty() ||
-            fullName == null || fullName.trim().isEmpty()) {
-            request.setAttribute("error", "Vui lòng nhập đầy đủ các trường bắt buộc.");
-            request.getRequestDispatcher("register.jsp").forward(request, response);
+        username = trimToNull(username);
+        fullName = trimToNull(fullName);
+        email = trimToNull(email);
+        phone = trimToNull(phone);
+
+        if (username == null || password == null || password.isEmpty() || fullName == null) {
+            forwardWithError(request, response,
+                    "Vui lòng nhập đầy đủ các trường bắt buộc.",
+                    username, fullName, email, phone);
+            return;
+        }
+
+        if (username.length() < 3 || username.length() > 50) {
+            forwardWithError(request, response,
+                    "Tên đăng nhập phải có từ 3 đến 50 ký tự.",
+                    username, fullName, email, phone);
+            return;
+        }
+
+        if (password.length() < 6 || password.length() > 255) {
+            forwardWithError(request, response,
+                    "Mật khẩu phải có ít nhất 6 ký tự.",
+                    username, fullName, email, phone);
+            return;
+        }
+
+        if (fullName.length() > 100
+                || (email != null && email.length() > 100)
+                || (phone != null && phone.length() > 15)) {
+            forwardWithError(request, response,
+                    "Thông tin đăng ký vượt quá độ dài cho phép.",
+                    username, fullName, email, phone);
             return;
         }
 
         // Kiểm tra xem Username, Email hoặc Phone đã tồn tại chưa
         if (userDAO.isUserExists(username, email, phone)) {
-            request.setAttribute("error", "Tên đăng nhập, Email hoặc Số điện thoại đã được sử dụng!");
-            // Giữ lại các giá trị cũ nhập vào để tiện nhập lại
-            request.setAttribute("oldUsername", username);
-            request.setAttribute("oldFullName", fullName);
-            request.setAttribute("oldEmail", email);
-            request.setAttribute("oldPhone", phone);
-            request.getRequestDispatcher("register.jsp").forward(request, response);
+            forwardWithError(request, response,
+                    "Tên đăng nhập, Email hoặc Số điện thoại đã được sử dụng!",
+                    username, fullName, email, phone);
             return;
         }
 
@@ -68,10 +90,31 @@ public class RegisterController extends HttpServlet {
 
         if (isSuccess) {
             // Chuyển hướng sang trang đăng nhập kèm cờ thông báo đăng ký thành công
-            response.sendRedirect("login?registered=success");
+            response.sendRedirect(request.getContextPath() + "/login?registered=success");
         } else {
-            request.setAttribute("error", "Đăng ký thất bại! Vui lòng thử lại sau.");
-            request.getRequestDispatcher("register.jsp").forward(request, response);
+            forwardWithError(request, response,
+                    "Đăng ký thất bại! Vui lòng thử lại sau.",
+                    username, fullName, email, phone);
         }
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private void forwardWithError(HttpServletRequest request, HttpServletResponse response,
+                                  String error, String username, String fullName,
+                                  String email, String phone)
+            throws ServletException, IOException {
+        request.setAttribute("error", error);
+        request.setAttribute("oldUsername", username);
+        request.setAttribute("oldFullName", fullName);
+        request.setAttribute("oldEmail", email);
+        request.setAttribute("oldPhone", phone);
+        request.getRequestDispatcher("register.jsp").forward(request, response);
     }
 }
