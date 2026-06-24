@@ -20,14 +20,14 @@
                         }
                     },
                     fontFamily: {
-                        sans: ['Outfit', 'sans-serif'],
+                        sans: ['Roboto', 'sans-serif'],
                     }
                 }
             }
         }
     </script>
-    <!-- Google Fonts: Outfit -->
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Google Fonts: Roboto -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -119,6 +119,7 @@
                                 id="fullName" 
                                 name="fullName" 
                                 required
+                                maxlength="100"
                                 value="<%= request.getAttribute("oldFullName") != null ? request.getAttribute("oldFullName") : "" %>"
                                 placeholder="Nguyễn Văn A" 
                                 class="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/85 focus:bg-white transition-all text-gray-900 font-medium"
@@ -138,6 +139,7 @@
                                     type="email" 
                                     id="email" 
                                     name="email" 
+                                    maxlength="100"
                                     value="<%= request.getAttribute("oldEmail") != null ? request.getAttribute("oldEmail") : "" %>"
                                     placeholder="email@example.com" 
                                     class="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/85 focus:bg-white transition-all text-gray-900 font-medium"
@@ -155,6 +157,7 @@
                                     type="text" 
                                     id="phone" 
                                     name="phone" 
+                                    maxlength="15"
                                     value="<%= request.getAttribute("oldPhone") != null ? request.getAttribute("oldPhone") : "" %>"
                                     placeholder="09xxxxxxxx" 
                                     class="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/85 focus:bg-white transition-all text-gray-900 font-medium"
@@ -175,6 +178,8 @@
                                 id="username" 
                                 name="username" 
                                 required
+                                minlength="3"
+                                maxlength="50"
                                 value="<%= request.getAttribute("oldUsername") != null ? request.getAttribute("oldUsername") : "" %>"
                                 placeholder="username123" 
                                 class="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/85 focus:bg-white transition-all text-gray-900 font-medium"
@@ -194,6 +199,8 @@
                                 id="password" 
                                 name="password" 
                                 required
+                                minlength="6"
+                                maxlength="255"
                                 placeholder="••••••••" 
                                 class="w-full pl-9 pr-10 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/85 focus:bg-white transition-all text-gray-900 font-medium"
                             >

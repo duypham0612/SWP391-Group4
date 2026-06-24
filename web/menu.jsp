@@ -1,404 +1,527 @@
 <%@page contentType="text/html" pageEncoding="UTF-8"%>
 <%@page import="com.mycoffee.model.User"%>
-<%
-    // Lấy thông tin user đăng nhập từ Session
-    User loggedInUser = (User) session.getAttribute("user");
-    String fullName = (loggedInUser != null) ? loggedInUser.getFullName() : "Khách hàng";
-    String shortName = "";
-    if (fullName != null && !fullName.trim().isEmpty()) {
-        String[] parts = fullName.split(" ");
-        shortName = parts[parts.length - 1]; // Lấy tên cuối
-    } else {
-        shortName = "KH";
+<%@page import="com.mycoffee.model.Product"%>
+<%@page import="com.mycoffee.model.CartItem"%>
+<%@page import="java.text.NumberFormat"%>
+<%@page import="java.util.ArrayList"%>
+<%@page import="java.util.LinkedHashMap"%>
+<%@page import="java.util.List"%>
+<%@page import="java.util.Locale"%>
+<%@page import="java.util.Map"%>
+<%!
+    private String safe(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
     }
+
+    private String shortText(String value, int maxLength) {
+        if (value == null || value.trim().isEmpty()) {
+            return "Thức uống được chuẩn bị tươi mới với hương vị cân bằng, phù hợp để thưởng thức mỗi ngày.";
+        }
+        String text = value.trim();
+        if (text.length() <= maxLength) {
+            return text;
+        }
+        return text.substring(0, maxLength - 3) + "...";
+    }
+
+    private String categoryFallbackName(int categoryId) {
+        switch (categoryId) {
+            case 1:
+                return "Cafe";
+            case 2:
+                return "Đá xay";
+            case 3:
+                return "Trà trái cây";
+            case 4:
+                return "Socola";
+            default:
+                return "Đồ ăn nhẹ";
+        }
+    }
+
+    private String productImage(Product product) {
+        if (product.getImageUrl() != null && !product.getImageUrl().trim().isEmpty()) {
+            return product.getImageUrl();
+        }
+        switch (product.getCategoryId()) {
+            case 1:
+                return "https://images.unsplash.com/photo-1511920170033-f8396924c348?w=900&h=700&fit=crop";
+            case 2:
+                return "https://images.unsplash.com/photo-1556881286-fc6915169721?w=900&h=700&fit=crop";
+            case 3:
+                return "https://images.unsplash.com/photo-1558160074-4d7d8bdf4256?w=900&h=700&fit=crop";
+            case 4:
+                return "https://images.unsplash.com/photo-1542990253-0d0f5be5f0ed?w=900&h=700&fit=crop";
+            default:
+                return "https://images.unsplash.com/photo-1495147466023-e6a4b37bb78e?w=900&h=700&fit=crop";
+        }
+    }
+%>
+<%
+    User loggedInUser = (User) session.getAttribute("user");
+    String fullName = (loggedInUser != null && loggedInUser.getFullName() != null)
+            ? loggedInUser.getFullName() : "Khách hàng";
+
+    List<Product> products = (List<Product>) request.getAttribute("products");
+    if (products == null) {
+        products = new ArrayList<>();
+    }
+
+    List<CartItem> cart = (List<CartItem>) session.getAttribute("cart");
+    if (cart == null) {
+        cart = new ArrayList<>();
+    }
+
+    NumberFormat currency = NumberFormat.getInstance(new Locale("vi", "VN"));
+    int cartCount = 0;
+    double cartTotal = 0;
+    for (CartItem item : cart) {
+        cartCount += item.getQuantity();
+        cartTotal += item.getLineTotal();
+    }
+
+    Map<Integer, String> categories = new LinkedHashMap<>();
+    for (Product product : products) {
+        String categoryName = product.getCategoryName();
+        if (categoryName == null || categoryName.trim().isEmpty()) {
+            categoryName = categoryFallbackName(product.getCategoryId());
+        }
+        categories.put(product.getCategoryId(), categoryName);
+    }
+
+    String cartMessage = (String) session.getAttribute("cartMessage");
+    String cartError = (String) session.getAttribute("cartError");
+    session.removeAttribute("cartMessage");
+    session.removeAttribute("cartError");
+
+    String contextPath = request.getContextPath();
 %>
 <!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Thực Đơn - Coffee House</title>
-    <!-- Tailwind CSS Play CDN -->
+    <title>Menu online - Modern Cafe</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     fontFamily: {
-                        sans: ['Outfit', 'sans-serif'],
+                        sans: ['Roboto', 'sans-serif']
                     }
                 }
             }
         }
     </script>
-    <!-- Google Fonts: Outfit -->
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Font Awesome -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        .fade-in {
-            animation: fadeIn 0.5s ease-out forwards;
+        :root {
+            --primary: #0052CC;
+            --secondary: #00B8D9;
+            --tertiary: #FFAB00;
+            --neutral: #42526E;
+            --ink: #0B1F45;
+            --bg: #F4F6FF;
+            --panel: #FFFFFF;
+            --line: #DFE6F8;
         }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+
+        body {
+            background: var(--bg);
+            color: #172B4D;
+        }
+
+        .menu-topbar {
+            height: 78px;
+            display: grid;
+            grid-template-columns: 1fr minmax(280px, 460px) 1fr;
+            align-items: center;
+            gap: 24px;
+            padding: 0 42px;
+            background: rgba(244, 246, 255, .92);
+            border-bottom: 1px solid rgba(223, 230, 248, .75);
+            backdrop-filter: blur(18px);
+            position: sticky;
+            top: 0;
+            z-index: 30;
+        }
+
+        .search-pill {
+            height: 54px;
+            border-radius: 999px;
+            border: 1px solid transparent;
+            background: #EAF0FF;
+            color: #42526E;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 0 22px;
+        }
+
+        .search-pill input {
+            width: 100%;
+            border: 0;
+            outline: 0;
+            background: transparent;
+            font-size: 14px;
+            color: #172B4D;
+        }
+
+        .hero-card {
+            min-height: 382px;
+            border-radius: 24px;
+            overflow: hidden;
+            background:
+                linear-gradient(90deg, rgba(0,82,204,.95) 0%, rgba(0,82,204,.78) 36%, rgba(0,0,0,.08) 64%),
+                url("https://images.unsplash.com/photo-1558160074-4d7d8bdf4256?w=1400&h=640&fit=crop") center/cover;
+            box-shadow: 0 22px 44px rgba(66,82,110,.14);
+        }
+
+        .category-pill {
+            height: 44px;
+            padding: 0 28px;
+            border-radius: 999px;
+            border: 1px solid #C8D3EA;
+            background: #fff;
+            color: #172B4D;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all .18s ease;
+            white-space: nowrap;
+        }
+
+        .category-pill.active,
+        .category-pill:hover {
+            color: #fff;
+            border-color: var(--primary);
+            background: var(--primary);
+            box-shadow: 0 10px 22px rgba(0,82,204,.2);
+        }
+
+        .product-card {
+            background: #fff;
+            border-radius: 26px;
+            overflow: hidden;
+            box-shadow: 0 16px 34px rgba(66,82,110,.08);
+            transition: transform .18s ease, box-shadow .18s ease;
+        }
+
+        .product-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 24px 42px rgba(66,82,110,.14);
+        }
+
+        .product-visual {
+            height: 420px;
+            position: relative;
+            background: linear-gradient(135deg, #EBF2FF, #D8FCFF);
+        }
+
+        .product-visual img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .stock-badge {
+            position: absolute;
+            left: 18px;
+            top: 18px;
+            height: 26px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0 12px;
+            border-radius: 999px;
+            background: #fff;
+            color: var(--primary);
+            font-size: 11px;
+            font-weight: 800;
+            box-shadow: 0 8px 18px rgba(66,82,110,.12);
+        }
+
+        .favorite-btn {
+            position: absolute;
+            right: 18px;
+            top: 18px;
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            background: #fff;
+            color: #DE350B;
+            box-shadow: 0 10px 20px rgba(66,82,110,.16);
+        }
+
+        .detail-btn {
+            height: 48px;
+            border-radius: 10px;
+            border: 1.5px solid var(--primary);
+            color: var(--primary);
+            font-weight: 800;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            transition: all .18s ease;
+        }
+
+        .detail-btn:hover {
+            color: #fff;
+            background: var(--primary);
+        }
+
+        .cart-square {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            border: 0;
+            background: var(--primary);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 22px rgba(0,82,204,.22);
+        }
+
+        .notice {
+            border-radius: 16px;
+            padding: 14px 18px;
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        @media (max-width: 1100px) {
+            .menu-topbar {
+                grid-template-columns: 1fr;
+                height: auto;
+                padding: 18px 24px;
+            }
+            .product-visual {
+                height: 320px;
+            }
         }
     </style>
 </head>
-<body class="bg-[#f4f7fc]/50 h-screen flex font-sans overflow-hidden">
-
-    <!-- Sidebar -->
+<body class="h-screen flex font-sans overflow-hidden">
     <jsp:include page="common/sidebar_customer.jsp" />
 
-    <!-- Main Wrapper -->
-    <div class="flex-1 flex flex-col h-screen overflow-hidden relative bg-[#f4f7fc]/50">
-
-        <!-- Top Navigation Header -->
-        <header class="h-20 bg-white border-b border-slate-200/50 flex items-center justify-between px-8 shadow-sm shrink-0 z-40">
-        <!-- Logo -->
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-[#006064] flex items-center justify-center text-white shadow-md shadow-[#006064]/20">
-                <i class="fa-solid fa-mug-hot text-lg"></i>
-            </div>
-            <div>
-                <h4 class="text-sm font-bold tracking-tight text-slate-800 leading-tight">Coffee House</h4>
-                <p class="text-[10px] text-slate-400 font-medium">Hương vị thượng hạng</p>
-            </div>
-        </div>
-
-        <!-- User profile & Logout -->
-        <div class="flex items-center gap-6">
-            <!-- User Info -->
-            <div class="flex items-center gap-2.5 bg-slate-50 border border-slate-200/40 px-3 py-1.5 rounded-2xl">
-                <div class="w-7 h-7 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center font-bold text-xs shadow-inner">
-                    <%= shortName.toUpperCase() %>
-                </div>
-                <div class="hidden sm:block text-left">
-                    <h5 class="text-xs font-bold text-slate-800">Xin chào, <%= fullName %>!</h5>
-                    <p class="text-[9px] text-[#006064] font-bold">Thành viên Thân Thiết</p>
-                </div>
-            </div>
-
-            <!-- Vertical Separator -->
-            <div class="w-px h-6 bg-slate-200"></div>
-
-            <!-- Logout Button -->
-            <a 
-                href="login?action=logout" 
-                class="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold transition-all border border-red-100/50 shadow-sm"
-            >
-                <i class="fa-solid fa-right-from-bracket text-xs"></i>
-                <span>Đăng xuất</span>
-            </a>
-        </div>
-    </header>
-
-    <!-- Main Content Area -->
-    <main class="flex-1 overflow-y-auto p-6 md:p-8">
-        <div class="max-w-7xl w-full mx-auto flex flex-col lg:flex-row gap-8 relative">
-        
-        <!-- Left Side: Menu Grid (Width 2/3) -->
-        <div class="flex-1 space-y-8 fade-in">
-            <!-- Hero banner card -->
-            <div class="bg-gradient-to-r from-[#006064] to-[#004d40] text-white p-8 rounded-3xl shadow-sm relative overflow-hidden flex flex-col justify-between h-44">
-                <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.08),transparent_50%)]"></div>
-                <div class="z-10 max-w-lg">
-                    <span class="px-2.5 py-1 rounded-full bg-white/20 text-[9px] font-bold uppercase tracking-wider text-teal-100">Chào mừng bạn mới</span>
-                    <h2 class="text-2xl font-bold tracking-tight mt-2.5">Thực Đơn Coffee House</h2>
-                    <p class="text-xs text-teal-100/80 font-medium mt-1 leading-relaxed">
-                        Tất cả sản phẩm đều được pha chế từ nguyên liệu sạch tươi 100% trong ngày. Chúc bạn có một ngày tràn đầy năng lượng!
-                    </p>
-                </div>
-            </div>
-
-            <!-- Categories Filter Tabs -->
-            <div class="flex items-center gap-2 border-b border-slate-250/20 pb-1">
-                <button onclick="filterMenu('all')" id="tab-all" class="px-4 py-2 rounded-xl text-xs font-bold bg-[#006064] text-white transition-all">
-                    Tất cả
+    <div class="flex-1 h-screen overflow-hidden">
+        <header class="menu-topbar">
+            <div></div>
+            <label class="search-pill">
+                <i class="fa-solid fa-magnifying-glass text-[#42526E]"></i>
+                <input id="menuSearch" type="search" placeholder="Tìm món ngon ngay..." oninput="filterProducts()">
+            </label>
+            <div class="flex items-center justify-end gap-6 text-[#002B7F]">
+                <button class="relative text-[20px]" type="button" title="Thông báo">
+                    <i class="fa-regular fa-bell"></i>
                 </button>
-                <button onclick="filterMenu('coffee')" id="tab-coffee" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-all">
-                    Cà Phê
+                <button class="relative text-[20px]" type="button" title="Giỏ hàng" onclick="scrollToCartSummary()">
+                    <i class="fa-solid fa-cart-shopping"></i>
+                    <% if (cartCount > 0) { %>
+                        <span class="absolute -top-3 -right-3 min-w-[19px] h-[19px] px-1 rounded-full bg-[#00B8D9] text-white text-[10px] font-black flex items-center justify-center"><%= cartCount %></span>
+                    <% } %>
                 </button>
-                <button onclick="filterMenu('tea')" id="tab-tea" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-all">
-                    Trà Trái Cây
-                </button>
-                <button onclick="filterMenu('cake')" id="tab-cake" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-all">
-                    Bánh Ngọt
-                </button>
-            </div>
-
-            <!-- Products Grid -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" id="products-grid">
-                <!-- Product Card 1 -->
-                <div class="bg-white rounded-3xl border border-slate-200/60 shadow-sm p-4 hover:shadow-md transition-all duration-300 group flex flex-col justify-between h-96 product-card" data-category="coffee">
-                    <div>
-                        <!-- Image placeholder with icon -->
-                        <div class="w-full h-44 rounded-2xl bg-orange-50/50 text-orange-500 flex items-center justify-center border border-orange-100/50 shadow-inner group-hover:scale-[1.02] transition-transform duration-300 relative">
-                            <i class="fa-solid fa-mug-hot text-5xl"></i>
-                            <span class="absolute top-3 left-3 bg-red-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Hot</span>
-                        </div>
-                        <h4 class="text-sm font-bold text-slate-800 mt-4">Latte Đá Hạnh Nhân</h4>
-                        <p class="text-[10px] text-slate-400 font-medium mt-1 leading-relaxed">
-                            Cà phê espresso hòa quyện cùng sữa tươi béo ngậy và hương vị quả hạnh nhân đặc trưng.
-                        </p>
-                    </div>
-                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                        <span class="text-sm font-extrabold text-slate-800">55.000đ</span>
-                        <button onclick="addToCart('Latte Đá Hạnh Nhân', 55000)" class="w-8 h-8 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-600 flex items-center justify-center shadow-sm transition-colors">
-                            <i class="fa-solid fa-plus text-xs"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Product Card 2 -->
-                <div class="bg-white rounded-3xl border border-slate-200/60 shadow-sm p-4 hover:shadow-md transition-all duration-300 group flex flex-col justify-between h-96 product-card" data-category="coffee">
-                    <div>
-                        <div class="w-full h-44 rounded-2xl bg-blue-50/50 text-blue-500 flex items-center justify-center border border-blue-100/50 shadow-inner group-hover:scale-[1.02] transition-transform duration-300 relative">
-                            <i class="fa-solid fa-whiskey-glass text-5xl"></i>
-                        </div>
-                        <h4 class="text-sm font-bold text-slate-800 mt-4">Americano Cam Sả</h4>
-                        <p class="text-[10px] text-slate-400 font-medium mt-1 leading-relaxed">
-                            Cà phê Americano đá thanh mát kết hợp lát cam tươi mọng nước và sả thơm nồng.
-                        </p>
-                    </div>
-                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                        <span class="text-sm font-extrabold text-slate-800">45.000đ</span>
-                        <button onclick="addToCart('Americano Cam Sả', 45000)" class="w-8 h-8 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-600 flex items-center justify-center shadow-sm transition-colors">
-                            <i class="fa-solid fa-plus text-xs"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Product Card 3 -->
-                <div class="bg-white rounded-3xl border border-slate-200/60 shadow-sm p-4 hover:shadow-md transition-all duration-300 group flex flex-col justify-between h-96 product-card" data-category="cake">
-                    <div>
-                        <div class="w-full h-44 rounded-2xl bg-amber-50/50 text-amber-500 flex items-center justify-center border border-amber-100/50 shadow-inner group-hover:scale-[1.02] transition-transform duration-300 relative">
-                            <i class="fa-solid fa-stroopwafel text-5xl"></i>
-                        </div>
-                        <h4 class="text-sm font-bold text-slate-800 mt-4">Bánh Sừng Bò Bơ</h4>
-                        <p class="text-[10px] text-slate-400 font-medium mt-1 leading-relaxed">
-                            Bánh sừng bò nướng chín giòn với hương thơm ngào ngạt của bơ lạt nguyên chất Pháp.
-                        </p>
-                    </div>
-                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                        <span class="text-sm font-extrabold text-slate-800">35.000đ</span>
-                        <button onclick="addToCart('Bánh Sừng Bò Bơ', 35000)" class="w-8 h-8 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-600 flex items-center justify-center shadow-sm transition-colors">
-                            <i class="fa-solid fa-plus text-xs"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Product Card 4 -->
-                <div class="bg-white rounded-3xl border border-slate-200/60 shadow-sm p-4 hover:shadow-md transition-all duration-300 group flex flex-col justify-between h-96 product-card" data-category="tea">
-                    <div>
-                        <div class="w-full h-44 rounded-2xl bg-teal-50/50 text-teal-600 flex items-center justify-center border border-teal-100/50 shadow-inner group-hover:scale-[1.02] transition-transform duration-300 relative">
-                            <i class="fa-solid fa-leaf text-5xl"></i>
-                            <span class="absolute top-3 left-3 bg-red-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Hot</span>
-                        </div>
-                        <h4 class="text-sm font-bold text-slate-800 mt-4">Trà Nhãn Sen Vàng</h4>
-                        <p class="text-[10px] text-slate-400 font-medium mt-1 leading-relaxed">
-                            Nước trà lài ô long thanh tao, nhãn lồng chín ngọt lịm kết hợp củ sen bùi béo.
-                        </p>
-                    </div>
-                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                        <span class="text-sm font-extrabold text-slate-800">50.000đ</span>
-                        <button onclick="addToCart('Trà Nhãn Sen Vàng', 50000)" class="w-8 h-8 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-600 flex items-center justify-center shadow-sm transition-colors">
-                            <i class="fa-solid fa-plus text-xs"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Product Card 5 -->
-                <div class="bg-white rounded-3xl border border-slate-200/60 shadow-sm p-4 hover:shadow-md transition-all duration-300 group flex flex-col justify-between h-96 product-card" data-category="coffee">
-                    <div>
-                        <div class="w-full h-44 rounded-2xl bg-rose-50/50 text-rose-500 flex items-center justify-center border border-rose-100/50 shadow-inner group-hover:scale-[1.02] transition-transform duration-300 relative">
-                            <i class="fa-solid fa-mug-saucer text-5xl"></i>
-                        </div>
-                        <h4 class="text-sm font-bold text-slate-800 mt-4">Cappuccino Nóng</h4>
-                        <p class="text-[10px] text-slate-400 font-medium mt-1 leading-relaxed">
-                            Cà phê espresso sánh đậm phủ một lớp bọt sữa dày mịn trang trí hình nghệ thuật.
-                        </p>
-                    </div>
-                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                        <span class="text-sm font-extrabold text-slate-800">48.000đ</span>
-                        <button onclick="addToCart('Cappuccino Nóng', 48000)" class="w-8 h-8 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-600 flex items-center justify-center shadow-sm transition-colors">
-                            <i class="fa-solid fa-plus text-xs"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Product Card 6 -->
-                <div class="bg-white rounded-3xl border border-slate-200/60 shadow-sm p-4 hover:shadow-md transition-all duration-300 group flex flex-col justify-between h-96 product-card" data-category="cake">
-                    <div>
-                        <div class="w-full h-44 rounded-2xl bg-pink-50/50 text-pink-500 flex items-center justify-center border border-pink-100/50 shadow-inner group-hover:scale-[1.02] transition-transform duration-300 relative">
-                            <i class="fa-solid fa-cheese text-5xl"></i>
-                        </div>
-                        <h4 class="text-sm font-bold text-slate-800 mt-4">Bánh Mousse Dâu Tây</h4>
-                        <p class="text-[10px] text-slate-400 font-medium mt-1 leading-relaxed">
-                            Mousse dâu kem cheese dẻo mềm mọng nước, chua ngọt dễ ăn thanh mát.
-                        </p>
-                    </div>
-                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                        <span class="text-sm font-extrabold text-slate-800">40.000đ</span>
-                        <button onclick="addToCart('Bánh Mousse Dâu Tây', 40000)" class="w-8 h-8 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-600 flex items-center justify-center shadow-sm transition-colors">
-                            <i class="fa-solid fa-plus text-xs"></i>
-                        </button>
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-[#00B8D9] to-[#0052CC] p-[2px]">
+                    <div class="w-full h-full rounded-full bg-white flex items-center justify-center text-[#0052CC] font-black text-xs">
+                        <%= safe(fullName.substring(0, Math.min(1, fullName.length()))).toUpperCase() %>
                     </div>
                 </div>
             </div>
-        </div>
+        </header>
 
-        <!-- Right Side: Interactive Cart Panel (Width 1/3) -->
-        <aside class="w-full lg:w-96 bg-white rounded-3xl border border-slate-200/60 shadow-sm p-6 flex flex-col justify-between h-[600px] shrink-0 sticky top-28">
-            <div class="space-y-6 flex-1 overflow-y-auto">
-                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                    <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                        <i class="fa-solid fa-shopping-cart text-[#006064]"></i>
-                        Giỏ hàng của bạn
-                    </h3>
-                    <span id="cart-count" class="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">0</span>
+        <main class="h-[calc(100vh-78px)] overflow-y-auto px-10 pb-16">
+            <div class="max-w-[1120px] mx-auto pt-8">
+                <section class="hero-card flex items-center px-16">
+                    <div class="max-w-[560px] text-white">
+                        <div class="inline-flex items-center px-5 py-2 rounded-full bg-[#4BE3FF] text-[#003B87] text-[12px] font-black uppercase tracking-wide">
+                            Ưu đãi tháng 10
+                        </div>
+                        <h1 class="mt-6 text-[48px] leading-[1.08] font-black tracking-tight drop-shadow-sm">
+                            Mua 1 Tặng 1 Toàn<br>Menu Trà
+                        </h1>
+                        <p class="mt-6 text-[18px] leading-8 font-medium text-white/95">
+                            Thưởng thức hương vị thiên nhiên với ưu đãi độc quyền dành cho Thành viên Vàng.
+                        </p>
+                        <a href="#menu-grid" class="mt-8 inline-flex h-[48px] px-9 items-center justify-center rounded-full bg-white text-[#002B7F] text-[14px] font-black no-underline shadow-lg">
+                            Nhận mã ngay
+                        </a>
+                    </div>
+                </section>
+
+                <% if (cartMessage != null) { %>
+                    <div class="notice mt-7 bg-[#E3FCEF] text-[#006644] border border-[#ABF5D1]">
+                        <i class="fa-solid fa-circle-check mr-2"></i><%= safe(cartMessage) %>
+                    </div>
+                <% } %>
+                <% if (cartError != null) { %>
+                    <div class="notice mt-7 bg-[#FFEBE6] text-[#DE350B] border border-[#FFBDAD]">
+                        <i class="fa-solid fa-circle-exclamation mr-2"></i><%= safe(cartError) %>
+                    </div>
+                <% } %>
+
+                <div class="flex items-center gap-3 mt-12 overflow-x-auto pb-2">
+                    <button type="button" class="category-pill active" data-category="all" onclick="setCategory('all')">Tất cả</button>
+                    <% for (Map.Entry<Integer, String> entry : categories.entrySet()) { %>
+                        <button type="button" class="category-pill" data-category="<%= entry.getKey() %>" onclick="setCategory('<%= entry.getKey() %>')">
+                            <%= safe(entry.getValue()) %>
+                        </button>
+                    <% } %>
                 </div>
 
-                <!-- Empty Cart State -->
-                <div id="empty-cart" class="flex flex-col items-center justify-center py-12 gap-3">
-                    <i class="fa-solid fa-bag-shopping text-slate-200 text-5xl"></i>
-                    <p class="text-xs text-slate-400 font-medium">Giỏ hàng của bạn đang trống!</p>
-                </div>
+                <% if (products.isEmpty()) { %>
+                    <div class="mt-10 bg-white rounded-[24px] border border-[#DFE6F8] p-12 text-center">
+                        <i class="fa-solid fa-mug-saucer text-6xl text-[#C8D3EA]"></i>
+                        <p class="mt-5 text-[16px] font-black text-[#172B4D]">Chưa có sản phẩm đang bán.</p>
+                    </div>
+                <% } else { %>
+                    <div id="menu-grid" class="grid grid-cols-1 xl:grid-cols-2 gap-7 mt-10">
+                        <% for (Product product : products) {
+                            String categoryName = product.getCategoryName();
+                            if (categoryName == null || categoryName.trim().isEmpty()) {
+                                categoryName = categoryFallbackName(product.getCategoryId());
+                            }
+                            String description = shortText(product.getDescription(), 106);
+                            double oldPrice = Math.round(product.getBasePrice() * 1.18 / 1000) * 1000;
+                        %>
+                            <article class="product-card"
+                                     data-category="<%= product.getCategoryId() %>"
+                                     data-name="<%= safe(product.getProductName()).toLowerCase() %>"
+                                     data-description="<%= safe(description).toLowerCase() %>">
+                                <div class="product-visual">
+                                    <img src="<%= safe(productImage(product)) %>" alt="<%= safe(product.getProductName()) %>">
+                                    <span class="stock-badge"><i class="fa-regular fa-circle-check"></i>Còn hàng</span>
+                                    <button type="button" class="favorite-btn" title="Yêu thích">
+                                        <i class="fa-regular fa-heart"></i>
+                                    </button>
+                                </div>
+                                <div class="p-6">
+                                    <div class="text-[12px] font-black uppercase tracking-wide text-[#00A3BF]"><%= safe(categoryName) %></div>
+                                    <h2 class="mt-3 text-[22px] leading-tight font-black text-[#172B4D]"><%= safe(product.getProductName()) %></h2>
+                                    <p class="mt-4 min-h-[48px] text-[14px] leading-6 font-medium text-[#42526E]"><%= safe(description) %></p>
+                                    <div class="mt-5 flex items-end gap-4">
+                                        <span class="text-[26px] leading-none font-black text-[#002B7F]"><%= currency.format(product.getBasePrice()) %>đ</span>
+                                        <span class="text-[13px] font-bold text-[#A5ADBA] line-through"><%= currency.format(oldPrice) %>đ</span>
+                                    </div>
+                                    <div class="mt-7 grid grid-cols-[1fr_48px] gap-3">
+                                        <a class="detail-btn" href="<%= contextPath %>/product-detail?id=<%= product.getProductId() %>">Chi tiết</a>
+                                        <form action="<%= contextPath %>/customer-cart" method="post" class="m-0">
+                                            <input type="hidden" name="action" value="add">
+                                            <input type="hidden" name="productId" value="<%= product.getProductId() %>">
+                                            <input type="hidden" name="quantity" value="1">
+                                            <input type="hidden" name="redirect" value="/menu">
+                                            <button type="submit" class="cart-square" title="Thêm vào giỏ">
+                                                <i class="fa-solid fa-cart-plus"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </article>
+                        <% } %>
+                    </div>
+                <% } %>
 
-                <!-- Cart Items List -->
-                <div id="cart-list" class="space-y-4 hidden">
-                    <!-- Dynamic Cart Items injected here -->
-                </div>
+                <section id="cartSummary" class="mt-10 bg-white border border-[#DFE6F8] rounded-[24px] p-7 shadow-[0_16px_34px_rgba(66,82,110,.08)]">
+                    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div>
+                            <h2 class="text-[22px] font-black text-[#172B4D]">Giỏ hàng của bạn</h2>
+                            <p class="mt-1 text-[14px] font-medium text-[#42526E]"><%= cartCount %> món đã chọn</p>
+                        </div>
+                        <div class="text-left md:text-right">
+                            <p class="text-[13px] font-bold text-[#6B778C]">Tổng tiền tạm tính</p>
+                            <p class="text-[28px] leading-tight font-black text-[#002B7F]"><%= currency.format(cartTotal) %>đ</p>
+                        </div>
+                    </div>
+
+                    <% if (!cart.isEmpty()) { %>
+                        <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <% for (CartItem item : cart) {
+                                Product cartProduct = item.getProduct();
+                                if (cartProduct == null) {
+                                    continue;
+                                }
+                            %>
+                                <div class="flex items-center justify-between gap-4 rounded-2xl bg-[#F4F6FF] border border-[#DFE6F8] px-4 py-3">
+                                    <div class="min-w-0">
+                                        <div class="truncate text-[14px] font-black text-[#172B4D]"><%= safe(cartProduct.getProductName()) %></div>
+                                        <div class="text-[12px] font-bold text-[#6B778C]"><%= item.getQuantity() %> x <%= currency.format(cartProduct.getBasePrice()) %>đ</div>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <form action="<%= contextPath %>/customer-cart" method="post">
+                                            <input type="hidden" name="action" value="decrease">
+                                            <input type="hidden" name="productId" value="<%= cartProduct.getProductId() %>">
+                                            <input type="hidden" name="redirect" value="/menu#cartSummary">
+                                            <button type="submit" class="w-8 h-8 rounded-lg bg-white text-[#0052CC] font-black">-</button>
+                                        </form>
+                                        <form action="<%= contextPath %>/customer-cart" method="post">
+                                            <input type="hidden" name="action" value="increase">
+                                            <input type="hidden" name="productId" value="<%= cartProduct.getProductId() %>">
+                                            <input type="hidden" name="redirect" value="/menu#cartSummary">
+                                            <button type="submit" class="w-8 h-8 rounded-lg bg-white text-[#0052CC] font-black">+</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            <% } %>
+                        </div>
+                    <% } %>
+
+                    <div class="mt-7 grid grid-cols-1 md:grid-cols-[1fr_180px] gap-4">
+                        <a href="<%= contextPath %>/customer-qr-order"
+                           class="h-[54px] rounded-2xl bg-[#0052CC] text-white text-[15px] font-black flex items-center justify-center gap-3 no-underline shadow-[0_14px_28px_rgba(0,82,204,.2)]">
+                            <span>Đặt món QR</span>
+                            <i class="fa-regular fa-paper-plane"></i>
+                        </a>
+                        <form action="<%= contextPath %>/customer-cart" method="post">
+                            <input type="hidden" name="action" value="clear">
+                            <input type="hidden" name="redirect" value="/menu#cartSummary">
+                            <button type="submit" class="w-full h-[54px] rounded-2xl border-2 border-[#0052CC] bg-white text-[#0052CC] text-[15px] font-black">
+                                Huỷ giỏ
+                            </button>
+                        </form>
+                    </div>
+                </section>
             </div>
-
-            <!-- Summary section -->
-            <div class="pt-6 border-t border-slate-100 space-y-4">
-                <div class="flex justify-between text-xs font-bold text-slate-700">
-                    <span>Tổng tiền thanh toán</span>
-                    <span id="cart-total" class="text-sm text-red-500 font-extrabold">0đ</span>
-                </div>
-
-                <!-- Checkout button -->
-                <button onclick="checkout()" class="w-full py-3 bg-[#006064] hover:bg-[#004d40] text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2">
-                    <span>Đặt hàng ngay</span>
-                    <i class="fa-solid fa-credit-card text-[10px]"></i>
-                </button>
-            </div>
-        </aside>
-        </div>
-    </main>
-
-    <!-- Footer -->
-    <footer class="bg-white border-t border-slate-200/50 py-6 text-center text-[10px] text-slate-400 font-semibold mt-auto shrink-0 z-40 relative">
-        &copy; 2026 Coffee House Management System. All rights reserved.
-    </footer>
+        </main>
     </div>
 
-    <!-- Interactive script -->
     <script>
-        let cart = [];
+        let activeCategory = 'all';
 
-        function filterMenu(category) {
-            // Update tabs active state
-            const tabs = ['all', 'coffee', 'tea', 'cake'];
-            tabs.forEach(tab => {
-                const btn = document.getElementById(`tab-${tab}`);
-                if (tab === category) {
-                    btn.classList.add('bg-[#006064]', 'text-white');
-                    btn.classList.remove('text-slate-500', 'hover:bg-slate-100', 'hover:text-slate-800');
-                } else {
-                    btn.classList.remove('bg-[#006064]', 'text-white');
-                    btn.classList.add('text-slate-500', 'hover:bg-slate-100', 'hover:text-slate-800');
-                }
+        function setCategory(category) {
+            activeCategory = category;
+            document.querySelectorAll('.category-pill').forEach(function (button) {
+                button.classList.toggle('active', button.dataset.category === category);
             });
+            filterProducts();
+        }
 
-            // Filter cards
-            const cards = document.querySelectorAll('.product-card');
-            cards.forEach(card => {
-                const cat = card.getAttribute('data-category');
-                if (category === 'all' || cat === category) {
-                    card.classList.remove('hidden');
-                } else {
-                    card.classList.add('hidden');
-                }
+        function filterProducts() {
+            const keyword = (document.getElementById('menuSearch').value || '').trim().toLowerCase();
+            document.querySelectorAll('.product-card').forEach(function (card) {
+                const matchesCategory = activeCategory === 'all' || card.dataset.category === activeCategory;
+                const text = (card.dataset.name || '') + ' ' + (card.dataset.description || '');
+                const matchesKeyword = keyword.length === 0 || text.indexOf(keyword) >= 0;
+                card.classList.toggle('hidden', !matchesCategory || !matchesKeyword);
             });
         }
 
-        function addToCart(name, price) {
-            // Find item in cart
-            const index = cart.findIndex(item => item.name === name);
-            if (index > -1) {
-                cart[index].quantity += 1;
-            } else {
-                cart.push({ name, price, quantity: 1 });
+        function scrollToCartSummary() {
+            const cart = document.getElementById('cartSummary');
+            if (cart) {
+                cart.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
-            updateCartUI();
-        }
-
-        function changeQuantity(name, amount) {
-            const index = cart.findIndex(item => item.name === name);
-            if (index > -1) {
-                cart[index].quantity += amount;
-                if (cart[index].quantity <= 0) {
-                    cart.splice(index, 1);
-                }
-            }
-            updateCartUI();
-        }
-
-        function updateCartUI() {
-            const emptyCart = document.getElementById('empty-cart');
-            const cartList = document.getElementById('cart-list');
-            const cartCount = document.getElementById('cart-count');
-            const cartTotal = document.getElementById('cart-total');
-
-            let count = 0;
-            let total = 0;
-
-            if (cart.length === 0) {
-                emptyCart.classList.remove('hidden');
-                cartList.classList.add('hidden');
-                cartCount.innerText = '0';
-                cartTotal.innerText = '0đ';
-                return;
-            }
-
-            emptyCart.classList.add('hidden');
-            cartList.classList.remove('hidden');
-
-            cartList.innerHTML = '';
-            cart.forEach(item => {
-                count += item.quantity;
-                total += item.price * item.quantity;
-
-                const row = document.createElement('div');
-                row.className = 'flex items-center justify-between p-2 rounded-2xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all';
-                row.innerHTML = `
-                    <div class="min-w-0 flex-1">
-                        <h4 class="text-xs font-bold text-slate-800 truncate">${item.name}</h4>
-                        <p class="text-[10px] text-slate-400 font-bold mt-0.5">${item.price.toLocaleString('vi-VN')}đ / ly</p>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <button onclick="changeQuantity('${item.name}', -1)" class="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold transition-colors">-</button>
-                        <span class="text-xs font-extrabold text-slate-700 w-4 text-center">${item.quantity}</span>
-                        <button onclick="changeQuantity('${item.name}', 1)" class="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold transition-colors">+</button>
-                    </div>
-                `;
-                cartList.appendChild(row);
-            });
-
-            cartCount.innerText = count;
-            cartTotal.innerText = total.toLocaleString('vi-VN') + 'đ';
-        }
-
-        function checkout() {
-            if (cart.length === 0) {
-                alert("Giỏ hàng của bạn đang trống!");
-                return;
-            }
-            alert("Đặt hàng thành công! Đơn hàng của bạn đã được chuyển tới quầy pha chế.");
-            cart = [];
-            updateCartUI();
         }
     </script>
 </body>

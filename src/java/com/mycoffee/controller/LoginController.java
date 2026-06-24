@@ -1,6 +1,7 @@
 package com.mycoffee.controller;
 
 import com.mycoffee.dao.UserDAO;
+import com.mycoffee.dao.TableDAO;
 import com.mycoffee.model.User;
 import java.io.IOException;
 import jakarta.servlet.ServletException;
@@ -19,6 +20,11 @@ public class LoginController extends HttpServlet {
         HttpSession session = request.getSession();
         String action = request.getParameter("action");
         if ("logout".equals(action)) {
+            Object selectedTableId = session.getAttribute("customerTableId");
+            if (selectedTableId instanceof Integer
+                    && "test".equals(session.getAttribute("customerTableSelectionMode"))) {
+                new TableDAO().releaseCustomerSelectedTable((Integer) selectedTableId);
+            }
             session.invalidate();
             response.sendRedirect(request.getContextPath() + "/login");
             return;
@@ -70,26 +76,28 @@ public class LoginController extends HttpServlet {
      * RoleID theo DB: 1 = System Admin, 2 = Branch Manager, 3 = Cashier, 4 = Barista, 5 = Customer
      *
      * PHÂN QUYỀN:
-     *   - RoleID 1, 2, 3 → Trang quản trị/quầy (admin-dashboard, manager-dashboard, table-layout)
+     *   - RoleID 1, 2, 3 → Trang quản trị/nhân viên (admin-dashboard, manager-dashboard, pos-tables)
      *   - RoleID 4       → Màn pha chế (barista-board)
-     *   - RoleID 5       → Trang khách hàng (menu) — chỉ được dùng tính năng tại bàn
+     *   - RoleID 5       → Trang khách hàng (menu)
      */
     private void redirectByRole(int roleId, HttpServletRequest request, HttpServletResponse response) throws IOException {
         String contextPath = request.getContextPath();
         switch (roleId) {
-            case 1: // Admin — Quản trị hệ thống chuỗi
+            case User.ROLE_ADMIN:
                 response.sendRedirect(contextPath + "/admin-dashboard");
                 break;
-            case 2: // Branch Manager — Quản lý chi nhánh
+            case User.ROLE_BRANCH_MANAGER:
                 response.sendRedirect(contextPath + "/manager-dashboard");
                 break;
-            case 3: // Cashier — Nhân viên thu ngân / quầy
-                response.sendRedirect(contextPath + "/table-layout");
+            case User.ROLE_EMPLOYEE: // 3 — Thu ngân / quầy POS
+                response.sendRedirect(contextPath + "/pos-tables");
                 break;
+            // LƯU Ý: theo DB thật RoleID 4 = Barista, 5 = Customer.
+            // (User.ROLE_CUSTOMER=4 trong model đang LỆCH với DB — cần nhóm thống nhất lại.)
             case 4: // Barista — Nhân viên pha chế
                 response.sendRedirect(contextPath + "/barista-board");
                 break;
-            case 5: // Customer — Khách hàng thành viên (chỉ dùng web gọi món)
+            case 5: // Customer — Khách hàng thành viên
                 response.sendRedirect(contextPath + "/menu");
                 break;
             default:
