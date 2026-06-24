@@ -10,9 +10,6 @@
     boolean isAttendance = currentUri.contains("manager-attendance");
     boolean isTables = currentUri.contains("manager-tables");
 
-    // THÊM MỚI: Biến kiểm tra cho Sơ đồ bàn và Máy tính tiền POS
-    boolean isPosTables = currentUri.contains("pos-tables") || currentUri.contains("pos");
-
     // Lấy thông tin user đăng nhập từ Session
     User loggedInUser = (User) session.getAttribute("user");
     String fullName = (loggedInUser != null) ? loggedInUser.getFullName() : "Admin Manager";
@@ -44,9 +41,9 @@
             <span>Tổng quan</span>
         </a>
 
-        <a href="${pageContext.request.contextPath}/pos-tables" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 <%= isPosTables ? "bg-sky-50 text-sky-600" : "text-slate-500 hover:bg-slate-100 hover:text-slate-800" %>">
-            <i class="fa-solid fa-cash-register text-sm w-4 text-center <%= isPosTables ? "text-sky-600" : "text-slate-400" %>"></i>
-            <span>Sơ đồ bàn (POS)</span>
+        <a href="#" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-all duration-200">
+            <i class="fa-solid fa-cash-register text-sm w-4 text-center text-slate-400"></i>
+            <span>Gọi món (POS)</span>
         </a>
 
         <a href="${pageContext.request.contextPath}/manager-tables" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 <%= isTables ? "bg-sky-50 text-sky-600" : "text-slate-500 hover:bg-slate-100 hover:text-slate-800" %>">
@@ -127,8 +124,8 @@
 
             <div class="w-px h-6 bg-slate-200"></div>
 
-            <a
-                href="${pageContext.request.contextPath}/login?action=logout"
+            <a 
+                href="${pageContext.request.contextPath}/login?action=logout" 
                 class="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold transition-all border border-red-100/50 shadow-sm"
                 >
                 <i class="fa-solid fa-right-from-bracket text-xs"></i>

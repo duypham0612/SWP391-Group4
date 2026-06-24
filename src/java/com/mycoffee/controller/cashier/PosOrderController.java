@@ -1,14 +1,12 @@
-package com.mycoffee.controller.cashier; // Cập nhật đúng package của bạn
+package com.mycoffee.controller.cashier;
 
 import com.mycoffee.dao.OrderDAO;
 import com.mycoffee.dao.ProductDAO;
-import com.mycoffee.dao.VoucherDAO; // BẮT BUỘC PHẢI IMPORT THÊM DÒNG NÀY
 import com.mycoffee.model.Order;
-import com.mycoffee.model.OrderDetail;
-import com.mycoffee.model.Product;
 import com.mycoffee.model.User;
+import com.mycoffee.service.OrderService;
+import com.mycoffee.service.VoucherService;
 import java.io.IOException;
-import java.util.List;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -19,45 +17,43 @@ import jakarta.servlet.http.HttpSession;
 @WebServlet(name = "PosOrderController", urlPatterns = {"/pos"})
 public class PosOrderController extends HttpServlet {
 
+    // KHAI BÁO SERVICE LÀM NHIỆM VỤ XỬ LÝ NGHIỆP VỤ
+    private final OrderService orderService = new OrderService();
+    private final VoucherService voucherService = new VoucherService();
+    private final OrderDAO orderDAO = new OrderDAO(); // DAO giờ chỉ dùng để đọc (view) dữ liệu
+
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        HttpSession session = request.getSession();
-        User user = (User) session.getAttribute("user");
-        if (user == null || (user.getRoleId() > 3)) {
-            response.sendRedirect("login");
+        HttpSession session = request.getSession(false);
+        User user = (session != null) ? (User) session.getAttribute("user") : null;
+        int roleId = (user != null) ? user.getRoleId() : 0;
+
+        if (roleId != 1 && roleId != 2 && roleId != 3) {
+            response.sendRedirect(request.getContextPath() + "/login");
             return;
         }
 
         String action = request.getParameter("action");
-        OrderDAO orderDAO = new OrderDAO();
         int branchId = 1;
 
-        if ("create".equals(action)) {
+        if ("open_table".equals(action)) {
             int tableId = Integer.parseInt(request.getParameter("tableId"));
-            int orderId = orderDAO.createNewOrder(branchId, tableId, user.getUserId());
+            // Đã đổi sang dùng orderService
+            int orderId = orderService.openOrCreateTableOrder(branchId, tableId, user.getUserId());
             response.sendRedirect("pos?action=view&orderId=" + orderId);
-
-        } else if ("open_table".equals(action)) {
-            int tableId = Integer.parseInt(request.getParameter("tableId"));
-            int existingOrderId = orderDAO.getPendingOrderIdByTable(tableId);
-
-            if (existingOrderId > 0) {
-                response.sendRedirect("pos?action=view&orderId=" + existingOrderId);
-            } else {
-                int newOrderId = orderDAO.createNewOrder(branchId, tableId, user.getUserId());
-                response.sendRedirect("pos?action=view&orderId=" + newOrderId);
-            }
 
         } else if ("cancel_order".equals(action)) {
             int orderId = Integer.parseInt(request.getParameter("orderId"));
             int tableId = Integer.parseInt(request.getParameter("tableId"));
-            orderDAO.cancelOrder(orderId, tableId);
+            // Đã đổi sang dùng orderService
+            orderService.cancelTable(orderId, tableId);
             response.sendRedirect("pos-tables");
 
         } else if ("reset_all".equals(action)) {
-            orderDAO.resetAllTables(branchId);
+            // Đã đổi sang dùng orderService
+            orderService.resetBranchTables(branchId);
             response.sendRedirect("pos-tables");
 
         } else if ("add_item".equals(action)) {
@@ -66,35 +62,62 @@ public class PosOrderController extends HttpServlet {
             int quantity = Integer.parseInt(request.getParameter("quantity"));
             double price = Double.parseDouble(request.getParameter("price"));
 
-            orderDAO.addOrUpdateOrderDetail(orderId, productId, quantity, price);
+            // Đã đổi sang dùng orderService
+            orderService.addOrUpdateItem(orderId, productId, quantity, price);
             response.sendRedirect("pos?action=view&orderId=" + orderId);
 
         } else if ("apply_voucher".equals(action)) {
             int orderId = Integer.parseInt(request.getParameter("orderId"));
             String voucherCode = request.getParameter("voucherCode");
 
-            orderDAO.applyVoucher(orderId, voucherCode);
+            // Đã đổi sang dùng orderService
+            orderService.applyVoucher(orderId, voucherCode);
             response.sendRedirect("pos?action=view&orderId=" + orderId);
+
+        } else if ("checkout".equals(action)) {
+            int orderId = Integer.parseInt(request.getParameter("orderId"));
+            String baseUrl = request.getRequestURL().toString().replace(request.getRequestURI(), request.getContextPath());
+
+            // Gọi Service lo liệu việc chuẩn hóa link PayOS
+            String checkoutUrl = orderService.generatePaymentLink(orderId, baseUrl);
+            if (checkoutUrl != null) {
+                response.sendRedirect(checkoutUrl);
+                return;
+            }
+            response.sendRedirect("pos?action=view&orderId=" + orderId);
+
+        } else if ("payos_return".equals(action)) {
+            int orderId = Integer.parseInt(request.getParameter("orderId"));
+            String status = request.getParameter("status");
+
+            if ("PAID".equalsIgnoreCase(status) || "APPROVED".equalsIgnoreCase(status)) {
+                orderService.completeOrder(orderId);
+                response.sendRedirect("pos?action=receipt&orderId=" + orderId);
+            } else {
+                response.sendRedirect("pos?action=view&orderId=" + orderId);
+            }
+
+        } else if ("receipt".equals(action)) {
+            int orderId = Integer.parseInt(request.getParameter("orderId"));
+            request.setAttribute("order", orderDAO.getOrderById(orderId));
+            request.setAttribute("orderDetails", orderDAO.getOrderDetails(orderId));
+            request.getRequestDispatcher("receipt.jsp").forward(request, response);
 
         } else if ("view".equals(action)) {
             int orderId = Integer.parseInt(request.getParameter("orderId"));
-
             Order order = orderDAO.getOrderById(orderId);
-            if(order == null) {
+            if (order == null) {
                 response.sendRedirect("pos-tables");
                 return;
             }
-
-            // 1. Đẩy dữ liệu cơ bản
             request.setAttribute("order", order);
             request.setAttribute("orderDetails", orderDAO.getOrderDetails(orderId));
             request.setAttribute("products", new ProductDAO().getAllAvailableProducts());
 
-            // 2. ĐẨY DỮ LIỆU VOUCHER SANG JSP (ĐÂY LÀ DÒNG CODE QUAN TRỌNG NHẤT BỊ THIẾU)
-            request.setAttribute("availableVouchers", new VoucherDAO().getValidVouchersForOrder(orderId));
+            // Gọi qua tầng Service để lấy danh sách Voucher hợp lệ
+            request.setAttribute("availableVouchers", voucherService.getValidVouchersForOrder(orderId));
 
             request.getRequestDispatcher("pos_screen.jsp").forward(request, response);
-
         } else {
             response.sendRedirect("pos-tables");
         }

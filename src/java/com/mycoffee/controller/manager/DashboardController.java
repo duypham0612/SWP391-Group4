@@ -20,26 +20,28 @@ public class DashboardController extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        
-        // 1. Kiểm tra quyền đăng nhập
-        HttpSession session = request.getSession();
+
+        // AuthFilter đã chặn Customer (RoleID=4). Kiểm tra thêm chỉ Admin hoặc Manager được vào.
+        HttpSession session = request.getSession(false);
         User user = (User) session.getAttribute("user");
-        if (user == null) {
-            response.sendRedirect("login");
+        int roleId = (user != null) ? user.getRoleId() : 0;
+
+        if (roleId != 1 && roleId != 2) {
+            // Employee (RoleID=3) bị chặn khỏi trang này — chuyển sang màn hình POS
+            response.sendRedirect(request.getContextPath() + "/pos-tables");
             return;
         }
 
-        // 2. Mặc định lấy chi nhánh của quản lý (Giả sử BranchID = 1 nếu chưa gán cứng)
-        int branchId = 1; 
+        // Mặc định lấy chi nhánh 1 — sau này lấy BranchID từ bảng Employees theo user
+        int branchId = 1;
 
-        // 3. Khởi tạo DAO và truy vấn dữ liệu cho Dashboard
         InventoryDAO inventoryDAO = new InventoryDAO();
         AttendanceDAO attendanceDAO = new AttendanceDAO();
 
         List<Inventory> inventoryList = inventoryDAO.getInventoryByBranch(branchId);
         List<Attendance> attendanceList = attendanceDAO.getTodayAttendanceByBranch(branchId);
 
-        // Tính toán số lượng nguyên liệu sắp hết hàng (Quantity < MinRequired)
+        // Tính số nguyên liệu sắp hết hàng (Quantity < MinRequired)
         int lowStockCount = 0;
         for (Inventory item : inventoryList) {
             if (item.getQuantity() < item.getMinRequired()) {
@@ -47,12 +49,10 @@ public class DashboardController extends HttpServlet {
             }
         }
 
-        // 4. Gửi dữ liệu sang trang JSP
         request.setAttribute("lowStockCount", lowStockCount);
         request.setAttribute("workingCount", attendanceList.size());
         request.setAttribute("todayAttendance", attendanceList);
-        
-        // Forward sang trang giao diện manager_dashboard.jsp
+
         request.getRequestDispatcher("/views/manager/manager_dashboard.jsp").forward(request, response);
     }
 
