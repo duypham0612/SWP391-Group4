@@ -1,10 +1,11 @@
+<jsp:include page="/common/header.jsp" /> ```
 <%@page contentType="text/html" pageEncoding="UTF-8"%>
 <%@page import="java.util.List"%>
 <%@page import="com.mycoffee.model.Table"%>
 
-<%-- Nhúng Header dùng chung --%>
-<jsp:include page="common/header.jsp" />
-<jsp:include page="common/sidebar.jsp" />
+<%-- Nhúng Header dùng chung có dấu gạch chéo bảo mật đường dẫn --%>
+<jsp:include page="/common/header.jsp" />
+<jsp:include page="/common/sidebar.jsp" />
 
 <div class="max-w-7xl mx-auto space-y-8 fade-in p-6">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -14,7 +15,6 @@
         </div>
 
         <div class="flex items-center gap-3">
-
             <div class="relative inline-block text-left" id="tableFilter">
                 <button type="button" onclick="toggleDropdown()" class="inline-flex justify-between items-center w-40 bg-white border border-slate-200 text-xs font-semibold px-4 py-2.5 rounded-xl text-slate-600 shadow-sm focus:outline-none hover:border-[#006064] hover:text-[#006064] transition-all" id="filter-button">
                     <span id="filter-text">Tất cả bàn</span>
@@ -30,7 +30,7 @@
                 </div>
             </div>
 
-            <a href="pos?action=reset_all" onclick="return confirm('Hành động này sẽ hủy tất cả các đơn hàng đang chờ và làm trống mọi bàn. Bạn có chắc chắn?');" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#006064] text-xs font-bold text-white shadow-sm hover:bg-[#004d40] transition-all">
+            <a href="${pageContext.request.contextPath}/pos?action=reset_all" onclick="return confirm('Hành động này sẽ hủy tất cả các đơn hàng đang chờ và làm trống mọi bàn. Bạn có chắc chắn?');" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#006064] text-xs font-bold text-white shadow-sm hover:bg-[#004d40] transition-all">
                 <i class="fa-solid fa-arrows-rotate text-teal-100"></i>
                 Làm mới sơ đồ
             </a>
@@ -39,7 +39,8 @@
 
     <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6" id="table-grid">
         <%
-            List<Table> list = (List<Table>) request.getAttribute("danhSachBan");
+            // Sửa đổi từ danhSachBan thành tableList để khớp hoàn toàn với Servlet truyền lên
+            List<Table> list = (List<Table>) request.getAttribute("tableList");
             if (list == null || list.isEmpty()) {
         %>
             <div class="col-span-full py-12 text-center">
@@ -48,17 +49,16 @@
         <%
             } else {
                 for (Table t : list) {
-                    boolean isEmpty = "Empty".equalsIgnoreCase(t.getStatus());
+                    boolean isEmpty = "Empty".equalsIgnoreCase(t.getStatus()) || t.getStatus() == null;
                     String bgClass = isEmpty ? "bg-white border-slate-200 hover:border-[#006064]" : "bg-orange-50 border-orange-200 hover:border-orange-400";
                     String textClass = isEmpty ? "text-slate-700" : "text-orange-700";
                     String statusText = isEmpty ? "Trống" : "Đang phục vụ";
                     String iconClass = isEmpty ? "text-slate-300" : "text-orange-400";
 
-                    // Tạo data-status để JS nhận diện filter
                     String dataStatus = isEmpty ? "empty" : "occupied";
 
-                    // ĐƯỜNG DẪN MỚI THÔNG MINH CHO MỌI TRƯỜNG HỢP
-                    String posLink = "pos?action=open_table&tableId=" + t.getTableId();
+                    // Sửa đổi phương thức từ getTableId() thành getTableID() chuẩn xác theo Model
+                    String posLink = request.getContextPath() + "/pos?action=open_table&tableId=" + t.getTableID();
         %>
             <a href="<%= posLink %>"
                class="table-card relative flex flex-col items-center justify-center p-6 rounded-3xl border-2 shadow-sm transition-all duration-300 transform hover:-translate-y-1 group <%= bgClass %>"
@@ -85,7 +85,7 @@
     </div>
 </div>
 
-<jsp:include page="common/footer.jsp" />
+<jsp:include page="/common/footer.jsp" />
 
 <script>
     function toggleDropdown() {
@@ -119,9 +119,9 @@
 
     window.addEventListener('click', function(e) {
         const filterContainer = document.getElementById('tableFilter');
-        if (!filterContainer.contains(e.target)) {
+        if (filterContainer && !filterContainer.contains(e.target)) {
             const menu = document.getElementById('dropdown-menu');
-            if (!menu.classList.contains('hidden')) {
+            if (menu && !menu.classList.contains('hidden')) {
                 closeDropdown();
             }
         }
