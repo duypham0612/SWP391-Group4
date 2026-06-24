@@ -1,4 +1,4 @@
-<jsp:include page="/common/header.jsp" /> ```
+<jsp:include page="/common/header.jsp" /> 
 <%@page contentType="text/html" pageEncoding="UTF-8"%>
 <%@page import="java.util.List"%>
 <%@page import="com.mycoffee.model.Table"%>

@@ -129,7 +129,6 @@ public class TableController extends HttpServlet {
             }
         }
 
-        // Kỹ thuật Anti-F5: Chuyển hướng Redirect sau khi kết thúc yêu cầu POST để tránh nhân bản dữ liệu
         response.sendRedirect(request.getContextPath() + "/manager-tables");
     }
 }

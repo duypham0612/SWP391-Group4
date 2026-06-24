@@ -24,7 +24,7 @@ import jakarta.servlet.http.HttpSession;
  * Ánh xạ RoleID từ bảng Roles:
  *   1 = Admin | 2 = Branch Manager | 3 = Employee | 4 = Customer
  */
-@WebFilter(filterName = "AuthFilter", urlPatterns = {"/tam-thoi-tat-filter/*"})
+@WebFilter(filterName = "AuthFilter", urlPatterns = {"/*"})
 public class AuthFilter implements Filter {
 
     // ──────────────────────────────────────────────────────────────

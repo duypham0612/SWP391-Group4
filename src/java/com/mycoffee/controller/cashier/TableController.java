@@ -12,14 +12,14 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 
-@WebServlet(name = "TableController", urlPatterns = {"/pos-tables"})
+// 1. ĐỔI NAME THÀNH CashierTableController ĐỂ KHÔNG BỊ TRÙNG VỚI MANAGER
+@WebServlet(name = "CashierTableController", urlPatterns = {"/pos-tables"})
 public class TableController extends HttpServlet {
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        // 1. AuthFilter đã xử lý login, ở đây chỉ check RoleID (Admin, Manager, Employee)
         HttpSession session = request.getSession(false);
         User user = (session != null) ? (User) session.getAttribute("user") : null;
         int roleId = (user != null) ? user.getRoleId() : 0;
@@ -29,14 +29,14 @@ public class TableController extends HttpServlet {
             return;
         }
 
-        // 2. LẤY DATA
-        // Tạm thời fix cứng Branch = 1. Sau này sẽ query BranchID dựa vào user.getUserId() từ bảng Employees.
         int branchId = 1;
         TableDAO tableDAO = new TableDAO();
         List<Table> tableList = tableDAO.getTablesByBranch(branchId);
 
-        // 3. ĐẨY SANG VIEW
-        request.setAttribute("danhSachBan", tableList);
-        request.getRequestDispatcher("table_layout.jsp").forward(request, response);
+        // 2. ĐỔI THÀNH "tableList" ĐỂ KHỚP HOÀN TOÀN VỚI FILE JSP CỦA BẠN
+        request.setAttribute("tableList", tableList); 
+        
+        // 3. THÊM DẤU GẠCH CHÉO / TRƯỚC table_layout.jsp ĐỂ AN TOÀN ĐƯỜNG DẪN
+        request.getRequestDispatcher("/views/cashier/table_layout.jsp").forward(request, response);
     }
 }
