@@ -24,68 +24,52 @@ public class LoginController extends HttpServlet {
             return;
         }
 
-        // Nếu user đã đăng nhập rồi thì chuyển hướng thẳng đến trang tương ứng với vai trò
         User loggedInUser = (User) session.getAttribute("user");
         if (loggedInUser != null) {
             redirectByRole(loggedInUser.getRoleId(), request, response);
             return;
         }
-        
-        // Forward sang trang giao diện login.jsp
+
         request.getRequestDispatcher("login.jsp").forward(request, response);
     }
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        
-        // Thiết lập UTF-8
+
         request.setCharacterEncoding("UTF-8");
         response.setCharacterEncoding("UTF-8");
 
-        // 1. Nhận thông số từ Form Đăng nhập
         String username = request.getParameter("username");
         String password = request.getParameter("password");
-        
-        // 2. Khởi tạo DAO để kiểm tra đăng nhập
+
         UserDAO dao = new UserDAO();
         User user = dao.checkLogin(username, password);
-        
+
         if (user != null) {
-            // Đăng nhập THÀNH CÔNG: Lưu user vào Session và chuyển hướng dựa theo Vai trò (RoleID)
             HttpSession session = request.getSession();
             session.setAttribute("user", user);
-            
             redirectByRole(user.getRoleId(), request, response);
         } else {
-            // Đăng nhập THẤT BẠI: Đính kèm lời báo lỗi và quay trở lại trang login.jsp
             request.setAttribute("error", "Tài khoản hoặc mật khẩu không chính xác!");
-            request.setAttribute("savedUsername", username); // Lưu lại username để điền lại vào form
+            request.setAttribute("savedUsername", username);
             request.getRequestDispatcher("login.jsp").forward(request, response);
         }
     }
 
-    /**
-     * Chuyển hướng người dùng đến trang tương ứng với vai trò (RoleID).
-     * RoleID theo DB: 1 = Admin, 2 = Branch Manager, 3 = Employee, 4 = Customer
-     *
-     * PHÂN QUYỀN:
-     *   - RoleID 1, 2, 3 → Trang quản trị (admin-dashboard, manager-dashboard, table-layout)
-     *   - RoleID 4       → Trang khách hàng (menu) — chỉ được dùng tính năng tại bàn
-     */
     private void redirectByRole(int roleId, HttpServletRequest request, HttpServletResponse response) throws IOException {
         String contextPath = request.getContextPath();
         switch (roleId) {
-            case 1: // Admin — Quản trị hệ thống chuỗi
+            case 1:
                 response.sendRedirect(contextPath + "/admin-dashboard");
                 break;
-            case 2: // Branch Manager — Quản lý chi nhánh
+            case 2:
                 response.sendRedirect(contextPath + "/manager-dashboard");
                 break;
-            case 3: // Employee — Nhân viên cửa hàng
-                response.sendRedirect(contextPath + "/table-layout");
+            case 3: // Thu ngân (Cashier) vào thẳng màn hình Dashboard của Thu ngân
+                response.sendRedirect(contextPath + "/cashier-dashboard");
                 break;
-            case 4: // Customer — Khách hàng thành viên (chỉ dùng web gọi món)
+            case 4:
                 response.sendRedirect(contextPath + "/menu");
                 break;
             default:

@@ -21,14 +21,16 @@
         <div class="flex items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
             <h2 class="text-lg font-bold text-slate-800">Chọn món (POS)</h2>
             <div class="flex gap-2">
-                <a href="pos?action=cancel_order&orderId=<%= order.getOrderId() %>&tableId=<%= order.getTableId() %>"
-                   onclick="return confirm('Bạn có chắc chắn muốn hủy bàn này không? Đơn hàng sẽ bị hủy bỏ!');"
-                   class="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold rounded-xl transition-all shadow-sm">
-                    <i class="fa-solid fa-trash mr-1"></i> Hủy bàn
-                </a>
-                <a href="pos-tables" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all shadow-sm">
-                    <i class="fa-solid fa-arrow-left mr-1"></i> Quay lại sơ đồ
-                </a>
+               <a href="pos?action=cancel_order&orderId=<%= order.getOrderId()%>"
+                  onclick="return confirm('Bạn có chắc muốn hủy đơn hàng này không?');"
+                  class="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold rounded-xl transition-all shadow-sm">
+                   <i class="fa-solid fa-trash mr-1"></i> Hủy đơn
+               </a>
+
+               <a href="${pageContext.request.contextPath}/cashier-dashboard"
+                  class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all shadow-sm">
+                   <i class="fa-solid fa-house mr-1"></i> Về Dashboard
+               </a>
             </div>
         </div>
 

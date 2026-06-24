@@ -25,7 +25,10 @@
                     <ul class="py-1 text-xs text-slate-600 font-medium">
                         <li><a href="#" onclick="applyFilter('all', 'Tất cả bàn', event)" class="block px-4 py-2 hover:bg-slate-50 hover:text-[#006064] transition-colors">Tất cả bàn</a></li>
                         <li><a href="#" onclick="applyFilter('empty', 'Bàn trống', event)" class="block px-4 py-2 hover:bg-slate-50 hover:text-[#006064] transition-colors">Bàn trống</a></li>
-                        <li><a href="#" onclick="applyFilter('occupied', 'Đang sử dụng', event)" class="block px-4 py-2 hover:bg-slate-50 hover:text-[#006064] transition-colors">Đang sử dụng</a></li>
+                        <li><a href="#" onclick="applyFilter('reserved', 'Đã đặt trước', event)"
+                               class="block px-4 py-2 hover:bg-slate-50 hover:text-[#006064] transition-colors">
+                               Đã đặt trước
+                        </a></li>
                     </ul>
                 </div>
             </div>

@@ -79,7 +79,7 @@
         <button onclick="window.print();" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2">
             <i class="fa-solid fa-print"></i> In hóa đơn
         </button>
-        <a href="pos-tables" class="flex-1 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 text-center">
+        <a href="${pageContext.request.contextPath}/cashier-dashboard" class="flex-1 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 text-center">
             <i class="fa-solid fa-house"></i> Quay lại
         </a>
     </div>

@@ -46,11 +46,14 @@ public class PosOrderController extends HttpServlet {
 
         } else if ("cancel_order".equals(action)) {
             int orderId = Integer.parseInt(request.getParameter("orderId"));
-            int tableId = Integer.parseInt(request.getParameter("tableId"));
-            // Đã đổi sang dùng orderService
-            orderService.cancelTable(orderId, tableId);
-            response.sendRedirect("pos-tables");
 
+            Order order = orderDAO.getOrderById(orderId);
+
+            if (order != null) {
+                orderService.cancelTable(orderId, order.getTableId());
+            }
+
+            response.sendRedirect("cashier-dashboard");
         } else if ("reset_all".equals(action)) {
             // Đã đổi sang dùng orderService
             orderService.resetBranchTables(branchId);

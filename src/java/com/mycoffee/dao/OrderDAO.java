@@ -115,6 +115,8 @@ public class OrderDAO {
                     order.setDiscountAmount(rs.getDouble("DiscountAmount"));
                     order.setFinalAmount(rs.getDouble("FinalAmount"));
                     order.setOrderType(rs.getString("TableName"));
+                    order.setOrderStatus(rs.getString("OrderStatus"));
+                    order.setOrderDate(rs.getTimestamp("OrderDate"));
                     return order;
                 }
             }
@@ -204,5 +206,34 @@ public class OrderDAO {
             }
             conn.commit();
         } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    // =========================================================
+    // HÀM MỚI: LẤY DANH SÁCH ĐƠN HÀNG HÔM NAY (CHO CASHIER ORDER)
+    // =========================================================
+    public List<Order> getTodayOrders(int branchId) {
+        List<Order> list = new ArrayList<>();
+        String sql = "SELECT o.*, t.TableName FROM Orders o JOIN Tables t ON o.TableID = t.TableID " +
+                "WHERE o.BranchID = ? AND CAST(o.OrderDate AS DATE) = CAST(GETDATE() AS DATE) " +
+                "ORDER BY o.OrderDate DESC";
+        try (Connection conn = new DBContext().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Order order = new Order();
+                    order.setOrderId(rs.getInt("OrderID"));
+                    order.setTableId(rs.getInt("TableID"));
+                    order.setTotalAmount(rs.getDouble("TotalAmount"));
+                    order.setDiscountAmount(rs.getDouble("DiscountAmount"));
+                    order.setFinalAmount(rs.getDouble("FinalAmount"));
+                    order.setOrderType(rs.getString("TableName"));
+                    order.setOrderStatus(rs.getString("OrderStatus"));
+                    order.setOrderDate(rs.getTimestamp("OrderDate"));
+                    list.add(order);
+                }
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+        return list;
     }
 }
