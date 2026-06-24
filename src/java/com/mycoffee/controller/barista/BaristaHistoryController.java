@@ -21,7 +21,7 @@ public class BaristaHistoryController extends HttpServlet {
             throws ServletException, IOException {
         HttpSession session = request.getSession();
         User user = (User) session.getAttribute("user");
-        if (user == null || user.getRoleId() > 4) {
+        if (user == null || user.getRoleId() != 4) {
             response.sendRedirect("login");
             return;
         }
