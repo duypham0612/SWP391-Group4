@@ -101,9 +101,9 @@
             <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
                 <i class="fa-solid fa-magnifying-glass text-xs"></i>
             </span>
-            <input 
-                type="text" 
-                placeholder="Tìm kiếm hóa đơn, món ăn, nhân viên..." 
+            <input
+                type="text"
+                placeholder="Tìm kiếm hóa đơn, món ăn, nhân viên..."
                 class="w-full bg-[#f1f5f9] text-xs pl-9 pr-4 py-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500/80 focus:bg-white transition-all text-slate-800 placeholder:text-slate-400 font-medium"
                 >
         </div>
