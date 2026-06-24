@@ -41,7 +41,16 @@ public class TableDAO {
 
     public List<Table> getTablesForCustomerCheckout(int branchId) {
         List<Table> list = new ArrayList<>();
-        String sql = "SELECT TableID, BranchID, TableName, QRCodeURL, Status FROM Tables WHERE BranchID = ? ORDER BY TableID";
+        String sql = "SELECT TableID, BranchID, TableName, QRCodeURL, Status "
+                + "FROM Tables "
+                + "WHERE BranchID = ? "
+                + "AND (Status IS NULL OR Status IN ('Empty', N'Trống')) "
+                + "AND NOT EXISTS ("
+                + "    SELECT 1 FROM Orders o "
+                + "    WHERE o.TableID = Tables.TableID "
+                + "    AND o.OrderStatus IN ('Pending', 'Preparing', N'Đang xử lý')"
+                + ") "
+                + "ORDER BY TableID";
 
         try (Connection conn = new DBContext().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {

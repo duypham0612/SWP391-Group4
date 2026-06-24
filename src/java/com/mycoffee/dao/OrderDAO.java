@@ -116,7 +116,6 @@ public class OrderDAO {
         String insertSql = "INSERT INTO OrderDetails (OrderID, ProductID, Quantity, UnitPrice, ItemStatus) VALUES (?, ?, ?, ?, 'Pending')";
         String updateSql = "UPDATE OrderDetails SET Quantity = Quantity + ? WHERE OrderID = ? AND ProductID = ?";
         String deleteSql = "DELETE FROM OrderDetails WHERE OrderID = ? AND ProductID = ?";
-
         String updateTotalOrderSql = "UPDATE Orders SET TotalAmount = (SELECT COALESCE(SUM(Quantity * UnitPrice), 0) FROM OrderDetails WHERE OrderID = ?), DiscountAmount = 0, FinalAmount = (SELECT COALESCE(SUM(Quantity * UnitPrice), 0) FROM OrderDetails WHERE OrderID = ?) WHERE OrderID = ?";
 
         try (Connection conn = new DBContext().getConnection()) {
@@ -165,49 +164,14 @@ public class OrderDAO {
         } catch (Exception e) { e.printStackTrace(); }
     }
 
-    // UPDATE: Tích hợp logic MaxDiscount vào việc tính tiền
-    public void applyVoucher(int orderId, String voucherCode) {
-        String getVoucher = "SELECT TOP 1 DiscountValue, IsPercentage, MaxDiscount FROM Vouchers WHERE VoucherCode = ? AND IsActive = 1 AND UsedCount < UsageLimit";
-        String updateOrder = "UPDATE Orders SET DiscountAmount = ?, FinalAmount = TotalAmount - ? WHERE OrderID = ?";
-
-        try (Connection conn = new DBContext().getConnection()) {
-            double discountValue = 0;
-            boolean isPercentage = false;
-            Double maxDiscount = null;
-
-            try (PreparedStatement ps1 = conn.prepareStatement(getVoucher)) {
-                ps1.setString(1, voucherCode);
-                try (ResultSet rs = ps1.executeQuery()) {
-                    if (rs.next()) {
-                        discountValue = rs.getDouble("DiscountValue");
-                        isPercentage = rs.getBoolean("IsPercentage");
-                        Object maxDiscObj = rs.getObject("MaxDiscount");
-                        if (maxDiscObj != null) maxDiscount = ((Number) maxDiscObj).doubleValue();
-                    }
-                }
-            }
-
-            double totalAmount = getOrderById(orderId).getTotalAmount();
-            double discountAmount = isPercentage ? totalAmount * (discountValue / 100.0) : discountValue;
-
-            // Xử lý "Cắt ngọn" nếu số tiền giảm vượt qua MaxDiscount cho phép
-            if (isPercentage && maxDiscount != null && maxDiscount > 0) {
-                if (discountAmount > maxDiscount) {
-                    discountAmount = maxDiscount;
-                }
-            }
-
-            // Chống âm tiền đơn hàng
-            if (discountAmount > totalAmount) {
-                discountAmount = totalAmount;
-            }
-
-            try (PreparedStatement ps2 = conn.prepareStatement(updateOrder)) {
-                ps2.setDouble(1, discountAmount);
-                ps2.setDouble(2, discountAmount);
-                ps2.setInt(3, orderId);
-                ps2.executeUpdate();
-            }
+    public void updateOrderDiscount(int orderId, double discountAmount) {
+        String updateSql = "UPDATE Orders SET DiscountAmount = ?, FinalAmount = TotalAmount - ? WHERE OrderID = ?";
+        try (Connection conn = new DBContext().getConnection();
+             PreparedStatement ps = conn.prepareStatement(updateSql)) {
+            ps.setDouble(1, discountAmount);
+            ps.setDouble(2, discountAmount);
+            ps.setInt(3, orderId);
+            ps.executeUpdate();
         } catch (Exception e) { e.printStackTrace(); }
     }
 
@@ -221,15 +185,48 @@ public class OrderDAO {
                     Order order = new Order();
                     order.setOrderId(rs.getInt("OrderID"));
                     order.setTableId(rs.getInt("TableID"));
+                    order.setBranchId(rs.getInt("BranchID"));
+                    order.setCashierId(rs.getInt("CashierID"));
                     order.setTotalAmount(rs.getDouble("TotalAmount"));
                     order.setDiscountAmount(rs.getDouble("DiscountAmount"));
                     order.setFinalAmount(rs.getDouble("FinalAmount"));
+                    order.setOrderStatus(rs.getString("OrderStatus"));
+                    order.setOrderDate(rs.getTimestamp("OrderDate"));
                     order.setOrderType(rs.getString("TableName"));
                     return order;
                 }
             }
         } catch (Exception e) { e.printStackTrace(); }
         return null;
+    }
+
+    public List<Order> getOrdersByCustomerId(int customerId) {
+        List<Order> list = new ArrayList<>();
+        String sql = "SELECT o.*, t.TableName FROM Orders o "
+                + "JOIN Tables t ON o.TableID = t.TableID "
+                + "WHERE o.CustomerID = ? "
+                + "ORDER BY o.OrderDate DESC, o.OrderID DESC";
+        try (Connection conn = new DBContext().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, customerId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Order order = new Order();
+                    order.setOrderId(rs.getInt("OrderID"));
+                    order.setBranchId(rs.getInt("BranchID"));
+                    order.setTableId(rs.getInt("TableID"));
+                    order.setCashierId(rs.getInt("CashierID"));
+                    order.setTotalAmount(rs.getDouble("TotalAmount"));
+                    order.setDiscountAmount(rs.getDouble("DiscountAmount"));
+                    order.setFinalAmount(rs.getDouble("FinalAmount"));
+                    order.setOrderStatus(rs.getString("OrderStatus"));
+                    order.setOrderDate(rs.getTimestamp("OrderDate"));
+                    order.setOrderType(rs.getString("TableName"));
+                    list.add(order);
+                }
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+        return list;
     }
 
     public List<OrderDetail> getOrderDetails(int orderId) {
@@ -246,6 +243,7 @@ public class OrderDAO {
                     od.setQuantity(rs.getInt("Quantity"));
                     od.setUnitPrice(rs.getDouble("UnitPrice"));
                     od.setNote(rs.getString("ProductName"));
+                    od.setItemStatus(rs.getString("ItemStatus"));
                     list.add(od);
                 }
             }
@@ -293,6 +291,23 @@ public class OrderDAO {
             }
             try (PreparedStatement ps2 = conn.prepareStatement(resetTables)) {
                 ps2.setInt(1, branchId);
+                ps2.executeUpdate();
+            }
+            conn.commit();
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    public void completeOrder(int orderId) {
+        String updateOrder = "UPDATE Orders SET OrderStatus = 'Completed' WHERE OrderID = ?";
+        String updateTable = "UPDATE Tables SET Status = 'Empty' WHERE TableID = (SELECT TableID FROM Orders WHERE OrderID = ?)";
+        try (Connection conn = new DBContext().getConnection()) {
+            conn.setAutoCommit(false);
+            try (PreparedStatement ps1 = conn.prepareStatement(updateOrder)) {
+                ps1.setInt(1, orderId);
+                ps1.executeUpdate();
+            }
+            try (PreparedStatement ps2 = conn.prepareStatement(updateTable)) {
+                ps2.setInt(1, orderId);
                 ps2.executeUpdate();
             }
             conn.commit();
