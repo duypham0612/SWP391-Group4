@@ -211,11 +211,10 @@
         }
     </style>
 </head>
-<body class="font-sans">
-<div class="min-h-screen flex">
+<body class="h-screen flex font-sans overflow-hidden">
     <jsp:include page="common/sidebar_customer.jsp"/>
 
-    <main class="flex-1 min-w-0">
+    <div class="flex-1 h-screen overflow-hidden">
         <header class="review-topbar">
             <div></div>
             <div class="search-pill">
@@ -232,7 +231,7 @@
             </div>
         </header>
 
-        <section class="px-8 lg:px-20 py-9">
+        <main class="h-[calc(100vh-78px)] overflow-y-auto px-8 lg:px-20 py-9">
             <div class="max-w-[820px] mx-auto">
                 <h1 class="text-[30px] leading-tight font-black text-[#091E42]">Đánh giá đơn hàng</h1>
                 <p class="mt-3 text-[#172B4D] font-medium">Cảm ơn bạn đã sử dụng dịch vụ tại <span class="text-[#0052CC] font-black">Modern Cafe</span>. Hãy chia sẻ trải nghiệm của bạn nhé!</p>
@@ -354,9 +353,8 @@
                     </form>
                 <% } %>
             </div>
-        </section>
-    </main>
-</div>
+        </main>
+    </div>
 
 <script>
     function syncServiceTags() {
