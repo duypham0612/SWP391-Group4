@@ -27,7 +27,6 @@
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
         <div class="bg-white p-6 rounded-3xl border border-slate-200/60 shadow-sm lg:col-span-2 space-y-6">
             <div class="flex items-center justify-between border-b border-slate-100 pb-4">
                 <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Sơ đồ phòng máy / Bàn</h3>
@@ -44,25 +43,22 @@
                         for(Table t : tableList) { 
                             String status = (t.getStatus() != null) ? t.getStatus().trim() : "Empty";
                             
-                            // Cấu hình màu mặc định: BÀN TRỐNG (Màu Xanh Lá)
                             String bgClass = "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100/70";
                             String iconColor = "text-emerald-500";
                             String textStatusDisplay = "Trống";
                             
-                            // Kiểm tra trạng thái ĐÃ ĐẶT TRƯỚC (Màu Vàng)
-                            if("Reserved".equalsIgnoreCase(status) || "Đã đặt".equalsIgnoreCase(status)) {
+                            if("Reserved".equalsIgnoreCase(status) || "Đã đặt".equalsIgnoreCase(status) || "Đã đặt trước".equalsIgnoreCase(status)) {
                                 bgClass = "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100/70";
                                 iconColor = "text-amber-500";
                                 textStatusDisplay = "Đã đặt trước";
                             } 
-                            // 🛠️ ĐÃ SỬA: Chuyển điều kiện so sánh thành "Occupied" theo dữ liệu Database thực tế (Màu Đỏ)
                             else if ("Occupied".equalsIgnoreCase(status) || "Serving".equalsIgnoreCase(status) || "Đang phục vụ".equalsIgnoreCase(status) || "Đang ngồi".equalsIgnoreCase(status)) {
                                 bgClass = "bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100/70";
                                 iconColor = "text-rose-500";
                                 textStatusDisplay = "Đang phục vụ";
                             }
                 %>
-                <div onclick="handleTableClick(<%= t.getTableID() %>, '<%= status %>')" class="<%= bgClass %> p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between h-28 shadow-sm">
+                <div onclick="handleTableClick(<%= t.getTableID() %>, '<%= t.getTableName() %>', '<%= status %>', <%= t.getCapacity() %>)" class="<%= bgClass %> p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between h-28 shadow-sm">
                     <div class="flex justify-between items-start">
                         <span class="text-xs font-extrabold tracking-tight"><%= t.getTableName() %></span>
                         <i class="fa-solid fa-couch <%= iconColor %> text-sm"></i>
@@ -137,7 +133,6 @@
         </div>
         <form action="${pageContext.request.contextPath}/manager-tables" method="POST" class="space-y-3 text-xs">
             <input type="hidden" name="action" value="add">
-            
             <div>
                 <label class="block font-bold text-slate-700 mb-1">Tên khách hàng</label>
                 <input type="text" name="customerName" required class="w-full border p-2 rounded-xl focus:outline-none focus:border-[#006064]">
@@ -173,25 +168,172 @@
     </div>
 </div>
 
+<div id="tableDetailModal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 space-y-5 shadow-2xl border border-slate-100 flex flex-col items-center text-center">
+        <div class="w-full flex justify-between items-center border-b pb-2">
+            <h3 id="modalTableTitle" class="text-sm font-black text-[#006064] uppercase tracking-wider">Chi Tiết Bàn</h3>
+            <button onclick="closeTableDetailModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-sm"></i></button>
+        </div>
+
+        <div class="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center w-48 h-48 shadow-inner">
+            <img id="modalQRImage" src="" alt="Mã QR Gọi món" class="w-40 h-40 object-contain transition-all duration-300" />
+        </div>
+
+        <div class="text-xs space-y-1.5 w-full text-left bg-slate-50 p-3 rounded-2xl border border-slate-100">
+            <p class="flex justify-between">
+                <span class="text-slate-400 font-medium">Trạng thái hiện tại:</span> 
+                <span id="modalTableStatus" class="font-bold"></span>
+            </p>
+            <p class="flex justify-between">
+                <span class="text-slate-400 font-medium">Sức chứa tối đa:</span> 
+                <span id="modalTableCapacity" class="font-bold text-slate-700"></span>
+            </p>
+            <div class="pt-1">
+                <p class="text-[10px] text-slate-400 font-medium mb-1"><i class="fa-solid fa-link"></i> Link quét gọi món của khách:</p>
+                <p id="modalTableURL" class="text-[10px] text-slate-600 truncate bg-white p-1.5 rounded-lg border font-mono select-all"></p>
+            </div>
+        </div>
+
+        <div class="w-full flex flex-col gap-2 pt-1 text-xs">
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="printQRCode()" class="flex items-center justify-center gap-1.5 px-4 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-bold transition-colors">
+                    <i class="fa-solid fa-print"></i> In Mã QR
+                </button>
+                <button id="btnViewOrder" onclick="goToOrderPage()" class="hidden flex items-center justify-center gap-1.5 px-4 py-2.5 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-xl font-bold transition-all border border-sky-100">
+                    <i class="fa-solid fa-receipt"></i> Xem Order
+                </button>
+            </div>
+
+            <button id="btnQuickOpen" onclick="executeQuickOpen()" class="hidden w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[#006064] hover:bg-[#004d40] text-white rounded-xl font-bold transition-all shadow-md">
+                <i class="fa-solid fa-bolt"></i> Mở Bàn Ngay
+            </button>
+
+            <button id="btnCancelRes" onclick="executeCancelReservation()" class="hidden w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold transition-all shadow-md">
+                <i class="fa-solid fa-calendar-xmark"></i> Hủy Lịch Đặt Trước
+            </button>
+
+            <button id="btnResetTable" onclick="executeResetTable()" class="hidden w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold transition-all shadow-md">
+                <i class="fa-solid fa-trash-can"></i> Dọn Bàn & Trả Về Trống
+            </button>
+        </div>
+    </div>
+</div>
+
+<form id="hiddenActionForm" action="${pageContext.request.contextPath}/manager-tables" method="POST" style="display:none;">
+    <input type="hidden" name="action" id="hiddenActionField" value="">
+    <input type="hidden" name="tableId" id="hiddenTableIdField" value="">
+</form>
+
 <script>
+    let activeSelectedTableId = null;
+    let activeSelectedQRUrl = "";
+
     function openReservationModal() {
         document.getElementById('reservationModal').classList.remove('hidden');
     }
-    
     function closeReservationModal() {
         document.getElementById('reservationModal').classList.add('hidden');
     }
+    function closeTableDetailModal() {
+        document.getElementById('tableDetailModal').classList.add('hidden');
+    }
 
-    function handleTableClick(tableId, currentStatus) {
-        var statusNorm = currentStatus.toLowerCase().trim();
+    // Hàm Click điều phối mở popup chi tiết
+    function handleTableClick(tableId, tableName, currentStatus, capacity) {
+        activeSelectedTableId = tableId;
+        const statusNorm = currentStatus.toLowerCase().trim();
+
+        // 1. Đồng bộ link QR cho Customer
+        const currentOrigin = window.location.origin;
+        const contextPath = "${pageContext.request.contextPath}";
+        const customerMenuLink = currentOrigin + contextPath + "/customer-menu?tableId=" + tableId;
+        activeSelectedQRUrl = customerMenuLink;
+
+        // 2. Gọi API hiển thị ảnh QR động
+        document.getElementById('modalQRImage').src = "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=" + encodeURIComponent(customerMenuLink);
+
+        // 3. Đổ text mô tả
+        document.getElementById('modalTableTitle').innerText = "Quản lý bàn - " + tableName;
+        document.getElementById('modalTableCapacity').innerText = capacity;
+        document.getElementById('modalTableURL').innerText = "/customer-menu?tableId=" + tableId;
+
+        // 4. Lấy DOM các nút bấm điều khiển
+        const statusLabel = document.getElementById('modalTableStatus');
+        const btnQuickOpen = document.getElementById('btnQuickOpen');
+        const btnCancelRes = document.getElementById('btnCancelRes');
+        const btnResetTable = document.getElementById('btnResetTable');
+        const btnViewOrder = document.getElementById('btnViewOrder');
+
+        // Ẩn tất cả các nút điều khiển trước khi phân bổ lại
+        btnQuickOpen.classList.add('hidden');
+        btnCancelRes.classList.add('hidden');
+        btnResetTable.classList.add('hidden');
+        btnViewOrder.classList.add('hidden');
+
+        // 5. Phân bổ hiển thị nút bấm dựa vào trạng thái bàn
         if (statusNorm === 'empty' || statusNorm === 'trống') {
-            if(confirm("Bàn đang trống. Bạn muốn chuyển trạng thái sang 'Đang ngồi phục vụ' trực tiếp không?")) {
-                window.location.href = "${pageContext.request.contextPath}/manager-tables?action=quickOpen&tableId=" + tableId;
-            }
-        } else if (statusNorm === 'occupied' || statusNorm === 'serving' || statusNorm === 'đang phục vụ' || statusNorm === 'đang ngồi') {
-            alert("Bàn này đang có khách ngồi. Hệ thống sẽ điều hướng qua trang quản lý Order của bàn!");
-            // window.location.href = "${pageContext.request.contextPath}/manager-orders?tableId=" + tableId;
+            statusLabel.innerText = "Trống (Sẵn sàng)";
+            statusLabel.className = "font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full text-[11px]";
+            btnQuickOpen.classList.remove('hidden'); 
+        } 
+        else if (statusNorm === 'reserved' || statusNorm === 'đã đặt' || statusNorm === 'đã đặt trước') {
+            statusLabel.innerText = "Đã đặt trước";
+            statusLabel.className = "font-bold text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full text-[11px]";
+            btnCancelRes.classList.remove('hidden'); 
+        } 
+        else {
+            statusLabel.innerText = "Đang ngồi phục vụ";
+            statusLabel.className = "font-bold text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full text-[11px]";
+            btnResetTable.classList.remove('hidden'); 
+            btnViewOrder.classList.remove('hidden');  
         }
+
+        // Bật hiển thị Popup
+        document.getElementById('tableDetailModal').classList.remove('hidden');
+    }
+
+    // Các hàm kích hoạt gửi Form ẩn
+    function executeQuickOpen() {
+        if(activeSelectedTableId && confirm("Xác nhận mở bàn này cho khách ngồi trực tiếp?")) {
+            submitHiddenForm('quickOpen', activeSelectedTableId);
+        }
+    }
+
+    function executeCancelReservation() {
+        if(activeSelectedTableId && confirm("Bạn có chắc chắn muốn HỦY LỊCH HẸN và đưa bàn này quay về trạng thái TRỐNG không?")) {
+            submitHiddenForm('cancelReservation', activeSelectedTableId);
+        }
+    }
+
+    function executeResetTable() {
+        if(activeSelectedTableId && confirm("Xác nhận hành động: Khách đã thanh toán rời đi, dọn bàn và ĐƯA BÀN VỀ TRẠNG THÁI TRỐNG?")) {
+            submitHiddenForm('resetTable', activeSelectedTableId);
+        }
+    }
+
+    function submitHiddenForm(actionValue, tableIdValue) {
+        document.getElementById('hiddenActionField').value = actionValue;
+        document.getElementById('hiddenTableIdField').value = tableIdValue;
+        document.getElementById('hiddenActionForm').submit();
+    }
+
+    function goToOrderPage() {
+        if(activeSelectedTableId) {
+            window.location.href = "${pageContext.request.contextPath}/manager-orders?tableId=" + activeSelectedTableId;
+        }
+    }
+
+    // Hàm in mã QR đầy đủ, sạch lỗi đóng ngoặc nhọn
+    function printQRCode() {
+        if(!activeSelectedQRUrl) return;
+        const printWindow = window.open('', '_blank', 'width=400,height=400');
+        printWindow.document.write('<html><body style="text-align:center;padding-top:40px;">');
+        printWindow.document.write('<h2>' + document.getElementById('modalTableTitle').innerText + '</h2>');
+        printWindow.document.write('<img src="' + document.getElementById('modalQRImage').src + '" style="width:250px;height=250px;"/>');
+        printWindow.document.write('<p style="font-family:monospace;font-size:12px;">' + activeSelectedQRUrl + '</p>');
+        printWindow.document.write('<script>window.onload = function() { window.print(); window.close(); };<\/script>');
+        printWindow.document.write('</body></html>');
+        printWindow.document.close();
     }
 </script>
 
