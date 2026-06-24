@@ -40,11 +40,16 @@ public class TableDAO {
     }
 
     public List<Table> getTablesForCustomerCheckout(int branchId) {
+        return getTablesForCustomerCheckout(branchId, 0);
+    }
+
+    public List<Table> getTablesForCustomerCheckout(int branchId, int selectedTableId) {
         List<Table> list = new ArrayList<>();
         String sql = "SELECT TableID, BranchID, TableName, QRCodeURL, Status "
                 + "FROM Tables "
                 + "WHERE BranchID = ? "
-                + "AND (Status IS NULL OR Status IN ('Empty', N'Trống')) "
+                + "AND ((Status IS NULL OR Status IN ('Empty', N'Trống')) "
+                + "     OR (TableID = ? AND Status = 'Selected')) "
                 + "AND NOT EXISTS ("
                 + "    SELECT 1 FROM Orders o "
                 + "    WHERE o.TableID = Tables.TableID "
@@ -56,6 +61,7 @@ public class TableDAO {
              PreparedStatement ps = conn.prepareStatement(sql)) {
 
             ps.setInt(1, branchId);
+            ps.setInt(2, selectedTableId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     Table table = new Table();
@@ -72,5 +78,47 @@ public class TableDAO {
             e.printStackTrace();
         }
         return list;
+    }
+
+    public boolean selectTableForCustomer(int branchId, int tableId) {
+        String sql = "UPDATE Tables SET Status = 'Selected' "
+                + "WHERE TableID = ? AND BranchID = ? "
+                + "AND (Status IS NULL OR Status IN ('Empty', N'Trống')) "
+                + "AND NOT EXISTS ("
+                + "    SELECT 1 FROM Orders o "
+                + "    WHERE o.TableID = Tables.TableID "
+                + "    AND o.OrderStatus IN ('Pending', 'Preparing', N'Đang xử lý')"
+                + ")";
+
+        try (Connection conn = new DBContext().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, tableId);
+            ps.setInt(2, branchId);
+            return ps.executeUpdate() == 1;
+        } catch (Exception e) {
+            System.out.println("Loi tai selectTableForCustomer (TableDAO): " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    public boolean releaseCustomerSelectedTable(int tableId) {
+        String sql = "UPDATE Tables SET Status = 'Empty' "
+                + "WHERE TableID = ? AND Status = 'Selected' "
+                + "AND NOT EXISTS ("
+                + "    SELECT 1 FROM Orders o "
+                + "    WHERE o.TableID = Tables.TableID "
+                + "    AND o.OrderStatus IN ('Pending', 'Preparing', N'Đang xử lý')"
+                + ")";
+
+        try (Connection conn = new DBContext().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, tableId);
+            return ps.executeUpdate() == 1;
+        } catch (Exception e) {
+            System.out.println("Loi tai releaseCustomerSelectedTable (TableDAO): " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
     }
 }

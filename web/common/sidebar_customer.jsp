@@ -87,6 +87,8 @@
     .customer-logout-top {
         margin: 0 24px 18px;
         height: 42px;
+        min-height: 42px;
+        flex-shrink: 0;
         border-radius: 12px;
         display: flex;
         align-items: center;

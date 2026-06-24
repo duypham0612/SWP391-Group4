@@ -32,13 +32,14 @@ public class CustomerCheckoutController extends HttpServlet {
         int tableId = parseInt(request.getParameter("tableId"), 0);
         String note = request.getParameter("note");
         User user = (User) session.getAttribute("user");
-        Integer customerId = (user != null && user.getRoleId() == 5) ? user.getUserId() : null;
+        Integer customerId = (user != null && user.getRoleId() == User.ROLE_CUSTOMER)
+                ? user.getUserId() : null;
         boolean qrVerified = session.getAttribute("customerQrVerified") instanceof Boolean
                 && (Boolean) session.getAttribute("customerQrVerified");
         Object savedTableId = session.getAttribute("customerTableId");
 
         if (!qrVerified || !(savedTableId instanceof Integer) || ((Integer) savedTableId) != tableId || tableId <= 0) {
-            session.setAttribute("cartError", "Vui lòng quét QR tại bàn bằng camera trước khi gửi order.");
+            session.setAttribute("cartError", "Vui lòng quét QR hoặc chọn bàn test trước khi gửi order.");
             response.sendRedirect(request.getContextPath() + "/customer-qr-order");
             return;
         }
@@ -46,7 +47,8 @@ public class CustomerCheckoutController extends HttpServlet {
         if (!isTableAvailable(tableId)) {
             session.removeAttribute("customerTableId");
             session.removeAttribute("customerQrVerified");
-            session.setAttribute("cartError", "Bàn này hiện không còn trống. Vui lòng quét bàn khác.");
+            session.removeAttribute("customerTableSelectionMode");
+            session.setAttribute("cartError", "Bàn này hiện không còn trống. Vui lòng quét hoặc chọn bàn khác.");
             response.sendRedirect(request.getContextPath() + "/customer-qr-order");
             return;
         }
@@ -64,6 +66,7 @@ public class CustomerCheckoutController extends HttpServlet {
             session.setAttribute("lastCustomerOrderId", orderId);
             session.removeAttribute("customerQrVerified");
             session.removeAttribute("customerTableId");
+            session.removeAttribute("customerTableSelectionMode");
             session.setAttribute("cartMessage", "Gửi order thành công! Mã đơn của bạn là #" + orderId + ".");
             response.sendRedirect(request.getContextPath() + "/customer-order-status?orderId=" + orderId);
         } else {
@@ -84,7 +87,7 @@ public class CustomerCheckoutController extends HttpServlet {
     }
 
     private boolean isTableAvailable(int tableId) {
-        List<Table> availableTables = tableDAO.getTablesForCustomerCheckout(DEFAULT_BRANCH_ID);
+        List<Table> availableTables = tableDAO.getTablesForCustomerCheckout(DEFAULT_BRANCH_ID, tableId);
         for (Table table : availableTables) {
             if (table.getTableID() == tableId) {
                 return true;
