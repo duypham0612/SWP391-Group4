@@ -13,11 +13,20 @@ public class InventoryController extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        // 1. Khởi tạo lớp DAO để giao tiếp với Database
+        // 1. Kiểm tra RoleID: Chỉ Admin (1) và Manager (2) được vào quản lý kho
+        jakarta.servlet.http.HttpSession session = request.getSession(false);
+        com.mycoffee.model.User user = (session != null) ? (com.mycoffee.model.User) session.getAttribute("user") : null;
+        int roleId = (user != null) ? user.getRoleId() : 0;
+
+        if (roleId != 1 && roleId != 2) {
+            response.sendRedirect(request.getContextPath() + "/pos-tables");
+            return;
+        }
+
+        // 2. Khởi tạo lớp DAO để giao tiếp với Database
         InventoryDAO dao = new InventoryDAO();
 
-        // 2. Mặc định giả sử chúng ta đang xem kho của Chi nhánh có BranchID = 1 (Cầu Giấy)
-        // Sau này khi làm chức năng Login, Duy có thể đổi thành lấy BranchID theo tài khoản của Manager đăng nhập.
+        // 3. Mặc định giả sử chúng ta đang xem kho của Chi nhánh có BranchID = 1 (Cầu Giấy)
         int branchId = 1;
 
         // 3. Gọi hàm lấy danh sách tồn kho từ Database thông qua DAO bạn đã viết

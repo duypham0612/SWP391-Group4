@@ -22,8 +22,17 @@ public class ManagerTableController extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        HttpSession session = request.getSession();
-        Integer branchId = (Integer) session.getAttribute("branchId");
+        HttpSession session = request.getSession(false);
+        com.mycoffee.model.User user = (session != null) ? (com.mycoffee.model.User) session.getAttribute("user") : null;
+        int roleId = (user != null) ? user.getRoleId() : 0;
+
+        // Chỉ Admin và Manager được phép vào trang này
+        if (roleId != 1 && roleId != 2) {
+            response.sendRedirect(request.getContextPath() + "/pos-tables");
+            return;
+        }
+
+        Integer branchId = (session != null) ? (Integer) session.getAttribute("branchId") : null;
         if (branchId == null) {
             branchId = 1; // Fallback chạy thử nghiệm
         }

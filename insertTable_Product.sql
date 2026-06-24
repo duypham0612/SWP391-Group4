@@ -94,3 +94,8 @@ SET IDENTITY_INSERT Products OFF;
 GO
 
 SELECT * FROM [dbo].[Products]
+
+USE MyCoffeeHouse;
+GO
+ALTER TABLE [Tables] ADD Capacity int NULL DEFAULT 4; -- Mặc định mỗi bàn 4 ghế
+GO
