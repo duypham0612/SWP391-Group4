@@ -13,12 +13,12 @@ public class UserDAO {
     // Hàm kiểm tra thông tin Đăng nhập (Username hoặc Email)
     public User checkLogin(String usernameOrEmail, String password) {
         String sql = "SELECT UserID, Username, Password, FullName, Email, Phone, RoleID, IsActive, CreatedAt "
-                   + "FROM Users "
-                   + "WHERE (Username = ? OR Email = ?) AND Password = ? AND IsActive = 1";
+                + "FROM Users "
+                + "WHERE (Username = ? OR Email = ?) AND Password = ? AND IsActive = 1";
 
         try (Connection conn = new DBContext().getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+
             ps.setString(1, usernameOrEmail);
             ps.setString(2, usernameOrEmail);
             ps.setString(3, password);
@@ -50,7 +50,7 @@ public class UserDAO {
         }
 
         try (Connection conn = new DBContext().getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql.toString())) {
+                PreparedStatement ps = conn.prepareStatement(sql.toString())) {
             for (int i = 0; i < params.size(); i++) {
                 ps.setString(i + 1, params.get(i));
             }
@@ -66,7 +66,6 @@ public class UserDAO {
         return false;
     }
 
-
     /**
      * Đăng ký tài khoản mới cho Khách hàng.
      * BẢO MẬT: RoleID được SET CỨNG = 4 (Customer) tại đây.
@@ -79,8 +78,8 @@ public class UserDAO {
         final int CUSTOMER_ROLE_ID = User.ROLE_CUSTOMER;
 
         String sqlInsertUser = "INSERT INTO Users (Username, Password, FullName, Email, Phone, RoleID, IsActive, CreatedAt) "
-                             + "OUTPUT INSERTED.UserID "
-                             + "VALUES (?, ?, ?, ?, ?, ?, 1, GETDATE())";
+                + "OUTPUT INSERTED.UserID "
+                + "VALUES (?, ?, ?, ?, ?, ?, 1, GETDATE())";
         String sqlInsertCustomer = "INSERT INTO Customers (CustomerID, MemberRank, CurrentPoints) VALUES (?, N'Member', 0)";
 
         Connection conn = null;
@@ -122,13 +121,15 @@ public class UserDAO {
             System.out.println("Loi ham registerUser trong UserDAO: " + e.getMessage());
             e.printStackTrace();
             try {
-                if (conn != null) conn.rollback(); // ROLLBACK nếu có lỗi
+                if (conn != null)
+                    conn.rollback(); // ROLLBACK nếu có lỗi
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
         } finally {
             try {
-                if (conn != null) conn.close();
+                if (conn != null)
+                    conn.close();
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -138,9 +139,9 @@ public class UserDAO {
 
     public User getUserById(int userId) {
         String sql = "SELECT UserID, Username, Password, FullName, Email, Phone, RoleID, IsActive, CreatedAt "
-                   + "FROM Users WHERE UserID = ?";
+                + "FROM Users WHERE UserID = ?";
         try (Connection conn = new DBContext().getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, userId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
@@ -157,10 +158,10 @@ public class UserDAO {
     public List<User> getAllUsers() {
         List<User> users = new ArrayList<>();
         String sql = "SELECT UserID, Username, Password, FullName, Email, Phone, RoleID, IsActive, CreatedAt "
-                   + "FROM Users ORDER BY RoleID, UserID";
+                + "FROM Users ORDER BY RoleID, UserID";
         try (Connection conn = new DBContext().getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
+                PreparedStatement ps = conn.prepareStatement(sql);
+                ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 users.add(mapUser(rs));
             }
@@ -173,9 +174,9 @@ public class UserDAO {
 
     public boolean addUser(User user) {
         String sql = "INSERT INTO Users (Username, Password, FullName, Email, Phone, RoleID, IsActive, CreatedAt) "
-                   + "VALUES (?, ?, ?, ?, ?, ?, 1, GETDATE())";
+                + "VALUES (?, ?, ?, ?, ?, ?, 1, GETDATE())";
         try (Connection conn = new DBContext().getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, user.getUsername());
             ps.setString(2, user.getPassword());
             ps.setString(3, user.getFullName());
@@ -200,7 +201,7 @@ public class UserDAO {
         }
 
         try (Connection conn = new DBContext().getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, user.getFullName());
             ps.setString(2, user.getEmail());
             ps.setString(3, user.getPhone());
@@ -247,13 +248,15 @@ public class UserDAO {
             System.out.println("Loi ham deleteUser trong UserDAO: " + e.getMessage());
             e.printStackTrace();
             try {
-                if (conn != null) conn.rollback();
+                if (conn != null)
+                    conn.rollback();
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
         } finally {
             try {
-                if (conn != null) conn.close();
+                if (conn != null)
+                    conn.close();
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -264,7 +267,7 @@ public class UserDAO {
     public String checkDuplicateFields(String username, String email, String phone) {
         String sql = "SELECT Username, Email, Phone FROM Users WHERE Username = ? OR Email = ? OR Phone = ?";
         try (Connection conn = new DBContext().getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, username);
             ps.setString(2, email);
             ps.setString(3, phone);
@@ -291,7 +294,7 @@ public class UserDAO {
     public String checkDuplicateFieldsForUpdate(int userId, String email, String phone) {
         String sql = "SELECT Email, Phone FROM Users WHERE UserID <> ? AND (Email = ? OR Phone = ?)";
         try (Connection conn = new DBContext().getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, userId);
             ps.setString(2, email);
             ps.setString(3, phone);
@@ -315,7 +318,7 @@ public class UserDAO {
     public boolean toggleUserStatus(int userId, boolean status) {
         String sql = "UPDATE Users SET IsActive = ? WHERE UserID = ?";
         try (Connection conn = new DBContext().getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setBoolean(1, status);
             ps.setInt(2, userId);
             return ps.executeUpdate() > 0;
