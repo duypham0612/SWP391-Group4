@@ -1,0 +1,45 @@
+<%@ page contentType="text/html;charset=UTF-8" %>
+<%@ taglib prefix="c" uri="jakarta.tags.core" %>
+<%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
+<c:set var="ctx" value="${pageContext.request.contextPath}" />
+<jsp:include page="../layout/header.jsp" />
+
+<div class="page-header">
+    <div><div class="eyebrow">Hoá đơn #${bill.billId}</div><h1>Chi tiết hoá đơn</h1>
+        <p><c:if test="${not empty bill.tableNumber}">${bill.tableNumber} · </c:if>${bill.paidAt != null ? bill.paidAt : bill.createdAt}</p></div>
+    <a class="btn btn-ghost" href="${ctx}/cashier/history">← Lịch sử</a>
+</div>
+
+<div class="card" style="max-width:520px">
+    <table class="table">
+        <thead><tr><th>Món</th><th style="width:70px">SL</th><th style="width:140px">Thành tiền</th></tr></thead>
+        <tbody>
+            <c:forEach var="bi" items="${bill.items}">
+                <tr><td>${bi.productName}</td><td>${bi.quantity}</td><td><fmt:formatNumber value="${bi.amount}" maxFractionDigits="0"/> ₫</td></tr>
+            </c:forEach>
+        </tbody>
+    </table>
+    <div style="max-width:300px;margin-left:auto;font-size:.95rem;margin-top:10px">
+        <div style="display:flex;justify-content:space-between"><span>Tạm tính</span><span><fmt:formatNumber value="${bill.subtotal}" maxFractionDigits="0"/> ₫</span></div>
+        <c:if test="${bill.discountAmount > 0}"><div style="display:flex;justify-content:space-between;color:var(--st-ready)"><span>Giảm ${bill.voucherCode}</span><span>−<fmt:formatNumber value="${bill.discountAmount}" maxFractionDigits="0"/> ₫</span></div></c:if>
+        <div style="display:flex;justify-content:space-between"><span>VAT 8%</span><span><fmt:formatNumber value="${bill.vatAmount}" maxFractionDigits="0"/> ₫</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px solid var(--line);padding-top:6px;margin-top:6px"><span>Tổng cộng</span><span><fmt:formatNumber value="${bill.totalAmount}" maxFractionDigits="0"/> ₫</span></div>
+    </div>
+    <p style="margin-top:14px">Trạng thái:
+        <c:choose>
+            <c:when test="${bill.status == 'PAID'}"><span class="badge badge-ready">Đã thu (${bill.paymentMethod})</span></c:when>
+            <c:when test="${bill.status == 'VOID'}"><span class="badge badge-cancelled">Huỷ</span></c:when>
+            <c:otherwise><span class="badge badge-waiting">Chưa thu</span></c:otherwise>
+        </c:choose>
+    </p>
+    <c:if test="${bill.status == 'UNPAID'}">
+        <form action="${ctx}/cashier/history" method="post" onsubmit="return confirm('Huỷ hoá đơn này?');">
+            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+            <input type="hidden" name="action" value="void">
+            <input type="hidden" name="billId" value="${bill.billId}">
+            <button type="submit" class="btn btn-ghost btn-sm">Huỷ hoá đơn</button>
+        </form>
+    </c:if>
+</div>
+
+<jsp:include page="../layout/footer.jsp" />
