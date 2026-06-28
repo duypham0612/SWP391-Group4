@@ -1,0 +1,285 @@
+# PROGRESS.md — Nhật ký tiến trình dự án
+
+> Cập nhật sau mỗi bước/Phase. Ngữ cảnh & quy ước cố định nằm ở `CLAUDE.md`.
+
+## Trạng thái Phase
+
+| Phase | Tên | Trạng thái |
+|---|---|---|
+| **0** | Nền tảng & UI shell | 🟢 Done (build WAR OK) |
+| 1 | Auth & RBAC | 🟢 Done (build WAR OK) |
+| 2 | Admin: Catalog & Config | 🟢 Done + đồng bộ đặc tả (chạy thật Tomcat OK) |
+| 3 | Manager: Inventory & HR | 🟢 Done (M1–M8) · ledger + shift-conflict + attendance/payroll verify chạy thật |
+| 4 | Sales + KDS | 🟢 Done · auto-deduct modifier-aware + Cold Brew + Contract #2 verify chạy thật |
+| 5 | Payment | 🟢 Done · split/merge bill + voucher + payment.completed verify chạy thật |
+| 6 | Customer QR app | 🟢 Done · scan→order(Source=QR) reuse OrderService→KDS chung→track verify thật |
+| 7 | Report & Polish | 🟢 Done · dashboard doanh thu Admin + E2E 26 route 200 + invariant 0 mismatch |
+
+Chú thích: ⚪ chưa làm · 🟡 đang làm/chờ duyệt · 🟢 Done.
+
+---
+
+## Gap analysis (2026-06-29)
+
+**Kết quả khảo sát repo:**
+- `sql/database.sql` = ĐÚNG schema chốt (database `CafeChain`, 8 schema, 37 bảng, có OutboxEvent / OrderItem.Status / InventoryTransaction / PrepRecipe / ModifierIngredientImpact + seed 4 role/4 user). Seed mật khẩu là `$2a$placeholder` → phải thay BCrypt thật.
+- Stack đã đúng nhánh: Jakarta EE 5 + JSTL 3.0 (`jakarta.tags.core`) → **Tomcat 10+**; Maven war; mssql-jdbc + jbcrypt + jackson có sẵn. JSP hiện tại **0 scriptlet** (đạt quy ước).
+- **Lệch lớn:** code Java/JSP hiện có là **app B2C webshop** (cart/checkout/register, model OrderDetail/CartItem, `db.properties` trỏ `CafeShopDB`) — **sai domain** so với plan dine-in. → bỏ, dựng lại.
+- Thiếu: tầng `service/`, `common/` (OrderItemStatus enum, EventPublisher), `config/` HikariCP, `filter/` Auth/Rbac/BranchScope, `realtime/`, `cafe-theme.css` + design tokens, layout `sidebar/_statusBadge`.
+
+---
+
+## Quyết định đã chốt (2026-06-29)
+
+1. **Code domain webshop cũ** → 🗑️ **Xóa & dựng lại sạch** (giữ `CharsetFilter` + pattern load properties).
+2. **Connection pool** → ✅ **HikariCP** (`config/DBConnection.getDataSource()`).
+3. **Base package** → giữ **`com.cafe`** (không đổi sang com.cafechain).
+4. **File SQL** → giữ **`sql/database.sql`** (không đổi tên/vị trí; là schema chốt).
+
+---
+
+## Checklist Phase 0 (chờ duyệt)
+
+**A. Dọn & chốt nền**
+- [ ] Xóa code domain webshop (model/dao/controller/JSP cart-checkout-register-myorders); giữ CharsetFilter.
+- [ ] `db.properties` → `databaseName=CafeChain` (+ config pool Hikari).
+- [ ] Thêm HikariCP vào pom; viết `config/DBConnection.getDataSource()`.
+- [ ] Thêm script thay `$2a$placeholder` bằng BCrypt thật (seed password bootstrap).
+
+**B. Skeleton package** (rỗng + file mẫu)
+- [ ] Tạo `config/ common/ model/ dao/ service/ controller/ filter/ realtime/`.
+- [ ] `common/OrderItemStatus` enum; `common/EventPublisher` (stub ghi OutboxEvent); `common/Constants`.
+
+**C. UI shell dùng chung**
+- [ ] `assets/css/cafe-theme.css` (:root design tokens + font Be Vietnam Pro).
+- [ ] Layout master: `layout/header.jsp`, `sidebar.jsp`, `footer.jsp`, `_statusBadge.jsp`.
+- [ ] `auth/login.jsp` rỗng (form + CSRF; logic ở Phase 1).
+
+**D. Smoke test**
+- [ ] `DbHealthServlet` / trang `/health` chạy `SELECT 1` qua pool.
+- [ ] `mvn clean package` → deploy Tomcat 10 → login page + health page xanh.
+
+**Tiêu chí Done Phase 0:** skeleton chuẩn MVC chạy trên Tomcat, kết nối DB OK qua pool, master layout + cafe-theme.css + login page rỗng hiển thị, không scriptlet.
+
+---
+
+## Phase 0 — Done (2026-06-29)
+
+- Xoá toàn bộ code webshop cũ; giữ `CharsetFilter` (đã bỏ @WebFilter, chuyển khai báo sang web.xml để kiểm soát thứ tự).
+- `pom.xml`: thêm **HikariCP 5.1.0** + slf4j-simple. `db.properties` → `databaseName=CafeChain`.
+- `config/DBConnection` (HikariCP pool, `getDataSource()`/`getConnection()`).
+- `common/`: `OrderItemStatus` enum, `EventPublisher` (ghi ops.OutboxEvent), `Constants`, `PasswordUtil` (BCrypt), `CsrfUtil`, `SessionUtil`.
+- **UI shell Highlands**: `assets/css/cafe-theme.css` (đỏ #A6182B / #7A0F1F + kem + nâu, badge 5 màu chuẩn), layout `header/sidebar/footer/_statusBadge`, `auth/login.jsp`, `index.jsp` router, error 403/404/500.
+- `HealthServlet` `/health` (SELECT 1 qua pool) cho smoke test.
+- **Build:** `mvn clean package` → `target/cafe-shop.war` OK.
+- ⚠️ Chưa runtime-test trên Tomcat (môi trường này không có SQL Server) — cần bạn chạy thử: deploy WAR, mở `/health` (phải "OK"), `/login`.
+
+## Phase 1 — Done (2026-06-29)
+
+- Model `Role`, `Branch`, `User` (kèm roleCode/roleName/branchName join).
+- `dao/UserDao` (findByUsername + helper seed hash). `service/AuthService` (BCrypt verify, chặn status≠ACTIVE).
+- Controller `LoginServlet` (CSRF + chống session fixation), `LogoutServlet`, `DashboardServlet` (điều hướng theo role).
+- Filter chuỗi (web.xml, đúng thứ tự): Charset → **AuthFilter** (whitelist public) → **RbacFilter** (prefix /admin /manager /cashier /barista; ADMIN xem tất cả) → **BranchScopeFilter** (đặt branchId vào request).
+- `SeedPasswordListener`: khởi động app tự thay `$2a$placeholder` bằng BCrypt hash mật khẩu mặc định **`123456`** (idempotent).
+- Landing 4 role: `admin/manager/cashier/barista/dashboard.jsp`.
+- **Build:** WAR OK.
+
+## Phase 2 — Đang làm (lát cắt MVC mẫu xong)
+
+**Lát cắt CRUD mẫu (catalog.Category) — DONE, build OK.** Đây là khuôn để nhân bản cho mọi CRUD khác:
+- `model/Category` → `dao/CategoryDao` (list/findById/insert/update/softDelete, nhận Connection) → `service/CategoryService` (mở conn + tx commit/rollback) → `controller/CategoryServlet` (`/admin/categories`, GET list/new/edit, POST save/delete, CSRF + validate server-side) → `views/admin/category-list.jsp` (data-table) + `category-form.jsp` (form-card). Đã gắn link vào sidebar admin.
+- Pattern chốt cho replication: **soft-delete** (IsActive=0) để giữ FK; CSRF token mọi form ghi; validate trong controller; JSP chỉ JSTL/EL.
+
+**Đã nhân bản xong (build OK):**
+- [x] Category (`/admin/categories`) — lát cắt mẫu
+- [x] Ingredient RAW/PREPPED (`/admin/ingredients`)
+- [x] Product + dropdown Category + ảnh (`/admin/products`)
+- [x] ProductRecipe / BOM (`/admin/recipes` — chọn product → thêm/xoá dòng nguyên liệu)
+- [x] Modifier: Group → Option → **IngredientImpact** QtyDelta (`/admin/modifiers`)
+- [x] Voucher PERCENT/FIXED + scope CHAIN/BRANCH + ngày + giới hạn (`/admin/vouchers`)
+- [x] BranchMenu: publish/giá local/cờ 86 theo chi nhánh (`/admin/branch-menu`)
+- [x] IAM: Staff CRUD + reset mật khẩu (`/admin/staff`) · Branch CRUD (`/admin/branches`)
+
+**Carry-over (2 link-table chưa có UI — feed Phase 4, làm trước khi/khi vào Phase 4):**
+- [ ] **ProductModifierGroup** — gán nhóm modifier nào áp dụng cho product nào.
+- [ ] **PrepRecipe** — công thức pha sẵn (PREPPED từ N RAW + yield) cho PrepBatch.
+
+⚠️ **Khuyến nghị mạnh:** đã có 13 servlet + 33 JSP nhưng **chưa chạy thật** (dev không có SQL Server). Nên smoke-test toàn bộ Admin trên Tomcat 10 + SQL Server trước khi sang Phase 3, để bắt lỗi SQL/JSP sớm.
+
+## ✅ Runtime verification (2026-06-29) — chạy thật trên Tomcat 10 + SQL Edge
+
+**Môi trường chạy thử (local):**
+- DB: container Docker `cafechain-sql` (image `azure-sql-edge`, arm64) — cổng host **14333** (vì cổng 1433 đã bị `mycoffee-sql` của bạn chiếm). SA pwd `YourPassword123`. Đã nạp `sql/database.sql` (37 bảng, 4 user seed).
+- App: Tomcat 10 (brew) chạy với **CATALINA_BASE riêng** ở scratchpad, cổng **8090**, context `/cafe-shop`.
+- `db.properties` đang trỏ `localhost:14333` (đổi lại 1433 hoặc DB của bạn khi chạy môi trường thật).
+
+**Kết quả test (đều PASS):**
+- `/health` → `OK - DB pool connected`.
+- Login `admin/123456` → 302 → dashboard đúng role. Barista login OK nhưng `/admin/*` → **403** (RBAC đúng).
+- 11/11 trang Admin render 200 (kể cả form có dropdown join).
+- CRUD ghi thật: tạo Category + Ingredient PREPPED → 302 + có dòng trong DB. CSRF chặn token cũ (403) đúng.
+
+**2 BUG phát hiện & đã sửa nhờ chạy thật (compile không bắt được):**
+1. `SeedPasswordListener`/`UserDao.findUsersWithoutRealHash`: lọc `NOT LIKE '$2%'` coi `$2a$placeholder` là hash hợp lệ → không seed mật khẩu → không login được. **Sửa:** lọc `LEN(PasswordHash) < 60` (BCrypt thật = 60 ký tự).
+2. CSRF token không tồn tại trong session sau login (login xoay session chống fixation, chỉ `LoginServlet.doGet` tạo token) → mọi form ghi 403. **Sửa:** `BranchScopeFilter` gọi `CsrfUtil.getToken` cho mọi request đã đăng nhập.
+
+**Lệnh chạy lại nhanh:**
+```
+# DB (1 lần): docker run -d --name cafechain-sql -e ACCEPT_EULA=1 -e MSSQL_SA_PASSWORD=YourPassword123 -p 14333:1433 mcr.microsoft.com/azure-sql-edge
+# nạp schema: sqlcmd -S localhost,14333 -U sa -P YourPassword123 -N disable -i sql/database.sql
+# build+deploy: mvn clean package -DskipTests; cp target/cafe-shop.war <CATALINA_BASE>/webapps/; catalina start
+# URL: http://localhost:8090/cafe-shop/login  (admin|manager1|cashier1|barista1 / 123456)
+```
+
+## Phase 2 — Đồng bộ đặc tả `KE_HOACH_CHI_TIET_THEO_ROLE.md` (2026-06-29)
+
+Quyết định user: **giữ `com.cafe` layer-based**, đổi tên/route đúng đặc tả + bù 2 mảng thiếu. Đã copy spec vào repo gốc.
+
+**Đã đổi route (số nhiều → số ít) + class/method theo đặc tả:**
+- Auth: gộp `Login/LogoutServlet` → **`AuthServlet`** @ `/auth/login`,`/auth/logout`. `PasswordUtil`→**`PasswordHasher`** (`hashPassword`/`verifyPassword`). `EventPublisher` dùng enum **`EventType`**.
+- A1 `StaffServlet/Service`→**`UserServlet`/`UserService`** @ `/admin/user` (`getUserList`/`createUser`/`setUserStatus`/`resetPassword`/`assignBranch` + toggleStatus UI).
+- A2 `/admin/branch` · `BranchService` (`getBranchList`/`setBranchActive`/`assignManager`); `BranchDao` (`findAll`/`updateActive`/`updateManager`).
+- A3 `/admin/category`,`/admin/product` · method `getXxxList`…; `ProductService.setProductActive`/**`publishToBranch`** (+ UI Publish→chi nhánh); `ProductDao.findByCategory`/`updateActive`.
+- A4 `/admin/recipe`,`/ingredient`,`/modifier` · `ProductRecipeService`→**`RecipeService`** (+ **PrepRecipe**: model/DAO/UI `prep-recipe.jsp`); `ModifierDao` tách → **`ModifierGroupDao`/`ModifierOptionDao`/`ModifierIngredientImpactDao`/`ProductModifierGroupDao`**; `ModifierService.assignGroupToProduct` (+ UI `modifier-assign.jsp`).
+- A5 `/admin/voucher` · `VoucherService` (`getVoucherList`/`setVoucherActive`/`incrementUsed`/`validateVoucher`); `VoucherDao.findByCode`/`incrementUsed`/`updateActive`.
+- DAO chuẩn hoá toàn bộ: `list`→`findAll`, `softDelete`→`delete`/`updateActive`. View `staff-*`→`user-*`, `recipe-form`→`recipe-builder`.
+
+**Bù 2 carry-over A4 (đã xong + verify):** `PrepRecipe` (RAW→PREPPED) · `ProductModifierGroup` (gán nhóm cho product).
+
+**✅ Verify chạy thật trên Tomcat 10 + SQL Edge:** build WAR OK · `/auth/login`+RBAC(403 barista) OK · 10/10 route Admin số ít = 200 · recipe-builder/prep/modifier-assign = 200 · ghi thật DB: addPrep (PrepRecipe), assignGroup (ProductModifierGroup), publishToBranch (BranchMenu) đều persist. Đã dọn row test.
+
+## Phase 3 — Inventory half DONE (2026-06-29) · ledger verify
+
+**Sổ cái tồn kho (contract lõi):** `common/TxnType` enum; model `BranchInventory`/`InventoryTransaction`/`Supplier`/`StockReceipt(+Detail)`/`StockAdjustment`; DAO tương ứng. **`InventoryService.applyTxn(conn, branch, ingredient, delta, TxnType, refTable, refId, userId)`** = INSERT InventoryTransaction + UPSERT BranchInventory + publish `stock.low`, tất cả trong tx của caller. **Không nơi nào UPDATE thẳng BranchInventory ngoài applyTxn.**
+- **M6** Supplier (`/manager/supplier`) + Stock Receipt (`/manager/receipt`): tạo nháp → addLine → **confirm = cộng tồn qua ledger + chốt CONFIRMED, nguyên tử** (`StockReceiptService.confirmReceipt` gọi `InventoryService.confirmReceiptStock`).
+- **M5** Inventory Dashboard (`/manager/inventory`): tồn theo chi nhánh + low-stock + đặt ngưỡng + **xem sổ cái** từng nguyên liệu.
+- **M7** Reconciliation (`/manager/reconciliation`): nhập tồn thực tế → ghi `ADJUST` diff qua ledger.
+
+**✅ Verify chạy thật (manager1, branch 1):** mọi trang manager 200 · receipt confirm → `QtyOnHand=1000 == SUM(ledger)=1000` (1 RECEIPT) · adjust 950 → `QtyOnHand=950 == SUM(ledger)=950` (+ADJUST). **Bất biến cache == tổng sổ cái GIỮ ĐÚNG.**
+
+## Phase 3 — HR half DONE (2026-06-29) · shift-conflict + attendance/payroll verify
+
+**M1 Dashboard** (`/manager/dashboard`, `ManagerDashboardServlet/Service`): thẻ tổng quan (tồn thấp / NV có ca hôm nay / chấm công chờ duyệt) + bảng ca hôm nay + cảnh báo tồn. `DashboardServlet` redirect role MANAGER → `/manager/dashboard`.
+**M2 Ca làm** (`/manager/shift`, `ShiftServlet/Service`, `ShiftTemplateDao/ShiftAssignmentDao`): tạo mẫu ca, lịch tuần (template × 7 ngày), xếp/gỡ ca. **★ Shift Conflict Resolver** = `common/ShiftConflict.overlaps()` (logic thuần) + `ShiftService.detectConflict` (so giờ với các ca cùng NV cùng ngày). Chồng giờ → `ShiftConflictException` → flashError, KHÔNG ghi.
+**M3 Chấm công** (`/manager/attendance`, `AttendanceServlet/Service/Dao`): tab PENDING/APPROVED/REJECTED, duyệt/từ chối (ghi ApprovedBy), sửa giờ check-in/out, `getWorkHours()` = (out−in).
+**M4 Bảng lương** (`/manager/payroll`, `PayrollServlet/Service`): tổng hợp giờ từ chấm công APPROVED theo NV/tháng (`AttendanceDao.aggregateApprovedByMonth`, group SQL), điều hướng tháng.
+**M8 Menu chi nhánh** (`/manager/menu`, `ManagerMenuServlet` dùng chung `BranchMenuService`): bật/tắt bán, giá địa phương, cờ 86 — khoá theo branch của manager.
+
+**★ Test trước (logic rủi ro):** `src/test/java/.../ShiftConflictTest` — 5 case (chồng/chứa trọn/chạm biên/rời nhau/null) **PASS 5/5** (`mvn test`). Đã thêm JUnit 5 vào pom.
+
+**✅ Verify chạy thật (Tomcat 8090 + SQL Edge):** 6/6 route manager = 200 · **conflict:** xếp Ca sáng 07–12 OK → xếp Ca 11–15 cùng NV/ngày bị chặn (flashError đúng), badge=1; xếp Ca chiều 13–17 (rời) OK, badge=2 · **attendance:** insert PENDING 07–12 → UI hiện 5.0 giờ → Duyệt → DB `Status=APPROVED, ApprovedBy=2` · **payroll** tháng 2026-06: NV 1 ca / 5.0 giờ · **M8:** toggle available product → `catalog.BranchMenu.IsAvailable` đổi & khôi phục. Sidebar manager đã nối Ca làm/Chấm công/Bảng lương/Menu (bỏ "soon").
+
+**Dữ liệu demo để review còn lại trong DB:** 3 ShiftTemplate (Ca sáng/Ca 11-15/Ca chiều), 2 ShiftAssignment (NV manager1, 30/06), 1 Attendance APPROVED 5.0h.
+
+**→ Phase 3 (M1–M8) HOÀN TẤT. Dừng chờ duyệt trước khi sang Phase 4 (Sales + KDS).**
+
+## Phase 4 — Sales + KDS DONE (2026-06-29) · ★ Modifier-Aware Auto-Deduction verify
+
+**★ Lõi rủi ro — test TRƯỚC:** `common/DeductionCalculator.computeRequired(recipe, impacts, qty)` (logic thuần) + `DeductionCalculatorTest` **4/4 PASS** (gồm test BẮT BUỘC Cold Brew PREPPED chỉ trừ Cold Brew, không trừ cà phê hạt lần 2). Tổng test toàn dự án **9/9**.
+
+**Sales backbone (Cashier sở hữu order entry — Contract #1, #3):**
+- model `DiningTable/TableSession/Order/OrderItem/OrderItemModifier/PrepBatch/WasteLog` · DAO tương ứng.
+- **`OrderService`**: `placeOrder` (tạo Order+Item(WAITING)+Modifier, giá = giá menu chi nhánh + Σ priceDelta, publish `order.created`, 1 tx) · `startItem`(→MAKING) · **`markItemReady`** (★ auto-deduct + READY trong CÙNG 1 tx) · `markItemServed` · `getKdsQueue/getReadyItems/getSessionItemStatuses`.
+- **`InventoryService.deductForOrderItem`** = đọc ProductRecipe + OrderItemModifier→ModifierIngredientImpact, tính qua DeductionCalculator, `applyTxn(-qty, DEDUCT)` từng ingredient, publish `inventory.deducted`. **PREPPED trừ tồn PREPPED, KHÔNG trừ RAW lần 2.**
+- **`InventoryService.createPrepBatch`** (Contract #2 — nơi DUY NHẤT RAW→PREPPED): PREP_OUT raw theo PrepRecipe (consumed=qty/yield×qtyPer), PREP_IN prepped, 1 tx · **`logWaste`** (WASTE + ledger).
+- `TableSessionService` (sơ đồ bàn, mở/đóng/gộp phiên) · `KdsService/PrepService/WasteService` (thin) · `CatalogReadService.getPosMenu` (món available chưa-86 + nhóm modifier) · `BranchMenuService.set86`.
+
+**Màn (C2,C3 Cashier · B1–B5 Barista):** `/cashier/table` (sơ đồ bàn), `/cashier/pos` (POS giỏ JS→submit JSON), `/barista/kds` (hàng chờ, polling 5s, nút Xong=auto-deduct), `/barista/pickup` (READY→SERVED), `/barista/eightysix` (86 khoá POS+QR), `/barista/prep` (pha sẵn), `/barista/waste` (hao hụt). Sidebar cashier/barista đã nối (bỏ "soon").
+
+**✅ Verify chạy thật (Tomcat 8090 + SQL Edge):**
+- POS đặt **Cà phê sữa + "Thêm shot"** → đơn #1, UnitPrice 37000 (=29000+8000), `order.created` ✓.
+- Barista start→**Xong**: ledger `DEDUCT` cà phê **-36g** (18 công thức + **18 modifier**) + sữa -30ml ✓ **modifier-aware**; item READY+DoneAt; events `order.status_changed`(MAKING)/`inventory.deducted`/`order.status_changed`(READY) ✓.
+- **Test BẮT BUỘC Cold Brew (#2):** đặt Cold Brew → Xong → trừ Cold Brew(ing6) -180 + đá(ing4) -100, **KHÔNG trừ cà phê hạt(ing1)** ✓.
+- **PrepBatch (Contract #2):** pha Syrup Đào 800 → PREP_IN ing7 +800, PREP_OUT đường -300 + đào -500 (1 tx) ✓.
+- **Waste:** spill đá 50 → WASTE -50 ✓. **86:** 86 Trà Đào → biến mất khỏi POS menu (1,2,3→1,2), un-86 khôi phục ✓.
+- **Bất biến cache==SUM(ledger): OK toàn bộ 7 ingredient.** (vài ingredient âm do chưa nhập tồn đầu — không có stock-guard ở phase này, sổ cái vẫn nhất quán.)
+
+**Bug bắt nhờ chạy thật:** `kds.jsp` dùng `<c:forEach var="mod">` → `${mod.optionName}` lỗi parse vì **`mod` là toán tử EL (modulo)**. Sửa: đổi biến `mod`→`om`.
+
+**Carry-over Phase 4 (đẩy sang/làm cùng phase sau):** C4 Order Inbox (gác đơn QR) → Phase 6; B6 Recipe lookup (read-only) + B7 Shift Handover (cần bảng `hr.ShiftHandover` mới) — chưa làm.
+
+**Dữ liệu demo còn trong DB:** bàn 1 OPEN (phiên #1), đơn #1 (Cà phê sữa+shot, READY) & #2 (Cold Brew, READY), 2 PrepBatch, 1 WasteLog.
+
+**→ Phase 4 HOÀN TẤT. Dừng chờ duyệt trước khi sang Phase 5 (Payment: Cashier shift, Checkout, Split/Merge bill, voucher, payment.completed).**
+
+## Phase 5 — Payment DONE (2026-06-29) · ★ Dynamic Bill Splitting + payment.completed
+
+**★ Lõi rủi ro — test TRƯỚC:** `common/BillCalculator` (logic thuần: discount PERCENT/FIXED kẹp [0,subtotal], VAT 8%, total=net+vat) + `BillCalculatorTest` **6/6 PASS**. Tổng test dự án **15/15**.
+
+**C1 Ca thu ngân** (`/cashier/shift`, `CashierShiftServlet/Service/Dao`): mở/đóng ca (idempotent), báo cáo ca (số bill + tổng thu PAID).
+**C5 Checkout + ★ Tách/Gộp bill** (`/cashier/checkout`, `CheckoutServlet`, **`BillingService`**, `BillDao/BillItemDao/VoucherRedemptionDao`):
+- `buildSessionBill` — dồn mọi OrderItem chưa-bill của phiên vào 1 bill UNPAID, tính subtotal/VAT.
+- `splitItems` — chuyển dòng đã chọn sang bill MỚI (giữ UNIQUE OrderItemId); `mergeBills` — dồn nhiều bill về 1, void bill rỗng.
+- `applyVoucher` (gọi `VoucherService.validateVoucher` — voucher 1 nguồn `payment.Voucher`) → tính giảm qua BillCalculator.
+- **`payBill`** (Contract #3): markPaid có guard `WHERE Status='UNPAID'` (chống double-pay) → tăng `Voucher.UsedCount` + ghi `VoucherRedemption` + publish **`payment.completed`** + nếu phiên hết bill UNPAID → đóng phiên + trả bàn EMPTY. Tất cả 1 tx.
+**C6 Lịch sử HĐ** (`/cashier/history`, `BillHistoryServlet`): danh sách 100 bill gần nhất + xem chi tiết + void.
+
+**✅ Verify chạy thật (cashier1, Tomcat 8090 + SQL Edge):**
+- Mở ca quỹ 500k · build bill phiên 1 (5 món) → subtotal 195000, VAT 8% 15600, **total 210600** ✓.
+- **★ Tách:** chọn 2 món → bill mới: bill#1[3 món]=111000, bill#2[2 món]=84000 ✓.
+- **Voucher GRANDOPENING 20%** lên bill#1: discount 22200, VAT trên net 7104, **total 95904** ✓.
+- **Thanh toán** bill#1 CASH + bill#2 TRANSFER → 2 `payment.completed`, `Voucher.UsedCount`=1, `VoucherRedemption`(22200) ✓; phiên 1 → CLOSED, bàn trả EMPTY ✓.
+- **Chống double-pay:** thu lại bill#1 → không tạo event thứ 3 (guard `WHERE Status='UNPAID'`) ✓.
+- **Báo cáo ca:** 2 bill / thu 186624 ✓ · 5/5 route payment = 200 · **bất biến tồn kho không đổi (payment không đụng inventory): 0 mismatch.**
+
+**Carry-over:** thanh toán đơn TAKEAWAY (không phiên bàn) — checkout hiện theo phiên; bổ sung khi cần. `mergeBills` đã code (chung primitive `reassign` với split đã verify) nhưng chưa test live riêng.
+
+**Dữ liệu demo trong DB:** ca #1 đang mở, bill #1 (PAID CASH, có voucher) + #2 (PAID TRANSFER), VoucherRedemption.
+
+**→ Phase 5 HOÀN TẤT. Dừng chờ duyệt trước khi sang Phase 6 (Customer QR app: scan→menu→cart→đặt món reuse OrderService→tracking, mobile-first).**
+
+## Phase 6 — Customer QR app DONE (2026-06-29) · ẩn danh, mobile-first, reuse OrderService
+
+**Contract #1 (order.created) + #3 (đơn QR & quầy CÙNG bảng/service):** QR DÙNG LẠI `OrderService.placeOrder(source=QR)` — KHÔNG nhân bản logic đặt đơn.
+
+**C7 QR Menu & Đặt món** (`/qr/menu?t={qrCode}`, `QrMenuServlet`, `QrOrderService`):
+- `identifyTable(qrCode)` → `DiningTableDao.findByQrCode` + mở/lấy **phiên ẩn danh** (OpenedBy=NULL) qua `TableSessionService.openSession`.
+- `getMenu` = `CatalogReadService.getPosMenu` (món available, chưa 86) · `placeCustomerOrder` → `OrderService.placeOrder(source=QR, createdBy=null)`.
+- View `customer/menu.jsp` mobile-first (giỏ JS → submit JSON), `customer/invalid.jsp` (QR sai).
+**C8 QR Tracking** (`/qr/track?s={sessionId}`, `QrTrackServlet`):
+- `getSessionStatuses` → `OrderService.getSessionItemStatuses` · AJAX polling 5s (`?action=status` trả JSON).
+- `callStaff`/`requestBill` → publish `service.call`/`bill.requested` (không bảng mới) · View `customer/track.jsp` (badge dùng chung `_statusBadge`).
+
+**Hạ tầng:** `/qr/*` đã whitelist ở `AuthFilter` (không cần login) + không khớp RbacFilter (không role). CSRF: `QrMenuServlet`/`QrTrackServlet.doGet` gọi `CsrfUtil.getToken` seed token vào **session ẩn danh** → form/JSON POST gửi `_csrf`. EventType `SERVICE_CALL`/`BILL_REQUESTED` đã có sẵn.
+
+**✅ Verify chạy thật (KHÁCH ẩn danh, không login):**
+- Quét `QR-CN01-T01` → 200, mở phiên ẩn danh #3 (OpenedBy=NULL, bàn 1) ✓.
+- Đặt Trà Đào ×2 → order #4 **Source=QR, CreatedBy=NULL**, `order.created` ✓.
+- Track 200 · AJAX `[{name:"Trà Đào",qty:2,status:"WAITING"}]` ✓ · callStaff→`service.call`, requestBill→`bill.requested` ✓.
+- QR sai (`BADCODE`) → 404 + trang invalid ✓.
+- **★ Hợp nhất pipeline:** đơn QR #4 hiện trong **hàng chờ KDS của barista** (Trà Đào) — khách QR & quầy đi cùng một KDS/auto-deduct ✓.
+
+**Dữ liệu demo:** phiên ẩn danh #3 (bàn 1, OPEN) + order QR #4 (Trà Đào ×2, WAITING). **Lưu ý:** seed có sẵn 4 QR (`QR-CN01-T01..T04`).
+
+**→ Phase 6 HOÀN TẤT. Còn lại Phase 7 (Report & Polish: dashboard doanh thu, golden-path E2E, fix bug).**
+
+## Phase 7 — Report & Polish DONE (2026-06-29) · 🎉 HOÀN TẤT DỰ ÁN (Phase 0–7)
+
+**Dashboard doanh thu toàn chuỗi** (`/admin/report`, `ReportServlet/Service/Dao` — Admin xem chéo mọi chi nhánh, chỉ tính bill `PAID`):
+- `chainSummary`: tổng/hôm nay (doanh thu + số HĐ), tổng giảm giá voucher, tổng VAT đã thu.
+- `revenueByBranch` (GROUP BY chi nhánh) · `topProducts` (TOP 10 JOIN BillItem→OrderItem→Product) · `paymentBreakdown` (GROUP BY hình thức).
+- Admin dashboard hiển thị số liệu thật + link báo cáo. Sidebar Admin nối "Doanh thu toàn chuỗi" (bỏ "soon").
+
+**✅ Verify chạy thật (admin):** trang report 200, **khớp DB tuyệt đối**: doanh thu 186624 (2 bill) · CASH 95904 + TRANSFER 90720 · Top: Cold Brew 90000 / Cà phê sữa 66000 / Trà Đào 39000.
+
+**✅ Golden-path E2E (toàn hệ thống):** **26/26 route 200** (Admin 6 · Manager 6 · Cashier 5 · Barista 5 · QR 2 ẩn danh) · **bất biến sổ cái tồn kho: 0 mismatch** · **15/15 unit test** (deduction modifier-aware, shift conflict, bill calculator).
+
+**Tổng kết kiến trúc đã chạy thật:** JSP+Servlet+JSTL (0 scriptlet) · MVC controller→service→dao · HikariCP · 3 filter (Auth/Rbac/BranchScope) + CSRF · HttpSession auth · 4 role landing riêng · **3 contract giữ nguyên xuyên suốt**: (1) OutboxEvent + OrderItemStatus enum chung; (2) RAW/PREPPED không double-count (test bắt buộc Cold Brew pass); (3) Cashier/QR cùng OrderService/Orders. **Mọi đổi tồn qua `InventoryService.applyTxn` + sổ cái — invariant cache==Σ(ledger) luôn đúng.**
+
+**Carry-over (ngoài phạm vi 7 phase lõi, làm khi cần):** B6 Recipe lookup · B7 Shift Handover (cần bảng `hr.ShiftHandover`) · C4 Order Inbox (gác đơn QR) · thanh toán TAKEAWAY · test `mergeBills` live riêng · seed BCrypt thật cho user (đang dùng listener seed "123456").
+
+**🎉 DỰ ÁN HOÀN TẤT — Phase 0→7 đều chạy được + verify thật trên Tomcat 10 + SQL Edge.**
+
+**Còn lại Phase 3 (HR + M8):** M1 Manager Dashboard, M2 Shift + conflict resolver, M3 Attendance, M4 Payroll, M8 Branch Menu config (`/manager/menu`).
+
+## Điều chỉnh so với plan (đã thống nhất với user)
+
+- **Giao diện theo phong cách Highlands Coffee** (đỏ trầm) thay bảng màu espresso/coffee gốc trong mục 4 của plan. Giữ nguyên *cấu trúc* design token + 5 màu status badge để contract trạng thái không đổi.
+
+## Nhật ký
+
+- **2026-06-29** — Gap analysis + chốt 4 quyết định; tạo `CLAUDE.md` + `docs/PROGRESS.md`.
+- **2026-06-29** — Hoàn tất **Phase 0** (nền tảng + UI shell Highlands) và **Phase 1** (Auth & RBAC). Build WAR thành công. Bắt đầu **Phase 2**.
+- **2026-06-29** — Hoàn tất **Phase 2** (Catalog & Config): 8 nhóm CRUD. Build WAR OK.
+- **2026-06-29** — **Đồng bộ Phase 2 theo `KE_HOACH_CHI_TIET_THEO_ROLE.md`**: đổi route/class/method đúng đặc tả (giữ com.cafe), gộp AuthServlet, PasswordHasher, EventType, tách 4 Modifier DAO, bù PrepRecipe + ProductModifierGroup. Dựng SQL Edge + Tomcat 10 chạy thật, verify toàn bộ route mới + ghi DB OK. Sửa 2 bug runtime trước đó (seed password LEN<60, CSRF sau login).
+- **2026-06-29** — **Làm lại UI (premium cafe, theo phản hồi user)**: viết lại `cafe-theme.css` (tông rượu vang + kem + vàng đồng, serif Playfair cho tiêu đề), **bỏ emoji** ở sidebar/dashboard, sidebar có nhãn nhóm + thanh nhấn vàng ở mục active, topbar có avatar chữ cái, login đổi sang **split brand-panel** có tagline. Build + redeploy + verify render OK.
