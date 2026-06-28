@@ -60,6 +60,8 @@
                 <li><a href="${ctx}/barista/prep">Pha sẵn (Prep)</a></li>
                 <li><a href="${ctx}/barista/waste">Hao hụt / Làm lại</a></li>
                 <li><a href="${ctx}/barista/eightysix">Hết món (86)</a></li>
+                <li><a href="${ctx}/barista/recipe">Tra cứu công thức</a></li>
+                <li><a href="${ctx}/barista/handover">Bàn giao ca</a></li>
             </c:when>
         </c:choose>
     </ul>

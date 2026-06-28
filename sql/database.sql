@@ -338,6 +338,9 @@ CREATE TABLE inventory.PrepBatch (
     MadeBy              INT NOT NULL,            -- User (Barista)
     MadeAt              DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     ExpiresAt           DATETIME2 NULL,
+    Status              VARCHAR(10) NOT NULL DEFAULT 'ACTIVE'   -- huỷ mẻ = ghi txn bù + đánh dấu CANCELLED (không hard-delete)
+                        CONSTRAINT CK_PrepBatch_Status CHECK (Status IN ('ACTIVE','CANCELLED')),
+    VoidedAt            DATETIME2 NULL,
     CONSTRAINT FK_PB_Branch  FOREIGN KEY (BranchId)            REFERENCES org.Branch(BranchId),
     CONSTRAINT FK_PB_Prepped FOREIGN KEY (PreppedIngredientId) REFERENCES catalog.Ingredient(IngredientId),
     CONSTRAINT FK_PB_User    FOREIGN KEY (MadeBy)              REFERENCES iam.[User](UserId)
@@ -355,6 +358,9 @@ CREATE TABLE inventory.WasteLog (
     Reason       NVARCHAR(255) NULL,
     LoggedBy     INT NOT NULL,
     LoggedAt     DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    Status       VARCHAR(10) NOT NULL DEFAULT 'ACTIVE'   -- huỷ = ghi txn bù (hoàn kho) + đánh dấu VOIDED (không hard-delete)
+                 CONSTRAINT CK_WasteLog_Status CHECK (Status IN ('ACTIVE','VOIDED')),
+    VoidedAt     DATETIME2 NULL,
     CONSTRAINT FK_WL_Branch     FOREIGN KEY (BranchId)     REFERENCES org.Branch(BranchId),
     CONSTRAINT FK_WL_Ingredient FOREIGN KEY (IngredientId) REFERENCES catalog.Ingredient(IngredientId),
     CONSTRAINT FK_WL_User       FOREIGN KEY (LoggedBy)     REFERENCES iam.[User](UserId)
@@ -431,6 +437,18 @@ CREATE TABLE hr.Attendance (
     ApprovedBy        INT NULL,
     CONSTRAINT FK_Att_Assignment FOREIGN KEY (ShiftAssignmentId) REFERENCES hr.ShiftAssignment(ShiftAssignmentId),
     CONSTRAINT FK_Att_Approver   FOREIGN KEY (ApprovedBy)        REFERENCES iam.[User](UserId)
+);
+GO
+
+-- Bàn giao ca (Barista) — ghi chú đầu/cuối ca (B7)
+CREATE TABLE hr.ShiftHandover (
+    ShiftHandoverId INT IDENTITY PRIMARY KEY,
+    BranchId        INT NOT NULL,
+    Note            NVARCHAR(1000) NOT NULL,
+    CreatedBy       INT NOT NULL,
+    CreatedAt       DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT FK_SH_Branch FOREIGN KEY (BranchId)  REFERENCES org.Branch(BranchId),
+    CONSTRAINT FK_SH_User   FOREIGN KEY (CreatedBy) REFERENCES iam.[User](UserId)
 );
 GO
 
