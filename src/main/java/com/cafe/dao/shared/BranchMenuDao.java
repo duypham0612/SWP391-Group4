@@ -15,7 +15,7 @@ public class BranchMenuDao {
 
     public List<BranchMenuItem> listForBranch(Connection conn, int branchId) throws SQLException {
         final String sql =
-            "SELECT p.ProductId, p.Name, p.BasePrice, " +
+            "SELECT p.ProductId, p.Name, p.BasePrice, p.ImageUrl, " +
             "       bm.IsAvailable, bm.LocalPrice, bm.Is86, bm.BackInEta, " +
             "       CASE WHEN bm.ProductId IS NULL THEN 0 ELSE 1 END AS Published " +
             "FROM catalog.Product p " +
@@ -31,6 +31,7 @@ public class BranchMenuDao {
                     m.setProductId(rs.getInt("ProductId"));
                     m.setProductName(rs.getString("Name"));
                     m.setBasePrice(rs.getBigDecimal("BasePrice"));
+                    m.setImageUrl(rs.getString("ImageUrl"));
                     boolean published = rs.getInt("Published") == 1;
                     m.setPublished(published);
                     if (published) {

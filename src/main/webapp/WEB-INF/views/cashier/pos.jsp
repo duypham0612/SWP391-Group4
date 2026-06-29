@@ -16,7 +16,11 @@
         </c:if>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px">
             <c:forEach var="m" items="${menu}">
+                <c:set var="imgSrc" value="${empty m.imageUrl ? ctx.concat('/assets/img/products/_placeholder.svg') : (m.imageUrl.startsWith('http') ? m.imageUrl : ctx.concat(m.imageUrl))}" />
                 <div class="card pos-product" data-product-id="${m.productId}" data-product-name="${m.name}" data-price="${m.price}">
+                    <img class="pos-product__img" src="${imgSrc}" alt="${m.name}" loading="lazy"
+                         onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
+                  <div class="pos-product__body">
                     <div style="display:flex;justify-content:space-between;align-items:baseline">
                         <strong>${m.name}</strong>
                         <span class="muted"><fmt:formatNumber value="${m.price}" maxFractionDigits="0"/> ₫</span>
@@ -39,6 +43,7 @@
                         <input type="number" class="form-control pos-qty" value="1" min="1" style="width:70px">
                         <button type="button" class="btn btn-primary btn-sm" onclick="addToCart(this)">Thêm vào giỏ</button>
                     </div>
+                  </div>
                 </div>
             </c:forEach>
         </div>

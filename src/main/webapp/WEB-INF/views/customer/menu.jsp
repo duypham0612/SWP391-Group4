@@ -40,9 +40,16 @@
     <div class="qr-body">
         <c:if test="${empty menu}"><div class="qr-card">Hiện chưa có món nào được phục vụ.</div></c:if>
         <c:forEach var="m" items="${menu}">
+            <c:set var="imgSrc" value="${empty m.imageUrl ? ctx.concat('/assets/img/products/_placeholder.svg') : (m.imageUrl.startsWith('http') ? m.imageUrl : ctx.concat(m.imageUrl))}" />
             <div class="qr-card pos-product" data-product-id="${m.productId}" data-product-name="${m.name}" data-price="${m.price}">
-                <div style="display:flex;justify-content:space-between"><span class="name">${m.name}</span>
-                    <span class="price"><fmt:formatNumber value="${m.price}" maxFractionDigits="0"/> ₫</span></div>
+                <div style="display:flex;gap:12px;align-items:center">
+                    <img class="prod-thumb lg" src="${imgSrc}" alt="${m.name}" loading="lazy"
+                         onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
+                    <div style="flex:1;display:flex;justify-content:space-between;align-items:baseline">
+                        <span class="name">${m.name}</span>
+                        <span class="price"><fmt:formatNumber value="${m.price}" maxFractionDigits="0"/> ₫</span>
+                    </div>
+                </div>
                 <c:forEach var="g" items="${m.groups}">
                     <div class="qr-grp">
                         <div class="lbl">${g.name}</div>

@@ -9,6 +9,7 @@ public class PosMenuItem {
     private int productId;
     private String name;
     private BigDecimal price;          // localPrice nếu có, ngược lại basePrice
+    private String imageUrl;           // ảnh sản phẩm
     private List<Group> groups = new ArrayList<>();
 
     public int getProductId() { return productId; }
@@ -16,6 +17,9 @@ public class PosMenuItem {
 
     public String getName() { return name; }
     public void setName(String v) { this.name = v; }
+
+    public String getImageUrl() { return imageUrl; }
+    public void setImageUrl(String v) { this.imageUrl = v; }
 
     public BigDecimal getPrice() { return price; }
     public void setPrice(BigDecimal v) { this.price = v; }
