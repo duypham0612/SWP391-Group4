@@ -8,16 +8,16 @@
    ========================================================================== */
 
 :root{
-  /* ----- Thương hiệu ----- */
-  --wine-900:#2A0E12; --wine-800:#3C141A; --wine-700:#561620;
-  --brand:#8B1E2D;    --brand-600:#A6182B; --brand-700:#6F0F1C;
+  /* ----- Thương hiệu · Espresso & Caramel (nâu cà phê ấm) ----- */
+  --wine-900:#291A0F; --wine-800:#392617; --wine-700:#4C3320;
+  --brand:#6F4E37;    --brand-600:#835C41; --brand-700:#553A27;
   --gold:#C0934A;     --gold-soft:#E7D2A6;
 
   /* ----- Nền & bề mặt (light) ----- */
-  --paper:#F5F0E8;     --surface:#FFFFFF;   --surface-2:#FAF5EC;  --surface-3:#F2EADD;
-  --ink:#241712;       --ink-soft:#5C4A3B;  --muted:#998873;
-  --line:#EBE1D2;      --line-strong:#DDD0BC;
-  --sidebar-ink:#E9DBCE;
+  --paper:#F6F1E9;     --surface:#FFFFFF;   --surface-2:#FAF5EC;  --surface-3:#F1E9DC;
+  --ink:#2E2117;       --ink-soft:#5C4A3B;  --muted:#998873;
+  --line:#EBE1D2;      --line-strong:#DDCFBB;
+  --sidebar-ink:#EADDCB;
 
   /* ----- Status badge — KHỚP enum OrderItemStatus ----- */
   --st-waiting:#C8881C; --st-making:#2F6FB0; --st-ready:#3E8E5A;
@@ -33,13 +33,13 @@
   /* ----- Bo góc ----- */
   --radius:16px; --radius-sm:11px; --radius-xs:8px; --radius-pill:999px;
 
-  /* ----- Đổ bóng ----- */
-  --shadow-xs:0 1px 2px rgba(58,20,26,.05);
-  --shadow-sm:0 1px 3px rgba(58,20,26,.07),0 1px 2px rgba(58,20,26,.04);
-  --shadow:0 4px 16px rgba(58,20,26,.07),0 2px 6px rgba(58,20,26,.04);
-  --shadow-md:0 10px 30px rgba(58,20,26,.10),0 4px 10px rgba(58,20,26,.05);
-  --shadow-lg:0 24px 60px rgba(42,14,18,.22);
-  --ring:0 0 0 3px rgba(139,30,45,.14);
+  /* ----- Đổ bóng (tông nâu ấm) ----- */
+  --shadow-xs:0 1px 2px rgba(58,36,23,.05);
+  --shadow-sm:0 1px 3px rgba(58,36,23,.08),0 1px 2px rgba(58,36,23,.05);
+  --shadow:0 4px 16px rgba(58,36,23,.08),0 2px 6px rgba(58,36,23,.05);
+  --shadow-md:0 10px 30px rgba(58,36,23,.12),0 4px 10px rgba(58,36,23,.06);
+  --shadow-lg:0 24px 60px rgba(41,26,15,.24);
+  --ring:0 0 0 3px rgba(111,78,55,.20);
 
   /* ----- Chuyển động ----- */
   --t-fast:.14s cubic-bezier(.4,0,.2,1); --t:.2s cubic-bezier(.4,0,.2,1);
@@ -50,13 +50,13 @@
   --sage:var(--st-ready); --text:var(--ink);
 }
 
-/* ----- Dark mode ----- */
+/* ----- Dark mode (espresso tối + nhấn caramel sáng) ----- */
 [data-theme="dark"]{
-  --paper:#16100E;     --surface:#211814;   --surface-2:#2A201B;  --surface-3:#332720;
+  --paper:#17100B;     --surface:#221912;   --surface-2:#2B2118;  --surface-3:#352820;
   --ink:#F3E9DF;       --ink-soft:#CDBBAA;  --muted:#9E8B7B;
-  --line:#392B23;      --line-strong:#473529;
-  --brand:#C8506A;     --brand-600:#D96A82; --brand-700:#E08698;
-  --gold:#D2A85F;      --gold-soft:#E7D2A6;
+  --line:#3A2C20;      --line-strong:#4A3829;
+  --brand:#C99A6E;     --brand-600:#D8AC80; --brand-700:#E6C49C;
+  --gold:#D7AD63;      --gold-soft:#EAD6AC;
   --shadow-xs:0 1px 2px rgba(0,0,0,.4);
   --shadow-sm:0 1px 3px rgba(0,0,0,.45);
   --shadow:0 6px 20px rgba(0,0,0,.45);
@@ -206,8 +206,8 @@ hr{border:none; border-top:1px solid var(--line); margin:var(--s5) 0}
 }
 .btn:focus-visible{outline:none; box-shadow:var(--ring)}
 .btn svg{width:16px;height:16px}
-.btn-primary{background:var(--brand); color:#fff; box-shadow:0 4px 14px rgba(139,30,45,.24)}
-.btn-primary:hover{background:var(--brand-600); color:#fff; transform:translateY(-1px); box-shadow:0 6px 18px rgba(139,30,45,.30)}
+.btn-primary{background:var(--brand); color:#fff; box-shadow:0 4px 14px rgba(111,78,55,.28)}
+.btn-primary:hover{background:var(--brand-600); color:#fff; transform:translateY(-1px); box-shadow:0 6px 18px rgba(111,78,55,.34)}
 .btn-primary:active{transform:translateY(0)}
 .btn-ghost{background:var(--surface); border-color:var(--line); color:var(--ink-soft)}
 .btn-ghost:hover{background:var(--surface-2); border-color:var(--line-strong); color:var(--brand-700); transform:translateY(-1px)}

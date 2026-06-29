@@ -7,7 +7,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#2A0E12">
+    <meta name="theme-color" content="#291A0F">
     <title>${pageTitle} · Cafe Chain</title>
     <script>
       /* Đặt theme trước khi paint để tránh nháy màn (FOUC). */
