@@ -264,6 +264,13 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
 /* ----- Tabs (pill) ----- */
 .tabs{display:flex; gap:var(--s2); margin-bottom:var(--s5); flex-wrap:wrap}
 
+/* ----- Layout utilities ----- */
+.grid-2{display:grid; grid-template-columns:1fr 1fr; gap:var(--s5); margin-top:var(--s6)}
+.grid-2>*{min-width:0}
+.mt-5{margin-top:var(--s5)} .mt-6{margin-top:var(--s6)}
+.section-title{font-size:var(--fs-xs); letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:700; margin:var(--s6) 0 var(--s3)}
+@media (max-width:760px){.grid-2{grid-template-columns:1fr}}
+
 /* ============================ Login / Auth ============================== */
 .login-wrap{min-height:100vh; display:grid; grid-template-columns:1.05fr .95fr}
 .login-brandpanel{
