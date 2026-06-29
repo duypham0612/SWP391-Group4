@@ -47,6 +47,13 @@ public class ModifierGroupDao {
         }
     }
 
+    public void delete(Connection conn, int groupId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM catalog.ModifierGroup WHERE ModifierGroupId=?")) {
+            ps.setInt(1, groupId);
+            ps.executeUpdate();
+        }
+    }
+
     private void bind(PreparedStatement ps, ModifierGroup g) throws SQLException {
         ps.setString(1, g.getName());
         ps.setBoolean(2, g.isRequired());

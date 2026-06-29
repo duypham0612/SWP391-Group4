@@ -74,6 +74,11 @@ public class ModifierServlet extends HttpServlet {
                     resp.sendRedirect(ctx + "/admin/modifier");
                     return;
                 }
+                case "deleteGroup": {
+                    service.deleteModifierGroup(Integer.parseInt(req.getParameter("groupId")));
+                    resp.sendRedirect(ctx + "/admin/modifier");
+                    return;
+                }
                 case "addOption": {
                     int groupId = Integer.parseInt(req.getParameter("groupId"));
                     ModifierOption o = new ModifierOption();
@@ -82,6 +87,18 @@ public class ModifierServlet extends HttpServlet {
                     o.setPriceDelta(decimal(req.getParameter("priceDelta")));
                     o.setActive(true);
                     if (o.getName() != null && !o.getName().isBlank()) service.createModifierOption(o);
+                    resp.sendRedirect(ctx + "/admin/modifier?view=options&groupId=" + groupId);
+                    return;
+                }
+                case "updateOption": {
+                    int groupId = Integer.parseInt(req.getParameter("groupId"));
+                    ModifierOption o = new ModifierOption();
+                    o.setModifierOptionId(Integer.parseInt(req.getParameter("optionId")));
+                    o.setModifierGroupId(groupId);
+                    o.setName(trim(req.getParameter("name")));
+                    o.setPriceDelta(decimal(req.getParameter("priceDelta")));
+                    o.setActive(req.getParameter("active") != null);
+                    if (o.getName() != null && !o.getName().isBlank()) service.updateModifierOption(o);
                     resp.sendRedirect(ctx + "/admin/modifier?view=options&groupId=" + groupId);
                     return;
                 }

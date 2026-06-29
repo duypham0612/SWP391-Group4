@@ -40,6 +40,17 @@ public class ModifierOptionDao {
         }
     }
 
+    public void update(Connection conn, ModifierOption o) throws SQLException {
+        final String sql = "UPDATE catalog.ModifierOption SET Name=?, PriceDelta=?, IsActive=? WHERE ModifierOptionId=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, o.getName());
+            ps.setBigDecimal(2, o.getPriceDelta());
+            ps.setBoolean(3, o.isActive());
+            ps.setInt(4, o.getModifierOptionId());
+            ps.executeUpdate();
+        }
+    }
+
     public void delete(Connection conn, int optionId) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement("DELETE FROM catalog.ModifierOption WHERE ModifierOptionId = ?")) {
             ps.setInt(1, optionId);
