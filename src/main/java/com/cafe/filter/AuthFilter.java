@@ -32,6 +32,7 @@ public class AuthFilter implements Filter {
 
     private boolean isPublic(String path) {
         return path.equals("/")
+            || path.equals("/home")
             || path.equals("/auth/login")
             || path.equals("/auth/logout")
             || path.equals("/auth/forgot")
