@@ -6,7 +6,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Đăng nhập · Cà Phê Chain</title>
+    <title>Quên mật khẩu · Cà Phê Chain</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
@@ -20,9 +20,9 @@
             <span class="name">Cà Phê Chain</span>
         </div>
         <div class="lb-mid">
-            <div class="eyebrow">Hệ thống quản lý chuỗi</div>
-            <h1>Vận hành quán cà phê, trọn vẹn trong một nơi.</h1>
-            <p>Quản lý thực đơn, công thức, kho, ca làm và đơn hàng tại quầy — mượt mà cho từng chi nhánh, từng vai trò.</p>
+            <div class="eyebrow">Khôi phục truy cập</div>
+            <h1>Quên mật khẩu? Đặt lại ngay.</h1>
+            <p>Nhập tên đăng nhập và email đã đăng ký để xác minh và đặt lại mật khẩu mới.</p>
         </div>
         <div class="lb-foot">© 2026 Cà Phê Chain · SWP391</div>
     </div>
@@ -30,19 +30,15 @@
     <div class="login-formwrap">
         <div class="login-card">
             <div class="form-head">
-                <h2>Đăng nhập</h2>
-                <p>Chào mừng trở lại. Vui lòng nhập thông tin của bạn.</p>
+                <h2>Đặt lại mật khẩu</h2>
+                <p>Xác minh bằng tên đăng nhập và email tài khoản.</p>
             </div>
 
             <c:if test="${not empty errorMsg}">
                 <div class="alert alert-error">${errorMsg}</div>
             </c:if>
-            <c:if test="${not empty sessionScope.flashOk}">
-                <div class="alert alert-success">${sessionScope.flashOk}</div>
-                <c:remove var="flashOk" scope="session" />
-            </c:if>
 
-            <form action="${ctx}/auth/login" method="post">
+            <form action="${ctx}/auth/forgot" method="post">
                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                 <div class="form-group">
                     <label for="username">Tên đăng nhập</label>
@@ -50,19 +46,25 @@
                            value="${username}" required autofocus placeholder="admin">
                 </div>
                 <div class="form-group">
-                    <label for="password">Mật khẩu</label>
-                    <input id="password" type="password" name="password" class="form-control"
-                           required placeholder="••••••••">
+                    <label for="email">Email đăng ký</label>
+                    <input id="email" type="email" name="email" class="form-control"
+                           value="${email}" required placeholder="ban@cafechain.vn">
                 </div>
-                <button type="submit" class="btn btn-primary btn-full btn-lg">Đăng nhập</button>
+                <div class="form-group">
+                    <label for="newPassword">Mật khẩu mới (≥ 6 ký tự)</label>
+                    <input id="newPassword" type="password" name="newPassword" class="form-control"
+                           required minlength="6" placeholder="••••••••">
+                </div>
+                <div class="form-group">
+                    <label for="confirmPassword">Xác nhận mật khẩu mới</label>
+                    <input id="confirmPassword" type="password" name="confirmPassword" class="form-control"
+                           required minlength="6" placeholder="••••••••">
+                </div>
+                <button type="submit" class="btn btn-primary btn-full btn-lg">Đặt lại mật khẩu</button>
             </form>
 
-            <div class="login-hint" style="margin-bottom:6px">
-                <a href="${ctx}/auth/forgot">Quên mật khẩu?</a>
-            </div>
             <div class="login-hint">
-                Tài khoản dùng thử: <strong>admin · manager1 · cashier1 · barista1</strong><br>
-                Mật khẩu mặc định: <strong>123456</strong>
+                <a href="${ctx}/auth/login">← Quay lại đăng nhập</a>
             </div>
         </div>
     </div>

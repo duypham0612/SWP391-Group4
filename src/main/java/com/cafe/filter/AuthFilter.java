@@ -34,6 +34,7 @@ public class AuthFilter implements Filter {
         return path.equals("/")
             || path.equals("/auth/login")
             || path.equals("/auth/logout")
+            || path.equals("/auth/forgot")
             || path.equals("/health")
             || path.startsWith("/assets/")
             || path.startsWith("/qr/");   // QR app khách (Phase 6) — không cần đăng nhập
