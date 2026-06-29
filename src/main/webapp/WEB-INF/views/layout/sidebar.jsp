@@ -48,6 +48,7 @@
                 <li class="nav-section">Bán hàng</li>
                 <li><a href="${ctx}/cashier/table">Sơ đồ bàn</a></li>
                 <li><a href="${ctx}/cashier/pos">POS / Đặt món</a></li>
+                <li><a href="${ctx}/cashier/inbox">Đơn đến (Inbox)</a></li>
                 <li class="nav-section">Thu ngân</li>
                 <li><a href="${ctx}/cashier/shift">Ca thu ngân</a></li>
                 <li><a href="${ctx}/cashier/checkout">Thanh toán</a></li>

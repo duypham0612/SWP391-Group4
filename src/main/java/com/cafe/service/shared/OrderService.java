@@ -179,6 +179,44 @@ public class OrderService {
         }
     }
 
+    // ---------- Order Inbox (Cashier — monitor + void) ----------
+
+    /**
+     * C4 · Đơn đang xử lý của chi nhánh (gộp COUNTER + QR, cùng bảng sales.Orders — Contract #3).
+     * Đây là màn GIÁM SÁT (đơn đã tự vào KDS), KHÔNG phải cổng chặn → không đổi luồng đặt đơn.
+     */
+    public List<Order> getIncomingOrders(int branchId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            List<Order> orders = orderDao.findActiveByBranch(conn, branchId);
+            for (Order o : orders) {
+                List<OrderItem> items = itemDao.findByOrder(conn, o.getOrderId());
+                for (OrderItem it : items) it.setModifiers(oimDao.findByItem(conn, it.getOrderItemId()));
+                o.setItems(items);
+            }
+            return orders;
+        }
+    }
+
+    /**
+     * C4 · Void đơn sai — huỷ đơn + huỷ các dòng CHƯA pha (WAITING/MAKING → CANCELLED).
+     * KHÔNG đụng dòng đã READY/SERVED (đồ đã pha — tồn đã trừ thật, không hoàn). KHÔNG đụng ledger.
+     */
+    public void voidOrder(int orderId, Integer userId) throws SQLException {
+        txVoid(conn -> {
+            Order o = orderDao.findById(conn, orderId);
+            if (o == null || !"ACTIVE".equals(o.getStatus())) return;
+            for (OrderItem it : itemDao.findByOrder(conn, orderId)) {
+                if ("WAITING".equals(it.getStatus()) || "MAKING".equals(it.getStatus())) {
+                    itemDao.updateStatus(conn, it.getOrderItemId(), "CANCELLED", false, false);
+                    publishStatus(conn, it, "CANCELLED");
+                }
+            }
+            orderDao.updateStatus(conn, orderId, "CANCELLED");
+            EventPublisher.publish(conn, EventType.ORDER_STATUS_CHANGED, String.valueOf(orderId), o.getBranchId(),
+                    "{\"orderId\":" + orderId + ",\"status\":\"CANCELLED\"}");
+        });
+    }
+
     public List<Order> getSessionOrders(int sessionId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             List<Order> orders = orderDao.findBySession(conn, sessionId);
