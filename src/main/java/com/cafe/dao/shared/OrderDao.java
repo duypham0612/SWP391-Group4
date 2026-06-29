@@ -53,6 +53,16 @@ public class OrderDao {
         return out;
     }
 
+    /** Đơn đang xử lý (ACTIVE) của chi nhánh — cho Order Inbox (Cashier monitor). Mới nhất trước. */
+    public List<Order> findActiveByBranch(Connection conn, int branchId) throws SQLException {
+        List<Order> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(SELECT + "WHERE o.BranchId=? AND o.Status='ACTIVE' ORDER BY o.CreatedAt DESC")) {
+            ps.setInt(1, branchId);
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
+        }
+        return out;
+    }
+
     public void updateStatus(Connection conn, int orderId, String status) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement("UPDATE sales.Orders SET Status=? WHERE OrderId=?")) {
             ps.setString(1, status);
