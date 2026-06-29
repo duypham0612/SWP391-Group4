@@ -5,7 +5,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Thực đơn</div><h1>Menu chi nhánh</h1><p>catalog.BranchMenu — bật/tắt bán, giá địa phương, cờ 86 (hết món)</p></div>
+    <div><div class="eyebrow">Thực đơn</div><h1>Menu chi nhánh</h1><p>catalog.BranchMenu — bật/tắt bán, giá địa phương, hết tạm thời</p></div>
 </div>
 
 <c:if test="${not empty sessionScope.flashError}">
@@ -22,7 +22,7 @@
             <thead><tr>
                 <th>Sản phẩm</th><th style="width:140px">Giá gốc</th>
                 <th style="width:260px">Giá địa phương</th>
-                <th style="width:120px">Bán</th><th style="width:120px">Hết món (86)</th>
+                <th style="width:120px">Bán</th><th style="width:140px">Hết tạm thời</th>
             </tr></thead>
             <tbody>
                 <c:forEach var="m" items="${items}">
@@ -59,7 +59,7 @@
                                 <input type="hidden" name="action" value="toggle86">
                                 <input type="hidden" name="productId" value="${m.productId}">
                                 <button type="submit" class="btn btn-sm ${m.is86 ? 'btn-ghost' : 'btn-ghost'}">
-                                    <c:choose><c:when test="${m.is86}"><span class="badge badge-cancelled">86 — Hết</span></c:when><c:otherwise><span class="badge badge-ready">Còn</span></c:otherwise></c:choose>
+                                    <c:choose><c:when test="${m.is86}"><span class="badge badge-cancelled">Hết tạm thời</span></c:when><c:otherwise><span class="badge badge-ready">Còn bán</span></c:otherwise></c:choose>
                                 </button>
                             </form>
                         </td>

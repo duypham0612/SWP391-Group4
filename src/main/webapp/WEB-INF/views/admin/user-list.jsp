@@ -8,6 +8,13 @@
     <a class="btn btn-primary" href="${ctx}/admin/user?action=new">+ Thêm nhân sự</a>
 </div>
 
+<c:if test="${not empty sessionScope.flashError}">
+    <div class="alert alert-error">${sessionScope.flashError}</div><c:remove var="flashError" scope="session" />
+</c:if>
+<c:if test="${not empty sessionScope.flashOk}">
+    <div class="alert alert-success">${sessionScope.flashOk}</div><c:remove var="flashOk" scope="session" />
+</c:if>
+
 <form method="get" action="${ctx}/admin/user" class="card" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;padding:14px;margin-bottom:16px">
     <div class="form-group" style="margin:0">
         <label for="fRole">Vai trò</label>
@@ -53,17 +60,24 @@
                         <td><c:choose><c:when test="${empty s.branchName}"><span class="muted">(toàn chuỗi)</span></c:when><c:otherwise>${s.branchName}</c:otherwise></c:choose></td>
                         <td><c:choose><c:when test="${s.status == 'ACTIVE'}"><span class="badge badge-ready">ACTIVE</span></c:when><c:otherwise><span class="badge badge-cancelled">LOCKED</span></c:otherwise></c:choose></td>
                         <td>
-                            <a class="btn btn-ghost btn-sm" href="${ctx}/admin/user?action=edit&id=${s.userId}">Sửa</a>
-                            <form action="${ctx}/admin/user" method="post" style="display:inline"
-                                  onsubmit="return confirm('Đổi trạng thái tài khoản này?');">
-                                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                                <input type="hidden" name="action" value="toggleStatus">
-                                <input type="hidden" name="id" value="${s.userId}">
-                                <input type="hidden" name="current" value="${s.status}">
-                                <button type="submit" class="btn btn-ghost btn-sm">
-                                    <c:choose><c:when test="${s.status == 'ACTIVE'}">Khoá</c:when><c:otherwise>Mở khoá</c:otherwise></c:choose>
-                                </button>
-                            </form>
+                            <c:choose>
+                                <c:when test="${s.roleCode == 'ADMIN'}">
+                                    <span class="muted" title="Tài khoản Admin hệ thống — không thể sửa/khoá">🔒 Admin hệ thống</span>
+                                </c:when>
+                                <c:otherwise>
+                                    <a class="btn btn-ghost btn-sm" href="${ctx}/admin/user?action=edit&id=${s.userId}">Sửa</a>
+                                    <form action="${ctx}/admin/user" method="post" style="display:inline"
+                                          onsubmit="return confirm('Đổi trạng thái tài khoản này?');">
+                                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                        <input type="hidden" name="action" value="toggleStatus">
+                                        <input type="hidden" name="id" value="${s.userId}">
+                                        <input type="hidden" name="current" value="${s.status}">
+                                        <button type="submit" class="btn btn-ghost btn-sm">
+                                            <c:choose><c:when test="${s.status == 'ACTIVE'}">Khoá</c:when><c:otherwise>Mở khoá</c:otherwise></c:choose>
+                                        </button>
+                                    </form>
+                                </c:otherwise>
+                            </c:choose>
                         </td>
                     </tr>
                 </c:forEach>
