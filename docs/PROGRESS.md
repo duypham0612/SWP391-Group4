@@ -300,3 +300,9 @@ Quyết định user: **giữ `com.cafe` layer-based**, đổi tên/route đúng
   - **Nhóm C — CRUD còn thiếu:** A5 Recipe **updateLine** (sửa định mức); Modifier **delete-group** (dọn dependent 1 tx) + **update-option**; B1 **KDS bump** (cột `sales.OrderItem.Priority` additive, sort Priority DESC).
   - Schema bổ sung S4: `sales.OrderItem.Priority` (database.sql + migration). Test 20/20, WAR build OK.
   - **Còn lại chưa làm:** A1 forgot/reset password (chưa cần); refund bill đã PAID (chỉ void UNPAID kèm lý do). **Skip:** quick-create customer, refactor status enum.
+- **2026-06-29** — **VERIFY CHẠY THẬT trên Tomcat 10 + SQL (cafechain-sql)** sau đợt fix:
+  - Chạy `sql/migration_audit_fix.sql` (sửa lỗi CHECK cùng-batch → inline). Deploy WAR mới làm ROOT.
+  - **Gỡ webapp `manager` mặc định của Tomcat** — nó chiếm context `/manager` che `/manager/*` của app (gây 404, không phải bug code).
+  - E2E thật (login 4 role): **T1** Prep cancel txn-bù (tồn về đúng, Status=CANCELLED, không hard-delete); **T2** Waste void txn-bù; **T3** KDS markReady deduct (2 DEDUCT txns); **T4** Split bill no-drift + voucher 20% — tổng phiên TRƯỚC==SAU (122688), discount/VAT phân bổ đúng tỷ lệ, voucher gắn 1 bill (đếm lượt 1 lần); **T5** Inbox void order; **T6** C6 void bill kèm lý do → `ops.OutboxEvent(bill.voided)`.
+  - **Invariant sổ cái `BranchInventory == Σ(InventoryTransaction)`: 0 mismatch** trước & sau toàn bộ. **0 bug.**
+  - App chạy http://localhost:8080 (ROOT). Tài khoản seed: admin/manager1/cashier1/barista1 · mật khẩu `123456`.
