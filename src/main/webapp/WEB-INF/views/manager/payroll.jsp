@@ -9,6 +9,7 @@
         <a class="btn btn-ghost btn-sm" href="${ctx}/manager/payroll?month=${prevMonth}">← Tháng trước</a>
         <strong>${month}</strong>
         <a class="btn btn-ghost btn-sm" href="${ctx}/manager/payroll?month=${nextMonth}">Tháng sau →</a>
+        <a class="btn btn-primary btn-sm" href="${ctx}/manager/payroll?action=export&month=${month}">Xuất Excel</a>
     </div>
 </div>
 

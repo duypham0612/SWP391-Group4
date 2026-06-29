@@ -72,6 +72,16 @@ public class BillDao {
         return out;
     }
 
+    /** Doanh thu PAID hôm nay của chi nhánh (M1 dashboard manager). */
+    public BigDecimal sumPaidToday(Connection conn, int branchId) throws SQLException {
+        final String sql = "SELECT ISNULL(SUM(TotalAmount),0) AS Rev FROM payment.Bill " +
+                "WHERE BranchId=? AND Status='PAID' AND CAST(PaidAt AS DATE)=CAST(SYSUTCDATETIME() AS DATE)";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getBigDecimal("Rev") : BigDecimal.ZERO; }
+        }
+    }
+
     /** Lịch sử bill trong 1 ca thu ngân (mới nhất trước) — C6 lọc theo ca. */
     public List<Bill> findByShift(Connection conn, int shiftId, int limit) throws SQLException {
         List<Bill> out = new ArrayList<>();

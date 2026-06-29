@@ -1,5 +1,6 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
+<%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <jsp:include page="../layout/header.jsp" />
 
@@ -9,6 +10,10 @@
 </div>
 
 <div class="card-grid">
+    <div class="card stat">
+        <span class="label">Doanh thu hôm nay</span>
+        <span class="value"><fmt:formatNumber value="${summary.todayRevenue}" maxFractionDigits="0"/> ₫</span>
+    </div>
     <a class="card stat" href="${ctx}/manager/inventory">
         <span class="label">Nguyên liệu sắp hết</span>
         <span class="value">${summary.lowStockCount}</span>
