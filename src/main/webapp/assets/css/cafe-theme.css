@@ -294,6 +294,28 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
 .login-card .form-head h2{font-family:'Playfair Display',serif; font-size:var(--fs-2xl); margin:0 0 6px}
 .login-card .form-head p{color:var(--muted); margin:0; font-size:14px}
 .login-hint{margin-top:var(--s4); font-size:12.5px; color:var(--muted); line-height:1.7; text-align:center; padding-top:var(--s4); border-top:1px solid var(--line)}
+.login-hint a{font-weight:600}
+
+/* Brand panel: hero + tính năng */
+.lb-center{position:relative; z-index:1; display:flex; flex-direction:column; align-items:flex-start}
+.lb-hero{display:block; width:min(360px,80%); margin:0 auto var(--s5); filter:drop-shadow(0 20px 34px rgba(0,0,0,.38)); animation:floaty 6.5s ease-in-out infinite}
+@keyframes floaty{0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)}}
+.lb-features{list-style:none; margin:var(--s5) 0 0; padding:0; display:flex; flex-direction:column; gap:var(--s3)}
+.lb-features li{display:flex; align-items:center; gap:var(--s3); color:rgba(246,231,220,.92); font-size:14.5px}
+.lb-features svg{width:21px; height:21px; flex-shrink:0; color:var(--gold-soft)}
+
+/* Ô nhập có nút phụ (ẩn/hiện mật khẩu) */
+.input-affix{position:relative}
+.input-affix .form-control{padding-right:46px}
+.input-toggle{position:absolute; right:7px; top:50%; transform:translateY(-50%); width:34px; height:34px; border:none; background:transparent; color:var(--muted); cursor:pointer; display:grid; place-items:center; border-radius:8px; transition:var(--t-fast)}
+.input-toggle:hover{color:var(--brand); background:var(--surface-2)}
+.input-toggle svg{width:18px; height:18px} .input-toggle .eye-off{display:none}
+.input-toggle.is-on .eye{display:none} .input-toggle.is-on .eye-off{display:block}
+
+/* Chip tài khoản demo */
+.demo-accounts{display:flex; gap:var(--s2); flex-wrap:wrap; margin-top:var(--s2); justify-content:center}
+.demo-chip{border:1px solid var(--line); background:var(--surface); color:var(--ink-soft); padding:6px 13px; border-radius:var(--radius-pill); font-size:12.5px; font-weight:600; cursor:pointer; transition:var(--t-fast); font-family:inherit}
+.demo-chip:hover{border-color:var(--brand); color:var(--brand); background:var(--surface-2); transform:translateY(-1px)}
 
 /* ============================ Centered screen (errors/QR invalid) ======= */
 .center-screen{min-height:100vh; display:grid; place-items:center; padding:var(--s5); background:var(--paper)}
@@ -322,8 +344,10 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
 /* ============================ Responsive ================================ */
 @media (max-width:960px){
   .login-wrap{grid-template-columns:1fr}
-  .login-brandpanel{padding:var(--s7) var(--s6); min-height:230px}
-  .lb-mid h1{font-size:32px}
+  .login-brandpanel{padding:var(--s6); min-height:auto}
+  .lb-mid h1{font-size:30px}
+  .lb-hero{width:200px; margin-bottom:var(--s4)}
+  .lb-features{display:none}
   .app-content{padding:var(--s5)}
 }
 @media (max-width:820px){
