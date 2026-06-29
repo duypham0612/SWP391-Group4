@@ -1,6 +1,7 @@
 package com.cafe.service.shared;
 
 import com.cafe.config.DBConnection;
+import com.cafe.dao.admin.ProductDao;
 import com.cafe.dao.shared.BranchMenuDao;
 import com.cafe.dao.shared.ModifierGroupDao;
 import com.cafe.dao.shared.ModifierIngredientImpactDao;
@@ -14,6 +15,7 @@ import com.cafe.model.ModifierIngredientImpact;
 import com.cafe.model.ModifierOption;
 import com.cafe.model.PosMenuItem;
 import com.cafe.model.PrepRecipe;
+import com.cafe.model.Product;
 import com.cafe.model.ProductModifierGroup;
 import com.cafe.model.ProductRecipe;
 
@@ -33,6 +35,7 @@ public class CatalogReadService {
     private final ProductRecipeDao productRecipeDao = new ProductRecipeDao();
     private final PrepRecipeDao prepRecipeDao = new PrepRecipeDao();
     private final ModifierIngredientImpactDao impactDao = new ModifierIngredientImpactDao();
+    private final ProductDao productDao = new ProductDao();
 
     /** Menu bán được của chi nhánh: published + available + chưa 86, kèm nhóm modifier. */
     public List<PosMenuItem> getPosMenu(int branchId) throws SQLException {
@@ -64,6 +67,31 @@ public class CatalogReadService {
             }
             return out;
         }
+    }
+
+    // ===== Trang Home công khai: catalog theo danh mục (khách xem, không cần login) =====
+
+    /** Menu công khai: các danh mục (theo SortOrder) + sản phẩm đang hiển thị (ảnh, giá). */
+    public List<MenuSection> getPublicMenu() throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            java.util.LinkedHashMap<Integer, MenuSection> byCat = new java.util.LinkedHashMap<>();
+            for (Product p : productDao.findAll(conn)) {      // đã ORDER BY SortOrder, Name
+                if (!p.isActive()) continue;
+                MenuSection s = byCat.get(p.getCategoryId());
+                if (s == null) { s = new MenuSection(); s.name = p.getCategoryName(); byCat.put(p.getCategoryId(), s); }
+                s.products.add(p);
+            }
+            return new ArrayList<>(byCat.values());
+        }
+    }
+
+    /** Một nhóm trên trang Home: tên danh mục + danh sách sản phẩm. */
+    public static class MenuSection {
+        private String name;
+        private final List<Product> products = new ArrayList<>();
+        public String getName() { return name; }
+        public List<Product> getProducts() { return products; }
+        public int getCount() { return products.size(); }
     }
 
     // ===== B6 · Tra cứu công thức (Barista, read-only) =====
