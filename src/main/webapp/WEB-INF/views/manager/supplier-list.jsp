@@ -25,14 +25,12 @@
                         <td><c:choose><c:when test="${s.active}"><span class="badge badge-ready">Hoạt động</span></c:when><c:otherwise><span class="badge badge-cancelled">Ngừng</span></c:otherwise></c:choose></td>
                         <td>
                             <a class="btn btn-ghost btn-sm" href="${ctx}/manager/supplier?action=edit&id=${s.supplierId}">Sửa</a>
-                            <c:if test="${s.active}">
-                                <form action="${ctx}/manager/supplier" method="post" style="display:inline" onsubmit="return confirm('Ngừng nhà cung cấp này?');">
-                                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                                    <input type="hidden" name="action" value="toggleActive">
-                                    <input type="hidden" name="id" value="${s.supplierId}">
-                                    <button type="submit" class="btn btn-ghost btn-sm">Ngừng</button>
-                                </form>
-                            </c:if>
+                            <form action="${ctx}/manager/supplier" method="post" style="display:inline" onsubmit="return confirm('Đổi trạng thái nhà cung cấp này?');">
+                                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                <input type="hidden" name="action" value="toggleActive">
+                                <input type="hidden" name="id" value="${s.supplierId}">
+                                <button type="submit" class="btn btn-ghost btn-sm">${s.active ? 'Ngừng' : 'Bật'}</button>
+                            </form>
                         </td>
                     </tr>
                 </c:forEach>

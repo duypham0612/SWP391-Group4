@@ -46,7 +46,7 @@ public class SupplierServlet extends HttpServlet {
         String action = req.getParameter("action");
         try {
             if ("toggleActive".equals(action)) {
-                service.setSupplierActive(Integer.parseInt(req.getParameter("id")), false);
+                service.toggleActive(Integer.parseInt(req.getParameter("id")));
                 resp.sendRedirect(ctx + "/manager/supplier");
                 return;
             }

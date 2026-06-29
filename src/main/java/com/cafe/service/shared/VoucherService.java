@@ -52,6 +52,19 @@ public class VoucherService {
         }
     }
 
+    /** Đảo trạng thái active (đọc + flip trong 1 tx) — bật/tắt 2 chiều. */
+    public void toggleActive(int id) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                Voucher v = dao.findById(conn, id);
+                if (v != null) dao.updateActive(conn, id, !v.isActive());
+                conn.commit();
+            } catch (SQLException e) { conn.rollback(); throw e; }
+            finally { conn.setAutoCommit(true); }
+        }
+    }
+
     public void incrementUsed(int voucherId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);

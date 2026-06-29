@@ -46,7 +46,7 @@ public class BranchServlet extends HttpServlet {
         String action = req.getParameter("action");
         try {
             if ("toggleActive".equals(action)) {
-                service.setBranchActive(Integer.parseInt(req.getParameter("id")), false);
+                service.toggleActive(Integer.parseInt(req.getParameter("id")));
                 resp.sendRedirect(ctx + "/admin/branch");
                 return;
             }

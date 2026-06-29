@@ -36,14 +36,12 @@
                         <td><c:choose><c:when test="${v.active}"><span class="badge badge-ready">Bật</span></c:when><c:otherwise><span class="badge badge-cancelled">Tắt</span></c:otherwise></c:choose></td>
                         <td>
                             <a class="btn btn-ghost btn-sm" href="${ctx}/admin/voucher?action=edit&id=${v.voucherId}">Sửa</a>
-                            <c:if test="${v.active}">
-                                <form action="${ctx}/admin/voucher" method="post" style="display:inline" onsubmit="return confirm('Tắt voucher này?');">
-                                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                                    <input type="hidden" name="action" value="toggleActive">
-                                    <input type="hidden" name="id" value="${v.voucherId}">
-                                    <button type="submit" class="btn btn-ghost btn-sm">Tắt</button>
-                                </form>
-                            </c:if>
+                            <form action="${ctx}/admin/voucher" method="post" style="display:inline" onsubmit="return confirm('Đổi trạng thái voucher này?');">
+                                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                <input type="hidden" name="action" value="toggleActive">
+                                <input type="hidden" name="id" value="${v.voucherId}">
+                                <button type="submit" class="btn btn-ghost btn-sm">${v.active ? 'Tắt' : 'Bật'}</button>
+                            </form>
                         </td>
                     </tr>
                 </c:forEach>
