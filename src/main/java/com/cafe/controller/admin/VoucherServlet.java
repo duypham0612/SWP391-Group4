@@ -59,6 +59,10 @@ public class VoucherServlet extends HttpServlet {
                 return;
             }
             Voucher v = bind(req);
+            if (v.getVoucherId() != 0) {                      // sửa: mã voucher KHÔNG đổi được
+                Voucher existing = service.getVoucher(v.getVoucherId());
+                if (existing != null) v.setCode(existing.getCode());
+            }
             String error = validate(v);
             if (error != null) {
                 req.setAttribute("voucher", v);

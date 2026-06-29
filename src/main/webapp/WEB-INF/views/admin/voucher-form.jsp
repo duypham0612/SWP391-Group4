@@ -18,7 +18,9 @@
 
         <div class="form-group">
             <label for="code">Mã voucher *</label>
-            <input id="code" type="text" name="code" class="form-control" maxlength="40" value="${voucher.code}" required autofocus>
+            <input id="code" type="text" name="code" class="form-control" maxlength="40" value="${voucher.code}" required
+                   <c:choose><c:when test="${voucher.voucherId > 0}">readonly</c:when><c:otherwise>autofocus</c:otherwise></c:choose>>
+            <c:if test="${voucher.voucherId > 0}"><small class="muted">Mã voucher không thể thay đổi sau khi tạo.</small></c:if>
         </div>
         <div class="form-group">
             <label for="discountType">Loại giảm *</label>

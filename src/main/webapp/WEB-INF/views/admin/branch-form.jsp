@@ -18,7 +18,9 @@
 
         <div class="form-group">
             <label for="code">Mã chi nhánh * (vd CN01)</label>
-            <input id="code" type="text" name="code" class="form-control" maxlength="20" value="${branch.code}" required autofocus>
+            <input id="code" type="text" name="code" class="form-control" maxlength="20" value="${branch.code}" required
+                   <c:choose><c:when test="${branch.branchId > 0}">readonly</c:when><c:otherwise>autofocus</c:otherwise></c:choose>>
+            <c:if test="${branch.branchId > 0}"><small class="muted">Mã chi nhánh không thể thay đổi sau khi tạo.</small></c:if>
         </div>
         <div class="form-group">
             <label for="name">Tên chi nhánh *</label>

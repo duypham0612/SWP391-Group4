@@ -5,13 +5,13 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Menu: ${branch.name}</h1><p>catalog.BranchMenu · publish / giá local / cờ 86</p></div>
+    <div><h1>Menu: ${branch.name}</h1><p>catalog.BranchMenu · publish / giá local / hết tạm thời</p></div>
     <a class="btn btn-ghost" href="${ctx}/admin/branch-menu">← Chọn chi nhánh khác</a>
 </div>
 
 <div class="alert alert-info">
     Bật <strong>Bán</strong> để publish sản phẩm cho chi nhánh. <strong>Giá local</strong> để trống = dùng giá gốc.
-    Cờ <strong>86</strong> = hết tạm thời (Barista cũng toggle được ở Phase 4). Bấm <strong>Lưu</strong> từng dòng.
+    <strong>Hết tạm thời</strong> = khoá món khỏi POS &amp; QR (Barista cũng bật được). Bấm <strong>Lưu</strong> từng dòng.
 </div>
 
 <c:choose>
@@ -22,7 +22,7 @@
         <table class="table">
             <thead><tr>
                 <th>Sản phẩm</th><th style="width:130px">Giá gốc</th><th style="width:90px">Bán</th>
-                <th style="width:170px">Giá local</th><th style="width:80px">86</th><th style="width:180px">Thao tác</th>
+                <th style="width:170px">Giá local</th><th style="width:130px">Hết tạm thời</th><th style="width:180px">Thao tác</th>
             </tr></thead>
             <tbody>
                 <c:forEach var="m" items="${items}">
@@ -42,7 +42,7 @@
                                 <input type="hidden" name="productId" value="${m.productId}">
                                 <label style="margin:0"><input type="checkbox" name="available" value="1" <c:if test="${m.available}">checked</c:if>> Bán</label>
                                 <input type="number" name="localPrice" class="form-control" style="width:150px" step="500" placeholder="(giá gốc)" value="${m.localPrice}">
-                                <label style="margin:0"><input type="checkbox" name="is86" value="1" <c:if test="${m.is86}">checked</c:if>> 86</label>
+                                <label style="margin:0"><input type="checkbox" name="is86" value="1" <c:if test="${m.is86}">checked</c:if>> Hết tạm thời</label>
                                 <button type="submit" class="btn btn-primary btn-sm">Lưu</button>
                             </form>
                         </td>

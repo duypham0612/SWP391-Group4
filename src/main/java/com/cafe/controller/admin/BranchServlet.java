@@ -56,6 +56,10 @@ public class BranchServlet extends HttpServlet {
                 return;
             }
             Branch b = bind(req);
+            if (b.getBranchId() != 0) {                       // sửa: mã chi nhánh KHÔNG đổi được
+                Branch existing = service.getBranch(b.getBranchId());
+                if (existing != null) b.setCode(existing.getCode());
+            }
             String error = validate(b);
             if (error != null) {
                 req.setAttribute("branch", b);

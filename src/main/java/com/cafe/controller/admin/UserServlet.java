@@ -1,6 +1,8 @@
 package com.cafe.controller.admin;
 
+import com.cafe.common.Constants;
 import com.cafe.common.CsrfUtil;
+import com.cafe.model.Role;
 import com.cafe.model.User;
 import com.cafe.service.admin.BranchService;
 import com.cafe.service.admin.RoleService;
@@ -12,6 +14,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.util.List;
 
 /** A1 · UserServlet → /admin/user. Actions: list/create/update/toggleStatus/resetPassword/assignBranch. */
 @WebServlet("/admin/user")
@@ -34,6 +37,11 @@ public class UserServlet extends HttpServlet {
             } else if ("edit".equals(action)) {
                 User u = service.getUser(Integer.parseInt(req.getParameter("id")));
                 if (u == null) { resp.sendError(HttpServletResponse.SC_NOT_FOUND); return; }
+                if (Constants.ROLE_ADMIN.equals(u.getRoleCode())) {       // tài khoản Admin hệ thống — khoá sửa
+                    req.getSession().setAttribute("flashError", "Tài khoản Admin hệ thống không thể chỉnh sửa.");
+                    resp.sendRedirect(req.getContextPath() + "/admin/user");
+                    return;
+                }
                 req.setAttribute("staff", u);
                 forwardForm(req, resp, "Sửa nhân sự");
             } else {
@@ -59,6 +67,12 @@ public class UserServlet extends HttpServlet {
         try {
             if ("toggleStatus".equals(action)) {
                 int id = Integer.parseInt(req.getParameter("id"));
+                User target = service.getUser(id);
+                if (target != null && Constants.ROLE_ADMIN.equals(target.getRoleCode())) {  // admin luôn ACTIVE
+                    req.getSession().setAttribute("flashError", "Tài khoản Admin luôn hoạt động — không thể khoá.");
+                    resp.sendRedirect(ctx + "/admin/user");
+                    return;
+                }
                 String to = "LOCKED".equals(req.getParameter("current")) ? "ACTIVE" : "LOCKED";
                 service.setUserStatus(id, to);
                 resp.sendRedirect(ctx + "/admin/user");
@@ -67,6 +81,23 @@ public class UserServlet extends HttpServlet {
             User u = bind(req);
             String password = req.getParameter("password");
             boolean creating = u.getUserId() == 0;
+
+            // ----- Bảo vệ tài khoản Admin: chỉ 1 admin toàn chuỗi -----
+            if (creating && u.getRoleId() == adminRoleId()) {
+                req.setAttribute("staff", u);
+                req.setAttribute("errorMsg", "Hệ thống chỉ có 1 Admin toàn chuỗi — không thể tạo thêm tài khoản Admin.");
+                forwardForm(req, resp, "Thêm nhân sự");
+                return;
+            }
+            if (!creating) {
+                User existing = service.getUser(u.getUserId());
+                if (existing != null && Constants.ROLE_ADMIN.equals(existing.getRoleCode())) {
+                    req.getSession().setAttribute("flashError", "Tài khoản Admin hệ thống không thể chỉnh sửa.");
+                    resp.sendRedirect(ctx + "/admin/user");
+                    return;
+                }
+            }
+
             String error = validate(u, password, creating);
             if (error != null) {
                 req.setAttribute("staff", u);
@@ -116,11 +147,20 @@ public class UserServlet extends HttpServlet {
     private void forwardForm(HttpServletRequest req, HttpServletResponse resp, String title)
             throws ServletException, IOException {
         try {
-            req.setAttribute("roles", roleService.getRoleList());
+            List<Role> roles = roleService.getRoleList();
+            roles.removeIf(r -> Constants.ROLE_ADMIN.equals(r.getCode()));   // không cho chọn/tạo role Admin
+            req.setAttribute("roles", roles);
             req.setAttribute("branches", branchService.getBranchListActive());
         } catch (Exception e) { throw new ServletException(e); }
         req.setAttribute("pageTitle", title);
         req.getRequestDispatcher("/WEB-INF/views/admin/user-form.jsp").forward(req, resp);
+    }
+
+    /** RoleId của ADMIN (-1 nếu không tìm thấy) — để chặn tạo thêm admin. */
+    private int adminRoleId() throws Exception {
+        for (Role r : roleService.getRoleList())
+            if (Constants.ROLE_ADMIN.equals(r.getCode())) return r.getRoleId();
+        return -1;
     }
 
     private String trim(String s) { return s == null ? null : s.trim(); }
