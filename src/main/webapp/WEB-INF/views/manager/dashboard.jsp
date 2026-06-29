@@ -32,7 +32,7 @@
     </a>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:24px">
+<div class="grid-2">
     <div class="card">
         <h3 style="margin-top:0">Ca làm hôm nay</h3>
         <c:choose>
