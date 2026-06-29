@@ -26,6 +26,11 @@ public class SupplierService {
     public void updateSupplier(Supplier s) throws SQLException { txVoid(c -> dao.update(c, s)); }
     public void setSupplierActive(int id, boolean active) throws SQLException { txVoid(c -> dao.updateActive(c, id, active)); }
 
+    /** Đảo trạng thái active (đọc + flip trong 1 tx) — bật/tắt 2 chiều. */
+    public void toggleActive(int id) throws SQLException {
+        txVoid(c -> { Supplier s = dao.findById(c, id); if (s != null) dao.updateActive(c, id, !s.isActive()); });
+    }
+
     private interface Fn<T>{ T run(Connection c) throws SQLException; }
     private interface V{ void run(Connection c) throws SQLException; }
     private <T> T tx(Fn<T> fn) throws SQLException {

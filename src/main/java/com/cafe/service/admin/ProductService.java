@@ -56,6 +56,19 @@ public class ProductService {
         }
     }
 
+    /** Đảo trạng thái active (đọc + flip trong 1 tx) — bật/tắt 2 chiều. */
+    public void toggleActive(int id) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                Product p = dao.findById(conn, id);
+                if (p != null) dao.updateActive(conn, id, !p.isActive());
+                conn.commit();
+            } catch (SQLException e) { conn.rollback(); throw e; }
+            finally { conn.setAutoCommit(true); }
+        }
+    }
+
     /** Publish 1 product vào BranchMenu của 1 chi nhánh (mặc định bán, chưa 86, giá gốc). */
     public void publishToBranch(int productId, int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {

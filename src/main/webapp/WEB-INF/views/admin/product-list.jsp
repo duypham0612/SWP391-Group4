@@ -31,14 +31,12 @@
                             <a class="btn btn-ghost btn-sm" href="${ctx}/admin/product?action=edit&id=${p.productId}">Sửa</a>
                             <a class="btn btn-ghost btn-sm" href="${ctx}/admin/recipe?productId=${p.productId}">Công thức</a>
                             <a class="btn btn-ghost btn-sm" href="${ctx}/admin/modifier?view=assign&productId=${p.productId}">Modifier</a>
-                            <c:if test="${p.active}">
-                                <form action="${ctx}/admin/product" method="post" style="display:inline" onsubmit="return confirm('Ẩn sản phẩm này?');">
-                                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                                    <input type="hidden" name="action" value="toggleActive">
-                                    <input type="hidden" name="id" value="${p.productId}">
-                                    <button type="submit" class="btn btn-ghost btn-sm">Ẩn</button>
-                                </form>
-                            </c:if>
+                            <form action="${ctx}/admin/product" method="post" style="display:inline" onsubmit="return confirm('Đổi trạng thái sản phẩm này?');">
+                                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                <input type="hidden" name="action" value="toggleActive">
+                                <input type="hidden" name="id" value="${p.productId}">
+                                <button type="submit" class="btn btn-ghost btn-sm">${p.active ? 'Ẩn' : 'Hiện'}</button>
+                            </form>
                             <form action="${ctx}/admin/product" method="post" style="display:inline-flex;gap:4px;align-items:center">
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                 <input type="hidden" name="action" value="publishToBranch">

@@ -29,14 +29,12 @@
                         <td><c:choose><c:when test="${b.active}"><span class="badge badge-ready">Hoạt động</span></c:when><c:otherwise><span class="badge badge-cancelled">Ngừng</span></c:otherwise></c:choose></td>
                         <td>
                             <a class="btn btn-ghost btn-sm" href="${ctx}/admin/branch?action=edit&id=${b.branchId}">Sửa</a>
-                            <c:if test="${b.active}">
-                                <form action="${ctx}/admin/branch" method="post" style="display:inline" onsubmit="return confirm('Ngừng hoạt động chi nhánh này?');">
-                                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                                    <input type="hidden" name="action" value="toggleActive">
-                                    <input type="hidden" name="id" value="${b.branchId}">
-                                    <button type="submit" class="btn btn-ghost btn-sm">Ngừng</button>
-                                </form>
-                            </c:if>
+                            <form action="${ctx}/admin/branch" method="post" style="display:inline" onsubmit="return confirm('Đổi trạng thái chi nhánh này?');">
+                                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                <input type="hidden" name="action" value="toggleActive">
+                                <input type="hidden" name="id" value="${b.branchId}">
+                                <button type="submit" class="btn btn-ghost btn-sm">${b.active ? 'Ngừng' : 'Bật'}</button>
+                            </form>
                         </td>
                     </tr>
                 </c:forEach>

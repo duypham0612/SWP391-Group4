@@ -54,6 +54,19 @@ public class BranchService {
         }
     }
 
+    /** Đảo trạng thái active (đọc + flip trong 1 tx) — bật/tắt 2 chiều. */
+    public void toggleActive(int id) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                Branch b = dao.findById(conn, id);
+                if (b != null) dao.updateActive(conn, id, !b.isActive());
+                conn.commit();
+            } catch (SQLException e) { conn.rollback(); throw e; }
+            finally { conn.setAutoCommit(true); }
+        }
+    }
+
     public void assignManager(int branchId, Integer userId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
