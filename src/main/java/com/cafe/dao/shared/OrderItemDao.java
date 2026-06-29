@@ -88,6 +88,34 @@ public class OrderItemDao {
         return out;
     }
 
+    /**
+     * KPI bàn giao ca (B7): lead time TB (giây) = AVG(DoneAt − StartedAt) và số ly,
+     * tính cho món đã pha xong trong NGÀY hôm nay tại chi nhánh.
+     * Trả về {avgLeadSeconds (null nếu chưa có), cupCount}.
+     */
+    public long[] leadTimeStatsToday(Connection conn, int branchId) throws SQLException {
+        final String sql =
+            "SELECT AVG(CAST(DATEDIFF(SECOND, oi.StartedAt, oi.DoneAt) AS BIGINT)) AS AvgSec, COUNT(*) AS Cups " +
+            "FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId " +
+            "WHERE o.BranchId=? AND oi.StartedAt IS NOT NULL AND oi.DoneAt IS NOT NULL " +
+            "  AND oi.DoneAt >= ? AND oi.DoneAt < ?";
+        java.time.LocalDate today = java.time.LocalDate.now();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setTimestamp(2, Timestamp.valueOf(today.atStartOfDay()));
+            ps.setTimestamp(3, Timestamp.valueOf(today.plusDays(1).atStartOfDay()));
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    long cups = rs.getLong("Cups");
+                    long avg = rs.getLong("AvgSec");
+                    boolean avgNull = rs.wasNull();
+                    return new long[]{ avgNull ? -1L : avg, cups };
+                }
+            }
+        }
+        return new long[]{ -1L, 0L };
+    }
+
     /** Đổi trạng thái + đóng dấu thời gian theo trạng thái mới. */
     public void updateStatus(Connection conn, int orderItemId, String status, boolean stampStarted, boolean stampDone) throws SQLException {
         StringBuilder sql = new StringBuilder("UPDATE sales.OrderItem SET Status=?");
