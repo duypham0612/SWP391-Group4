@@ -69,4 +69,22 @@ public class Attendance {
         if (minutes < 0) return 0d;
         return Math.round(minutes / 60.0 * 10) / 10.0;
     }
+
+    // ---- M3.F4 · cờ Trễ / Về sớm (so giờ thực tế với giờ ca chuẩn) ----
+    /** Số phút vào trễ so với StartTime (>0 = trễ); 0 nếu đúng/sớm hoặc thiếu dữ liệu. */
+    public long getLateMinutes() {
+        if (checkInAt == null || startTime == null) return 0L;
+        long m = Duration.between(startTime, checkInAt.toLocalTime()).toMinutes();
+        return m > 0 ? m : 0L;
+    }
+
+    /** Số phút về sớm so với EndTime (>0 = về sớm); 0 nếu đúng/trễ hoặc thiếu dữ liệu. */
+    public long getEarlyLeaveMinutes() {
+        if (checkOutAt == null || endTime == null) return 0L;
+        long m = Duration.between(checkOutAt.toLocalTime(), endTime).toMinutes();
+        return m > 0 ? m : 0L;
+    }
+
+    public boolean isLate() { return getLateMinutes() > 0; }
+    public boolean isEarlyLeave() { return getEarlyLeaveMinutes() > 0; }
 }
