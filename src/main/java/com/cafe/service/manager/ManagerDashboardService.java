@@ -1,12 +1,14 @@
 package com.cafe.service.manager;
 
 import com.cafe.config.DBConnection;
+import com.cafe.dao.cashier.BillDao;
 import com.cafe.dao.manager.AttendanceDao;
 import com.cafe.dao.shared.BranchInventoryDao;
 import com.cafe.dao.manager.ShiftAssignmentDao;
 import com.cafe.model.BranchInventory;
 import com.cafe.model.ShiftAssignment;
 
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.LocalDate;
@@ -18,6 +20,7 @@ public class ManagerDashboardService {
     private final BranchInventoryDao biDao = new BranchInventoryDao();
     private final AttendanceDao attendanceDao = new AttendanceDao();
     private final ShiftAssignmentDao assignmentDao = new ShiftAssignmentDao();
+    private final BillDao billDao = new BillDao();
 
     /** Cảnh báo tồn thấp (QuantityOnHand <= MinThreshold). */
     public List<BranchInventory> getLowStockAlerts(int branchId) throws SQLException {
@@ -39,12 +42,18 @@ public class ManagerDashboardService {
         }
     }
 
+    /** Doanh thu PAID hôm nay của chi nhánh. */
+    public BigDecimal getTodayRevenue(int branchId) throws SQLException {
+        try (Connection c = DBConnection.getConnection()) { return billDao.sumPaidToday(c, branchId); }
+    }
+
     /** Gói số liệu tổng quan cho thẻ thống kê. */
     public Summary getTodaySummary(int branchId, LocalDate today) throws SQLException {
         Summary s = new Summary();
         s.lowStockCount = getLowStockAlerts(branchId).size();
         s.pendingApprovals = getPendingApprovals(branchId);
         s.staffOnShift = getStaffOnShift(branchId, today).size();
+        s.todayRevenue = getTodayRevenue(branchId);
         return s;
     }
 
@@ -52,8 +61,10 @@ public class ManagerDashboardService {
         public int lowStockCount;
         public int pendingApprovals;
         public int staffOnShift;
+        public BigDecimal todayRevenue = BigDecimal.ZERO;
         public int getLowStockCount() { return lowStockCount; }
         public int getPendingApprovals() { return pendingApprovals; }
         public int getStaffOnShift() { return staffOnShift; }
+        public BigDecimal getTodayRevenue() { return todayRevenue; }
     }
 }
