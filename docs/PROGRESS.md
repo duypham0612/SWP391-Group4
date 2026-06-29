@@ -306,3 +306,11 @@ Quyết định user: **giữ `com.cafe` layer-based**, đổi tên/route đúng
   - E2E thật (login 4 role): **T1** Prep cancel txn-bù (tồn về đúng, Status=CANCELLED, không hard-delete); **T2** Waste void txn-bù; **T3** KDS markReady deduct (2 DEDUCT txns); **T4** Split bill no-drift + voucher 20% — tổng phiên TRƯỚC==SAU (122688), discount/VAT phân bổ đúng tỷ lệ, voucher gắn 1 bill (đếm lượt 1 lần); **T5** Inbox void order; **T6** C6 void bill kèm lý do → `ops.OutboxEvent(bill.voided)`.
   - **Invariant sổ cái `BranchInventory == Σ(InventoryTransaction)`: 0 mismatch** trước & sau toàn bộ. **0 bug.**
   - App chạy http://localhost:8080 (ROOT). Tài khoản seed: admin/manager1/cashier1/barista1 · mật khẩu `123456`.
+- **2026-06-29** — **Hoàn thiện 🟡 các tính năng CHƯA LÀM còn lại (từ audit)** — không cần đổi schema (cột đã có sẵn) trừ refund:
+  - **B3.F3 · 86 ETA:** Barista báo hết kèm "dự kiến có lại" (`catalog.BranchMenu.BackInEta`); mở bán lại tự xoá ETA. Model+DAO+service+JSP datetime-local.
+  - **M3.F4 · Chấm công Trễ/Về sớm:** tính read-only (so `CheckInAt` vs `ShiftTemplate.StartTime`, `CheckOutAt` vs `EndTime`) → badge "Trễ X'" / "Sớm X'". Không đổi schema.
+  - **A3.F2 + A2.F6 · Branch giờ mở-đóng + gán Manager:** `org.Branch.OpenTime/CloseTime/ManagerUserId` (đã có cột) nối vào model/DAO/form/list; dropdown Manager = user role `BRANCH_MANAGER`.
+  - **A2 · Lọc nhân sự:** `/admin/user?roleId&branchId` (UserDao.findFiltered) + bộ lọc 2 dropdown trên list.
+  - **A1 · Quên mật khẩu tự phục vụ:** `/auth/forgot` (whitelist AuthFilter) — xác minh username+email khớp tài khoản ACTIVE rồi đặt lại mật khẩu (BCrypt, 1 tx); link từ trang login + flash thành công.
+  - **Refund hoá đơn ĐÃ PAID:** thêm `'REFUND'` vào `CK_Bill_Status` (migration S5, VARCHAR(8) đủ chứa); `BillingService.refundBill` PAID→REFUND kèm lý do bắt buộc + log `ops.OutboxEvent(bill.refunded)`, chống hoàn 2 lần bằng `WHERE Status='PAID'`.
+  - **Verify chạy thật (Tomcat 10 + DB, login 4 role):** F1 ETA set→NULL khi mở lại ✅ · F2 trang 200 ✅ · F3 DB open=07:00/close=22:30/mgr=2 ✅ · F4 lọc BARISTA hiện barista1, ẩn cashier1 ✅ · F5 sai email bị từ chối, đúng→đặt lại→đăng nhập bằng pass mới OK ✅ · F6 bill PAID→REFUND + event bill.refunded, refund lần 2 không đổi (idempotent) ✅. Test 20/20, WAR build OK.
