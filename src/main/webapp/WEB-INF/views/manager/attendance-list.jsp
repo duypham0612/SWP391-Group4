@@ -53,7 +53,11 @@
                                 </c:otherwise>
                             </c:choose>
                         </td>
-                        <td><strong>${a.workHours}</strong></td>
+                        <td>
+                            <strong>${a.workHours}</strong>
+                            <c:if test="${a.late}"><div><span class="badge badge-waiting" title="Vào trễ">Trễ ${a.lateMinutes}'</span></div></c:if>
+                            <c:if test="${a.earlyLeave}"><div style="margin-top:3px"><span class="badge badge-making" title="Về sớm">Sớm ${a.earlyLeaveMinutes}'</span></div></c:if>
+                        </td>
                         <td>
                             <c:choose>
                                 <c:when test="${status == 'PENDING'}">
