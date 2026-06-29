@@ -28,6 +28,30 @@ public class AuthService {
         }
     }
 
+    /**
+     * A1 · Quên mật khẩu (tự phục vụ, không cần email-link): xác minh username + email
+     * khớp đúng 1 tài khoản ACTIVE rồi đặt lại mật khẩu mới (băm BCrypt trong cùng tx).
+     * Trả về true nếu đặt lại thành công; false nếu không khớp / tài khoản khoá.
+     */
+    public boolean resetPasswordSelfService(String username, String email, String newRawPwd) throws SQLException {
+        if (username == null || email == null || newRawPwd == null) return false;
+        try (Connection conn = DBConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                User u = userDao.findByUsername(conn, username.trim());
+                boolean match = u != null
+                        && "ACTIVE".equals(u.getStatus())
+                        && u.getEmail() != null
+                        && u.getEmail().trim().equalsIgnoreCase(email.trim());
+                if (!match) { conn.rollback(); return false; }
+                userDao.updatePassword(conn, u.getUserId(), PasswordHasher.hashPassword(newRawPwd));
+                conn.commit();
+                return true;
+            } catch (SQLException e) { conn.rollback(); throw e; }
+            finally { conn.setAutoCommit(true); }
+        }
+    }
+
     public String hashPassword(String raw) {
         return PasswordHasher.hashPassword(raw);
     }
