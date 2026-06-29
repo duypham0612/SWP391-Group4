@@ -293,3 +293,10 @@ Quyết định user: **giữ `com.cafe` layer-based**, đổi tên/route đúng
   - **Schema additive:** `inventory.PrepBatch`+Status/VoidedAt, `inventory.WasteLog`+Status/VoidedAt, bảng `hr.ShiftHandover` — cập nhật `sql/database.sql` + `sql/migration_audit_fix.sql` (idempotent).
   - **Test:** 20/20 pass (BillCalculator +6 test no-drift). Barista đủ 7 màn, 2 CRUD đầy đủ.
   - **Carry-over (Ưu tiên 4, làm khi còn thời gian):** KDS polling 3–5s · M1 doanh thu hôm nay · M4 export Excel · A5 Recipe updateLine · Modifier delete-group/update-option · B1 bump · C6 lọc-theo-ca/reprint/void-có-lý-do · A1 forgot password. **Skip có chủ đích:** quick-create customer (A1.F4), refactor status enum (cosmetic).
+- **2026-06-29** — **Ưu tiên 4 (đã làm theo yêu cầu user):**
+  - KDS/Pickup polling 5s mượt hơn (đếm ngược + pause khi tab nền) — *phát hiện đã có sẵn setTimeout-reload, audit grep `setInterval` nên báo nhầm thiếu*.
+  - **Nhóm A — C6 Bill History:** void/refund **kèm lý do (bắt buộc) + ghi log** `ops.OutboxEvent` (bill.voided); lịch sử **lọc theo ca** hiện tại (toggle toàn chi nhánh); nút **In/Tái in** (window.print + @media print).
+  - **Nhóm B — Manager:** M1 **doanh thu hôm nay** (card dashboard, BillDao.sumPaidToday); M4 **export CSV/Excel** bảng lương (BOM UTF-8).
+  - **Nhóm C — CRUD còn thiếu:** A5 Recipe **updateLine** (sửa định mức); Modifier **delete-group** (dọn dependent 1 tx) + **update-option**; B1 **KDS bump** (cột `sales.OrderItem.Priority` additive, sort Priority DESC).
+  - Schema bổ sung S4: `sales.OrderItem.Priority` (database.sql + migration). Test 20/20, WAR build OK.
+  - **Còn lại chưa làm:** A1 forgot/reset password (chưa cần); refund bill đã PAID (chỉ void UNPAID kèm lý do). **Skip:** quick-create customer, refactor status enum.
