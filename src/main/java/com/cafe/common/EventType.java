@@ -9,7 +9,8 @@ public enum EventType {
     STOCK_LOW("stock.low"),
     SERVICE_CALL("service.call"),
     BILL_REQUESTED("bill.requested"),
-    BILL_VOIDED("bill.voided");
+    BILL_VOIDED("bill.voided"),
+    BILL_REFUNDED("bill.refunded");
 
     private final String wire;
 

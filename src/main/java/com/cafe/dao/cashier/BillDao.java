@@ -127,6 +127,15 @@ public class BillDao {
         }
     }
 
+    /** Hoàn hoá đơn ĐÃ thanh toán: chỉ PAID→REFUND (chống hoàn 2 lần bằng WHERE Status). */
+    public int markRefund(Connection conn, int billId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE payment.Bill SET Status='REFUND' WHERE BillId=? AND Status='PAID'")) {
+            ps.setInt(1, billId);
+            return ps.executeUpdate();
+        }
+    }
+
     private Bill map(ResultSet rs) throws SQLException {
         Bill b = new Bill();
         b.setBillId(rs.getInt("BillId"));

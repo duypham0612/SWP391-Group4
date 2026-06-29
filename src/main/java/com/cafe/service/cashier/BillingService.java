@@ -195,6 +195,26 @@ public class BillingService {
         }
     }
 
+    /** C6 · Hoàn hoá đơn ĐÃ thanh toán (PAID→REFUND) KÈM LÝ DO — ghi log bill.refunded trong cùng tx. */
+    public boolean refundBill(int billId, String reason, Integer userId) throws SQLException {
+        try (Connection c = DBConnection.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                Bill b = billDao.findById(c, billId);
+                if (b == null || !"PAID".equals(b.getStatus())) { c.rollback(); return false; }
+                int r = billDao.markRefund(c, billId);
+                if (r > 0) {
+                    String safeReason = reason == null ? "" : reason.replace("\"", "'");
+                    EventPublisher.publish(c, EventType.BILL_REFUNDED, String.valueOf(billId), b.getBranchId(),
+                            "{\"billId\":" + billId + ",\"by\":" + userId + ",\"reason\":\"" + safeReason + "\"}");
+                }
+                c.commit();
+                return r > 0;
+            } catch (SQLException e) { c.rollback(); throw e; }
+            finally { c.setAutoCommit(true); }
+        }
+    }
+
     // ---------- đọc ----------
     public Bill getBill(int billId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) {

@@ -43,3 +43,12 @@ GO
 IF COL_LENGTH('sales.OrderItem','Priority') IS NULL
     ALTER TABLE sales.OrderItem ADD Priority INT NOT NULL CONSTRAINT DF_OrderItem_Priority DEFAULT 0;
 GO
+
+-- S5 · payment.Bill.Status thêm 'REFUND' (hoàn hoá đơn ĐÃ thanh toán). VARCHAR(8) đủ chứa.
+IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name='CK_Bill_Status')
+    ALTER TABLE payment.Bill DROP CONSTRAINT CK_Bill_Status;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name='CK_Bill_Status')
+    ALTER TABLE payment.Bill ADD CONSTRAINT CK_Bill_Status
+        CHECK (Status IN ('UNPAID','PAID','VOID','REFUND'));
+GO
