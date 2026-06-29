@@ -9,14 +9,15 @@
 <title>Theo dõi đơn · ${session.tableNumber}</title>
 <link rel="stylesheet" href="${ctx}/assets/css/cafe-theme.css">
 <style>
-  body{background:var(--foam);margin:0}
-  .qr-app{max-width:520px;margin:0 auto;padding:0 0 24px}
-  .qr-top{background:var(--espresso);color:var(--latte);padding:18px;position:sticky;top:0;z-index:5}
-  .qr-top h1{margin:0;font-size:1.2rem}
-  .qr-top .sub{opacity:.8;font-size:.85rem}
+  body{background:var(--paper);margin:0}
+  .qr-app{max-width:540px;margin:0 auto;padding:0 0 24px}
+  .qr-top{background:linear-gradient(135deg,var(--wine-900),var(--brand-700));color:#fff;
+          padding:22px 20px;position:sticky;top:0;z-index:5;box-shadow:var(--shadow)}
+  .qr-top h1{margin:0;font-family:'Playfair Display',serif;font-size:1.35rem;color:#fff}
+  .qr-top .sub{opacity:.82;font-size:.85rem;margin-top:2px}
   .qr-body{padding:16px}
-  .qr-card{background:var(--cream);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px;margin-bottom:12px}
-  .qr-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px dashed var(--line)}
+  .qr-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:16px;margin-bottom:12px}
+  .qr-item{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px dashed var(--line)}
   .qr-item:last-child{border-bottom:none}
   .qr-actions{display:flex;gap:10px;margin-top:8px}
   .qr-actions form{flex:1}

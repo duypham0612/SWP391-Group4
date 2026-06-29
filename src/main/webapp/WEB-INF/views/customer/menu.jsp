@@ -10,25 +10,28 @@
 <title>Đặt món · ${table.tableNumber}</title>
 <link rel="stylesheet" href="${ctx}/assets/css/cafe-theme.css">
 <style>
-  body{background:var(--foam);margin:0}
-  .qr-app{max-width:520px;margin:0 auto;padding:0 0 120px}
-  .qr-top{background:var(--espresso);color:var(--latte);padding:18px 18px 16px;position:sticky;top:0;z-index:5}
-  .qr-top h1{margin:0;font-size:1.25rem}
-  .qr-top .sub{opacity:.8;font-size:.85rem}
+  body{background:var(--paper);margin:0}
+  .qr-app{max-width:540px;margin:0 auto;padding:0 0 132px}
+  .qr-top{background:linear-gradient(135deg,var(--wine-900),var(--brand-700));color:#fff;
+          padding:22px 20px 18px;position:sticky;top:0;z-index:5;box-shadow:var(--shadow)}
+  .qr-top h1{margin:0;font-family:'Playfair Display',serif;font-size:1.4rem;color:#fff}
+  .qr-top .sub{opacity:.82;font-size:.85rem;margin-top:2px}
   .qr-body{padding:16px}
-  .qr-card{background:var(--cream);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px;margin-bottom:12px}
+  .qr-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:14px;margin-bottom:12px;transition:box-shadow var(--t)}
+  .qr-card:active{box-shadow:var(--shadow-md)}
   .qr-card .name{font-weight:700;font-size:1.05rem}
-  .qr-card .price{color:var(--coffee);font-weight:600}
-  .qr-grp{margin-top:8px}
-  .qr-grp .lbl{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
-  .qr-grp label{display:flex;gap:8px;align-items:center;padding:4px 0;font-size:.95rem}
-  .qr-add{display:flex;gap:10px;align-items:center;margin-top:10px}
+  .qr-card .price{color:var(--brand);font-weight:700}
+  .qr-grp{margin-top:10px}
+  .qr-grp .lbl{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
+  .qr-grp label{display:flex;gap:8px;align-items:center;padding:5px 0;font-size:.95rem}
+  .qr-add{display:flex;gap:10px;align-items:center;margin-top:12px}
   .qr-add input{width:64px}
-  .qr-bar{position:fixed;left:0;right:0;bottom:0;background:var(--cream);border-top:1px solid var(--line);
-          padding:12px 16px;max-width:520px;margin:0 auto;box-shadow:0 -2px 12px rgba(59,36,23,.1)}
+  .qr-bar{position:fixed;left:0;right:0;bottom:0;background:color-mix(in srgb,var(--surface) 92%,transparent);
+          backdrop-filter:blur(10px);border-top:1px solid var(--line);
+          padding:14px 16px;max-width:540px;margin:0 auto;box-shadow:0 -4px 18px rgba(42,14,18,.12)}
   .qr-bar .row{display:flex;justify-content:space-between;align-items:center;gap:12px}
   #cartList{max-height:34vh;overflow:auto;margin-bottom:8px}
-  .qr-line{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:.9rem}
+  .qr-line{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:.9rem}
 </style>
 </head>
 <body>
