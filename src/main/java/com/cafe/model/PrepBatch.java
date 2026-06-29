@@ -12,6 +12,8 @@ public class PrepBatch {
     private int madeBy;
     private LocalDateTime madeAt;
     private LocalDateTime expiresAt;
+    private String status = "ACTIVE";   // ACTIVE | CANCELLED
+    private LocalDateTime voidedAt;
 
     // join
     private String preppedIngredientName;
@@ -38,6 +40,13 @@ public class PrepBatch {
 
     public LocalDateTime getExpiresAt() { return expiresAt; }
     public void setExpiresAt(LocalDateTime v) { this.expiresAt = v; }
+
+    public String getStatus() { return status; }
+    public void setStatus(String v) { this.status = v; }
+    public boolean isActive() { return "ACTIVE".equals(status); }
+
+    public LocalDateTime getVoidedAt() { return voidedAt; }
+    public void setVoidedAt(LocalDateTime v) { this.voidedAt = v; }
 
     public String getPreppedIngredientName() { return preppedIngredientName; }
     public void setPreppedIngredientName(String v) { this.preppedIngredientName = v; }

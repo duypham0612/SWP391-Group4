@@ -111,6 +111,68 @@ public class InventoryService {
         }
     }
 
+    /**
+     * Huỷ mẻ pha sẵn (Contract #2, #4) — HOÀN KHO BẰNG TXN BÙ, không hard-delete.
+     * Đảo lại createPrepBatch: cộng RAW về (PREP_OUT dấu dương) + rút PREPPED đã cộng (PREP_IN dấu âm),
+     * cùng RefTable/RefId nên ledger nets về 0 theo từng type. Đánh dấu Status='CANCELLED'. Own tx.
+     */
+    public void cancelPrepBatch(int branchId, int prepBatchId, int userId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                com.cafe.model.PrepBatch b = prepBatchDao.findById(conn, prepBatchId);
+                if (b == null || b.getBranchId() != branchId) throw new SQLException("Mẻ pha không tồn tại ở chi nhánh này.");
+                if (!b.isActive()) { conn.rollback(); return; }   // idempotent: đã huỷ rồi
+                BigDecimal qtyProduced = b.getQuantityProduced();
+                List<PrepRecipe> lines = prepRecipeDao.findByPrepped(conn, b.getPreppedIngredientId());
+                for (PrepRecipe pr : lines) {
+                    BigDecimal consumed = qtyProduced
+                            .divide(pr.getYieldQty(), 6, RoundingMode.HALF_UP)
+                            .multiply(pr.getQuantity());
+                    applyTxn(conn, branchId, pr.getRawIngredientId(), consumed,   // hoàn RAW (+)
+                            TxnType.PREP_OUT, "PrepBatch", (long) prepBatchId, userId);
+                }
+                applyTxn(conn, branchId, b.getPreppedIngredientId(), qtyProduced.negate(),  // rút PREPPED (-)
+                        TxnType.PREP_IN, "PrepBatch", (long) prepBatchId, userId);
+                prepBatchDao.updateStatus(conn, prepBatchId, "CANCELLED");
+                conn.commit();
+            } catch (SQLException e) { conn.rollback(); throw e; }
+            finally { conn.setAutoCommit(true); }
+        }
+    }
+
+    /**
+     * Sửa sản lượng mẻ pha sẵn (Contract #2, #4) — áp TXN cho phần CHÊNH LỆCH (delta = new − old).
+     * delta>0: trừ thêm RAW + cộng thêm PREPPED; delta<0: hoàn RAW + rút bớt PREPPED. Own tx.
+     */
+    public void updatePrepBatch(int branchId, int prepBatchId, BigDecimal newQtyProduced, int userId) throws SQLException {
+        if (newQtyProduced == null || newQtyProduced.signum() <= 0) throw new IllegalArgumentException("Sản lượng phải > 0");
+        try (Connection conn = DBConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                com.cafe.model.PrepBatch b = prepBatchDao.findById(conn, prepBatchId);
+                if (b == null || b.getBranchId() != branchId) throw new SQLException("Mẻ pha không tồn tại ở chi nhánh này.");
+                if (!b.isActive()) throw new SQLException("Mẻ đã huỷ — không sửa được.");
+                BigDecimal delta = newQtyProduced.subtract(b.getQuantityProduced());
+                if (delta.signum() != 0) {
+                    List<PrepRecipe> lines = prepRecipeDao.findByPrepped(conn, b.getPreppedIngredientId());
+                    for (PrepRecipe pr : lines) {
+                        BigDecimal consumedDelta = delta
+                                .divide(pr.getYieldQty(), 6, RoundingMode.HALF_UP)
+                                .multiply(pr.getQuantity());
+                        applyTxn(conn, branchId, pr.getRawIngredientId(), consumedDelta.negate(),  // delta>0 trừ thêm RAW
+                                TxnType.PREP_OUT, "PrepBatch", (long) prepBatchId, userId);
+                    }
+                    applyTxn(conn, branchId, b.getPreppedIngredientId(), delta,                    // delta>0 cộng thêm PREPPED
+                            TxnType.PREP_IN, "PrepBatch", (long) prepBatchId, userId);
+                    prepBatchDao.updateQuantity(conn, prepBatchId, newQtyProduced);
+                }
+                conn.commit();
+            } catch (SQLException e) { conn.rollback(); throw e; }
+            finally { conn.setAutoCommit(true); }
+        }
+    }
+
     /** Ghi hao hụt (Barista) — insert WasteLog + applyTxn(-qty, WASTE). Own tx. */
     public int logWaste(int branchId, int ingredientId, BigDecimal qty, String wasteType, String reason, int userId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {

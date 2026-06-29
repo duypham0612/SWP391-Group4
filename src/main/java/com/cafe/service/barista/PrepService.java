@@ -26,4 +26,14 @@ public class PrepService {
     public int createBatch(int branchId, int preppedIngredientId, BigDecimal qtyProduced, int userId) throws SQLException {
         return inventoryService.createPrepBatch(branchId, preppedIngredientId, qtyProduced, userId);
     }
+
+    /** Huỷ mẻ — hoàn kho qua txn bù (không hard-delete). */
+    public void cancelBatch(int branchId, int prepBatchId, int userId) throws SQLException {
+        inventoryService.cancelPrepBatch(branchId, prepBatchId, userId);
+    }
+
+    /** Sửa sản lượng mẻ — áp txn cho phần chênh lệch. */
+    public void updateBatch(int branchId, int prepBatchId, BigDecimal newQtyProduced, int userId) throws SQLException {
+        inventoryService.updatePrepBatch(branchId, prepBatchId, newQtyProduced, userId);
+    }
 }
