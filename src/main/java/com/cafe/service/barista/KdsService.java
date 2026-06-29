@@ -15,6 +15,7 @@ public class KdsService {
     public List<OrderItem> getReadyItems(int branchId) throws SQLException { return orderService.getReadyItems(branchId); }
 
     public void startItem(int orderItemId, Integer userId) throws SQLException { orderService.startItem(orderItemId, userId); }
+    public void bump(int orderItemId) throws SQLException { orderService.bumpItem(orderItemId); }
     public void markReady(int orderItemId, Integer userId) throws SQLException { orderService.markItemReady(orderItemId, userId); }
     public void markServed(int orderItemId, Integer userId) throws SQLException { orderService.markItemServed(orderItemId, userId); }
 }

@@ -42,3 +42,8 @@ BEGIN
     );
 END
 GO
+
+-- S4 · sales.OrderItem.Priority (KDS bump)
+IF COL_LENGTH('sales.OrderItem','Priority') IS NULL
+    ALTER TABLE sales.OrderItem ADD Priority INT NOT NULL CONSTRAINT DF_OrderItem_Priority DEFAULT 0;
+GO
