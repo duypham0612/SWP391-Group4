@@ -33,5 +33,18 @@
     </c:otherwise>
 </c:choose>
 
-<script>setTimeout(function(){ location.reload(); }, 5000);</script>
+<div class="muted" style="text-align:right;font-size:.8rem;margin-top:12px">
+    <span style="color:var(--st-ready)">●</span> Tự cập nhật mỗi <span id="puCountdown">5</span> giây
+</div>
+<script>
+  // Pickup board realtime — auto-poll 5s; tab nền thì tạm dừng
+  (function(){
+    var n = 5, el = document.getElementById('puCountdown');
+    setInterval(function(){
+      if (document.visibilityState === 'hidden') return;
+      n--; if (el) el.textContent = n;
+      if (n <= 0) location.reload();
+    }, 1000);
+  })();
+</script>
 <jsp:include page="../layout/footer.jsp" />
