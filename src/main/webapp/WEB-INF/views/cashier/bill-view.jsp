@@ -37,6 +37,7 @@
         <c:choose>
             <c:when test="${bill.status == 'PAID'}"><span class="badge badge-ready">Đã thu (${bill.paymentMethod})</span></c:when>
             <c:when test="${bill.status == 'VOID'}"><span class="badge badge-cancelled">Huỷ</span></c:when>
+            <c:when test="${bill.status == 'REFUND'}"><span class="badge badge-cancelled">Đã hoàn</span></c:when>
             <c:otherwise><span class="badge badge-waiting">Chưa thu</span></c:otherwise>
         </c:choose>
     </p>
@@ -47,10 +48,23 @@
             <input type="hidden" name="action" value="void">
             <input type="hidden" name="billId" value="${bill.billId}">
             <div class="form-group" style="margin:0;flex:1;min-width:200px">
-                <label>Lý do huỷ/hoàn (bắt buộc)</label>
+                <label>Lý do huỷ (bắt buộc)</label>
                 <input type="text" name="reason" class="form-control" maxlength="255" required placeholder="VD: khách đổi món, nhập sai...">
             </div>
             <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--st-cancelled)">Huỷ hoá đơn</button>
+        </form>
+    </c:if>
+    <c:if test="${bill.status == 'PAID'}">
+        <form action="${ctx}/cashier/history" method="post" class="no-print" style="margin-top:10px;display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap"
+              onsubmit="return confirm('Hoàn tiền hoá đơn ĐÃ thanh toán này?');">
+            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+            <input type="hidden" name="action" value="refund">
+            <input type="hidden" name="billId" value="${bill.billId}">
+            <div class="form-group" style="margin:0;flex:1;min-width:200px">
+                <label>Lý do hoàn tiền (bắt buộc)</label>
+                <input type="text" name="reason" class="form-control" maxlength="255" required placeholder="VD: khách trả món, tính nhầm...">
+            </div>
+            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--st-cancelled)">Hoàn hoá đơn</button>
         </form>
     </c:if>
 </div>

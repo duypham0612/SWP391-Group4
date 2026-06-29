@@ -57,14 +57,25 @@ public class BillHistoryServlet extends HttpServlet {
         User u = SessionUtil.currentUser(req);
         Integer userId = u != null ? u.getUserId() : null;
         try {
-            if ("void".equals(req.getParameter("action"))) {
+            String action = req.getParameter("action");
+            if ("void".equals(action) || "refund".equals(action)) {
                 String reason = req.getParameter("reason");
                 if (reason == null || reason.isBlank()) {
                     req.getSession().setAttribute("flashError", "Phải nhập lý do khi huỷ/hoàn hoá đơn.");
                 } else {
-                    boolean ok = service.voidBill(Integer.parseInt(req.getParameter("billId")), reason.trim(), userId);
-                    req.getSession().setAttribute(ok ? "flashOk" : "flashError",
-                            ok ? "Đã huỷ hoá đơn (đã ghi log lý do)." : "Không huỷ được (đã thanh toán?).");
+                    int billId = Integer.parseInt(req.getParameter("billId"));
+                    boolean refund = "refund".equals(action);
+                    boolean ok = refund
+                            ? service.refundBill(billId, reason.trim(), userId)
+                            : service.voidBill(billId, reason.trim(), userId);
+                    if (refund) {
+                        req.getSession().setAttribute(ok ? "flashOk" : "flashError",
+                                ok ? "Đã hoàn hoá đơn đã thanh toán (đã ghi log lý do)."
+                                   : "Không hoàn được (hoá đơn chưa thanh toán hoặc đã hoàn?).");
+                    } else {
+                        req.getSession().setAttribute(ok ? "flashOk" : "flashError",
+                                ok ? "Đã huỷ hoá đơn (đã ghi log lý do)." : "Không huỷ được (đã thanh toán?).");
+                    }
                 }
             }
             resp.sendRedirect(req.getContextPath() + "/cashier/history");

@@ -583,7 +583,7 @@ CREATE TABLE payment.Bill (
     PaymentMethod  VARCHAR(10) NULL
                    CONSTRAINT CK_Bill_Method CHECK (PaymentMethod IN ('CASH','TRANSFER','QR_BANK')),
     Status         VARCHAR(8) NOT NULL DEFAULT 'UNPAID'
-                   CONSTRAINT CK_Bill_Status CHECK (Status IN ('UNPAID','PAID','VOID')),
+                   CONSTRAINT CK_Bill_Status CHECK (Status IN ('UNPAID','PAID','VOID','REFUND')),
     PaidAt         DATETIME2 NULL,
     CreatedAt      DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT FK_Bill_Branch  FOREIGN KEY (BranchId)       REFERENCES org.Branch(BranchId),
