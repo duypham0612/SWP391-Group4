@@ -13,6 +13,8 @@ public class WasteLog {
     private String reason;
     private int loggedBy;
     private LocalDateTime loggedAt;
+    private String status = "ACTIVE";   // ACTIVE | VOIDED
+    private LocalDateTime voidedAt;
 
     // join
     private String ingredientName;
@@ -42,6 +44,13 @@ public class WasteLog {
 
     public LocalDateTime getLoggedAt() { return loggedAt; }
     public void setLoggedAt(LocalDateTime v) { this.loggedAt = v; }
+
+    public String getStatus() { return status; }
+    public void setStatus(String v) { this.status = v; }
+    public boolean isActive() { return "ACTIVE".equals(status); }
+
+    public LocalDateTime getVoidedAt() { return voidedAt; }
+    public void setVoidedAt(LocalDateTime v) { this.voidedAt = v; }
 
     public String getIngredientName() { return ingredientName; }
     public void setIngredientName(String v) { this.ingredientName = v; }

@@ -11,6 +11,10 @@
     <div class="alert alert-error">${sessionScope.flashError}</div>
     <c:remove var="flashError" scope="session" />
 </c:if>
+<c:if test="${not empty sessionScope.flashOk}">
+    <div class="alert alert-success">${sessionScope.flashOk}</div>
+    <c:remove var="flashOk" scope="session" />
+</c:if>
 
 <div class="card form-card" style="margin-bottom:18px">
     <h3 style="margin-top:0">Ghi hao hụt</h3>
@@ -44,10 +48,10 @@
     </c:when>
     <c:otherwise>
         <table class="table">
-            <thead><tr><th>Nguyên liệu</th><th style="width:140px">Số lượng</th><th style="width:120px">Loại</th><th>Lý do</th><th>Người ghi</th><th>Lúc</th></tr></thead>
+            <thead><tr><th>Nguyên liệu</th><th style="width:120px">Số lượng</th><th style="width:110px">Loại</th><th>Lý do</th><th>Người ghi</th><th style="width:100px">Trạng thái</th><th style="width:340px">Thao tác</th></tr></thead>
             <tbody>
                 <c:forEach var="w" items="${logs}">
-                    <tr>
+                    <tr<c:if test="${w.status == 'VOIDED'}"> style="opacity:.55"</c:if>>
                         <td>${w.ingredientName}</td>
                         <td><strong>${w.quantity}</strong> ${w.ingredientUnit}</td>
                         <td>
@@ -60,7 +64,36 @@
                         </td>
                         <td>${w.reason}</td>
                         <td>${w.loggedByName}</td>
-                        <td>${w.loggedAt}</td>
+                        <td>
+                            <c:choose>
+                                <c:when test="${w.status == 'VOIDED'}"><span class="badge" style="background:var(--st-cancelled);color:#fff">Đã huỷ</span></c:when>
+                                <c:otherwise><span class="badge" style="background:var(--st-ready);color:#fff">Hiệu lực</span></c:otherwise>
+                            </c:choose>
+                        </td>
+                        <td>
+                            <c:if test="${w.status == 'ACTIVE'}">
+                                <form action="${ctx}/barista/waste" method="post" style="display:inline-flex;gap:4px;align-items:center">
+                                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                    <input type="hidden" name="action" value="update">
+                                    <input type="hidden" name="wasteLogId" value="${w.wasteLogId}">
+                                    <input type="number" name="quantity" class="form-control" style="width:80px" min="0.001" step="0.001" value="${w.quantity}" required>
+                                    <select name="wasteType" class="form-control" style="width:100px">
+                                        <option value="SPILL"   ${w.wasteType=='SPILL'?'selected':''}>Đổ/rơi</option>
+                                        <option value="EXPIRED" ${w.wasteType=='EXPIRED'?'selected':''}>Hết hạn</option>
+                                        <option value="REMAKE"  ${w.wasteType=='REMAKE'?'selected':''}>Làm lại</option>
+                                        <option value="OTHER"   ${w.wasteType=='OTHER'?'selected':''}>Khác</option>
+                                    </select>
+                                    <input type="text" name="reason" class="form-control" style="width:90px" value="${w.reason}" maxlength="255">
+                                    <button type="submit" class="btn btn-ghost btn-sm">Sửa</button>
+                                </form>
+                                <form action="${ctx}/barista/waste" method="post" style="display:inline" onsubmit="return confirm('Huỷ bản ghi hao hụt này? Tồn kho sẽ được hoàn lại.');">
+                                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                    <input type="hidden" name="action" value="void">
+                                    <input type="hidden" name="wasteLogId" value="${w.wasteLogId}">
+                                    <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--st-cancelled)">Huỷ</button>
+                                </form>
+                            </c:if>
+                        </td>
                     </tr>
                 </c:forEach>
             </tbody>
