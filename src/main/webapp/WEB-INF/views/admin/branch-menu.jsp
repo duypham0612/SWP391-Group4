@@ -26,10 +26,12 @@
             </tr></thead>
             <tbody>
                 <c:forEach var="m" items="${items}">
+                    <c:set var="imgSrc" value="${empty m.imageUrl ? ctx.concat('/assets/img/products/_placeholder.svg') : (m.imageUrl.startsWith('http') ? m.imageUrl : ctx.concat(m.imageUrl))}" />
                     <tr>
-                        <td>
-                            ${m.productName}
-                            <c:if test="${not m.published}"><span class="badge badge-served" style="margin-left:6px">chưa publish</span></c:if>
+                        <td style="display:flex;align-items:center;gap:10px">
+                            <img class="prod-thumb" src="${imgSrc}" alt="${m.productName}" loading="lazy" onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
+                            <span>${m.productName}
+                            <c:if test="${not m.published}"><span class="badge badge-served" style="margin-left:6px">chưa publish</span></c:if></span>
                         </td>
                         <td><fmt:formatNumber value="${m.basePrice}" maxFractionDigits="0"/> ₫</td>
                         <td colspan="4">

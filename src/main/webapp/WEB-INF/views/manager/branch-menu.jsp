@@ -26,8 +26,12 @@
             </tr></thead>
             <tbody>
                 <c:forEach var="m" items="${items}">
+                    <c:set var="imgSrc" value="${empty m.imageUrl ? ctx.concat('/assets/img/products/_placeholder.svg') : (m.imageUrl.startsWith('http') ? m.imageUrl : ctx.concat(m.imageUrl))}" />
                     <tr>
-                        <td>${m.productName}</td>
+                        <td style="display:flex;align-items:center;gap:10px">
+                            <img class="prod-thumb" src="${imgSrc}" alt="${m.productName}" loading="lazy" onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
+                            <span>${m.productName}</span>
+                        </td>
                         <td><fmt:formatNumber value="${m.basePrice}" maxFractionDigits="0"/> ₫</td>
                         <td>
                             <form action="${ctx}/manager/menu" method="post" style="display:flex;gap:6px;align-items:center;margin:0">

@@ -16,13 +16,15 @@
     <c:otherwise>
         <table class="table">
             <thead><tr>
-                <th style="width:60px">#</th><th>Tên</th><th>Danh mục</th>
+                <th style="width:60px">#</th><th style="width:64px">Ảnh</th><th>Tên</th><th>Danh mục</th>
                 <th style="width:140px">Giá gốc</th><th style="width:110px">Trạng thái</th><th style="width:170px">Thao tác</th>
             </tr></thead>
             <tbody>
                 <c:forEach var="p" items="${products}">
+                    <c:set var="imgSrc" value="${empty p.imageUrl ? ctx.concat('/assets/img/products/_placeholder.svg') : (p.imageUrl.startsWith('http') ? p.imageUrl : ctx.concat(p.imageUrl))}" />
                     <tr>
                         <td>${p.productId}</td>
+                        <td><img class="prod-thumb" src="${imgSrc}" alt="${p.name}" loading="lazy" onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'"></td>
                         <td>${p.name}</td>
                         <td>${p.categoryName}</td>
                         <td><fmt:formatNumber value="${p.basePrice}" type="number" maxFractionDigits="0"/> ₫</td>

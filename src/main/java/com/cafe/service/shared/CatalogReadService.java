@@ -43,6 +43,7 @@ public class CatalogReadService {
                 PosMenuItem item = new PosMenuItem();
                 item.setProductId(bm.getProductId());
                 item.setName(bm.getProductName());
+                item.setImageUrl(bm.getImageUrl());
                 item.setPrice(bm.getLocalPrice() != null ? bm.getLocalPrice() : bm.getBasePrice());
 
                 for (ProductModifierGroup pmg : pmgDao.findByProduct(conn, bm.getProductId())) {

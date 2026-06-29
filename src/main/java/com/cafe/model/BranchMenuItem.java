@@ -14,6 +14,7 @@ public class BranchMenuItem {
     private BigDecimal localPrice;    // NULL = dùng BasePrice
     private boolean is86;
     private LocalDateTime backInEta;  // B3.F3 — dự kiến có lại (NULL = chưa rõ)
+    private String imageUrl;          // ảnh sản phẩm (catalog.Product.ImageUrl)
 
     public int getBranchId() { return branchId; }
     public void setBranchId(int branchId) { this.branchId = branchId; }
@@ -41,6 +42,9 @@ public class BranchMenuItem {
 
     public LocalDateTime getBackInEta() { return backInEta; }
     public void setBackInEta(LocalDateTime backInEta) { this.backInEta = backInEta; }
+
+    public String getImageUrl() { return imageUrl; }
+    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
 
     /** Chuỗi ETA gọn cho JSP (dd/MM HH:mm); rỗng nếu chưa rõ. */
     public String getBackInEtaText() {

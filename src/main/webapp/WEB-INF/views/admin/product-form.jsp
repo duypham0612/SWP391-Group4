@@ -35,7 +35,11 @@
         </div>
         <div class="form-group">
             <label for="imageUrl">Ảnh (URL)</label>
-            <input id="imageUrl" type="text" name="imageUrl" class="form-control" maxlength="255" value="${product.imageUrl}">
+            <input id="imageUrl" type="text" name="imageUrl" class="form-control" maxlength="255" value="${product.imageUrl}"
+                   placeholder="/assets/img/products/ten-mon.svg hoặc https://..." oninput="updatePreview()">
+            <small class="muted">Dán URL ảnh ngoài (https://…) hoặc đường dẫn ảnh có sẵn trong <code>/assets/img/products/</code>.</small>
+            <c:set var="pImg" value="${empty product.imageUrl ? ctx.concat('/assets/img/products/_placeholder.svg') : (product.imageUrl.startsWith('http') ? product.imageUrl : ctx.concat(product.imageUrl))}" />
+            <img id="imgPreview" class="img-preview" src="${pImg}" alt="Xem trước" onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
         </div>
         <div class="form-group">
             <label><input type="checkbox" name="active" value="1" <c:if test="${product.active or product.productId == 0}">checked</c:if>> Đang hoạt động</label>
@@ -43,5 +47,14 @@
         <button type="submit" class="btn btn-primary btn-lg">Lưu</button>
     </form>
 </div>
+
+<script>
+  const CTX = '${ctx}', PH = CTX + '/assets/img/products/_placeholder.svg';
+  function updatePreview(){
+    const v = document.getElementById('imageUrl').value.trim();
+    const img = document.getElementById('imgPreview');
+    img.src = !v ? PH : (v.startsWith('http') ? v : CTX + v);
+  }
+</script>
 
 <jsp:include page="../layout/footer.jsp" />

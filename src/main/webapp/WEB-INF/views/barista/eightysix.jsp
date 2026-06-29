@@ -17,8 +17,12 @@
             <tbody>
                 <c:forEach var="m" items="${items}">
                     <c:if test="${m.published}">
+                        <c:set var="imgSrc" value="${empty m.imageUrl ? ctx.concat('/assets/img/products/_placeholder.svg') : (m.imageUrl.startsWith('http') ? m.imageUrl : ctx.concat(m.imageUrl))}" />
                         <tr>
-                            <td>${m.productName}</td>
+                            <td style="display:flex;align-items:center;gap:10px">
+                                <img class="prod-thumb" src="${imgSrc}" alt="${m.productName}" loading="lazy" onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
+                                ${m.productName}
+                            </td>
                             <td>
                                 <c:choose>
                                     <c:when test="${m.is86}">
