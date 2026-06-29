@@ -283,3 +283,13 @@ Quyết định user: **giữ `com.cafe` layer-based**, đổi tên/route đúng
 - **2026-06-29** — Hoàn tất **Phase 2** (Catalog & Config): 8 nhóm CRUD. Build WAR OK.
 - **2026-06-29** — **Đồng bộ Phase 2 theo `KE_HOACH_CHI_TIET_THEO_ROLE.md`**: đổi route/class/method đúng đặc tả (giữ com.cafe), gộp AuthServlet, PasswordHasher, EventType, tách 4 Modifier DAO, bù PrepRecipe + ProductModifierGroup. Dựng SQL Edge + Tomcat 10 chạy thật, verify toàn bộ route mới + ghi DB OK. Sửa 2 bug runtime trước đó (seed password LEN<60, CSRF sau login).
 - **2026-06-29** — **Làm lại UI (premium cafe, theo phản hồi user)**: viết lại `cafe-theme.css` (tông rượu vang + kem + vàng đồng, serif Playfair cho tiêu đề), **bỏ emoji** ở sidebar/dashboard, sidebar có nhãn nhóm + thanh nhấn vàng ở mục active, topbar có avatar chữ cái, login đổi sang **split brand-panel** có tagline. Build + redeploy + verify render OK.
+- **2026-06-29** — **FIX SAU AUDIT** (kế hoạch: `docs/KE_HOACH_FIX_AUDIT.md`). Mỗi mục compile + commit riêng:
+  - **Ưu tiên 1 — BARISTA đạt chuẩn (5 màn/0 CRUD → 7 màn/2 CRUD):**
+    - B6 Recipe Lookup `/barista/recipe` (CatalogReadService.getRecipeForProduct/getPrepRecipe/getModifierImpactsForProduct).
+    - B7 Shift Handover `/barista/handover` + bảng `hr.ShiftHandover` + KPI lead-time (OrderItemDao.leadTimeStatsToday).
+    - B4 Prep **update/cancel** = CRUD #1; B5 Waste **update/void** = CRUD #2 — **hoàn kho bằng TXN BÙ** qua InventoryService (đảo PREP_IN/PREP_OUT, +qty WASTE), giữ row + Status CANCELLED/VOIDED, KHÔNG hard-delete, KHÔNG UPDATE thẳng tồn (contract C4 giữ vững).
+  - **Ưu tiên 2 — Cashier Order Inbox** `/cashier/inbox`: OrderService.getIncomingOrders/voidOrder. Mô hình **giám sát + void đơn sai**, KHÔNG chặn luồng auto-to-KDS.
+  - **Ưu tiên 3 — bug thật:** (a) sửa "toggle giả" Branch/Product/Voucher/Supplier (đọc trạng thái rồi đảo, JSP hiện nút 2 chiều); (b) **Split bill no-drift**: BillCalculator.allocateByWeight (largest-remainder) + recompute mức-phiên — VAT & discount tính 1 lần trên tổng tab rồi phân bổ theo tỷ lệ → tổng các bill tách == bản tính cả tab.
+  - **Schema additive:** `inventory.PrepBatch`+Status/VoidedAt, `inventory.WasteLog`+Status/VoidedAt, bảng `hr.ShiftHandover` — cập nhật `sql/database.sql` + `sql/migration_audit_fix.sql` (idempotent).
+  - **Test:** 20/20 pass (BillCalculator +6 test no-drift). Barista đủ 7 màn, 2 CRUD đầy đủ.
+  - **Carry-over (Ưu tiên 4, làm khi còn thời gian):** KDS polling 3–5s · M1 doanh thu hôm nay · M4 export Excel · A5 Recipe updateLine · Modifier delete-group/update-option · B1 bump · C6 lọc-theo-ca/reprint/void-có-lý-do · A1 forgot password. **Skip có chủ đích:** quick-create customer (A1.F4), refactor status enum (cosmetic).
