@@ -55,8 +55,7 @@ public class BillingService {
                     if (defaultBillId == null) defaultBillId = billDao.insert(c, branchId, sessionId, shiftId);
                     billItemDao.insert(c, defaultBillId, it.getOrderItemId(), it.getLineTotal());
                 }
-                // recompute mọi bill UNPAID của phiên
-                for (Bill b : billDao.findUnpaidBySession(c, sessionId)) recompute(c, b.getBillId());
+                recomputeSession(c, sessionId);   // no-drift: VAT/discount tính 1 lần rồi phân bổ
                 c.commit();
             } catch (SQLException e) { c.rollback(); throw e; }
             finally { c.setAutoCommit(true); }
@@ -75,11 +74,11 @@ public class BillingService {
                     BillItem bi = billItemDao.findById(c, biId);
                     if (bi != null) billItemDao.reassign(c, biId, newBillId);
                 }
+                // void các bill rỗng, rồi recompute toàn phiên no-drift (VAT + discount phân bổ theo tỷ lệ)
                 for (Bill b : billDao.findUnpaidBySession(c, sessionId)) {
                     if (billItemDao.countByBill(c, b.getBillId()) == 0) billDao.markVoid(c, b.getBillId());
-                    else recompute(c, b.getBillId());
                 }
-                recompute(c, newBillId);
+                recomputeSession(c, sessionId);
                 c.commit();
             } catch (SQLException e) { c.rollback(); throw e; }
             finally { c.setAutoCommit(true); }
@@ -98,7 +97,7 @@ public class BillingService {
                     for (BillItem bi : billItemDao.findByBill(c, src)) billItemDao.reassign(c, bi.getBillItemId(), target);
                     billDao.markVoid(c, src);
                 }
-                recompute(c, target);
+                recomputeForBill(c, target);
                 c.commit();
             } catch (SQLException e) { c.rollback(); throw e; }
             finally { c.setAutoCommit(true); }
@@ -116,7 +115,13 @@ public class BillingService {
             c.setAutoCommit(false);
             try {
                 Voucher v = voucherDao.findByCode(c, code);
-                recomputeWithVoucher(c, billId, v == null ? null : v.getVoucherId());
+                Integer vid = v == null ? null : v.getVoucherId();
+                if (bill.getTableSessionId() != null) {
+                    // voucher áp cho cả tab → tính trên TỔNG phiên rồi phân bổ theo tỷ lệ (no-drift)
+                    recomputeSession(c, bill.getTableSessionId(), vid);
+                } else {
+                    recomputeWithVoucher(c, billId, vid);   // bill takeaway lẻ (không phiên)
+                }
                 c.commit();
             } catch (SQLException e) { c.rollback(); throw e; }
             finally { c.setAutoCommit(true); }
@@ -127,8 +132,12 @@ public class BillingService {
     public void removeVoucher(int billId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
-            try { recomputeWithVoucher(c, billId, null); c.commit(); }
-            catch (SQLException e) { c.rollback(); throw e; }
+            try {
+                Bill b = billDao.findById(c, billId);
+                if (b != null && b.getTableSessionId() != null) recomputeSession(c, b.getTableSessionId(), null);
+                else recomputeWithVoucher(c, billId, null);
+                c.commit();
+            } catch (SQLException e) { c.rollback(); throw e; }
             finally { c.setAutoCommit(true); }
         }
     }
@@ -198,12 +207,68 @@ public class BillingService {
     }
 
     // ---------- nội bộ ----------
-    private void recompute(Connection c, int billId) throws SQLException {
+    /** Recompute đúng phạm vi: bill có phiên → no-drift toàn phiên; bill lẻ (takeaway) → 1 bill. */
+    private void recomputeForBill(Connection c, int billId) throws SQLException {
         Bill b = billDao.findById(c, billId);
-        recomputeWithVoucher(c, billId, b == null ? null : b.getVoucherId());
+        if (b == null) return;
+        if (b.getTableSessionId() != null) recomputeSession(c, b.getTableSessionId());
+        else recomputeWithVoucher(c, billId, b.getVoucherId());
     }
 
-    /** Tính lại subtotal/discount/vat/total cho bill, có thể đổi voucher. */
+    /** Recompute toàn phiên, voucher suy ra từ các bill hiện có (bill đầu giữ tham chiếu). */
+    private void recomputeSession(Connection c, int sessionId) throws SQLException {
+        Integer vid = null;
+        for (Bill b : billDao.findUnpaidBySession(c, sessionId)) {
+            if (b.getVoucherId() != null) { vid = b.getVoucherId(); break; }
+        }
+        recomputeSession(c, sessionId, vid);
+    }
+
+    /**
+     * ★ No-drift: tính discount + VAT MỘT LẦN trên TỔNG phiên, rồi phân bổ theo tỷ lệ (largest-remainder)
+     * cho từng bill → Σ(discount)·Σ(vat)·Σ(total) các bill == bản tính trên cả tab (không lệch ±0.01).
+     * Voucher: discount chia theo tỷ lệ subtotal; tham chiếu VoucherId chỉ gắn ở bill đầu (đếm lượt dùng 1 lần).
+     */
+    private void recomputeSession(Connection c, int sessionId, Integer voucherId) throws SQLException {
+        List<Bill> bills = billDao.findUnpaidBySession(c, sessionId);
+        if (bills.isEmpty()) return;
+
+        List<BigDecimal> subs = new java.util.ArrayList<>();
+        BigDecimal sessionSubtotal = BigDecimal.ZERO;
+        for (Bill b : bills) {
+            BigDecimal s = BigDecimal.ZERO;
+            for (BillItem bi : billItemDao.findByBill(c, b.getBillId())) s = s.add(bi.getAmount());
+            subs.add(s);
+            sessionSubtotal = sessionSubtotal.add(s);
+        }
+
+        BigDecimal sessionDiscount = BigDecimal.ZERO;
+        if (voucherId != null) {
+            Voucher v = voucherDao.findById(c, voucherId);
+            if (v != null) sessionDiscount = BillCalculator.computeDiscount(v.getDiscountType(), v.getDiscountValue(), sessionSubtotal);
+        }
+        List<BigDecimal> discParts = BillCalculator.allocateByWeight(sessionDiscount, subs);
+
+        List<BigDecimal> nets = new java.util.ArrayList<>();
+        BigDecimal sessionNet = BigDecimal.ZERO;
+        for (int i = 0; i < bills.size(); i++) {
+            BigDecimal net = subs.get(i).subtract(discParts.get(i));
+            if (net.signum() < 0) net = BigDecimal.ZERO;
+            nets.add(net);
+            sessionNet = sessionNet.add(net);
+        }
+        BigDecimal sessionVat = BillCalculator.computeVat(sessionNet);
+        List<BigDecimal> vatParts = BillCalculator.allocateByWeight(sessionVat, nets);
+
+        for (int i = 0; i < bills.size(); i++) {
+            Bill b = bills.get(i);
+            BigDecimal total = nets.get(i).add(vatParts.get(i)).setScale(2, java.math.RoundingMode.HALF_UP);
+            Integer vid = (i == 0) ? voucherId : null;   // gắn voucher ở bill đầu → incrementUsed đúng 1 lần
+            billDao.updateAmounts(c, b.getBillId(), subs.get(i), discParts.get(i), vatParts.get(i), total, vid);
+        }
+    }
+
+    /** Tính lại subtotal/discount/vat/total cho bill lẻ (không thuộc phiên), có thể đổi voucher. */
     private void recomputeWithVoucher(Connection c, int billId, Integer voucherId) throws SQLException {
         BigDecimal subtotal = BigDecimal.ZERO;
         for (BillItem bi : billItemDao.findByBill(c, billId)) subtotal = subtotal.add(bi.getAmount());
