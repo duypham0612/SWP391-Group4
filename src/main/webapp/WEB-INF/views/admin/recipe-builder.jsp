@@ -44,13 +44,23 @@
     </c:when>
     <c:otherwise>
         <table class="table">
-            <thead><tr><th>Nguyên liệu</th><th style="width:120px">Loại</th><th style="width:160px">Định mức</th><th style="width:100px">Xoá</th></tr></thead>
+            <thead><tr><th>Nguyên liệu</th><th style="width:120px">Loại</th><th style="width:230px">Định mức</th><th style="width:90px">Xoá</th></tr></thead>
             <tbody>
                 <c:forEach var="l" items="${lines}">
                     <tr>
                         <td>${l.ingredientName}</td>
                         <td><c:choose><c:when test="${l.ingredientType == 'RAW'}"><span class="badge badge-making">RAW</span></c:when><c:otherwise><span class="badge badge-ready">PREPPED</span></c:otherwise></c:choose></td>
-                        <td>${l.quantity} ${l.ingredientUnit}</td>
+                        <td>
+                            <form action="${ctx}/admin/recipe" method="post" style="display:inline-flex;gap:4px;align-items:center">
+                                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                <input type="hidden" name="action" value="updateLine">
+                                <input type="hidden" name="productId" value="${product.productId}">
+                                <input type="hidden" name="lineId" value="${l.productRecipeId}">
+                                <input type="number" name="quantity" class="form-control" style="width:100px" min="0.001" step="0.001" value="${l.quantity}" required>
+                                <span class="muted">${l.ingredientUnit}</span>
+                                <button type="submit" class="btn btn-ghost btn-sm">Lưu</button>
+                            </form>
+                        </td>
                         <td>
                             <form action="${ctx}/admin/recipe" method="post" style="display:inline" onsubmit="return confirm('Xoá dòng này?');">
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">

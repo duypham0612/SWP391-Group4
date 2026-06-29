@@ -64,6 +64,14 @@ public class RecipeServlet extends HttpServlet {
                     resp.sendRedirect(ctx + "/admin/recipe?productId=" + productId);
                     return;
                 }
+                case "updateLine": {
+                    int productId = Integer.parseInt(req.getParameter("productId"));
+                    BigDecimal qty = decimal(req.getParameter("quantity"));
+                    if (qty.signum() <= 0) { showProductRecipe(req, resp, productId, "Số lượng phải > 0."); return; }
+                    service.updateRecipeLine(Integer.parseInt(req.getParameter("lineId")), qty);
+                    resp.sendRedirect(ctx + "/admin/recipe?productId=" + productId);
+                    return;
+                }
                 case "deleteLine": {
                     int productId = Integer.parseInt(req.getParameter("productId"));
                     service.removeRecipeLine(Integer.parseInt(req.getParameter("lineId")));
