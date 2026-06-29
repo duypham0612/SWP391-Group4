@@ -58,4 +58,12 @@ public class ProductModifierGroupDao {
             ps.executeUpdate();
         }
     }
+
+    public void deleteByGroup(Connection conn, int groupId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM catalog.ProductModifierGroup WHERE ModifierGroupId = ?")) {
+            ps.setInt(1, groupId);
+            ps.executeUpdate();
+        }
+    }
 }

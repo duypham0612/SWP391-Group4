@@ -34,6 +34,17 @@ public class ModifierService {
     }
     public int createModifierGroup(ModifierGroup g) throws SQLException { return tx(c -> groupDao.insert(c, g)); }
     public void updateModifierGroup(ModifierGroup g) throws SQLException { txVoid(c -> groupDao.update(c, g)); }
+    /** Xoá group: dọn dependent (impact→option, link product) trước rồi xoá group — 1 tx. */
+    public void deleteModifierGroup(int groupId) throws SQLException {
+        txVoid(c -> {
+            for (ModifierOption o : optionDao.findByGroup(c, groupId)) {
+                impactDao.deleteByOption(c, o.getModifierOptionId());
+                optionDao.delete(c, o.getModifierOptionId());
+            }
+            pmgDao.deleteByGroup(c, groupId);
+            groupDao.delete(c, groupId);
+        });
+    }
 
     // ----- Option -----
     public List<ModifierOption> getModifierOptions(int groupId) throws SQLException {
@@ -43,6 +54,7 @@ public class ModifierService {
         try (Connection c = DBConnection.getConnection()) { return optionDao.findById(c, id); }
     }
     public void createModifierOption(ModifierOption o) throws SQLException { txVoid(c -> optionDao.insert(c, o)); }
+    public void updateModifierOption(ModifierOption o) throws SQLException { txVoid(c -> optionDao.update(c, o)); }
     public void deleteModifierOption(int optionId) throws SQLException {
         txVoid(c -> { impactDao.deleteByOption(c, optionId); optionDao.delete(c, optionId); });
     }

@@ -25,6 +25,13 @@
                         <td>
                             <a class="btn btn-ghost btn-sm" href="${ctx}/admin/modifier?view=options&groupId=${g.modifierGroupId}">Option</a>
                             <a class="btn btn-ghost btn-sm" href="${ctx}/admin/modifier?view=groupForm&groupId=${g.modifierGroupId}">Sửa</a>
+                            <form action="${ctx}/admin/modifier" method="post" style="display:inline"
+                                  onsubmit="return confirm('Xoá nhóm này? Mọi option + tác động + gán product của nhóm sẽ bị xoá.');">
+                                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                <input type="hidden" name="action" value="deleteGroup">
+                                <input type="hidden" name="groupId" value="${g.modifierGroupId}">
+                                <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--st-cancelled)">Xoá</button>
+                            </form>
                         </td>
                     </tr>
                 </c:forEach>

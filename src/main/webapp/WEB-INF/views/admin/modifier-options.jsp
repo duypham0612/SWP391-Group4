@@ -33,12 +33,22 @@
     </c:when>
     <c:otherwise>
         <table class="table">
-            <thead><tr><th>Option</th><th style="width:160px">Phụ thu</th><th style="width:260px">Thao tác</th></tr></thead>
+            <thead><tr><th>Sửa option (tên · phụ thu · bật)</th><th style="width:320px">Thao tác</th></tr></thead>
             <tbody>
                 <c:forEach var="o" items="${options}">
                     <tr>
-                        <td>${o.name}</td>
-                        <td><fmt:formatNumber value="${o.priceDelta}" maxFractionDigits="0"/> ₫</td>
+                        <td>
+                            <form action="${ctx}/admin/modifier" method="post" style="display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap">
+                                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                <input type="hidden" name="action" value="updateOption">
+                                <input type="hidden" name="groupId" value="${group.modifierGroupId}">
+                                <input type="hidden" name="optionId" value="${o.modifierOptionId}">
+                                <input type="text" name="name" class="form-control" style="width:180px" value="${o.name}" maxlength="80" required>
+                                <input type="number" name="priceDelta" class="form-control" style="width:120px" step="500" value="${o.priceDelta}">
+                                <label style="display:inline-flex;gap:4px;align-items:center;margin:0"><input type="checkbox" name="active" ${o.active ? 'checked' : ''}> bật</label>
+                                <button type="submit" class="btn btn-ghost btn-sm">Lưu</button>
+                            </form>
+                        </td>
                         <td>
                             <a class="btn btn-ghost btn-sm" href="${ctx}/admin/modifier?view=impacts&optionId=${o.modifierOptionId}">Định mức nguyên liệu</a>
                             <form action="${ctx}/admin/modifier" method="post" style="display:inline" onsubmit="return confirm('Xoá option này (và định mức của nó)?');">
@@ -46,7 +56,7 @@
                                 <input type="hidden" name="action" value="deleteOption">
                                 <input type="hidden" name="groupId" value="${group.modifierGroupId}">
                                 <input type="hidden" name="optionId" value="${o.modifierOptionId}">
-                                <button type="submit" class="btn btn-ghost btn-sm">Xoá</button>
+                                <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--st-cancelled)">Xoá</button>
                             </form>
                         </td>
                     </tr>
