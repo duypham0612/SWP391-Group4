@@ -8,6 +8,31 @@
     <a class="btn btn-primary" href="${ctx}/admin/user?action=new">+ Thêm nhân sự</a>
 </div>
 
+<form method="get" action="${ctx}/admin/user" class="card" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;padding:14px;margin-bottom:16px">
+    <div class="form-group" style="margin:0">
+        <label for="fRole">Vai trò</label>
+        <select id="fRole" name="roleId" class="form-control" style="min-width:180px">
+            <option value="">— Tất cả vai trò —</option>
+            <c:forEach var="r" items="${roles}">
+                <option value="${r.roleId}" <c:if test="${fRoleId == r.roleId}">selected</c:if>>${r.name}</option>
+            </c:forEach>
+        </select>
+    </div>
+    <div class="form-group" style="margin:0">
+        <label for="fBranch">Chi nhánh</label>
+        <select id="fBranch" name="branchId" class="form-control" style="min-width:180px">
+            <option value="">— Tất cả chi nhánh —</option>
+            <c:forEach var="b" items="${branches}">
+                <option value="${b.branchId}" <c:if test="${fBranchId == b.branchId}">selected</c:if>>${b.name}</option>
+            </c:forEach>
+        </select>
+    </div>
+    <button type="submit" class="btn btn-ghost">Lọc</button>
+    <c:if test="${not empty fRoleId or not empty fBranchId}">
+        <a class="btn btn-ghost" href="${ctx}/admin/user">Xoá lọc</a>
+    </c:if>
+</form>
+
 <c:choose>
     <c:when test="${empty staffList}">
         <div class="card empty-state"><div class="icon">📭</div><p>Chưa có nhân sự nào.</p></div>

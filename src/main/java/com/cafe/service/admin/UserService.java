@@ -25,6 +25,16 @@ public class UserService {
         try (Connection conn = DBConnection.getConnection()) { return dao.findByBranch(conn, branchId); }
     }
 
+    /** A2 · danh sách nhân sự có lọc theo vai trò/chi nhánh (null = bỏ qua). */
+    public List<User> getUserList(Integer roleId, Integer branchId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) { return dao.findFiltered(conn, roleId, branchId); }
+    }
+
+    /** A2.F6 · danh sách quản lý chi nhánh (cho dropdown gán Manager). */
+    public List<User> getManagers() throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) { return dao.findByRoleCode(conn, "BRANCH_MANAGER"); }
+    }
+
     public User getUser(int id) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) { return dao.findById(conn, id); }
     }

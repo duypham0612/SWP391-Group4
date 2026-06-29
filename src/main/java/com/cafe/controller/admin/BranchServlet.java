@@ -3,6 +3,10 @@ package com.cafe.controller.admin;
 import com.cafe.common.CsrfUtil;
 import com.cafe.model.Branch;
 import com.cafe.service.admin.BranchService;
+import com.cafe.service.admin.UserService;
+
+import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -16,6 +20,7 @@ import java.io.IOException;
 public class BranchServlet extends HttpServlet {
 
     private final BranchService service = new BranchService();
+    private final UserService userService = new UserService();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -72,17 +77,31 @@ public class BranchServlet extends HttpServlet {
         b.setAddress(trim(req.getParameter("address")));
         b.setPhone(trim(req.getParameter("phone")));
         b.setActive(req.getParameter("active") != null);
+        b.setOpenTime(parseTime(req.getParameter("openTime")));
+        b.setCloseTime(parseTime(req.getParameter("closeTime")));
+        String mgr = req.getParameter("managerUserId");
+        b.setManagerUserId(mgr == null || mgr.isBlank() ? null : Integer.parseInt(mgr));
         return b;
+    }
+
+    /** input type=time ("HH:mm") → LocalTime; rỗng = null. */
+    private LocalTime parseTime(String s) {
+        if (s == null || s.isBlank()) return null;
+        try { return LocalTime.parse(s); } catch (DateTimeParseException e) { return null; }
     }
 
     private String validate(Branch b) {
         if (b.getCode() == null || b.getCode().isBlank()) return "Mã chi nhánh không được để trống.";
         if (b.getName() == null || b.getName().isBlank()) return "Tên chi nhánh không được để trống.";
+        if ((b.getOpenTime() == null) != (b.getCloseTime() == null))
+            return "Giờ mở/đóng phải nhập cả hai hoặc để trống cả hai.";
         return null;
     }
 
     private void forwardForm(HttpServletRequest req, HttpServletResponse resp, String title)
             throws ServletException, IOException {
+        try { req.setAttribute("managers", userService.getManagers()); }
+        catch (Exception e) { throw new ServletException(e); }
         req.setAttribute("pageTitle", title);
         req.getRequestDispatcher("/WEB-INF/views/admin/branch-form.jsp").forward(req, resp);
     }

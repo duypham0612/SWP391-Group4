@@ -37,7 +37,13 @@ public class UserServlet extends HttpServlet {
                 req.setAttribute("staff", u);
                 forwardForm(req, resp, "Sửa nhân sự");
             } else {
-                req.setAttribute("staffList", service.getUserList());
+                Integer roleId = parseFilter(req.getParameter("roleId"));
+                Integer branchId = parseFilter(req.getParameter("branchId"));
+                req.setAttribute("staffList", service.getUserList(roleId, branchId));
+                req.setAttribute("roles", roleService.getRoleList());
+                req.setAttribute("branches", branchService.getBranchList());
+                req.setAttribute("fRoleId", roleId);
+                req.setAttribute("fBranchId", branchId);
                 req.setAttribute("pageTitle", "Nhân sự");
                 req.getRequestDispatcher("/WEB-INF/views/admin/user-list.jsp").forward(req, resp);
             }
@@ -118,4 +124,11 @@ public class UserServlet extends HttpServlet {
     }
 
     private String trim(String s) { return s == null ? null : s.trim(); }
+
+    /** Param lọc → Integer; rỗng/"0"/không phải số = null (bỏ lọc). */
+    private Integer parseFilter(String s) {
+        if (s == null || s.isBlank()) return null;
+        try { int v = Integer.parseInt(s.trim()); return v <= 0 ? null : v; }
+        catch (NumberFormatException e) { return null; }
+    }
 }
