@@ -39,6 +39,15 @@ public class RecipeService {
         }
     }
 
+    public void updateRecipeLine(int lineId, BigDecimal qty) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try { productRecipeDao.update(conn, lineId, qty); conn.commit(); }
+            catch (SQLException e) { conn.rollback(); throw e; }
+            finally { conn.setAutoCommit(true); }
+        }
+    }
+
     public void removeRecipeLine(int lineId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);

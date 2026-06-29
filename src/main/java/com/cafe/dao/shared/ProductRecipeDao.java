@@ -2,6 +2,7 @@ package com.cafe.dao.shared;
 
 import com.cafe.model.ProductRecipe;
 
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -43,6 +44,14 @@ public class ProductRecipeDao {
             ps.setInt(1, r.getProductId());
             ps.setInt(2, r.getIngredientId());
             ps.setBigDecimal(3, r.getQuantity());
+            ps.executeUpdate();
+        }
+    }
+
+    public void update(Connection conn, int productRecipeId, BigDecimal quantity) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("UPDATE catalog.ProductRecipe SET Quantity=? WHERE ProductRecipeId=?")) {
+            ps.setBigDecimal(1, quantity);
+            ps.setInt(2, productRecipeId);
             ps.executeUpdate();
         }
     }
