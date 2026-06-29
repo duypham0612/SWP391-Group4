@@ -77,7 +77,13 @@ public class CheckoutServlet extends HttpServlet {
                 boolean ok = billingService.payBill(billId, req.getParameter("method"));
                 if (!ok) req.getSession().setAttribute("flashError", "Hoá đơn đã được thanh toán hoặc đã huỷ.");
             } else if ("void".equals(action)) {
-                billingService.voidBill(Integer.parseInt(req.getParameter("billId")));
+                String reason = req.getParameter("reason");
+                if (reason == null || reason.isBlank()) {
+                    req.getSession().setAttribute("flashError", "Phải nhập lý do khi huỷ hoá đơn.");
+                } else {
+                    Integer uid = u != null ? u.getUserId() : null;
+                    billingService.voidBill(Integer.parseInt(req.getParameter("billId")), reason.trim(), uid);
+                }
             }
             resp.sendRedirect(back);
         } catch (Exception e) { throw new ServletException(e); }

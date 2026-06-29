@@ -4,10 +4,18 @@
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <jsp:include page="../layout/header.jsp" />
 
+<style media="print">
+    .sidebar, .topbar, .page-header a, .no-print { display:none !important; }
+    .app-main { margin:0 !important; } .app-content { padding:0 !important; }
+</style>
+
 <div class="page-header">
     <div><div class="eyebrow">Hoá đơn #${bill.billId}</div><h1>Chi tiết hoá đơn</h1>
         <p><c:if test="${not empty bill.tableNumber}">${bill.tableNumber} · </c:if>${bill.paidAt != null ? bill.paidAt : bill.createdAt}</p></div>
-    <a class="btn btn-ghost" href="${ctx}/cashier/history">← Lịch sử</a>
+    <span>
+        <button type="button" class="btn btn-ghost no-print" onclick="window.print()">In / Tái in</button>
+        <a class="btn btn-ghost" href="${ctx}/cashier/history">← Lịch sử</a>
+    </span>
 </div>
 
 <div class="card" style="max-width:520px">
@@ -33,11 +41,16 @@
         </c:choose>
     </p>
     <c:if test="${bill.status == 'UNPAID'}">
-        <form action="${ctx}/cashier/history" method="post" onsubmit="return confirm('Huỷ hoá đơn này?');">
+        <form action="${ctx}/cashier/history" method="post" class="no-print" style="margin-top:10px;display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap"
+              onsubmit="return confirm('Huỷ hoá đơn này?');">
             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
             <input type="hidden" name="action" value="void">
             <input type="hidden" name="billId" value="${bill.billId}">
-            <button type="submit" class="btn btn-ghost btn-sm">Huỷ hoá đơn</button>
+            <div class="form-group" style="margin:0;flex:1;min-width:200px">
+                <label>Lý do huỷ/hoàn (bắt buộc)</label>
+                <input type="text" name="reason" class="form-control" maxlength="255" required placeholder="VD: khách đổi món, nhập sai...">
+            </div>
+            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--st-cancelled)">Huỷ hoá đơn</button>
         </form>
     </c:if>
 </div>
