@@ -92,6 +92,33 @@ public class UserDao {
         return out;
     }
 
+    /** A2 · lọc theo vai trò và/hoặc chi nhánh (null = bỏ qua tiêu chí đó). */
+    public List<User> findFiltered(Connection conn, Integer roleId, Integer branchId) throws SQLException {
+        StringBuilder sql = new StringBuilder(BASE_SELECT + "WHERE 1=1");
+        if (roleId != null) sql.append(" AND u.RoleId = ?");
+        if (branchId != null) sql.append(" AND u.BranchId = ?");
+        sql.append(" ORDER BY r.RoleId, u.Username");
+        List<User> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
+            int i = 1;
+            if (roleId != null) ps.setInt(i++, roleId);
+            if (branchId != null) ps.setInt(i++, branchId);
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
+        }
+        return out;
+    }
+
+    /** A2.F6 · danh sách user theo mã vai trò (vd BRANCH_MANAGER cho dropdown gán quản lý). */
+    public List<User> findByRoleCode(Connection conn, String roleCode) throws SQLException {
+        final String sql = BASE_SELECT + "WHERE r.Code = ? AND u.Status = 'ACTIVE' ORDER BY u.FullName";
+        List<User> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, roleCode);
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
+        }
+        return out;
+    }
+
     public User findById(Connection conn, int id) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(BASE_SELECT + "WHERE u.UserId = ?")) {
             ps.setInt(1, id);

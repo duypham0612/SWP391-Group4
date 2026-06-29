@@ -13,11 +13,13 @@ import java.util.List;
 public class BranchDao {
 
     private static final String SELECT =
-        "SELECT BranchId, Code, Name, Address, Phone, IsActive FROM org.Branch ";
+        "SELECT b.BranchId, b.Code, b.Name, b.Address, b.Phone, b.IsActive, " +
+        "       b.OpenTime, b.CloseTime, b.ManagerUserId, u.FullName AS ManagerName " +
+        "FROM org.Branch b LEFT JOIN iam.[User] u ON u.UserId = b.ManagerUserId ";
 
     public List<Branch> findAll(Connection conn) throws SQLException {
         List<Branch> out = new ArrayList<>();
-        try (PreparedStatement ps = conn.prepareStatement(SELECT + "ORDER BY Code");
+        try (PreparedStatement ps = conn.prepareStatement(SELECT + "ORDER BY b.Code");
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) out.add(map(rs));
         }
@@ -26,7 +28,7 @@ public class BranchDao {
 
     public List<Branch> findAllActive(Connection conn) throws SQLException {
         List<Branch> out = new ArrayList<>();
-        try (PreparedStatement ps = conn.prepareStatement(SELECT + "WHERE IsActive = 1 ORDER BY Code");
+        try (PreparedStatement ps = conn.prepareStatement(SELECT + "WHERE b.IsActive = 1 ORDER BY b.Code");
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) out.add(map(rs));
         }
@@ -34,7 +36,7 @@ public class BranchDao {
     }
 
     public Branch findById(Connection conn, int id) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(SELECT + "WHERE BranchId = ?")) {
+        try (PreparedStatement ps = conn.prepareStatement(SELECT + "WHERE b.BranchId = ?")) {
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? map(rs) : null;
@@ -43,13 +45,17 @@ public class BranchDao {
     }
 
     public int insert(Connection conn, Branch b) throws SQLException {
-        final String sql = "INSERT INTO org.Branch(Code, Name, Address, Phone, IsActive) VALUES (?,?,?,?,?)";
+        final String sql = "INSERT INTO org.Branch(Code, Name, Address, Phone, OpenTime, CloseTime, ManagerUserId, IsActive) " +
+                "VALUES (?,?,?,?,?,?,?,?)";
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, b.getCode());
             ps.setString(2, b.getName());
             ps.setString(3, b.getAddress());
             ps.setString(4, b.getPhone());
-            ps.setBoolean(5, b.isActive());
+            setTime(ps, 5, b.getOpenTime());
+            setTime(ps, 6, b.getCloseTime());
+            setInt(ps, 7, b.getManagerUserId());
+            ps.setBoolean(8, b.isActive());
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 return keys.next() ? keys.getInt(1) : 0;
@@ -58,16 +64,28 @@ public class BranchDao {
     }
 
     public void update(Connection conn, Branch b) throws SQLException {
-        final String sql = "UPDATE org.Branch SET Code=?, Name=?, Address=?, Phone=?, IsActive=? WHERE BranchId=?";
+        final String sql = "UPDATE org.Branch SET Code=?, Name=?, Address=?, Phone=?, " +
+                "OpenTime=?, CloseTime=?, ManagerUserId=?, IsActive=? WHERE BranchId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, b.getCode());
             ps.setString(2, b.getName());
             ps.setString(3, b.getAddress());
             ps.setString(4, b.getPhone());
-            ps.setBoolean(5, b.isActive());
-            ps.setInt(6, b.getBranchId());
+            setTime(ps, 5, b.getOpenTime());
+            setTime(ps, 6, b.getCloseTime());
+            setInt(ps, 7, b.getManagerUserId());
+            ps.setBoolean(8, b.isActive());
+            ps.setInt(9, b.getBranchId());
             ps.executeUpdate();
         }
+    }
+
+    private static void setTime(PreparedStatement ps, int idx, java.time.LocalTime t) throws SQLException {
+        if (t == null) ps.setNull(idx, java.sql.Types.TIME); else ps.setTime(idx, java.sql.Time.valueOf(t));
+    }
+
+    private static void setInt(PreparedStatement ps, int idx, Integer v) throws SQLException {
+        if (v == null) ps.setNull(idx, java.sql.Types.INTEGER); else ps.setInt(idx, v);
     }
 
     public void updateActive(Connection conn, int id, boolean active) throws SQLException {
@@ -94,6 +112,13 @@ public class BranchDao {
         b.setAddress(rs.getString("Address"));
         b.setPhone(rs.getString("Phone"));
         b.setActive(rs.getBoolean("IsActive"));
+        java.sql.Time ot = rs.getTime("OpenTime");
+        java.sql.Time ct = rs.getTime("CloseTime");
+        if (ot != null) b.setOpenTime(ot.toLocalTime());
+        if (ct != null) b.setCloseTime(ct.toLocalTime());
+        int mgr = rs.getInt("ManagerUserId");
+        if (!rs.wasNull()) b.setManagerUserId(mgr);
+        b.setManagerName(rs.getString("ManagerName"));
         return b;
     }
 }

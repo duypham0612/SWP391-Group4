@@ -16,7 +16,8 @@
         <table class="table">
             <thead><tr>
                 <th style="width:60px">#</th><th style="width:100px">Mã</th><th>Tên</th><th>Địa chỉ</th>
-                <th style="width:130px">SĐT</th><th style="width:110px">Trạng thái</th><th style="width:170px">Thao tác</th>
+                <th style="width:120px">Giờ mở cửa</th><th>Quản lý</th>
+                <th style="width:110px">Trạng thái</th><th style="width:170px">Thao tác</th>
             </tr></thead>
             <tbody>
                 <c:forEach var="b" items="${branches}">
@@ -25,7 +26,8 @@
                         <td>${b.code}</td>
                         <td>${b.name}</td>
                         <td>${b.address}</td>
-                        <td>${b.phone}</td>
+                        <td><c:choose><c:when test="${not empty b.hoursText}">${b.hoursText}</c:when><c:otherwise><span class="muted">—</span></c:otherwise></c:choose></td>
+                        <td><c:choose><c:when test="${not empty b.managerName}">${b.managerName}</c:when><c:otherwise><span class="muted">(chưa gán)</span></c:otherwise></c:choose></td>
                         <td><c:choose><c:when test="${b.active}"><span class="badge badge-ready">Hoạt động</span></c:when><c:otherwise><span class="badge badge-cancelled">Ngừng</span></c:otherwise></c:choose></td>
                         <td>
                             <a class="btn btn-ghost btn-sm" href="${ctx}/admin/branch?action=edit&id=${b.branchId}">Sửa</a>

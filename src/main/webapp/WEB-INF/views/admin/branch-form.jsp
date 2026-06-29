@@ -32,6 +32,25 @@
             <label for="phone">Số điện thoại</label>
             <input id="phone" type="text" name="phone" class="form-control" maxlength="20" value="${branch.phone}">
         </div>
+        <div class="form-row" style="display:flex;gap:16px">
+            <div class="form-group" style="flex:1">
+                <label for="openTime">Giờ mở cửa</label>
+                <input id="openTime" type="time" name="openTime" class="form-control" value="${branch.openTime}">
+            </div>
+            <div class="form-group" style="flex:1">
+                <label for="closeTime">Giờ đóng cửa</label>
+                <input id="closeTime" type="time" name="closeTime" class="form-control" value="${branch.closeTime}">
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="managerUserId">Quản lý phụ trách</label>
+            <select id="managerUserId" name="managerUserId" class="form-control">
+                <option value="">— Chưa gán —</option>
+                <c:forEach var="m" items="${managers}">
+                    <option value="${m.userId}" <c:if test="${branch.managerUserId == m.userId}">selected</c:if>>${m.fullName} (${m.username})</option>
+                </c:forEach>
+            </select>
+        </div>
         <div class="form-group">
             <label><input type="checkbox" name="active" value="1" <c:if test="${branch.active or branch.branchId == 0}">checked</c:if>> Đang hoạt động</label>
         </div>
