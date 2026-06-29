@@ -187,6 +187,50 @@ public class InventoryService {
         }
     }
 
+    /**
+     * Sửa dòng hao hụt (Contract #4) — áp TXN cho phần chênh lệch số lượng (delta = new − old).
+     * delta>0: trừ thêm; delta<0: hoàn lại. Cập nhật WasteLog. Own tx.
+     */
+    public void updateWaste(int branchId, int wasteLogId, BigDecimal newQty, String wasteType, String reason, int userId) throws SQLException {
+        if (newQty == null || newQty.signum() <= 0) throw new IllegalArgumentException("Số lượng phải > 0");
+        try (Connection conn = DBConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                com.cafe.model.WasteLog w = wasteLogDao.findById(conn, wasteLogId);
+                if (w == null || w.getBranchId() != branchId) throw new SQLException("Bản ghi hao hụt không tồn tại ở chi nhánh này.");
+                if (!w.isActive()) throw new SQLException("Bản ghi đã huỷ — không sửa được.");
+                BigDecimal delta = newQty.subtract(w.getQuantity());
+                if (delta.signum() != 0) {
+                    applyTxn(conn, branchId, w.getIngredientId(), delta.negate(),  // delta>0 trừ thêm tồn
+                            TxnType.WASTE, "WasteLog", (long) wasteLogId, userId);
+                }
+                wasteLogDao.update(conn, wasteLogId, newQty, wasteType, reason);
+                conn.commit();
+            } catch (SQLException e) { conn.rollback(); throw e; }
+            finally { conn.setAutoCommit(true); }
+        }
+    }
+
+    /**
+     * Huỷ dòng hao hụt (Contract #4) — HOÀN KHO BẰNG TXN BÙ (+qty WASTE), đánh dấu VOIDED.
+     * KHÔNG hard-delete, KHÔNG UPDATE thẳng tồn. Own tx.
+     */
+    public void voidWaste(int branchId, int wasteLogId, int userId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                com.cafe.model.WasteLog w = wasteLogDao.findById(conn, wasteLogId);
+                if (w == null || w.getBranchId() != branchId) throw new SQLException("Bản ghi hao hụt không tồn tại ở chi nhánh này.");
+                if (!w.isActive()) { conn.rollback(); return; }   // idempotent
+                applyTxn(conn, branchId, w.getIngredientId(), w.getQuantity(),  // hoàn lại tồn (+)
+                        TxnType.WASTE, "WasteLog", (long) wasteLogId, userId);
+                wasteLogDao.updateStatus(conn, wasteLogId, "VOIDED");
+                conn.commit();
+            } catch (SQLException e) { conn.rollback(); throw e; }
+            finally { conn.setAutoCommit(true); }
+        }
+    }
+
     public List<com.cafe.model.PrepBatch> getPrepBatches(int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) { return prepBatchDao.findByBranch(conn, branchId); }
     }

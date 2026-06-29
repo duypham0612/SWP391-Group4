@@ -26,4 +26,14 @@ public class WasteService {
     public int logWaste(int branchId, int ingredientId, BigDecimal qty, String wasteType, String reason, int userId) throws SQLException {
         return inventoryService.logWaste(branchId, ingredientId, qty, wasteType, reason, userId);
     }
+
+    /** Sửa dòng hao hụt — áp txn cho phần chênh lệch. */
+    public void updateWaste(int branchId, int wasteLogId, BigDecimal newQty, String wasteType, String reason, int userId) throws SQLException {
+        inventoryService.updateWaste(branchId, wasteLogId, newQty, wasteType, reason, userId);
+    }
+
+    /** Huỷ dòng hao hụt — hoàn kho qua txn bù (không hard-delete). */
+    public void voidWaste(int branchId, int wasteLogId, int userId) throws SQLException {
+        inventoryService.voidWaste(branchId, wasteLogId, userId);
+    }
 }

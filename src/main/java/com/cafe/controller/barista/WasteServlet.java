@@ -39,14 +39,30 @@ public class WasteServlet extends HttpServlet {
         int branchId = InventoryDashboardServlet.branchId(req);
         User u = SessionUtil.currentUser(req);
         int userId = u != null ? u.getUserId() : 0;
+        String action = req.getParameter("action");
         try {
-            if ("create".equals(req.getParameter("action"))) {
+            if ("create".equals(action)) {
                 int ingredientId = Integer.parseInt(req.getParameter("ingredientId"));
                 BigDecimal qty = new BigDecimal(req.getParameter("quantity").trim());
                 String wasteType = req.getParameter("wasteType");
                 String reason = req.getParameter("reason");
                 if (qty.signum() > 0) service.logWaste(branchId, ingredientId, qty, wasteType, reason, userId);
                 else req.getSession().setAttribute("flashError", "Số lượng phải > 0.");
+            } else if ("update".equals(action)) {
+                int wasteLogId = Integer.parseInt(req.getParameter("wasteLogId"));
+                BigDecimal qty = new BigDecimal(req.getParameter("quantity").trim());
+                String wasteType = req.getParameter("wasteType");
+                String reason = req.getParameter("reason");
+                if (qty.signum() > 0) {
+                    service.updateWaste(branchId, wasteLogId, qty, wasteType, reason, userId);
+                    req.getSession().setAttribute("flashOk", "Đã sửa — chênh lệch ghi vào sổ cái.");
+                } else {
+                    req.getSession().setAttribute("flashError", "Số lượng phải > 0.");
+                }
+            } else if ("void".equals(action)) {
+                int wasteLogId = Integer.parseInt(req.getParameter("wasteLogId"));
+                service.voidWaste(branchId, wasteLogId, userId);
+                req.getSession().setAttribute("flashOk", "Đã huỷ — tồn kho hoàn lại qua sổ cái (txn bù).");
             }
             resp.sendRedirect(req.getContextPath() + "/barista/waste");
         } catch (NumberFormatException e) {
