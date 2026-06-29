@@ -8,24 +8,20 @@
 USE CafeChain;
 GO
 
--- S1 · PrepBatch.Status + VoidedAt
+-- S1 · PrepBatch.Status + VoidedAt  (CHECK inline trong cùng câu ADD — tránh "Invalid column name" do compile cả batch)
 IF COL_LENGTH('inventory.PrepBatch','Status') IS NULL
-BEGIN
     ALTER TABLE inventory.PrepBatch ADD
-        Status   VARCHAR(10) NOT NULL CONSTRAINT DF_PrepBatch_Status DEFAULT 'ACTIVE',
+        Status   VARCHAR(10) NOT NULL CONSTRAINT DF_PrepBatch_Status DEFAULT 'ACTIVE'
+                 CONSTRAINT CK_PrepBatch_Status CHECK (Status IN ('ACTIVE','CANCELLED')),
         VoidedAt DATETIME2 NULL;
-    ALTER TABLE inventory.PrepBatch ADD CONSTRAINT CK_PrepBatch_Status CHECK (Status IN ('ACTIVE','CANCELLED'));
-END
 GO
 
 -- S2 · WasteLog.Status + VoidedAt
 IF COL_LENGTH('inventory.WasteLog','Status') IS NULL
-BEGIN
     ALTER TABLE inventory.WasteLog ADD
-        Status   VARCHAR(10) NOT NULL CONSTRAINT DF_WasteLog_Status DEFAULT 'ACTIVE',
+        Status   VARCHAR(10) NOT NULL CONSTRAINT DF_WasteLog_Status DEFAULT 'ACTIVE'
+                 CONSTRAINT CK_WasteLog_Status CHECK (Status IN ('ACTIVE','VOIDED')),
         VoidedAt DATETIME2 NULL;
-    ALTER TABLE inventory.WasteLog ADD CONSTRAINT CK_WasteLog_Status CHECK (Status IN ('ACTIVE','VOIDED'));
-END
 GO
 
 -- S3 · hr.ShiftHandover
