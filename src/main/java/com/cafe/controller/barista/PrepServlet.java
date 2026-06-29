@@ -39,12 +39,26 @@ public class PrepServlet extends HttpServlet {
         int branchId = InventoryDashboardServlet.branchId(req);
         User u = SessionUtil.currentUser(req);
         int userId = u != null ? u.getUserId() : 0;
+        String action = req.getParameter("action");
         try {
-            if ("createBatch".equals(req.getParameter("action"))) {
+            if ("createBatch".equals(action)) {
                 int preppedId = Integer.parseInt(req.getParameter("preppedIngredientId"));
                 BigDecimal qty = new BigDecimal(req.getParameter("quantityProduced").trim());
                 if (qty.signum() > 0) service.createBatch(branchId, preppedId, qty, userId);
                 else req.getSession().setAttribute("flashError", "Sản lượng phải > 0.");
+            } else if ("cancelBatch".equals(action)) {
+                int batchId = Integer.parseInt(req.getParameter("prepBatchId"));
+                service.cancelBatch(branchId, batchId, userId);
+                req.getSession().setAttribute("flashOk", "Đã huỷ mẻ — tồn kho hoàn lại qua sổ cái (txn bù).");
+            } else if ("updateBatch".equals(action)) {
+                int batchId = Integer.parseInt(req.getParameter("prepBatchId"));
+                BigDecimal qty = new BigDecimal(req.getParameter("quantityProduced").trim());
+                if (qty.signum() > 0) {
+                    service.updateBatch(branchId, batchId, qty, userId);
+                    req.getSession().setAttribute("flashOk", "Đã cập nhật sản lượng — chênh lệch ghi vào sổ cái.");
+                } else {
+                    req.getSession().setAttribute("flashError", "Sản lượng phải > 0.");
+                }
             }
             resp.sendRedirect(req.getContextPath() + "/barista/prep");
         } catch (NumberFormatException e) {
