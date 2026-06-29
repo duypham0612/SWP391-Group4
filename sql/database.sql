@@ -514,6 +514,7 @@ CREATE TABLE sales.OrderItem (
     Note        NVARCHAR(255) NULL,
     Status      VARCHAR(10) NOT NULL DEFAULT 'WAITING'
                 CONSTRAINT CK_Item_Status CHECK (Status IN ('WAITING','MAKING','READY','SERVED','CANCELLED')),
+    Priority    INT NOT NULL DEFAULT 0,          -- KDS bump: đẩy đơn quá giờ lên đầu (cao = ưu tiên)
     StartedAt   DATETIME2 NULL,                  -- để tính lead time
     DoneAt      DATETIME2 NULL,
     CONSTRAINT FK_OI_Order   FOREIGN KEY (OrderId)   REFERENCES sales.Orders(OrderId) ON DELETE CASCADE,

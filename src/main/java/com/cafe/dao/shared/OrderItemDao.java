@@ -58,7 +58,7 @@ public class OrderItemDao {
         List<OrderItem> out = new ArrayList<>();
         final String sql = SELECT +
             "WHERE o.BranchId=? AND o.Status='ACTIVE' AND oi.Status IN ('WAITING','MAKING') " +
-            "ORDER BY CASE oi.Status WHEN 'MAKING' THEN 0 ELSE 1 END, oi.OrderItemId";
+            "ORDER BY oi.Priority DESC, CASE oi.Status WHEN 'MAKING' THEN 0 ELSE 1 END, oi.OrderItemId";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, branchId);
             try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
@@ -114,6 +114,15 @@ public class OrderItemDao {
             }
         }
         return new long[]{ -1L, 0L };
+    }
+
+    /** Bump (B1): đẩy món lên đầu hàng chờ — đặt Priority = max hiện tại + 1. */
+    public void bump(Connection conn, int orderItemId) throws SQLException {
+        final String sql = "UPDATE sales.OrderItem SET Priority = (SELECT ISNULL(MAX(Priority),0) FROM sales.OrderItem) + 1 WHERE OrderItemId=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, orderItemId);
+            ps.executeUpdate();
+        }
     }
 
     /** Đổi trạng thái + đóng dấu thời gian theo trạng thái mới. */

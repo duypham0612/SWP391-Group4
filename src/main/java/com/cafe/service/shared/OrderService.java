@@ -158,6 +158,11 @@ public class OrderService {
         });
     }
 
+    /** B1 · Bump — đẩy món quá giờ lên đầu hàng chờ KDS. */
+    public void bumpItem(int orderItemId) throws SQLException {
+        txVoid(conn -> itemDao.bump(conn, orderItemId));
+    }
+
     /** READY → SERVED. */
     public void markItemServed(int orderItemId, Integer userId) throws SQLException {
         txVoid(conn -> {

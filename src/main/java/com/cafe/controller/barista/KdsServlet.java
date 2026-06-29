@@ -43,6 +43,8 @@ public class KdsServlet extends HttpServlet {
                 service.startItem(itemId, userId);
             } else if ("markReady".equals(action)) {
                 service.markReady(itemId, userId);
+            } else if ("bump".equals(action)) {
+                service.bump(itemId);
             }
             resp.sendRedirect(req.getContextPath() + "/barista/kds");
         } catch (Exception e) { throw new ServletException(e); }

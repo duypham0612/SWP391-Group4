@@ -35,6 +35,12 @@
                     </c:if>
                     <c:if test="${not empty it.note}"><div class="muted" style="font-style:italic">“${it.note}”</div></c:if>
                     <div style="display:flex;gap:8px;margin-top:6px">
+                        <form action="${ctx}/barista/kds" method="post" title="Đẩy lên đầu hàng chờ">
+                            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                            <input type="hidden" name="action" value="bump">
+                            <input type="hidden" name="orderItemId" value="${it.orderItemId}">
+                            <button type="submit" class="btn btn-ghost btn-sm" title="Ưu tiên">↑</button>
+                        </form>
                         <c:if test="${it.status == 'WAITING'}">
                             <form action="${ctx}/barista/kds" method="post" style="flex:1">
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
