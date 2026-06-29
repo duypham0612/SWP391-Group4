@@ -16,7 +16,7 @@ public class BranchMenuDao {
     public List<BranchMenuItem> listForBranch(Connection conn, int branchId) throws SQLException {
         final String sql =
             "SELECT p.ProductId, p.Name, p.BasePrice, " +
-            "       bm.IsAvailable, bm.LocalPrice, bm.Is86, " +
+            "       bm.IsAvailable, bm.LocalPrice, bm.Is86, bm.BackInEta, " +
             "       CASE WHEN bm.ProductId IS NULL THEN 0 ELSE 1 END AS Published " +
             "FROM catalog.Product p " +
             "LEFT JOIN catalog.BranchMenu bm ON bm.ProductId = p.ProductId AND bm.BranchId = ? " +
@@ -37,6 +37,8 @@ public class BranchMenuDao {
                         m.setAvailable(rs.getBoolean("IsAvailable"));
                         m.setLocalPrice(rs.getBigDecimal("LocalPrice"));
                         m.setIs86(rs.getBoolean("Is86"));
+                        java.sql.Timestamp eta = rs.getTimestamp("BackInEta");
+                        if (eta != null) m.setBackInEta(eta.toLocalDateTime());
                     }
                     out.add(m);
                 }
@@ -79,13 +81,17 @@ public class BranchMenuDao {
         }
     }
 
-    /** Chỉ đổi cờ 86 (+ ETA quay lại) — Barista toggle, giữ nguyên giá/available. */
-    public void updateIs86(Connection conn, int branchId, int productId, boolean is86) throws SQLException {
-        final String sql = "UPDATE catalog.BranchMenu SET Is86=?, BackInEta=NULL WHERE BranchId=? AND ProductId=?";
+    /** Chỉ đổi cờ 86 (+ ETA quay lại) — Barista toggle, giữ nguyên giá/available.
+     *  Mở bán lại (is86=false) luôn xoá ETA; báo hết (is86=true) ghi ETA nếu có. */
+    public void updateIs86(Connection conn, int branchId, int productId, boolean is86,
+                           java.sql.Timestamp backInEta) throws SQLException {
+        final String sql = "UPDATE catalog.BranchMenu SET Is86=?, BackInEta=? WHERE BranchId=? AND ProductId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setBoolean(1, is86);
-            ps.setInt(2, branchId);
-            ps.setInt(3, productId);
+            if (!is86 || backInEta == null) ps.setNull(2, Types.TIMESTAMP);
+            else ps.setTimestamp(2, backInEta);
+            ps.setInt(3, branchId);
+            ps.setInt(4, productId);
             ps.executeUpdate();
         }
     }

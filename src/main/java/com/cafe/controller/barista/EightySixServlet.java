@@ -37,7 +37,13 @@ public class EightySixServlet extends HttpServlet {
             if ("toggle86".equals(req.getParameter("action"))) {
                 int productId = Integer.parseInt(req.getParameter("productId"));
                 boolean is86 = "true".equals(req.getParameter("is86"));
-                service.set86(branchId, productId, is86);
+                java.time.LocalDateTime eta = null;
+                String etaStr = req.getParameter("backInEta");
+                if (is86 && etaStr != null && !etaStr.isBlank()) {
+                    try { eta = java.time.LocalDateTime.parse(etaStr); }
+                    catch (java.time.format.DateTimeParseException ignore) { /* bỏ qua ETA sai định dạng */ }
+                }
+                service.set86(branchId, productId, is86, eta);
             }
             resp.sendRedirect(req.getContextPath() + "/barista/eightysix");
         } catch (Exception e) { throw new ServletException(e); }
