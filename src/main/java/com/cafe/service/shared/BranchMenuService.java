@@ -28,9 +28,15 @@ public class BranchMenuService {
 
     /** B3 · 86 board (Barista) — bật/tắt hết món; khoá món khỏi POS + QR menu. */
     public void set86(int branchId, int productId, boolean is86) throws SQLException {
+        set86(branchId, productId, is86, null);
+    }
+
+    /** B3.F3 · 86 kèm ETA dự kiến có lại (NULL = chưa rõ); mở bán lại tự xoá ETA. */
+    public void set86(int branchId, int productId, boolean is86, java.time.LocalDateTime backInEta) throws SQLException {
+        java.sql.Timestamp ts = backInEta == null ? null : java.sql.Timestamp.valueOf(backInEta);
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
-            try { dao.updateIs86(conn, branchId, productId, is86); conn.commit(); }
+            try { dao.updateIs86(conn, branchId, productId, is86, ts); conn.commit(); }
             catch (SQLException e) { conn.rollback(); throw e; }
             finally { conn.setAutoCommit(true); }
         }

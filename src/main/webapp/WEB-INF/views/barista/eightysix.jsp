@@ -21,20 +21,37 @@
                             <td>${m.productName}</td>
                             <td>
                                 <c:choose>
-                                    <c:when test="${m.is86}"><span class="badge badge-cancelled">86 — Hết</span></c:when>
+                                    <c:when test="${m.is86}">
+                                        <span class="badge badge-cancelled">86 — Hết</span>
+                                        <c:if test="${not empty m.backInEtaText}">
+                                            <div class="muted" style="font-size:.82em;margin-top:4px">Có lại: ${m.backInEtaText}</div>
+                                        </c:if>
+                                    </c:when>
                                     <c:otherwise><span class="badge badge-ready">Còn bán</span></c:otherwise>
                                 </c:choose>
                             </td>
                             <td>
-                                <form action="${ctx}/barista/eightysix" method="post">
-                                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                                    <input type="hidden" name="action" value="toggle86">
-                                    <input type="hidden" name="productId" value="${m.productId}">
-                                    <input type="hidden" name="is86" value="${m.is86 ? 'false' : 'true'}">
-                                    <button type="submit" class="btn btn-sm ${m.is86 ? 'btn-primary' : 'btn-ghost'}">
-                                        ${m.is86 ? 'Mở bán lại' : 'Báo hết (86)'}
-                                    </button>
-                                </form>
+                                <c:choose>
+                                    <c:when test="${m.is86}">
+                                        <form action="${ctx}/barista/eightysix" method="post">
+                                            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                            <input type="hidden" name="action" value="toggle86">
+                                            <input type="hidden" name="productId" value="${m.productId}">
+                                            <input type="hidden" name="is86" value="false">
+                                            <button type="submit" class="btn btn-sm btn-primary">Mở bán lại</button>
+                                        </form>
+                                    </c:when>
+                                    <c:otherwise>
+                                        <form action="${ctx}/barista/eightysix" method="post" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0">
+                                            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                            <input type="hidden" name="action" value="toggle86">
+                                            <input type="hidden" name="productId" value="${m.productId}">
+                                            <input type="hidden" name="is86" value="true">
+                                            <input type="datetime-local" name="backInEta" class="form-control" style="width:185px" title="Dự kiến có lại (tuỳ chọn)">
+                                            <button type="submit" class="btn btn-sm btn-ghost">Báo hết (86)</button>
+                                        </form>
+                                    </c:otherwise>
+                                </c:choose>
                             </td>
                         </tr>
                     </c:if>

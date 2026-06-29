@@ -1,6 +1,7 @@
 package com.cafe.model;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 /** Dòng menu theo chi nhánh = Product + trạng thái BranchMenu (có thể chưa publish). */
 public class BranchMenuItem {
@@ -12,6 +13,7 @@ public class BranchMenuItem {
     private boolean available = true;
     private BigDecimal localPrice;    // NULL = dùng BasePrice
     private boolean is86;
+    private LocalDateTime backInEta;  // B3.F3 — dự kiến có lại (NULL = chưa rõ)
 
     public int getBranchId() { return branchId; }
     public void setBranchId(int branchId) { this.branchId = branchId; }
@@ -36,4 +38,13 @@ public class BranchMenuItem {
 
     public boolean isIs86() { return is86; }
     public void setIs86(boolean is86) { this.is86 = is86; }
+
+    public LocalDateTime getBackInEta() { return backInEta; }
+    public void setBackInEta(LocalDateTime backInEta) { this.backInEta = backInEta; }
+
+    /** Chuỗi ETA gọn cho JSP (dd/MM HH:mm); rỗng nếu chưa rõ. */
+    public String getBackInEtaText() {
+        return backInEta == null ? "" :
+                backInEta.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM HH:mm"));
+    }
 }
