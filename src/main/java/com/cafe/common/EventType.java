@@ -8,7 +8,8 @@ public enum EventType {
     INVENTORY_DEDUCTED("inventory.deducted"),
     STOCK_LOW("stock.low"),
     SERVICE_CALL("service.call"),
-    BILL_REQUESTED("bill.requested");
+    BILL_REQUESTED("bill.requested"),
+    BILL_VOIDED("bill.voided");
 
     private final String wire;
 

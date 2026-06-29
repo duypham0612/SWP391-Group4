@@ -175,11 +175,22 @@ public class BillingService {
         }
     }
 
-    public boolean voidBill(int billId) throws SQLException {
+    /** Huỷ/refund bill KÈM LÝ DO — ghi log qua ops.OutboxEvent (bill.voided) trong cùng tx. */
+    public boolean voidBill(int billId, String reason, Integer userId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
-            try { int r = billDao.markVoid(c, billId); c.commit(); return r > 0; }
-            catch (SQLException e) { c.rollback(); throw e; }
+            try {
+                Bill b = billDao.findById(c, billId);
+                if (b == null) { c.rollback(); return false; }
+                int r = billDao.markVoid(c, billId);
+                if (r > 0) {
+                    String safeReason = reason == null ? "" : reason.replace("\"", "'");
+                    EventPublisher.publish(c, EventType.BILL_VOIDED, String.valueOf(billId), b.getBranchId(),
+                            "{\"billId\":" + billId + ",\"by\":" + userId + ",\"reason\":\"" + safeReason + "\"}");
+                }
+                c.commit();
+                return r > 0;
+            } catch (SQLException e) { c.rollback(); throw e; }
             finally { c.setAutoCommit(true); }
         }
     }
@@ -204,6 +215,11 @@ public class BillingService {
 
     public List<Bill> getBillHistory(int branchId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) { return billDao.findByBranch(c, branchId, 100); }
+    }
+
+    /** C6 · Lịch sử bill trong 1 ca thu ngân. */
+    public List<Bill> getBillHistoryByShift(int shiftId) throws SQLException {
+        try (Connection c = DBConnection.getConnection()) { return billDao.findByShift(c, shiftId, 200); }
     }
 
     // ---------- nội bộ ----------

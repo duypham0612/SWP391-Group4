@@ -72,6 +72,17 @@ public class BillDao {
         return out;
     }
 
+    /** Lịch sử bill trong 1 ca thu ngân (mới nhất trước) — C6 lọc theo ca. */
+    public List<Bill> findByShift(Connection conn, int shiftId, int limit) throws SQLException {
+        List<Bill> out = new ArrayList<>();
+        final String sql = SELECT.replaceFirst("SELECT ", "SELECT TOP " + limit + " ") + "WHERE b.CashierShiftId=? ORDER BY b.CreatedAt DESC";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, shiftId);
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
+        }
+        return out;
+    }
+
     /** Cập nhật số tiền + voucher sau khi gắn dòng / áp voucher. */
     public void updateAmounts(Connection conn, int billId, BigDecimal subtotal, BigDecimal discount,
                               BigDecimal vat, BigDecimal total, Integer voucherId) throws SQLException {

@@ -5,8 +5,21 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Bán hàng</div><h1>Lịch sử hoá đơn</h1><p>payment.Bill — 100 hoá đơn gần nhất của chi nhánh</p></div>
+    <div><div class="eyebrow">Bán hàng</div><h1>Lịch sử hoá đơn</h1><p>Phạm vi: <strong>${scopeLabel}</strong></p></div>
+    <c:if test="${hasOpenShift}">
+        <span>
+            <a class="btn btn-ghost btn-sm" href="${ctx}/cashier/history">Theo ca</a>
+            <a class="btn btn-ghost btn-sm" href="${ctx}/cashier/history?scope=branch">Toàn chi nhánh</a>
+        </span>
+    </c:if>
 </div>
+
+<c:if test="${not empty sessionScope.flashOk}">
+    <div class="alert alert-success">${sessionScope.flashOk}</div><c:remove var="flashOk" scope="session" />
+</c:if>
+<c:if test="${not empty sessionScope.flashError}">
+    <div class="alert alert-error">${sessionScope.flashError}</div><c:remove var="flashError" scope="session" />
+</c:if>
 
 <c:choose>
     <c:when test="${empty bills}">
