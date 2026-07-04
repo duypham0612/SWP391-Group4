@@ -1,8 +1,10 @@
 /* =====================================================================
    MIGRATION cho module BARISTA (Pha chế)
-   Chạy 1 lần trên DB MyCoffeeHouse đang có dữ liệu.
-   (Nếu import lại database.sql từ đầu thì KHÔNG cần chạy file này,
-    vì các cột đã được thêm sẵn trong CREATE TABLE.)
+   BẮT BUỘC chạy file này SAU khi import database.sql (idempotent — chạy
+   lại nhiều lần an toàn nhờ COL_LENGTH/IF NOT EXISTS). database.sql CHƯA
+   có các cột barista bên dưới (OrderDetails.StartedAt/CompletedAt,
+   Orders.Priority), KHÔNG chạy file này thì các màn Barista sẽ lỗi
+   "Invalid column name".
    ===================================================================== */
 USE [MyCoffeeHouse];
 GO

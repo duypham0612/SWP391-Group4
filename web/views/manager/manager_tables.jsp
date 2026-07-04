@@ -33,6 +33,7 @@
                 <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Sơ đồ phòng máy / Bàn</h3>
                 <div class="flex items-center gap-4 text-[10px] font-bold">
                     <span class="flex items-center gap-1.5 text-emerald-600"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>Trống</span>
+                    <span class="flex items-center gap-1.5 text-blue-600"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>Khách đang chọn</span>
                     <span class="flex items-center gap-1.5 text-amber-600"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>Đã đặt</span>
                     <span class="flex items-center gap-1.5 text-rose-600"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>Đang ngồi</span>
                 </div>
@@ -49,8 +50,13 @@
                             String iconColor = "text-emerald-500";
                             String textStatusDisplay = "Trống";
                             
-                            // Kiểm tra trạng thái ĐÃ ĐẶT TRƯỚC (Màu Vàng)
-                            if("Reserved".equalsIgnoreCase(status) || "Đã đặt".equalsIgnoreCase(status) || "Đã đặt trước".equalsIgnoreCase(status)) {
+                            if ("Selected".equalsIgnoreCase(status)) {
+                                bgClass = "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100/70";
+                                iconColor = "text-blue-500";
+                                textStatusDisplay = "Khách đang chọn";
+                            }
+                            else if("Reserved".equalsIgnoreCase(status) || "Đã đặt".equalsIgnoreCase(status)) {
+                            
                                 bgClass = "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100/70";
                                 iconColor = "text-amber-500";
                                 textStatusDisplay = "Đã đặt trước";

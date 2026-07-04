@@ -1,7 +1,4 @@
 package com.mycoffee.controller.admin;
-
-import com.mycoffee.dao.DashboardDAO;
-import com.mycoffee.model.DashboardStats;
 import com.mycoffee.model.User;
 import java.io.IOException;
 import jakarta.servlet.ServletException;
@@ -14,7 +11,8 @@ import jakarta.servlet.http.HttpSession;
 @WebServlet(name = "AdminDashboardController", urlPatterns = {"/admin-dashboard"})
 public class AdminDashboardController extends HttpServlet {
 
-    protected void processRequest(HttpServletRequest request, HttpServletResponse response)
+    @Override
+    protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         response.setContentType("text/html;charset=UTF-8");
         
@@ -23,38 +21,21 @@ public class AdminDashboardController extends HttpServlet {
         User user = (session != null) ? (User) session.getAttribute("user") : null;
         int roleId = (user != null) ? user.getRoleId() : 0;
 
-        // Chỉ Admin (RoleID = 1) mới được vào dashboard này
-        if (roleId != 1) {
-            if (roleId == 2) {
+        // Chỉ Admin (RoleID = 1) mới được vào
+        if (roleId != User.ROLE_ADMIN) {
+            if (roleId == User.ROLE_BRANCH_MANAGER) {
                 response.sendRedirect(request.getContextPath() + "/manager-dashboard");
-            } else if (roleId == 3) {
+            } else if (roleId == User.ROLE_EMPLOYEE) {
                 response.sendRedirect(request.getContextPath() + "/pos-tables");
+            } else if (roleId == User.ROLE_CUSTOMER) {
+                response.sendRedirect(request.getContextPath() + "/menu");
             } else {
                 response.sendRedirect(request.getContextPath() + "/login");
             }
             return;
         }
-
-        // 2. LẤY DỮ LIỆU THỐNG KÊ (Logic cập nhật từ Master)
-        DashboardDAO dao = new DashboardDAO();
-        DashboardStats stats = dao.getDashboardData();
-        
-        // Đẩy dữ liệu vào Request Attribute để trang JSP hiển thị
-        request.setAttribute("stats", stats);
-        
-        // 3. FORWARD SANG VIEW
-        request.getRequestDispatcher("/views/admin/admin_dashboard.jsp").forward(request, response);
-    }
-
-    @Override
-    protected void doGet(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        processRequest(request, response);
-    }
-
-    @Override
-    protected void doPost(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        processRequest(request, response);
+        request.getRequestDispatcher("/views/admin/admin_dashboard.jsp")
+               .forward(request, response);
     }
 }
+

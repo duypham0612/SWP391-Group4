@@ -3,6 +3,11 @@ package com.mycoffee.model;
 import java.sql.Timestamp;
 
 public class User {
+    public static final int ROLE_ADMIN = 1;
+    public static final int ROLE_BRANCH_MANAGER = 2;
+    public static final int ROLE_EMPLOYEE = 3;
+    public static final int ROLE_CUSTOMER = 4;
+
     private int userId;
     private String username;
     private String password;

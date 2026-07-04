@@ -1,6 +1,5 @@
 <%@page contentType="text/html" pageEncoding="UTF-8"%>
-<%@taglib prefix="c" uri="jakarta.tags.core" %>
-<%@taglib prefix="fmt" uri="jakarta.tags.fmt" %>
+<%@page import="com.mycoffee.model.User"%>
 
 <jsp:include page="/common/header.jsp" />
 <jsp:include page="/common/sidebar_admin.jsp" />
@@ -125,3 +124,4 @@
 </script>
 
 <%@include file="/common/footer.jsp" %>
+

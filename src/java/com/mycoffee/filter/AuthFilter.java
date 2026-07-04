@@ -19,7 +19,6 @@ import jakarta.servlet.http.HttpSession;
  * LUẬT PHÂN QUYỀN:
  *   - Chưa đăng nhập → chuyển về /login (trừ các trang công khai)
  *   - RoleID = 4 (Customer) cố truy cập route Admin/Staff → 403 Forbidden
- *   - RoleID = 1,2,3 (Staff) cố truy cập route Customer riêng tư → 403 Forbidden
  *
  * Ánh xạ RoleID từ bảng Roles:
  *   1 = Admin | 2 = Branch Manager | 3 = Employee | 4 = Customer
@@ -35,7 +34,14 @@ public class AuthFilter implements Filter {
         "/register",
         "/login.jsp",
         "/register.jsp",
-        "/index.jsp"
+        "/index.jsp",
+        "/menu",
+        "/customer-menu",
+        "/product-detail",
+        "/customer-qr-order",
+        "/customer-cart",
+        "/customer-checkout",
+        "/customer-order-status"
     };
 
     // ──────────────────────────────────────────────────────────────
@@ -118,8 +124,8 @@ public class AuthFilter implements Filter {
 
         int roleId = user.getRoleId();
 
-        // 4. BẢO MẬT CHÍNH: Customer (RoleID=4) cố truy cập route của Staff → 403
-        if (roleId == 4 && isStaffOnlyRoute(path)) {
+        // 4. Customer không được truy cập route quản trị/nhân viên.
+        if (roleId == User.ROLE_CUSTOMER && isStaffOnlyRoute(path)) {
             response.sendError(HttpServletResponse.SC_FORBIDDEN,
                     "Truy cập bị từ chối! Bạn không có quyền truy cập trang này. (403 Forbidden)");
             return;
@@ -181,7 +187,7 @@ public class AuthFilter implements Filter {
 
     /**
      * Kiểm tra xem path có phải là route chỉ dành cho Staff (RoleID 1,2,3) không.
-     * Nếu Customer (RoleID=4) cố truy cập → trả về true để bị chặn 403.
+     * Nếu Customer (RoleID=4) cố truy cập thì trả về true để bị chặn 403.
      */
     private boolean isStaffOnlyRoute(String path) {
         for (String prefix : STAFF_ONLY_PREFIXES) {
