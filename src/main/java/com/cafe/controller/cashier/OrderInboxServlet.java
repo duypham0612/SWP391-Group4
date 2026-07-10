@@ -43,8 +43,10 @@ public class OrderInboxServlet extends HttpServlet {
         try {
             if ("void".equals(req.getParameter("action"))) {
                 int orderId = Integer.parseInt(req.getParameter("orderId"));
-                orderService.voidOrder(orderId, userId);
-                req.getSession().setAttribute("flashOk", "Đã huỷ đơn — các món chưa pha chuyển CANCELLED (không đụng tồn).");
+                boolean ok = orderService.voidOrder(orderId, userId);
+                req.getSession().setAttribute(ok ? "flashOk" : "flashError",
+                        ok ? "Đã huỷ đơn — các món chưa pha chuyển CANCELLED (không đụng tồn)."
+                           : "Không thể huỷ — đơn đã được pha (hoặc đã xử lý).");
             }
             resp.sendRedirect(req.getContextPath() + "/cashier/inbox");
         } catch (NumberFormatException e) {

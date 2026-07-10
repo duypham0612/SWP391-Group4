@@ -8,31 +8,48 @@
     <a class="btn btn-ghost" href="${ctx}/cashier/pos">POS đem về (takeaway)</a>
 </div>
 
+<c:if test="${not empty sessionScope.flashError}">
+    <div class="alert alert-error">${sessionScope.flashError}</div>
+    <c:remove var="flashError" scope="session" />
+</c:if>
+
+<div class="table-toolbar">
+    <div class="table-search">
+        <input id="tableSearch" class="form-control" type="search" placeholder="Tìm bàn..." autocomplete="off">
+    </div>
+</div>
+
 <div class="table-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px">
     <c:forEach var="t" items="${tables}">
-        <div class="card" style="display:flex;flex-direction:column;gap:10px">
-            <div style="display:flex;justify-content:space-between;align-items:center">
-                <strong style="font-size:1.1rem">${t.tableNumber}</strong>
-                <c:choose>
-                    <c:when test="${t.status == 'OCCUPIED' or t.occupied}"><span class="badge badge-making">Đang phục vụ</span></c:when>
-                    <c:when test="${t.status == 'CLEANING'}"><span class="badge badge-served">Dọn bàn</span></c:when>
-                    <c:otherwise><span class="badge badge-ready">Trống</span></c:otherwise>
-                </c:choose>
-            </div>
-            <c:choose>
-                <c:when test="${t.occupied}">
-                    <div class="muted">${t.activeItemCount} món · phiên #${t.activeSessionId}</div>
-                    <div style="display:flex;gap:8px;flex-wrap:wrap">
-                        <a class="btn btn-primary btn-sm" href="${ctx}/cashier/pos?sessionId=${t.activeSessionId}">Đặt món</a>
-                        <form action="${ctx}/cashier/table" method="post" onsubmit="return confirm('Đóng bàn này?');">
-                            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                            <input type="hidden" name="action" value="closeTable">
-                            <input type="hidden" name="sessionId" value="${t.activeSessionId}">
-                            <button type="submit" class="btn btn-ghost btn-sm">Đóng bàn</button>
-                        </form>
+        <c:set var="tblClass" value="tbl-empty" />
+        <c:set var="tblLabel" value="Trống" />
+        <c:set var="tblBadge" value="badge-served" />
+        <c:if test="${not empty t.activeSessionId}">
+            <c:set var="tblClass" value="tbl-draft" />
+            <c:set var="tblLabel" value="Nháp" />
+            <c:set var="tblBadge" value="badge-waiting" />
+        </c:if>
+        <c:if test="${not empty t.activeSessionId and t.activeItemCount > 0}">
+            <c:set var="tblClass" value="tbl-busy" />
+            <c:set var="tblLabel" value="Đang phục vụ" />
+            <c:set var="tblBadge" value="badge-ready" />
+        </c:if>
+        <c:choose>
+            <c:when test="${not empty t.activeSessionId}">
+                <a class="card table-card table-card-link ${tblClass}" data-name="${t.tableNumber}" href="${ctx}/cashier/pos?sessionId=${t.activeSessionId}">
+                    <div style="display:flex;justify-content:space-between;align-items:center">
+                        <strong style="font-size:1.1rem">${t.tableNumber}</strong>
+                        <span class="badge ${tblBadge}">${tblLabel}</span>
                     </div>
-                </c:when>
-                <c:otherwise>
+                    <div class="muted">${t.activeItemCount} món · phiên #${t.activeSessionId}</div>
+                </a>
+            </c:when>
+            <c:otherwise>
+                <div class="card table-card ${tblClass}" data-name="${t.tableNumber}">
+                    <div style="display:flex;justify-content:space-between;align-items:center">
+                        <strong style="font-size:1.1rem">${t.tableNumber}</strong>
+                        <span class="badge ${tblBadge}">${tblLabel}</span>
+                    </div>
                     <div class="muted">Bàn trống</div>
                     <form action="${ctx}/cashier/table" method="post">
                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
@@ -40,14 +57,28 @@
                         <input type="hidden" name="tableId" value="${t.diningTableId}">
                         <button type="submit" class="btn btn-primary btn-sm">Mở bàn</button>
                     </form>
-                </c:otherwise>
-            </c:choose>
-        </div>
+                </div>
+            </c:otherwise>
+        </c:choose>
     </c:forEach>
 </div>
+<div id="tableNoMatch" class="card empty-state" style="display:none;margin-top:16px"><div class="icon">∅</div><p>Không tìm thấy bàn phù hợp.</p></div>
 
 <c:if test="${empty tables}">
     <div class="card empty-state"><div class="icon">∅</div><p>Chi nhánh chưa có bàn nào.</p></div>
 </c:if>
+
+<script>
+document.getElementById('tableSearch').addEventListener('input', function(){
+  const q = this.value.trim().toLowerCase();
+  let shown = 0;
+  document.querySelectorAll('.table-card').forEach(card => {
+    const ok = !q || (card.dataset.name || '').toLowerCase().includes(q);
+    card.style.display = ok ? '' : 'none';
+    if (ok) shown++;
+  });
+  document.getElementById('tableNoMatch').style.display = shown === 0 ? '' : 'none';
+});
+</script>
 
 <jsp:include page="../layout/footer.jsp" />

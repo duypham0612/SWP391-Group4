@@ -149,6 +149,12 @@ public class BillingService {
             try {
                 Bill bill = billDao.findById(c, billId);
                 if (bill == null) { c.rollback(); return false; }
+                if (billItemDao.countByBill(c, billId) == 0
+                        || bill.getTotalAmount() == null
+                        || bill.getTotalAmount().compareTo(BigDecimal.ZERO) <= 0) {
+                    c.rollback();
+                    return false;
+                }
                 int rows = billDao.markPaid(c, billId, method);
                 if (rows == 0) { c.rollback(); return false; }   // đã PAID/VOID
 

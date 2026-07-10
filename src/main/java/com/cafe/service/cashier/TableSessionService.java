@@ -3,7 +3,9 @@ package com.cafe.service.cashier;
 import com.cafe.config.DBConnection;
 import com.cafe.dao.cashier.DiningTableDao;
 import com.cafe.dao.cashier.TableSessionDao;
+import com.cafe.dao.shared.OrderItemDao;
 import com.cafe.model.DiningTable;
+import com.cafe.model.OrderItem;
 import com.cafe.model.TableSession;
 
 import java.sql.Connection;
@@ -15,6 +17,7 @@ public class TableSessionService {
 
     private final DiningTableDao tableDao = new DiningTableDao();
     private final TableSessionDao sessionDao = new TableSessionDao();
+    private final OrderItemDao orderItemDao = new OrderItemDao();
 
     public List<DiningTable> getFloorMap(int branchId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) { return tableDao.findFloorMap(c, branchId); }
@@ -59,6 +62,31 @@ public class TableSessionService {
                     tableDao.updateStatus(c, s.getDiningTableId(), "EMPTY");
                 }
                 c.commit();
+            } catch (SQLException e) { c.rollback(); throw e; }
+            finally { c.setAutoCommit(true); }
+        }
+    }
+
+    /** Close only a still-empty draft session. Returns true when the table was released. */
+    public boolean closeSessionIfNoActiveItems(int sessionId) throws SQLException {
+        try (Connection c = DBConnection.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                TableSession s = sessionDao.findById(c, sessionId);
+                if (s == null || !"OPEN".equals(s.getStatus())) {
+                    c.rollback();
+                    return false;
+                }
+                for (OrderItem item : orderItemDao.findBySession(c, sessionId)) {
+                    if (!"CANCELLED".equals(item.getStatus())) {
+                        c.rollback();
+                        return false;
+                    }
+                }
+                sessionDao.updateStatus(c, sessionId, "CLOSED", true);
+                tableDao.updateStatus(c, s.getDiningTableId(), "EMPTY");
+                c.commit();
+                return true;
             } catch (SQLException e) { c.rollback(); throw e; }
             finally { c.setAutoCommit(true); }
         }

@@ -26,19 +26,23 @@
                         <span class="muted"><fmt:formatNumber value="${m.price}" maxFractionDigits="0"/> ₫</span>
                     </div>
                     <c:forEach var="g" items="${m.groups}">
-                        <div class="pos-group" style="margin-top:8px">
+                        <div class="pos-group" style="margin-top:8px"
+                             data-group-name="${g.name}" data-required="${g.required}" data-min="${g.minSelect}" data-max="${g.maxSelect}">
                             <div class="muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.04em">${g.name}</div>
                             <c:forEach var="o" items="${g.options}">
+                                <c:set var="isDefault" value="${(g.name == 'Size' and o.name == 'Size M') or ((g.name == 'Đá' or g.name == 'Đường') and o.name == 'Bình thường')}" />
                                 <label style="display:flex;gap:6px;align-items:center;font-size:.92rem">
                                     <input type="${g.maxSelect == 1 ? 'radio' : 'checkbox'}"
                                            name="grp-${m.productId}-${g.groupId}"
                                            class="pos-opt" data-option-id="${o.modifierOptionId}"
-                                           data-delta="${o.priceDelta}" data-name="${o.name}">
+                                           data-delta="${o.priceDelta}" data-name="${o.name}"
+                                           data-default="${isDefault}" ${isDefault ? 'checked' : ''}>
                                     ${o.name}<c:if test="${o.priceDelta > 0}"> <span class="muted">(+<fmt:formatNumber value="${o.priceDelta}" maxFractionDigits="0"/>₫)</span></c:if>
                                 </label>
                             </c:forEach>
                         </div>
                     </c:forEach>
+                    <div class="pos-error" style="display:none;color:var(--st-cancelled);font-size:.86rem;margin-top:8px"></div>
                     <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
                         <input type="number" class="form-control pos-qty" value="1" min="1" style="width:70px">
                         <button type="button" class="btn btn-primary btn-sm" onclick="addToCart(this)">Thêm vào giỏ</button>
@@ -60,24 +64,99 @@
                 </c:forEach>
             </select>
         </div>
+        <c:if test="${not empty sessionId}">
+            <div style="border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:12px">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
+                    <strong>Món đã gửi</strong>
+                    <a class="btn btn-ghost btn-sm" href="${ctx}/cashier/checkout?sessionId=${sessionId}">Thanh toán</a>
+                </div>
+                <c:choose>
+                    <c:when test="${empty sessionItems}">
+                        <p class="muted" style="margin:0">Chưa gửi món nào cho phiên này.</p>
+                    </c:when>
+                    <c:otherwise>
+                        <div style="display:flex;flex-direction:column;gap:8px">
+                            <c:forEach var="it" items="${sessionItems}">
+                                <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+                                    <div>
+                                        <strong>${it.quantity}× ${it.productName}</strong>
+                                        <div class="muted" style="font-size:.85rem">#${it.orderItemId}</div>
+                                    </div>
+                                    <jsp:include page="../layout/_statusBadge.jsp">
+                                        <jsp:param name="status" value="${it.status}" />
+                                    </jsp:include>
+                                </div>
+                            </c:forEach>
+                        </div>
+                    </c:otherwise>
+                </c:choose>
+            </div>
+        </c:if>
         <div id="cartLines"></div>
         <div style="display:flex;justify-content:space-between;margin:12px 0;font-weight:700;border-top:1px solid var(--line);padding-top:10px">
             <span>Tổng</span><span id="cartTotal">0 ₫</span>
         </div>
         <button id="submitBtn" type="button" class="btn btn-primary btn-lg" style="width:100%" onclick="submitOrder()" disabled>Gửi đơn</button>
+        <c:if test="${not empty sessionId}">
+            <div style="display:flex;gap:8px;margin-top:8px">
+                <button type="button" class="btn btn-ghost btn-sm" style="flex:1" onclick="saveDraft()">Tạm dừng</button>
+                <button type="button" class="btn btn-ghost btn-sm" style="flex:1" onclick="discardDraft()">Hủy đặt món</button>
+            </div>
+        </c:if>
         <div id="posMsg" class="muted" style="margin-top:10px"></div>
     </div>
 </div>
 
+<form id="draftForm" action="${ctx}/cashier/pos" method="post" style="display:none">
+    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+    <input type="hidden" name="action" id="draftAction" value="">
+    <input type="hidden" name="sessionId" id="draftSessionId" value="${sessionId}">
+    <input type="hidden" name="cartJson" id="draftCartJson" value="">
+</form>
+
 <script>
 const CSRF = '${sessionScope.csrfToken}';
 const CTX = '${ctx}';
-let cart = [];
+let cart = ${empty draftCartJson ? '[]' : draftCartJson};
 
 function fmt(n){ return new Intl.NumberFormat('vi-VN').format(n) + ' ₫'; }
 
+function showProductError(card, text){
+  const box = card.querySelector('.pos-error');
+  if(!box) return;
+  box.textContent = text || '';
+  box.style.display = text ? 'block' : 'none';
+}
+
+function validateProduct(card){
+  for (const group of card.querySelectorAll('.pos-group')) {
+    const name = group.dataset.groupName || 'Tuỳ chọn';
+    const min = parseInt(group.dataset.min || '0');
+    const max = parseInt(group.dataset.max || '0');
+    const required = group.dataset.required === 'true';
+    const checked = group.querySelectorAll('.pos-opt:checked').length;
+    if ((required || min > 0) && checked < min) {
+      showProductError(card, 'Vui lòng chọn ' + name + '.');
+      return false;
+    }
+    if (max > 0 && checked > max) {
+      showProductError(card, name + ' chỉ được chọn tối đa ' + max + ' tuỳ chọn.');
+      return false;
+    }
+  }
+  showProductError(card, '');
+  return true;
+}
+
+function resetProduct(card){
+  card.querySelectorAll('.pos-opt').forEach(o => { o.checked = o.dataset.default === 'true'; });
+  card.querySelector('.pos-qty').value = 1;
+  showProductError(card, '');
+}
+
 function addToCart(btn){
   const card = btn.closest('.pos-product');
+  if(!validateProduct(card)) return;
   const productId = parseInt(card.dataset.productId);
   const name = card.dataset.productName;
   const base = parseFloat(card.dataset.price);
@@ -90,9 +169,7 @@ function addToCart(btn){
   });
   const unit = base + delta;
   cart.push({productId, name, quantity: qty, unit, optionIds, optNames});
-  // reset lựa chọn
-  card.querySelectorAll('.pos-opt:checked').forEach(o => o.checked = false);
-  card.querySelector('.pos-qty').value = 1;
+  resetProduct(card);
   renderCart();
 }
 
@@ -126,13 +203,50 @@ function submitOrder(){
   const msg = document.getElementById('posMsg');
   msg.textContent = 'Đang gửi...';
   fetch(CTX + '/cashier/pos?_csrf=' + encodeURIComponent(CSRF), {
-    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+    method: 'POST', headers: {'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify(payload)
   }).then(r => r.json().then(j => ({ok:r.ok, j}))).then(({ok,j}) => {
     if(ok){ msg.innerHTML = '<span style="color:var(--st-ready)">✓ Đã gửi đơn #' + j.orderId + ' tới bếp.</span>'; cart=[]; renderCart(); }
     else { msg.innerHTML = '<span style="color:var(--st-cancelled)">Lỗi: ' + (j.error||'không xác định') + '</span>'; }
   }).catch(e => { msg.innerHTML = '<span style="color:var(--st-cancelled)">Lỗi mạng.</span>'; });
 }
 
+function submitDraftAction(action){
+  const sessionId = document.getElementById('sessionSelect').value;
+  const msg = document.getElementById('posMsg');
+  if(!sessionId){
+    msg.innerHTML = '<span style="color:var(--st-cancelled)">Chỉ lưu nháp cho phiên bàn.</span>';
+    return;
+  }
+  document.getElementById('draftAction').value = action;
+  document.getElementById('draftSessionId').value = sessionId;
+  document.getElementById('draftCartJson').value = JSON.stringify(cart);
+  document.getElementById('draftForm').submit();
+}
+
+function saveDraft(){ submitDraftAction('saveDraft'); }
+
+function discardDraft(){
+  if(confirm('Hủy giỏ nháp của phiên này? Nếu chưa gửi món, bàn sẽ về Trống.')){
+    submitDraftAction('discardDraft');
+  }
+}
+
+document.querySelectorAll('.pos-opt[type="checkbox"]').forEach(opt => {
+  opt.addEventListener('change', function(){
+    const group = this.closest('.pos-group');
+    const card = this.closest('.pos-product');
+    const max = parseInt(group.dataset.max || '0');
+    if (max > 0 && group.querySelectorAll('.pos-opt:checked').length > max) {
+      this.checked = false;
+      showProductError(card, (group.dataset.groupName || 'Tuỳ chọn') + ' chỉ được chọn tối đa ' + max + ' tuỳ chọn.');
+    } else {
+      validateProduct(card);
+    }
+  });
+});
+document.querySelectorAll('.pos-opt[type="radio"]').forEach(opt => {
+  opt.addEventListener('change', function(){ validateProduct(this.closest('.pos-product')); });
+});
 renderCart();
 </script>
 
