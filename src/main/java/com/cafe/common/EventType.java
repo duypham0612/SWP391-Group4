@@ -7,6 +7,8 @@ public enum EventType {
     PAYMENT_COMPLETED("payment.completed"),
     INVENTORY_DEDUCTED("inventory.deducted"),
     STOCK_LOW("stock.low"),
+    STOCK_OVERSOLD("stock.oversold"),   // tồn âm: bán/dùng quá tồn lý thuyết — cần đối soát
+    MENU_86_CHANGED("menu.86_changed"), // Barista bật/tắt hết món (khoá/mở khỏi POS + QR) — audit ai/khi nào
     SERVICE_CALL("service.call"),
     BILL_REQUESTED("bill.requested"),
     BILL_VOIDED("bill.voided"),

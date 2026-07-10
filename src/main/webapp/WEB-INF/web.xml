@@ -56,6 +56,16 @@
         <url-pattern>/*</url-pattern>
     </filter-mapping>
 
+    <!-- 5) Cashier duty guard: chỉ chặn thao tác ghi khi chưa bắt đầu ca -->
+    <filter>
+        <filter-name>CashierDutyGuardFilter</filter-name>
+        <filter-class>com.cafe.filter.CashierDutyGuardFilter</filter-class>
+    </filter>
+    <filter-mapping>
+        <filter-name>CashierDutyGuardFilter</filter-name>
+        <url-pattern>/cashier/*</url-pattern>
+    </filter-mapping>
+
     <!-- ================= LISTENER ================= -->
     <listener>
         <listener-class>com.cafe.listener.SeedPasswordListener</listener-class>

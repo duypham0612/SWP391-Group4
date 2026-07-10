@@ -11,8 +11,8 @@
 <c:if test="${not empty errorMsg}"><div class="alert alert-error">${errorMsg}</div></c:if>
 
 <div class="alert alert-info">
-    Định mức ở đây áp dụng khi Barista bấm "Xong" (Phase 4). Nguyên liệu PREPPED đã gộp RAW lúc PrepBatch —
-    khai báo đúng nguyên liệu công thức tham chiếu, <strong>không khai trùng RAW + PREPPED</strong> cho cùng một thành phần.
+    Định mức ở đây áp dụng khi Barista bấm "Xong" (Phase 4). Nguyên liệu pha sẵn đã gộp nguyên liệu thô lúc tạo mẻ pha sẵn —
+    khai báo đúng nguyên liệu công thức tham chiếu, <strong>không khai trùng nguyên liệu thô + nguyên liệu pha sẵn</strong> cho cùng một thành phần.
 </div>
 
 <div class="card" style="margin-bottom:18px">
@@ -49,7 +49,7 @@
                 <c:forEach var="l" items="${lines}">
                     <tr>
                         <td>${l.ingredientName}</td>
-                        <td><c:choose><c:when test="${l.ingredientType == 'RAW'}"><span class="badge badge-making">RAW</span></c:when><c:otherwise><span class="badge badge-ready">PREPPED</span></c:otherwise></c:choose></td>
+                        <td><c:choose><c:when test="${l.ingredientType == 'RAW'}"><span class="badge badge-making">Thô</span></c:when><c:otherwise><span class="badge badge-ready">Pha sẵn</span></c:otherwise></c:choose></td>
                         <td>
                             <form action="${ctx}/admin/recipe" method="post" style="display:inline-flex;gap:4px;align-items:center">
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">

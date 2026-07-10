@@ -56,12 +56,12 @@ public class BranchServlet extends HttpServlet {
                 return;
             }
             Branch b = bind(req);
-            if (b.getBranchId() != 0) {                       // sửa: mã chi nhánh KHÔNG đổi được
-                Branch existing = service.getBranch(b.getBranchId());
-                if (existing != null) b.setCode(existing.getCode());
-            }
             String error = validate(b);
             if (error != null) {
+                if (b.getBranchId() != 0) {
+                    Branch existing = service.getBranch(b.getBranchId());
+                    if (existing != null) b.setCode(existing.getCode());
+                }
                 req.setAttribute("branch", b);
                 req.setAttribute("errorMsg", error);
                 forwardForm(req, resp, b.getBranchId() == 0 ? "Thêm chi nhánh" : "Sửa chi nhánh");
@@ -76,10 +76,9 @@ public class BranchServlet extends HttpServlet {
         Branch b = new Branch();
         String id = req.getParameter("branchId");
         if (id != null && !id.isBlank()) b.setBranchId(Integer.parseInt(id));
-        b.setCode(trim(req.getParameter("code")));
         b.setName(trim(req.getParameter("name")));
         b.setAddress(trim(req.getParameter("address")));
-        b.setPhone(trim(req.getParameter("phone")));
+        b.setPhone(null);
         b.setActive(req.getParameter("active") != null);
         b.setOpenTime(parseTime(req.getParameter("openTime")));
         b.setCloseTime(parseTime(req.getParameter("closeTime")));
@@ -95,10 +94,12 @@ public class BranchServlet extends HttpServlet {
     }
 
     private String validate(Branch b) {
-        if (b.getCode() == null || b.getCode().isBlank()) return "Mã chi nhánh không được để trống.";
         if (b.getName() == null || b.getName().isBlank()) return "Tên chi nhánh không được để trống.";
+        if (b.getAddress() == null || b.getAddress().isBlank()) return "Địa chỉ không được để trống.";
         if ((b.getOpenTime() == null) != (b.getCloseTime() == null))
             return "Giờ mở/đóng phải nhập cả hai hoặc để trống cả hai.";
+        if (b.getOpenTime() != null && !b.getCloseTime().isAfter(b.getOpenTime()))
+            return "Giờ đóng cửa phải sau giờ mở cửa.";
         return null;
     }
 

@@ -14,7 +14,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.math.BigDecimal;
 
-/** A3 · ProductServlet → /admin/product. Actions: list/create/update/toggleActive/publishToBranch. */
+/** A3 · ProductServlet → /admin/product. Actions: list/create/update/toggleActive/publishToBranch/publishManyToBranch. */
 @WebServlet("/admin/product")
 public class ProductServlet extends HttpServlet {
 
@@ -63,6 +63,40 @@ public class ProductServlet extends HttpServlet {
                 resp.sendRedirect(ctx + "/admin/product");
                 return;
             }
+            if ("publishManyToBranch".equals(action)) {
+                String[] selected = req.getParameterValues("productIds");
+                int branchId = parsePositiveInt(req.getParameter("branchId"));
+                if (selected == null || selected.length == 0) {
+                    req.getSession().setAttribute("flashError", "Vui lòng chọn ít nhất 1 sản phẩm.");
+                    resp.sendRedirect(ctx + "/admin/product");
+                    return;
+                }
+                if (branchId <= 0) {
+                    req.getSession().setAttribute("flashError", "Vui lòng chọn chi nhánh.");
+                    resp.sendRedirect(ctx + "/admin/product");
+                    return;
+                }
+                int[] productIds = new int[selected.length];
+                int count = 0;
+                for (String raw : selected) {
+                    int productId = parsePositiveInt(raw);
+                    if (productId > 0) productIds[count++] = productId;
+                }
+                if (count == 0) {
+                    req.getSession().setAttribute("flashError", "Vui lòng chọn ít nhất 1 sản phẩm hợp lệ.");
+                    resp.sendRedirect(ctx + "/admin/product");
+                    return;
+                }
+                if (count < productIds.length) {
+                    int[] trimmed = new int[count];
+                    System.arraycopy(productIds, 0, trimmed, 0, count);
+                    productIds = trimmed;
+                }
+                service.publishManyToBranch(productIds, branchId);
+                req.getSession().setAttribute("flashOk", "Đã thêm " + productIds.length + " sản phẩm vào chi nhánh.");
+                resp.sendRedirect(ctx + "/admin/product");
+                return;
+            }
             Product p = bind(req);
             String error = validate(p);
             if (error != null) {
@@ -107,4 +141,14 @@ public class ProductServlet extends HttpServlet {
     }
 
     private String trim(String s) { return s == null ? null : s.trim(); }
+
+    private int parsePositiveInt(String raw) {
+        try {
+            if (raw == null || raw.isBlank()) return 0;
+            int value = Integer.parseInt(raw.trim());
+            return value > 0 ? value : 0;
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
 }

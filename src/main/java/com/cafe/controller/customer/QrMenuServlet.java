@@ -77,6 +77,9 @@ public class QrMenuServlet extends HttpServlet {
             if (lines.isEmpty()) { resp.setStatus(400); resp.getWriter().write("{\"error\":\"Giỏ trống\"}"); return; }
             int orderId = qrService.placeCustomerOrder(branchId, sessionId, lines);
             resp.getWriter().write("{\"orderId\":" + orderId + ",\"sessionId\":" + sessionId + "}");
+        } catch (IllegalArgumentException e) {                 // 86/đơn rỗng… → lỗi client, báo thân thiện
+            resp.setStatus(400);
+            resp.getWriter().write("{\"error\":\"" + (e.getMessage() == null ? "Lỗi" : e.getMessage().replace("\"","'")) + "\"}");
         } catch (Exception e) {
             resp.setStatus(500);
             resp.getWriter().write("{\"error\":\"" + (e.getMessage() == null ? "Lỗi" : e.getMessage().replace("\"","'")) + "\"}");

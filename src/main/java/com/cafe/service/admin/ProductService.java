@@ -78,4 +78,18 @@ public class ProductService {
             finally { conn.setAutoCommit(true); }
         }
     }
+
+    /** Publish nhiều product vào BranchMenu của 1 chi nhánh trong cùng 1 transaction. */
+    public void publishManyToBranch(int[] productIds, int branchId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                for (int productId : productIds) {
+                    branchMenuDao.upsert(conn, branchId, productId, true, null, false);
+                }
+                conn.commit();
+            } catch (SQLException e) { conn.rollback(); throw e; }
+            finally { conn.setAutoCommit(true); }
+        }
+    }
 }

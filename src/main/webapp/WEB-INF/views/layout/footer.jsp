@@ -14,5 +14,6 @@
     });
   })();
 </script>
+<script src="${pageContext.request.contextPath}/assets/js/table-tools.js" defer></script>
 </body>
 </html>

@@ -36,12 +36,21 @@ public class DashboardServlet extends HttpServlet {
             resp.sendRedirect(req.getContextPath() + "/manager/dashboard");
             return;
         }
+        // Cashier có dashboard số liệu riêng (R2: doanh thu + số đơn) → servlet chuyên trách.
+        if (Constants.ROLE_CASHIER.equals(u.getRoleCode())) {
+            resp.sendRedirect(req.getContextPath() + "/cashier/dashboard");
+            return;
+        }
+        // Barista có dashboard ca riêng: KDS KPI + tồn thấp + món 86.
+        if (Constants.ROLE_BARISTA.equals(u.getRoleCode())) {
+            resp.sendRedirect(req.getContextPath() + "/barista/dashboard");
+            return;
+        }
         String view;
         switch (u.getRoleCode() == null ? "" : u.getRoleCode()) {
             case Constants.ROLE_ADMIN:   view = "/WEB-INF/views/admin/dashboard.jsp";   break;
             case Constants.ROLE_MANAGER: view = "/WEB-INF/views/manager/dashboard.jsp"; break;
             case Constants.ROLE_CASHIER: view = "/WEB-INF/views/cashier/dashboard.jsp"; break;
-            case Constants.ROLE_BARISTA: view = "/WEB-INF/views/barista/dashboard.jsp"; break;
             default:
                 resp.sendError(HttpServletResponse.SC_FORBIDDEN, "Role không hợp lệ");
                 return;

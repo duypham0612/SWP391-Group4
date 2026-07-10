@@ -54,15 +54,18 @@
                     </div>
                 </div>
                 <c:forEach var="g" items="${m.groups}">
-                    <div class="qr-grp">
+                    <div class="qr-grp" data-group-name="${g.name}" data-required="${g.required}" data-min="${g.minSelect}" data-max="${g.maxSelect}">
                         <div class="lbl">${g.name}</div>
                         <c:forEach var="o" items="${g.options}">
+                            <c:set var="isDefault" value="${(g.name == 'Size' and o.name == 'Size M') or ((g.name == 'Đá' or g.name == 'Đường') and o.name == 'Bình thường')}" />
                             <label><input type="${g.maxSelect == 1 ? 'radio' : 'checkbox'}" name="g-${m.productId}-${g.groupId}"
-                                          class="pos-opt" data-option-id="${o.modifierOptionId}" data-delta="${o.priceDelta}" data-name="${o.name}">
+                                          class="pos-opt" data-option-id="${o.modifierOptionId}" data-delta="${o.priceDelta}" data-name="${o.name}"
+                                          data-default="${isDefault}" ${isDefault ? 'checked' : ''}>
                                 ${o.name}<c:if test="${o.priceDelta > 0}"> <span class="price">+<fmt:formatNumber value="${o.priceDelta}" maxFractionDigits="0"/>₫</span></c:if></label>
                         </c:forEach>
                     </div>
                 </c:forEach>
+                <div class="qr-error" style="display:none;color:var(--st-cancelled);font-size:.86rem;margin-top:8px"></div>
                 <div class="qr-add">
                     <input type="number" class="form-control pos-qty" value="1" min="1">
                     <button type="button" class="btn btn-primary" style="flex:1" onclick="addToCart(this)">Thêm vào giỏ</button>
@@ -85,13 +88,38 @@
 const CSRF='${sessionScope.csrfToken}', CTX='${ctx}', SID=${sessionId};
 let cart=[];
 function fmt(n){return new Intl.NumberFormat('vi-VN').format(n)+' ₫';}
+function showProductError(card,text){
+  const box=card.querySelector('.qr-error');
+  if(!box)return;
+  box.textContent=text||'';
+  box.style.display=text?'block':'none';
+}
+function validateProduct(card){
+  for(const group of card.querySelectorAll('.qr-grp')){
+    const name=group.dataset.groupName||'Tuỳ chọn';
+    const min=parseInt(group.dataset.min||'0');
+    const max=parseInt(group.dataset.max||'0');
+    const required=group.dataset.required==='true';
+    const checked=group.querySelectorAll('.pos-opt:checked').length;
+    if((required||min>0)&&checked<min){showProductError(card,'Vui lòng chọn '+name+'.');return false;}
+    if(max>0&&checked>max){showProductError(card,name+' chỉ được chọn tối đa '+max+' tuỳ chọn.');return false;}
+  }
+  showProductError(card,'');
+  return true;
+}
+function resetProduct(card){
+  card.querySelectorAll('.pos-opt').forEach(o=>{o.checked=o.dataset.default==='true';});
+  card.querySelector('.pos-qty').value=1;
+  showProductError(card,'');
+}
 function addToCart(btn){
   const c=btn.closest('.pos-product');
+  if(!validateProduct(c))return;
   let delta=0;const optionIds=[],names=[];
   c.querySelectorAll('.pos-opt:checked').forEach(o=>{delta+=parseFloat(o.dataset.delta);optionIds.push(parseInt(o.dataset.optionId));names.push(o.dataset.name);});
   const qty=Math.max(1,parseInt(c.querySelector('.pos-qty').value)||1);
   cart.push({productId:parseInt(c.dataset.productId),name:c.dataset.productName,quantity:qty,unit:parseFloat(c.dataset.price)+delta,optionIds:optionIds,names:names});
-  c.querySelectorAll('.pos-opt:checked').forEach(o=>o.checked=false);c.querySelector('.pos-qty').value=1;
+  resetProduct(c);
   render();
 }
 function rm(i){cart.splice(i,1);render();}
@@ -104,13 +132,26 @@ function render(){
 }
 function placeOrder(){
   const msg=document.getElementById('qrMsg');msg.textContent='Đang gửi...';
-  fetch(CTX+'/qr/menu?_csrf='+encodeURIComponent(CSRF),{method:'POST',headers:{'Content-Type':'application/json'},
+  fetch(CTX+'/qr/menu?_csrf='+encodeURIComponent(CSRF),{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},
     body:JSON.stringify({items:cart.map(l=>({productId:l.productId,quantity:l.quantity,optionIds:l.optionIds}))})})
    .then(r=>r.json().then(j=>({ok:r.ok,j}))).then(({ok,j})=>{
      if(ok){location.href=CTX+'/qr/track?s='+j.sessionId;}
      else{msg.innerHTML='<span style="color:var(--st-cancelled)">Lỗi: '+(j.error||'')+'</span>';}
    }).catch(()=>{msg.innerHTML='<span style="color:var(--st-cancelled)">Lỗi mạng.</span>';});
 }
+document.querySelectorAll('.pos-opt[type="checkbox"]').forEach(opt=>{
+  opt.addEventListener('change',function(){
+    const group=this.closest('.qr-grp'), card=this.closest('.pos-product');
+    const max=parseInt(group.dataset.max||'0');
+    if(max>0&&group.querySelectorAll('.pos-opt:checked').length>max){
+      this.checked=false;
+      showProductError(card,(group.dataset.groupName||'Tuỳ chọn')+' chỉ được chọn tối đa '+max+' tuỳ chọn.');
+    }else validateProduct(card);
+  });
+});
+document.querySelectorAll('.pos-opt[type="radio"]').forEach(opt=>{
+  opt.addEventListener('change',function(){validateProduct(this.closest('.pos-product'));});
+});
 render();
 </script>
 </body>

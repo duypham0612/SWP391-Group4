@@ -27,8 +27,8 @@
         <div class="form-group">
             <label for="ingredientType">Loại *</label>
             <select id="ingredientType" name="ingredientType" class="form-control" required>
-                <option value="RAW"     <c:if test="${ingredient.ingredientType == 'RAW'}">selected</c:if>>RAW — nguyên liệu thô (mua về)</option>
-                <option value="PREPPED" <c:if test="${ingredient.ingredientType == 'PREPPED'}">selected</c:if>>PREPPED — pha sẵn tại quán</option>
+                <option value="RAW"     <c:if test="${ingredient.ingredientType == 'RAW'}">selected</c:if>>Nguyên liệu thô (mua về)</option>
+                <option value="PREPPED" <c:if test="${ingredient.ingredientType == 'PREPPED'}">selected</c:if>>Nguyên liệu pha sẵn</option>
             </select>
         </div>
         <div class="form-group">

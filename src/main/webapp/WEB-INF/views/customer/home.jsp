@@ -1,6 +1,7 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
+<%@ taglib prefix="fn" uri="jakarta.tags.functions" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <!DOCTYPE html>
 <html lang="vi">
@@ -32,25 +33,31 @@
         </div>
     </nav>
 
+    <c:set var="heroEyebrow"  value="${empty home.heroEyebrow ? 'Chuỗi cà phê thủ công' : home.heroEyebrow}" />
+    <c:set var="heroTitle"    value="${empty home.heroTitle ? 'Thực đơn của Cà Phê Chain' : home.heroTitle}" />
+    <c:set var="heroSubtitle" value="${empty home.heroSubtitle ? 'Khám phá menu cà phê, trà và đá xay được pha chế tươi mỗi ngày. Đến quán, quét QR tại bàn để đặt món ngay.' : home.heroSubtitle}" />
+    <c:set var="heroImg"      value="${empty home.heroImageUrl ? ctx.concat('/assets/img/login-hero.svg') : (fn:startsWith(fn:toLowerCase(home.heroImageUrl), 'http') ? home.heroImageUrl : ctx.concat(home.heroImageUrl))}" />
+
     <header class="home-hero">
         <div class="home-hero__text">
-            <div class="eyebrow">Chuỗi cà phê thủ công</div>
-            <h1>Thực đơn của Cà Phê Chain</h1>
-            <p>Khám phá menu cà phê, trà và đá xay được pha chế tươi mỗi ngày. Đến quán, quét QR tại bàn để đặt món ngay.</p>
+            <div class="eyebrow"><c:out value="${heroEyebrow}"/></div>
+            <h1><c:out value="${heroTitle}"/></h1>
+            <p><c:out value="${heroSubtitle}"/></p>
             <div class="home-hero__cta">
                 <a class="btn btn-gold btn-lg" href="#menu">Xem thực đơn</a>
                 <a class="btn btn-outline btn-lg" href="${ctx}/auth/login">Dành cho nhân viên</a>
             </div>
         </div>
         <div class="home-hero__art">
-            <img src="${ctx}/assets/img/login-hero.svg" alt="Tách cà phê" width="560" height="480">
+            <img src="${fn:escapeXml(heroImg)}" alt="${fn:escapeXml(heroTitle)}" width="560" height="480"
+                 onerror="this.src='${ctx}/assets/img/login-hero.svg'">
         </div>
     </header>
 
     <c:if test="${not empty sections}">
         <div class="cat-strip">
             <c:forEach var="s" items="${sections}" varStatus="st">
-                <a class="cat-chip" href="#sec${st.index}">${s.name}</a>
+                <a class="cat-chip" href="#sec${st.index}"><c:out value="${s.name}"/></a>
             </c:forEach>
         </div>
     </c:if>
@@ -64,16 +71,16 @@
                 <c:forEach var="s" items="${sections}" varStatus="st">
                     <section class="menu-section" id="sec${st.index}">
                         <div class="menu-section__head">
-                            <h2>${s.name}</h2>
+                            <h2><c:out value="${s.name}"/></h2>
                             <span class="count">${s.count} món</span>
                         </div>
                         <div class="home-grid">
                             <c:forEach var="p" items="${s.products}">
-                                <c:set var="imgSrc" value="${empty p.imageUrl ? ctx.concat('/assets/img/products/_placeholder.svg') : (p.imageUrl.startsWith('http') ? p.imageUrl : ctx.concat(p.imageUrl))}" />
+                                <c:set var="imgSrc" value="${empty p.imageUrl ? ctx.concat('/assets/img/products/_placeholder.svg') : (fn:startsWith(fn:toLowerCase(p.imageUrl), 'http') ? p.imageUrl : ctx.concat(p.imageUrl))}" />
                                 <article class="home-card">
-                                    <img src="${imgSrc}" alt="${p.name}" loading="lazy" onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
+                                    <img src="${fn:escapeXml(imgSrc)}" alt="${fn:escapeXml(p.name)}" loading="lazy" onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
                                     <div class="body">
-                                        <div class="name">${p.name}</div>
+                                        <div class="name"><c:out value="${p.name}"/></div>
                                         <div class="price"><fmt:formatNumber value="${p.basePrice}" maxFractionDigits="0"/> ₫</div>
                                     </div>
                                 </article>
