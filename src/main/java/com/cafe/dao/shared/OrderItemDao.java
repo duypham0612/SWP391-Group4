@@ -15,7 +15,11 @@ public class OrderItemDao {
 
     private static final String SELECT =
         "SELECT oi.OrderItemId, oi.OrderId, oi.ProductId, oi.Quantity, oi.UnitPrice, oi.Note, oi.Status, " +
-        "       oi.StartedAt, oi.DoneAt, p.Name AS ProductName, o.BranchId AS OrderBranchId, dt.TableNumber " +
+        "       oi.StartedAt, oi.DoneAt, " +
+        "       DATEDIFF(SECOND, o.CreatedAt, SYSUTCDATETIME()) AS WaitedSeconds, " +
+        "       CASE WHEN oi.StartedAt IS NULL THEN NULL " +
+        "            ELSE DATEDIFF(SECOND, oi.StartedAt, SYSUTCDATETIME()) END AS MakingSeconds, " +
+        "       p.Name AS ProductName, o.BranchId AS OrderBranchId, dt.TableNumber " +
         "FROM sales.OrderItem oi " +
         "JOIN catalog.Product p ON p.ProductId=oi.ProductId " +
         "JOIN sales.Orders o    ON o.OrderId=oi.OrderId " +
@@ -53,12 +57,13 @@ public class OrderItemDao {
         return out;
     }
 
-    /** Hàng chờ KDS: món WAITING/MAKING của chi nhánh, đơn ACTIVE — cũ nhất trước. */
+    /** Hàng chờ KDS: món WAITING/MAKING của chi nhánh, đơn ACTIVE — FIFO theo giờ vào đơn (đơn cũ nhất trước),
+     *  ưu tiên bump (Priority) chèn lên đầu. Không đẩy MAKING lên đầu (2 cột đã tách trạng thái). */
     public List<OrderItem> findKdsQueue(Connection conn, int branchId) throws SQLException {
         List<OrderItem> out = new ArrayList<>();
         final String sql = SELECT +
             "WHERE o.BranchId=? AND o.Status='ACTIVE' AND oi.Status IN ('WAITING','MAKING') " +
-            "ORDER BY oi.Priority DESC, CASE oi.Status WHEN 'MAKING' THEN 0 ELSE 1 END, oi.OrderItemId";
+            "ORDER BY oi.Priority DESC, o.CreatedAt ASC, oi.OrderItemId";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, branchId);
             try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
@@ -89,21 +94,28 @@ public class OrderItemDao {
     }
 
     /**
-     * KPI bàn giao ca (B7): lead time TB (giây) = AVG(DoneAt − StartedAt) và số ly,
-     * tính cho món đã pha xong trong NGÀY hôm nay tại chi nhánh.
-     * Trả về {avgLeadSeconds (null nếu chưa có), cupCount}.
+     * KPI bàn giao ca (B7) trong khoảng [fromUtc, toUtc) tại chi nhánh (mốc do Service tính theo giờ VN):
+     *  - Cups   = số ly PHA XONG (DoneAt trong khoảng) — KHÔNG đòi StartedAt, nên đếm cả món pha nhanh
+     *             bấm READY thẳng từ WAITING (throughput không bị thiếu).
+     *  - AvgSec = lead-time TB = AVG(DoneAt − StartedAt), CHỈ trên món có cả StartedAt & DoneAt
+     *             (món chưa từng "bắt đầu pha" không làm loãng tốc độ pha thực).
+     * Trả về {avgLeadSeconds (null → -1), cupCount}.
      */
-    public long[] leadTimeStatsToday(Connection conn, int branchId) throws SQLException {
+    public long[] leadTimeStats(Connection conn, int branchId,
+                                java.time.LocalDateTime fromUtc, java.time.LocalDateTime toUtc) throws SQLException {
         final String sql =
-            "SELECT AVG(CAST(DATEDIFF(SECOND, oi.StartedAt, oi.DoneAt) AS BIGINT)) AS AvgSec, COUNT(*) AS Cups " +
-            "FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId " +
-            "WHERE o.BranchId=? AND oi.StartedAt IS NOT NULL AND oi.DoneAt IS NOT NULL " +
-            "  AND oi.DoneAt >= ? AND oi.DoneAt < ?";
-        java.time.LocalDate today = java.time.LocalDate.now();
+            "SELECT " +
+            "  (SELECT COUNT(*) FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId " +
+            "     WHERE o.BranchId=? AND oi.DoneAt >= ? AND oi.DoneAt < ?) AS Cups, " +
+            "  (SELECT AVG(CAST(DATEDIFF(SECOND, oi.StartedAt, oi.DoneAt) AS BIGINT)) " +
+            "     FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId " +
+            "     WHERE o.BranchId=? AND oi.StartedAt IS NOT NULL AND oi.DoneAt IS NOT NULL " +
+            "       AND oi.DoneAt >= ? AND oi.DoneAt < ?) AS AvgSec";
+        Timestamp from = Timestamp.valueOf(fromUtc);
+        Timestamp to = Timestamp.valueOf(toUtc);
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, branchId);
-            ps.setTimestamp(2, Timestamp.valueOf(today.atStartOfDay()));
-            ps.setTimestamp(3, Timestamp.valueOf(today.plusDays(1).atStartOfDay()));
+            ps.setInt(1, branchId); ps.setTimestamp(2, from); ps.setTimestamp(3, to);
+            ps.setInt(4, branchId); ps.setTimestamp(5, from); ps.setTimestamp(6, to);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
                     long cups = rs.getLong("Cups");
@@ -116,11 +128,18 @@ public class OrderItemDao {
         return new long[]{ -1L, 0L };
     }
 
-    /** Bump (B1): đẩy món lên đầu hàng chờ — đặt Priority = max hiện tại + 1. */
-    public void bump(Connection conn, int orderItemId) throws SQLException {
-        final String sql = "UPDATE sales.OrderItem SET Priority = (SELECT ISNULL(MAX(Priority),0) FROM sales.OrderItem) + 1 WHERE OrderItemId=?";
+    /** Bump (B1): đẩy món lên đầu hàng chờ — Priority = max hiện tại CỦA CHI NHÁNH + 1 (không nhảy chéo chi nhánh). */
+    public void bump(Connection conn, int orderItemId, int branchId) throws SQLException {
+        final String sql =
+            "UPDATE oi SET oi.Priority = (" +
+            "    SELECT ISNULL(MAX(oi2.Priority),0)+1 FROM sales.OrderItem oi2 " +
+            "    JOIN sales.Orders o2 ON o2.OrderId=oi2.OrderId WHERE o2.BranchId=?) " +
+            "FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId " +
+            "WHERE oi.OrderItemId=? AND o.BranchId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, orderItemId);
+            ps.setInt(1, branchId);
+            ps.setInt(2, orderItemId);
+            ps.setInt(3, branchId);
             ps.executeUpdate();
         }
     }
@@ -138,6 +157,32 @@ public class OrderItemDao {
         }
     }
 
+    /**
+     * ★ Đổi trạng thái CÓ ĐIỀU KIỆN + scope chi nhánh, NGUYÊN TỬ (một câu UPDATE ở DB).
+     * Chỉ đổi nếu món đang ở một trong {@code expectedStatuses} VÀ thuộc {@code branchId}.
+     * Trả số dòng đổi (0 hoặc 1). Dùng làm hàng rào chống double-deduct khi 2 barista thao tác
+     * song song: chỉ request thắng cuộc "claim" được món (rows==1) mới trừ kho.
+     */
+    public int updateStatusIf(Connection conn, int orderItemId, String newStatus,
+                              String[] expectedStatuses, int branchId,
+                              boolean stampStarted, boolean stampDone) throws SQLException {
+        StringBuilder sql = new StringBuilder("UPDATE oi SET oi.Status=?");
+        if (stampStarted) sql.append(", oi.StartedAt=SYSUTCDATETIME()");
+        if (stampDone)    sql.append(", oi.DoneAt=SYSUTCDATETIME()");
+        sql.append(" FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId ")
+           .append("WHERE oi.OrderItemId=? AND o.BranchId=? AND oi.Status IN (");
+        for (int i = 0; i < expectedStatuses.length; i++) sql.append(i == 0 ? "?" : ",?");
+        sql.append(")");
+        try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
+            int idx = 1;
+            ps.setString(idx++, newStatus);
+            ps.setInt(idx++, orderItemId);
+            ps.setInt(idx++, branchId);
+            for (String s : expectedStatuses) ps.setString(idx++, s);
+            return ps.executeUpdate();
+        }
+    }
+
     private OrderItem map(ResultSet rs) throws SQLException {
         OrderItem it = new OrderItem();
         it.setOrderItemId(rs.getInt("OrderItemId"));
@@ -151,6 +196,9 @@ public class OrderItemDao {
         if (sa != null) it.setStartedAt(sa.toLocalDateTime());
         Timestamp da = rs.getTimestamp("DoneAt");
         if (da != null) it.setDoneAt(da.toLocalDateTime());
+        it.setWaitedSeconds(rs.getInt("WaitedSeconds"));
+        int makingSeconds = rs.getInt("MakingSeconds");
+        it.setMakingSeconds(rs.wasNull() ? null : makingSeconds);
         it.setProductName(rs.getString("ProductName"));
         it.setOrderBranchId(rs.getInt("OrderBranchId"));
         it.setTableNumber(rs.getString("TableNumber"));

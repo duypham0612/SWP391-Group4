@@ -2,6 +2,7 @@ package com.cafe.dao.manager;
 
 import com.cafe.model.Attendance;
 import com.cafe.model.PayrollRow;
+import com.cafe.model.ShiftAssignment;
 
 import java.sql.Connection;
 import java.sql.Date;
@@ -20,12 +21,52 @@ public class AttendanceDao {
     private static final String SELECT =
         "SELECT a.AttendanceId, a.ShiftAssignmentId, a.CheckInAt, a.CheckOutAt, a.Status, a.ApprovedBy, " +
         "       sa.WorkDate, sa.UserId, st.BranchId, st.Name AS TemplateName, st.StartTime, st.EndTime, " +
-        "       u.FullName AS UserName, ap.FullName AS ApproverName " +
+        "       u.FullName AS UserName, u.Phone AS UserPhone, r.Name AS RoleName, b.Name AS BranchName, " +
+        "       ap.FullName AS ApproverName " +
         "FROM hr.Attendance a " +
         "JOIN hr.ShiftAssignment sa ON sa.ShiftAssignmentId = a.ShiftAssignmentId " +
         "JOIN hr.ShiftTemplate   st ON st.ShiftTemplateId  = sa.ShiftTemplateId " +
         "JOIN iam.[User] u          ON u.UserId = sa.UserId " +
+        "JOIN iam.Role   r          ON r.RoleId = u.RoleId " +
+        "JOIN org.Branch b          ON b.BranchId = st.BranchId " +
         "LEFT JOIN iam.[User] ap    ON ap.UserId = a.ApprovedBy ";
+
+    /** Các ca hôm nay của chính nhân viên, đã scope theo chi nhánh. */
+    public List<ShiftAssignment> findTodayAssignments(Connection conn, int userId, int branchId, LocalDate workDate) throws SQLException {
+        List<ShiftAssignment> out = new ArrayList<>();
+        final String sql =
+            "SELECT sa.ShiftAssignmentId, sa.ShiftTemplateId, sa.UserId, sa.WorkDate, " +
+            "       st.Name AS TemplateName, st.StartTime, st.EndTime, u.FullName AS UserName " +
+            "FROM hr.ShiftAssignment sa " +
+            "JOIN hr.ShiftTemplate st ON st.ShiftTemplateId = sa.ShiftTemplateId " +
+            "JOIN iam.[User] u        ON u.UserId = sa.UserId " +
+            "WHERE sa.UserId=? AND st.BranchId=? AND sa.WorkDate=? " +
+            "ORDER BY st.StartTime";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            ps.setInt(2, branchId);
+            ps.setDate(3, Date.valueOf(workDate));
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(mapAssignment(rs)); }
+        }
+        return out;
+    }
+
+    /** Bản chấm công mới nhất của một assignment, kể cả đã đóng. */
+    public Attendance findByAssignment(Connection conn, int assignmentId) throws SQLException {
+        final String sql = SELECT.replaceFirst("SELECT ", "SELECT TOP 1 ") +
+            "WHERE a.ShiftAssignmentId=? ORDER BY a.AttendanceId DESC";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, assignmentId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? map(rs) : null; }
+        }
+    }
+
+    /** Giờ UTC từ SQL Server để đồng bộ với dữ liệu chấm công hiện có. */
+    public Timestamp currentUtc(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT SYSUTCDATETIME()")) {
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getTimestamp(1) : new Timestamp(System.currentTimeMillis()); }
+        }
+    }
 
     /** Chấm công của chi nhánh theo trạng thái (PENDING/APPROVED/REJECTED). */
     public List<Attendance> findByStatus(Connection conn, int branchId, String status) throws SQLException {
@@ -37,6 +78,28 @@ public class AttendanceDao {
             try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
         }
         return out;
+    }
+
+    /** TẤT CẢ chấm công của chi nhánh (mọi trạng thái) — 1 màn gộp, mới nhất trước. */
+    public List<Attendance> findByBranch(Connection conn, int branchId) throws SQLException {
+        List<Attendance> out = new ArrayList<>();
+        final String sql = SELECT + "WHERE st.BranchId=? ORDER BY sa.WorkDate DESC, st.StartTime";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
+        }
+        return out;
+    }
+
+    /** Đổi trạng thái + người duyệt (null khi trả về PENDING). */
+    public void updateApproval(Connection conn, int id, String status, Integer approverId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE hr.Attendance SET Status=?, ApprovedBy=? WHERE AttendanceId=?")) {
+            ps.setString(1, status);
+            if (approverId == null) ps.setNull(2, java.sql.Types.INTEGER); else ps.setInt(2, approverId);
+            ps.setInt(3, id);
+            ps.executeUpdate();
+        }
     }
 
     public Attendance findById(Connection conn, int id) throws SQLException {
@@ -147,7 +210,26 @@ public class AttendanceDao {
         if (st != null) a.setStartTime(st.toLocalTime());
         if (et != null) a.setEndTime(et.toLocalTime());
         a.setUserName(rs.getString("UserName"));
+        a.setUserPhone(rs.getString("UserPhone"));
+        a.setRoleName(rs.getString("RoleName"));
+        a.setBranchName(rs.getString("BranchName"));
         a.setApproverName(rs.getString("ApproverName"));
+        return a;
+    }
+
+    private ShiftAssignment mapAssignment(ResultSet rs) throws SQLException {
+        ShiftAssignment a = new ShiftAssignment();
+        a.setShiftAssignmentId(rs.getInt("ShiftAssignmentId"));
+        a.setShiftTemplateId(rs.getInt("ShiftTemplateId"));
+        a.setUserId(rs.getInt("UserId"));
+        Date d = rs.getDate("WorkDate");
+        if (d != null) a.setWorkDate(d.toLocalDate());
+        a.setTemplateName(rs.getString("TemplateName"));
+        Time st = rs.getTime("StartTime");
+        Time et = rs.getTime("EndTime");
+        if (st != null) a.setStartTime(st.toLocalTime());
+        if (et != null) a.setEndTime(et.toLocalTime());
+        a.setUserName(rs.getString("UserName"));
         return a;
     }
 }

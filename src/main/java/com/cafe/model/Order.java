@@ -19,6 +19,7 @@ public class Order {
 
     // join / computed
     private String tableNumber;
+    private String paymentStatus;      // PAID | PAYING | ERROR — suy từ bill của phiên (R3, không lưu DB)
     private List<OrderItem> items = new ArrayList<>();
 
     public int getOrderId() { return orderId; }
@@ -51,6 +52,9 @@ public class Order {
     public String getTableNumber() { return tableNumber; }
     public void setTableNumber(String v) { this.tableNumber = v; }
 
+    public String getPaymentStatus() { return paymentStatus; }
+    public void setPaymentStatus(String v) { this.paymentStatus = v; }
+
     public List<OrderItem> getItems() { return items; }
     public void setItems(List<OrderItem> v) { this.items = v; }
 
@@ -63,5 +67,19 @@ public class Order {
             }
         }
         return t;
+    }
+
+    /**
+     * Huỷ được khi đơn còn ≥1 món chưa huỷ VÀ mọi món chưa huỷ đều còn WAITING
+     * (barista chưa nhận pha). Một khi có món MAKING/READY/SERVED → không huỷ được (R5).
+     */
+    public boolean isCancellable() {
+        boolean any = false;
+        for (OrderItem it : items) {
+            if ("CANCELLED".equals(it.getStatus())) continue;
+            any = true;
+            if (!"WAITING".equals(it.getStatus())) return false;
+        }
+        return any;
     }
 }

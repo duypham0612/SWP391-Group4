@@ -1,5 +1,7 @@
 package com.cafe.model;
 
+import com.cafe.common.Constants;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -22,6 +24,8 @@ public class OrderItem {
     private String tableNumber;
     private Integer orderBranchId;
     private List<OrderItemModifier> modifiers = new ArrayList<>();
+    private int waitedSeconds;
+    private Integer makingSeconds;
 
     public int getOrderItemId() { return orderItemId; }
     public void setOrderItemId(int v) { this.orderItemId = v; }
@@ -61,6 +65,37 @@ public class OrderItem {
 
     public List<OrderItemModifier> getModifiers() { return modifiers; }
     public void setModifiers(List<OrderItemModifier> v) { this.modifiers = v; }
+
+    public int getWaitedSeconds() { return waitedSeconds; }
+    public void setWaitedSeconds(int v) { this.waitedSeconds = Math.max(0, v); }
+
+    public Integer getMakingSeconds() { return makingSeconds; }
+    public void setMakingSeconds(Integer v) { this.makingSeconds = v == null ? null : Math.max(0, v); }
+
+    public int getWaitedMinutes() { return waitedSeconds / 60; }
+
+    public String getWaitedDisplay() { return formatDuration(waitedSeconds); }
+
+    public Integer getMakingMinutes() {
+        return makingSeconds == null ? null : makingSeconds / 60;
+    }
+
+    public String getMakingDisplay() {
+        return makingSeconds == null ? "" : formatDuration(makingSeconds);
+    }
+
+    public String getAgeTier() {
+        if (waitedSeconds >= Constants.KDS_CRIT_SECONDS) return "crit";
+        if (waitedSeconds >= Constants.KDS_WARN_SECONDS) return "warn";
+        return "ok";
+    }
+
+    public static String formatDuration(int seconds) {
+        int minutes = Math.max(0, seconds) / 60;
+        int hours = minutes / 60;
+        int mins = minutes % 60;
+        return hours > 0 ? hours + "h" + mins + "′" : mins + "′";
+    }
 
     public BigDecimal getLineTotal() {
         return unitPrice == null ? BigDecimal.ZERO : unitPrice.multiply(BigDecimal.valueOf(quantity));

@@ -48,7 +48,7 @@ public class BranchDao {
         final String sql = "INSERT INTO org.Branch(Code, Name, Address, Phone, OpenTime, CloseTime, ManagerUserId, IsActive) " +
                 "VALUES (?,?,?,?,?,?,?,?)";
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            ps.setString(1, b.getCode());
+            ps.setString(1, "TMP" + Long.toString(System.nanoTime(), 36));
             ps.setString(2, b.getName());
             ps.setString(3, b.getAddress());
             ps.setString(4, b.getPhone());
@@ -63,19 +63,26 @@ public class BranchDao {
         }
     }
 
+    public void updateCode(Connection conn, int id, String code) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("UPDATE org.Branch SET Code=? WHERE BranchId=?")) {
+            ps.setString(1, code);
+            ps.setInt(2, id);
+            ps.executeUpdate();
+        }
+    }
+
     public void update(Connection conn, Branch b) throws SQLException {
-        final String sql = "UPDATE org.Branch SET Code=?, Name=?, Address=?, Phone=?, " +
+        final String sql = "UPDATE org.Branch SET Name=?, Address=?, Phone=?, " +
                 "OpenTime=?, CloseTime=?, ManagerUserId=?, IsActive=? WHERE BranchId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, b.getCode());
-            ps.setString(2, b.getName());
-            ps.setString(3, b.getAddress());
-            ps.setString(4, b.getPhone());
-            setTime(ps, 5, b.getOpenTime());
-            setTime(ps, 6, b.getCloseTime());
-            setInt(ps, 7, b.getManagerUserId());
-            ps.setBoolean(8, b.isActive());
-            ps.setInt(9, b.getBranchId());
+            ps.setString(1, b.getName());
+            ps.setString(2, b.getAddress());
+            ps.setString(3, b.getPhone());
+            setTime(ps, 4, b.getOpenTime());
+            setTime(ps, 5, b.getCloseTime());
+            setInt(ps, 6, b.getManagerUserId());
+            ps.setBoolean(7, b.isActive());
+            ps.setInt(8, b.getBranchId());
             ps.executeUpdate();
         }
     }

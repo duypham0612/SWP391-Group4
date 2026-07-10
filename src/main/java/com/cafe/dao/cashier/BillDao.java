@@ -82,6 +82,27 @@ public class BillDao {
         }
     }
 
+    /** Số hoá đơn đã thu (PAID) hôm nay của chi nhánh — "số đơn đã thực hiện" (R1/R2). */
+    public int countPaidToday(Connection conn, int branchId) throws SQLException {
+        final String sql = "SELECT COUNT(*) FROM payment.Bill " +
+                "WHERE BranchId=? AND Status='PAID' AND CAST(PaidAt AS DATE)=CAST(SYSUTCDATETIME() AS DATE)";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getInt(1) : 0; }
+        }
+    }
+
+    /** Status mọi bill của 1 phiên bàn — để suy trạng thái thanh toán cấp đơn (R3). */
+    public List<String> findStatusesBySession(Connection conn, int sessionId) throws SQLException {
+        List<String> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT Status FROM payment.Bill WHERE TableSessionId=?")) {
+            ps.setInt(1, sessionId);
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(rs.getString(1)); }
+        }
+        return out;
+    }
+
     /** Lịch sử bill trong 1 ca thu ngân (mới nhất trước) — C6 lọc theo ca. */
     public List<Bill> findByShift(Connection conn, int shiftId, int limit) throws SQLException {
         List<Bill> out = new ArrayList<>();

@@ -14,13 +14,16 @@ import java.util.List;
 
 public class PrepBatchDao {
 
-    public int insert(Connection conn, int branchId, int preppedIngredientId, BigDecimal qtyProduced, int madeBy) throws SQLException {
-        final String sql = "INSERT INTO inventory.PrepBatch(BranchId, PreppedIngredientId, QuantityProduced, MadeBy) VALUES (?,?,?,?)";
+    public int insert(Connection conn, int branchId, int preppedIngredientId, BigDecimal qtyProduced,
+                      java.time.LocalDateTime expiresAt, int madeBy) throws SQLException {
+        final String sql = "INSERT INTO inventory.PrepBatch(BranchId, PreppedIngredientId, QuantityProduced, ExpiresAt, MadeBy) VALUES (?,?,?,?,?)";
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setInt(1, branchId);
             ps.setInt(2, preppedIngredientId);
             ps.setBigDecimal(3, qtyProduced);
-            ps.setInt(4, madeBy);
+            if (expiresAt == null) ps.setNull(4, java.sql.Types.TIMESTAMP);
+            else ps.setTimestamp(4, Timestamp.valueOf(expiresAt));
+            ps.setInt(5, madeBy);
             ps.executeUpdate();
             try (ResultSet k = ps.getGeneratedKeys()) { return k.next() ? k.getInt(1) : 0; }
         }
@@ -40,6 +43,22 @@ public class PrepBatchDao {
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) out.add(map(rs));
             }
+        }
+        return out;
+    }
+
+    /** Mẻ pha tạo HÔM NAY (theo ngày VN, quy về cửa sổ UTC) — mọi trạng thái, mới nhất trước. */
+    public List<PrepBatch> findTodayByBranch(Connection conn, int branchId) throws SQLException {
+        java.time.ZoneId vn = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
+        java.time.LocalDate today = java.time.LocalDate.now(vn);
+        Timestamp from = Timestamp.valueOf(today.atStartOfDay(vn).withZoneSameInstant(java.time.ZoneOffset.UTC).toLocalDateTime());
+        Timestamp to   = Timestamp.valueOf(today.plusDays(1).atStartOfDay(vn).withZoneSameInstant(java.time.ZoneOffset.UTC).toLocalDateTime());
+        List<PrepBatch> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(SELECT + "WHERE pb.BranchId=? AND pb.MadeAt>=? AND pb.MadeAt<? ORDER BY pb.MadeAt DESC")) {
+            ps.setInt(1, branchId);
+            ps.setTimestamp(2, from);
+            ps.setTimestamp(3, to);
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
         }
         return out;
     }

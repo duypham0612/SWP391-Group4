@@ -9,6 +9,7 @@ public class StockReceiptDetail {
     private int ingredientId;
     private BigDecimal quantity;
     private BigDecimal unitCost = BigDecimal.ZERO;
+    private String unit;            // đơn vị nhập per-line (vd "Túi"); null = dùng đơn vị gốc nguyên liệu
 
     // join
     private String ingredientName;
@@ -28,6 +29,12 @@ public class StockReceiptDetail {
 
     public BigDecimal getUnitCost() { return unitCost; }
     public void setUnitCost(BigDecimal unitCost) { this.unitCost = unitCost; }
+
+    public String getUnit() { return unit; }
+    public void setUnit(String unit) { this.unit = unit; }
+
+    /** Đơn vị hiển thị: ưu tiên đơn vị nhập per-line, fallback về đơn vị gốc nguyên liệu. */
+    public String getDisplayUnit() { return (unit == null || unit.isBlank()) ? ingredientUnit : unit; }
 
     public BigDecimal getLineCost() {
         return quantity == null || unitCost == null ? BigDecimal.ZERO : quantity.multiply(unitCost);

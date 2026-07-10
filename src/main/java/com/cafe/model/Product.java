@@ -10,6 +10,8 @@ public class Product {
     private BigDecimal basePrice = BigDecimal.ZERO;
     private String imageUrl;
     private boolean active = true;
+    private boolean showOnHome = true;   // hiển thị trên trang Home công khai
+    private int homeSortOrder = 0;        // thứ tự ưu tiên trong danh mục trên Home (nhỏ = trước)
 
     private String categoryName; // join để hiển thị
 
@@ -30,6 +32,12 @@ public class Product {
 
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
+
+    public boolean isShowOnHome() { return showOnHome; }
+    public void setShowOnHome(boolean showOnHome) { this.showOnHome = showOnHome; }
+
+    public int getHomeSortOrder() { return homeSortOrder; }
+    public void setHomeSortOrder(int homeSortOrder) { this.homeSortOrder = homeSortOrder; }
 
     public String getCategoryName() { return categoryName; }
     public void setCategoryName(String categoryName) { this.categoryName = categoryName; }

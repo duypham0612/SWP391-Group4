@@ -50,6 +50,21 @@ public class ShiftAssignmentDao {
         return out;
     }
 
+    /** Các phân công của 1 nhân viên trong tuần [weekStart, weekStart+7). */
+    public List<ShiftAssignment> findByUserAndWeek(Connection conn, int userId, LocalDate weekStart) throws SQLException {
+        List<ShiftAssignment> out = new ArrayList<>();
+        final String sql = SELECT +
+            "WHERE sa.UserId=? AND sa.WorkDate >= ? AND sa.WorkDate < ? " +
+            "ORDER BY sa.WorkDate, st.StartTime";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            ps.setDate(2, Date.valueOf(weekStart));
+            ps.setDate(3, Date.valueOf(weekStart.plusDays(7)));
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
+        }
+        return out;
+    }
+
     public ShiftAssignment findById(Connection conn, int id) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(SELECT + "WHERE sa.ShiftAssignmentId=?")) {
             ps.setInt(1, id);

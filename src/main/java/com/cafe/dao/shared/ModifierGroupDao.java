@@ -12,11 +12,21 @@ import java.util.List;
 
 public class ModifierGroupDao {
 
+    /** Kèm số option & số sản phẩm đang dùng — phục vụ màn tổng quan. */
     public List<ModifierGroup> findAll(Connection conn) throws SQLException {
-        final String sql = "SELECT ModifierGroupId, Name, IsRequired, MinSelect, MaxSelect FROM catalog.ModifierGroup ORDER BY Name";
+        final String sql =
+            "SELECT g.ModifierGroupId, g.Name, g.IsRequired, g.MinSelect, g.MaxSelect, " +
+            "  (SELECT COUNT(*) FROM catalog.ModifierOption o WHERE o.ModifierGroupId = g.ModifierGroupId) AS OptionCount, " +
+            "  (SELECT COUNT(*) FROM catalog.ProductModifierGroup p WHERE p.ModifierGroupId = g.ModifierGroupId) AS ProductCount " +
+            "FROM catalog.ModifierGroup g ORDER BY g.Name";
         List<ModifierGroup> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql); ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) out.add(map(rs));
+            while (rs.next()) {
+                ModifierGroup g = map(rs);
+                g.setOptionCount(rs.getInt("OptionCount"));
+                g.setProductCount(rs.getInt("ProductCount"));
+                out.add(g);
+            }
         }
         return out;
     }

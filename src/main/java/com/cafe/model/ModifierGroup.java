@@ -8,8 +8,18 @@ public class ModifierGroup {
     private int minSelect;
     private int maxSelect = 1;
 
+    // transient (đếm cho màn tổng quan, không thuộc bảng ModifierGroup)
+    private int optionCount;
+    private int productCount;
+
     public int getModifierGroupId() { return modifierGroupId; }
     public void setModifierGroupId(int modifierGroupId) { this.modifierGroupId = modifierGroupId; }
+
+    public int getOptionCount() { return optionCount; }
+    public void setOptionCount(int optionCount) { this.optionCount = optionCount; }
+
+    public int getProductCount() { return productCount; }
+    public void setProductCount(int productCount) { this.productCount = productCount; }
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
