@@ -1,10 +1,20 @@
 package com.cafe.model;
 
+import java.math.RoundingMode;
+import java.text.NumberFormat;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 
 /** inventory.WasteLog — ghi hao hụt/làm lại; mỗi dòng kèm 1 txn WASTE ở ledger. */
 public class WasteLog {
+    private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    private static final DateTimeFormatter DATE_TIME_FMT = DateTimeFormatter.ofPattern("HH:mm dd/MM");
+    private static final Locale VI_LOCALE = Locale.forLanguageTag("vi-VN");
+
     private int wasteLogId;
     private int branchId;
     private int ingredientId;
@@ -19,7 +29,9 @@ public class WasteLog {
     // join
     private String ingredientName;
     private String ingredientUnit;
+    private String ingredientType;
     private String loggedByName;
+    private BigDecimal unitCost;
 
     public int getWasteLogId() { return wasteLogId; }
     public void setWasteLogId(int v) { this.wasteLogId = v; }
@@ -58,6 +70,41 @@ public class WasteLog {
     public String getIngredientUnit() { return ingredientUnit; }
     public void setIngredientUnit(String v) { this.ingredientUnit = v; }
 
+    public String getIngredientType() { return ingredientType; }
+    public void setIngredientType(String v) { this.ingredientType = v; }
+
     public String getLoggedByName() { return loggedByName; }
     public void setLoggedByName(String v) { this.loggedByName = v; }
+
+    public BigDecimal getUnitCost() { return unitCost; }
+    public void setUnitCost(BigDecimal unitCost) { this.unitCost = unitCost; }
+
+    public boolean isCostAvailable() { return unitCost != null && quantity != null; }
+
+    public BigDecimal getLineCost() {
+        if (!isCostAvailable()) return null;
+        return quantity.multiply(unitCost);
+    }
+
+    public String getCostDisplay() {
+        BigDecimal cost = getLineCost();
+        if (cost == null) return "Chưa có giá";
+        NumberFormat fmt = NumberFormat.getNumberInstance(VI_LOCALE);
+        return fmt.format(cost.setScale(0, RoundingMode.HALF_UP)) + " đ";
+    }
+
+    public String getLoggedAtDisplay() {
+        if (loggedAt == null) return "";
+        return loggedAt.atZone(ZoneOffset.UTC).withZoneSameInstant(VN_ZONE).format(DATE_TIME_FMT);
+    }
+
+    public String getWasteTypeLabel() {
+        if ("SPILL".equals(wasteType)) return "Hao đổ/rơi";
+        if ("EXPIRED".equals(wasteType)) return "Hết hạn";
+        if ("REMAKE".equals(wasteType)) return "Làm lại món";
+        return "Khác";
+    }
+
+    public boolean isRemake() { return "REMAKE".equals(wasteType); }
+    public boolean isEditable() { return isActive() && !isRemake(); }
 }

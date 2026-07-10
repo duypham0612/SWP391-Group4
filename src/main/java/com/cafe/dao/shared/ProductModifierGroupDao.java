@@ -15,7 +15,8 @@ public class ProductModifierGroupDao {
         final String sql =
             "SELECT pmg.ProductId, pmg.ModifierGroupId, g.Name AS GroupName " +
             "FROM catalog.ProductModifierGroup pmg JOIN catalog.ModifierGroup g ON pmg.ModifierGroupId = g.ModifierGroupId " +
-            "WHERE pmg.ProductId = ? ORDER BY g.Name";
+            "WHERE pmg.ProductId = ? " +
+            "ORDER BY CASE g.Name WHEN N'Size' THEN 1 WHEN N'Đường' THEN 2 WHEN N'Đá' THEN 3 WHEN N'Topping' THEN 4 ELSE 5 END, pmg.ModifierGroupId";
         List<ProductModifierGroup> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, productId);

@@ -30,6 +30,11 @@ public class BranchInventory {
         return quantityOnHand != null && minThreshold != null && quantityOnHand.compareTo(minThreshold) <= 0;
     }
 
+    /** Tồn âm — đã bán/dùng quá tồn lý thuyết, cần kiểm kê đối soát. */
+    public boolean isOversold() {
+        return quantityOnHand != null && quantityOnHand.signum() < 0;
+    }
+
     public String getIngredientName() { return ingredientName; }
     public void setIngredientName(String ingredientName) { this.ingredientName = ingredientName; }
 

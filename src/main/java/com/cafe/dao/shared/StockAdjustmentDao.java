@@ -8,6 +8,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -15,7 +16,7 @@ public class StockAdjustmentDao {
 
     public List<StockAdjustment> findByBranch(Connection conn, int branchId) throws SQLException {
         final String sql =
-            "SELECT a.StockAdjustmentId, a.BranchId, a.IngredientId, a.SystemQty, a.ActualQty, a.DiffQty, a.Reason, " +
+            "SELECT a.StockAdjustmentId, a.BranchId, a.IngredientId, a.SystemQty, a.ActualQty, a.DiffQty, a.Reason, a.Unit AS LineUnit, " +
             "       a.AdjustedBy, a.AdjustedAt, i.Name AS IngredientName, i.Unit AS IngredientUnit, u.FullName AS AdjustedByName " +
             "FROM inventory.StockAdjustment a " +
             "JOIN catalog.Ingredient i ON a.IngredientId = i.IngredientId " +
@@ -34,6 +35,7 @@ public class StockAdjustmentDao {
                     a.setActualQty(rs.getBigDecimal("ActualQty"));
                     a.setDiffQty(rs.getBigDecimal("DiffQty"));
                     a.setReason(rs.getString("Reason"));
+                    a.setUnit(rs.getString("LineUnit"));
                     a.setAdjustedBy(rs.getInt("AdjustedBy"));
                     Timestamp ts = rs.getTimestamp("AdjustedAt");
                     a.setAdjustedAt(ts == null ? null : ts.toLocalDateTime());
@@ -49,15 +51,16 @@ public class StockAdjustmentDao {
 
     /** Chèn dòng điều chỉnh, trả về id (DiffQty do DB tự tính). */
     public int insert(Connection conn, int branchId, int ingredientId, java.math.BigDecimal systemQty,
-                      java.math.BigDecimal actualQty, String reason, int adjustedBy) throws SQLException {
-        final String sql = "INSERT INTO inventory.StockAdjustment(BranchId, IngredientId, SystemQty, ActualQty, Reason, AdjustedBy) VALUES (?,?,?,?,?,?)";
+                      java.math.BigDecimal actualQty, String reason, String unit, int adjustedBy) throws SQLException {
+        final String sql = "INSERT INTO inventory.StockAdjustment(BranchId, IngredientId, SystemQty, ActualQty, Reason, Unit, AdjustedBy) VALUES (?,?,?,?,?,?,?)";
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setInt(1, branchId);
             ps.setInt(2, ingredientId);
             ps.setBigDecimal(3, systemQty);
             ps.setBigDecimal(4, actualQty);
             ps.setString(5, reason);
-            ps.setInt(6, adjustedBy);
+            if (unit == null || unit.isBlank()) ps.setNull(6, Types.NVARCHAR); else ps.setString(6, unit.trim());
+            ps.setInt(7, adjustedBy);
             ps.executeUpdate();
             try (ResultSet k = ps.getGeneratedKeys()) { return k.next() ? k.getInt(1) : 0; }
         }

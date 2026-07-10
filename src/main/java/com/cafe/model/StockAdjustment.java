@@ -12,6 +12,7 @@ public class StockAdjustment {
     private BigDecimal actualQty;
     private BigDecimal diffQty;
     private String reason;
+    private String unit;            // đơn vị đếm per-line (vd "Túi"); null = dùng đơn vị gốc nguyên liệu
     private int adjustedBy;
     private LocalDateTime adjustedAt;
 
@@ -40,6 +41,12 @@ public class StockAdjustment {
 
     public String getReason() { return reason; }
     public void setReason(String reason) { this.reason = reason; }
+
+    public String getUnit() { return unit; }
+    public void setUnit(String unit) { this.unit = unit; }
+
+    /** Đơn vị hiển thị: ưu tiên đơn vị đếm per-line, fallback về đơn vị gốc nguyên liệu. */
+    public String getDisplayUnit() { return (unit == null || unit.isBlank()) ? ingredientUnit : unit; }
 
     public int getAdjustedBy() { return adjustedBy; }
     public void setAdjustedBy(int adjustedBy) { this.adjustedBy = adjustedBy; }

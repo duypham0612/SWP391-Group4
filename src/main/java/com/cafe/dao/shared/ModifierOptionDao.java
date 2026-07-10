@@ -12,7 +12,7 @@ import java.util.List;
 public class ModifierOptionDao {
 
     public List<ModifierOption> findByGroup(Connection conn, int groupId) throws SQLException {
-        final String sql = "SELECT ModifierOptionId, ModifierGroupId, Name, PriceDelta, IsActive FROM catalog.ModifierOption WHERE ModifierGroupId = ? ORDER BY Name";
+        final String sql = "SELECT ModifierOptionId, ModifierGroupId, Name, PriceDelta, IsActive FROM catalog.ModifierOption WHERE ModifierGroupId = ? ORDER BY ModifierOptionId";
         List<ModifierOption> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, groupId);

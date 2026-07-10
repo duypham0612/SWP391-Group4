@@ -92,20 +92,33 @@ public class UserDao {
         return out;
     }
 
-    /** A2 · lọc theo vai trò và/hoặc chi nhánh (null = bỏ qua tiêu chí đó). */
-    public List<User> findFiltered(Connection conn, Integer roleId, Integer branchId) throws SQLException {
+    /** A2 · lọc theo vai trò/chi nhánh/từ khoá và phân trang (null = bỏ qua). */
+    public List<User> findFiltered(Connection conn, Integer roleId, Integer branchId,
+                                   String q, int offset, int limit) throws SQLException {
         StringBuilder sql = new StringBuilder(BASE_SELECT + "WHERE 1=1");
-        if (roleId != null) sql.append(" AND u.RoleId = ?");
-        if (branchId != null) sql.append(" AND u.BranchId = ?");
-        sql.append(" ORDER BY r.RoleId, u.Username");
+        appendFilterWhere(sql, roleId, branchId, q);
+        sql.append(" ORDER BY r.RoleId, u.Username OFFSET ? ROWS FETCH NEXT ? ROWS ONLY");
         List<User> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
-            int i = 1;
-            if (roleId != null) ps.setInt(i++, roleId);
-            if (branchId != null) ps.setInt(i++, branchId);
+            int i = bindFilters(ps, roleId, branchId, q);
+            ps.setInt(i++, Math.max(0, offset));
+            ps.setInt(i, Math.max(1, limit));
             try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
         }
         return out;
+    }
+
+    public int countFiltered(Connection conn, Integer roleId, Integer branchId, String q) throws SQLException {
+        StringBuilder sql = new StringBuilder(
+            "SELECT COUNT(*) FROM iam.[User] u " +
+            "JOIN iam.Role r ON u.RoleId = r.RoleId " +
+            "LEFT JOIN org.Branch b ON u.BranchId = b.BranchId " +
+            "WHERE 1=1");
+        appendFilterWhere(sql, roleId, branchId, q);
+        try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
+            bindFilters(ps, roleId, branchId, q);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getInt(1) : 0; }
+        }
     }
 
     /** A2.F6 · danh sách user theo mã vai trò (vd BRANCH_MANAGER cho dropdown gán quản lý). */
@@ -169,6 +182,40 @@ public class UserDao {
             ps.setInt(7, u.getUserId());
             ps.executeUpdate();
         }
+    }
+
+    /** Cập nhật thông tin cá nhân; không đổi role/branch/status/password. */
+    public void updateProfile(Connection conn, int userId, String fullName, String email, String phone) throws SQLException {
+        final String sql = "UPDATE iam.[User] SET FullName=?, Email=?, Phone=? WHERE UserId=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, fullName);
+            ps.setString(2, email);
+            ps.setString(3, phone);
+            ps.setInt(4, userId);
+            ps.executeUpdate();
+        }
+    }
+
+    private void appendFilterWhere(StringBuilder sql, Integer roleId, Integer branchId, String q) {
+        if (roleId != null) sql.append(" AND u.RoleId = ?");
+        if (branchId != null) sql.append(" AND u.BranchId = ?");
+        if (q != null && !q.isBlank()) {
+            sql.append(" AND (u.FullName LIKE ? OR u.Username LIKE ? OR u.Email LIKE ? OR u.Phone LIKE ?)");
+        }
+    }
+
+    private int bindFilters(PreparedStatement ps, Integer roleId, Integer branchId, String q) throws SQLException {
+        int i = 1;
+        if (roleId != null) ps.setInt(i++, roleId);
+        if (branchId != null) ps.setInt(i++, branchId);
+        if (q != null && !q.isBlank()) {
+            String like = "%" + q.trim() + "%";
+            ps.setString(i++, like);
+            ps.setString(i++, like);
+            ps.setString(i++, like);
+            ps.setString(i++, like);
+        }
+        return i;
     }
 
     private User map(ResultSet rs) throws SQLException {

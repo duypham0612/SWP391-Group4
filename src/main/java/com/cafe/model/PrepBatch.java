@@ -2,9 +2,20 @@ package com.cafe.model;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 
 /** inventory.PrepBatch — mẻ pha sẵn (RAW→PREPPED). Contract #2. */
 public class PrepBatch {
+
+    private static final ZoneId VN = ZoneId.of("Asia/Ho_Chi_Minh");
+    private static final DateTimeFormatter F = DateTimeFormatter.ofPattern("dd/MM HH:mm");
+    /** UTC (lưu trong DB) → giờ VN, format dd/MM HH:mm. */
+    private static String fmt(LocalDateTime utc) {
+        if (utc == null) return "";
+        return utc.atZone(ZoneOffset.UTC).withZoneSameInstant(VN).format(F);
+    }
     private int prepBatchId;
     private int branchId;
     private int preppedIngredientId;
@@ -56,4 +67,17 @@ public class PrepBatch {
 
     public String getMadeByName() { return madeByName; }
     public void setMadeByName(String v) { this.madeByName = v; }
+
+    // ----- Hiển thị -----
+    public String getMadeAtDisplay() { return fmt(madeAt); }
+    public String getExpiresAtDisplay() { return fmt(expiresAt); }
+
+    /** Trạng thái hạn dùng (so với now UTC): none | ok | soon (≤2h) | expired. Chỉ tính cho mẻ ACTIVE. */
+    public String getExpiryTier() {
+        if (expiresAt == null || !isActive()) return "none";
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        if (expiresAt.isBefore(now)) return "expired";
+        if (expiresAt.isBefore(now.plusHours(2))) return "soon";
+        return "ok";
+    }
 }

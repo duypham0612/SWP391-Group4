@@ -22,6 +22,9 @@ public class Attendance {
     private String userName;
     private int userId;
     private String approverName;
+    private String roleName;
+    private String userPhone;
+    private String branchName;
 
     public int getAttendanceId() { return attendanceId; }
     public void setAttendanceId(int v) { this.attendanceId = v; }
@@ -61,6 +64,15 @@ public class Attendance {
 
     public String getApproverName() { return approverName; }
     public void setApproverName(String v) { this.approverName = v; }
+
+    public String getRoleName() { return roleName; }
+    public void setRoleName(String v) { this.roleName = v; }
+
+    public String getUserPhone() { return userPhone; }
+    public void setUserPhone(String v) { this.userPhone = v; }
+
+    public String getBranchName() { return branchName; }
+    public void setBranchName(String v) { this.branchName = v; }
 
     /** Số giờ làm thực tế = checkOut - checkIn (0 nếu thiếu). Hiển thị 1 chữ số thập phân. */
     public double getWorkHours() {

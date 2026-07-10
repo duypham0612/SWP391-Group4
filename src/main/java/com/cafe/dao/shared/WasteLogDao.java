@@ -9,6 +9,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,7 +33,7 @@ public class WasteLogDao {
 
     private static final String SELECT =
         "SELECT wl.WasteLogId, wl.BranchId, wl.IngredientId, wl.Quantity, wl.WasteType, wl.Reason, wl.LoggedBy, wl.LoggedAt, wl.Status, wl.VoidedAt, " +
-        "       i.Name AS IngName, i.Unit AS IngUnit, u.FullName AS LoggedByName " +
+        "       i.Name AS IngName, i.Unit AS IngUnit, i.IngredientType, u.FullName AS LoggedByName " +
         "FROM inventory.WasteLog wl " +
         "JOIN catalog.Ingredient i ON i.IngredientId=wl.IngredientId " +
         "JOIN iam.[User] u ON u.UserId=wl.LoggedBy ";
@@ -41,6 +42,24 @@ public class WasteLogDao {
         List<WasteLog> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(SELECT + "WHERE wl.BranchId=? ORDER BY wl.LoggedAt DESC")) {
             ps.setInt(1, branchId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) out.add(map(rs));
+            }
+        }
+        return out;
+    }
+
+    public List<WasteLog> findByBranchBetween(Connection conn, int branchId, LocalDateTime fromUtc, LocalDateTime toUtc) throws SQLException {
+        List<WasteLog> out = new ArrayList<>();
+        StringBuilder sql = new StringBuilder(SELECT).append("WHERE wl.BranchId=? ");
+        if (fromUtc != null) sql.append("AND wl.LoggedAt>=? ");
+        if (toUtc != null) sql.append("AND wl.LoggedAt<? ");
+        sql.append("ORDER BY wl.LoggedAt DESC");
+        try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
+            int idx = 1;
+            ps.setInt(idx++, branchId);
+            if (fromUtc != null) ps.setTimestamp(idx++, Timestamp.valueOf(fromUtc));
+            if (toUtc != null) ps.setTimestamp(idx, Timestamp.valueOf(toUtc));
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) out.add(map(rs));
             }
@@ -93,6 +112,7 @@ public class WasteLogDao {
         if (va != null) w.setVoidedAt(va.toLocalDateTime());
         w.setIngredientName(rs.getString("IngName"));
         w.setIngredientUnit(rs.getString("IngUnit"));
+        w.setIngredientType(rs.getString("IngredientType"));
         w.setLoggedByName(rs.getString("LoggedByName"));
         return w;
     }

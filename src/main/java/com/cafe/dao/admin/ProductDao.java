@@ -13,7 +13,8 @@ import java.util.List;
 public class ProductDao {
 
     private static final String SELECT =
-        "SELECT p.ProductId, p.CategoryId, p.Name, p.BasePrice, p.ImageUrl, p.IsActive, c.Name AS CategoryName " +
+        "SELECT p.ProductId, p.CategoryId, p.Name, p.BasePrice, p.ImageUrl, p.IsActive, " +
+        "p.ShowOnHome, p.HomeSortOrder, c.Name AS CategoryName " +
         "FROM catalog.Product p JOIN catalog.Category c ON p.CategoryId = c.CategoryId ";
 
     public List<Product> findAll(Connection conn) throws SQLException {
@@ -81,6 +82,41 @@ public class ProductDao {
         }
     }
 
+    // ===== Trang Home công khai =====
+
+    /** Sản phẩm hiển thị trên Home: đang bán + ShowOnHome, theo danh mục rồi thứ tự Home. */
+    public List<Product> findForHome(Connection conn) throws SQLException {
+        List<Product> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(
+                SELECT + "WHERE p.IsActive = 1 AND p.ShowOnHome = 1 ORDER BY c.SortOrder, p.HomeSortOrder, p.Name");
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) out.add(map(rs));
+        }
+        return out;
+    }
+
+    /** Toàn bộ sản phẩm đang bán cho màn quản trị Home (gồm cả món đang ẩn), theo thứ tự Home. */
+    public List<Product> findActiveForHomeAdmin(Connection conn) throws SQLException {
+        List<Product> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(
+                SELECT + "WHERE p.IsActive = 1 ORDER BY c.SortOrder, p.HomeSortOrder, p.Name");
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) out.add(map(rs));
+        }
+        return out;
+    }
+
+    /** Cập nhật trạng thái hiển thị + thứ tự trên Home cho 1 sản phẩm. */
+    public void updateHomeDisplay(Connection conn, int id, boolean showOnHome, int homeSortOrder) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE catalog.Product SET ShowOnHome=?, HomeSortOrder=? WHERE ProductId=?")) {
+            ps.setBoolean(1, showOnHome);
+            ps.setInt(2, homeSortOrder);
+            ps.setInt(3, id);
+            ps.executeUpdate();
+        }
+    }
+
     private Product map(ResultSet rs) throws SQLException {
         Product p = new Product();
         p.setProductId(rs.getInt("ProductId"));
@@ -89,6 +125,8 @@ public class ProductDao {
         p.setBasePrice(rs.getBigDecimal("BasePrice"));
         p.setImageUrl(rs.getString("ImageUrl"));
         p.setActive(rs.getBoolean("IsActive"));
+        p.setShowOnHome(rs.getBoolean("ShowOnHome"));
+        p.setHomeSortOrder(rs.getInt("HomeSortOrder"));
         p.setCategoryName(rs.getString("CategoryName"));
         return p;
     }
