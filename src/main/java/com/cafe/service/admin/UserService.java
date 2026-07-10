@@ -25,9 +25,17 @@ public class UserService {
         try (Connection conn = DBConnection.getConnection()) { return dao.findByBranch(conn, branchId); }
     }
 
-    /** A2 · danh sách nhân sự có lọc theo vai trò/chi nhánh (null = bỏ qua). */
-    public List<User> getUserList(Integer roleId, Integer branchId) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) { return dao.findFiltered(conn, roleId, branchId); }
+    /** A2 · danh sách nhân sự có lọc theo vai trò/chi nhánh/từ khoá (null = bỏ qua). */
+    public List<User> getUserList(Integer roleId, Integer branchId, String q, int offset, int limit) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            return dao.findFiltered(conn, roleId, branchId, q, offset, limit);
+        }
+    }
+
+    public int countUsers(Integer roleId, Integer branchId, String q) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            return dao.countFiltered(conn, roleId, branchId, q);
+        }
     }
 
     /** A2.F6 · danh sách quản lý chi nhánh (cho dropdown gán Manager). */
@@ -61,6 +69,15 @@ public class UserService {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
             try { dao.update(conn, u); conn.commit(); }
+            catch (SQLException e) { conn.rollback(); throw e; }
+            finally { conn.setAutoCommit(true); }
+        }
+    }
+
+    public void updateProfile(int userId, String fullName, String email, String phone) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try { dao.updateProfile(conn, userId, fullName, email, phone); conn.commit(); }
             catch (SQLException e) { conn.rollback(); throw e; }
             finally { conn.setAutoCommit(true); }
         }

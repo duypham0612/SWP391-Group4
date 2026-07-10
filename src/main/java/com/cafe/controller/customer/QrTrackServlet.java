@@ -44,10 +44,11 @@ public class QrTrackServlet extends HttpServlet {
             }
             TableSession session = qrService.getSession(sessionId);
             if (session == null) { resp.sendError(404); return; }
-            CsrfUtil.getToken(req);   // seed token cho nút gọi NV / xin bill
+            CsrfUtil.getToken(req);   // seed token cho nút gọi NV / xin bill / huỷ đơn
             req.setAttribute("session", session);
             req.setAttribute("sessionId", sessionId);
             req.setAttribute("items", qrService.getSessionStatuses(sessionId));
+            req.setAttribute("cancellableOrders", qrService.getCancellableOrders(sessionId));   // R5
             req.getRequestDispatcher("/WEB-INF/views/customer/track.jsp").forward(req, resp);
         } catch (Exception e) { throw new ServletException(e); }
     }
@@ -67,6 +68,12 @@ public class QrTrackServlet extends HttpServlet {
             } else if ("requestBill".equals(action)) {
                 qrService.requestBill(sessionId, branchId);
                 req.getSession().setAttribute("qrFlash", "Đã gửi yêu cầu thanh toán tới quầy.");
+            } else if ("cancel".equals(action)) {
+                String oid = req.getParameter("orderId");
+                boolean ok = oid != null && qrService.cancelOrder(Integer.parseInt(oid));
+                req.getSession().setAttribute("qrFlash", ok
+                        ? "Đã huỷ đơn (các món chưa pha)."
+                        : "Không thể huỷ — đơn đã được pha. Vui lòng gọi nhân viên.");
             }
             resp.sendRedirect(req.getContextPath() + "/qr/track?s=" + sessionId);
         } catch (Exception e) { throw new ServletException(e); }

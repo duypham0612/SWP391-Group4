@@ -9,12 +9,14 @@ import com.cafe.config.DBConnection;
 import com.cafe.dao.cashier.DiningTableDao;
 import com.cafe.dao.cashier.TableSessionDao;
 import com.cafe.model.DiningTable;
+import com.cafe.model.Order;
 import com.cafe.model.OrderItem;
 import com.cafe.model.PosMenuItem;
 import com.cafe.model.TableSession;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -56,6 +58,20 @@ public class QrOrderService {
 
     public List<OrderItem> getSessionStatuses(int sessionId) throws SQLException {
         return orderService.getSessionItemStatuses(sessionId);
+    }
+
+    /** R5 · Đơn của phiên còn huỷ được (mọi món WAITING — barista chưa pha). Để hiện nút huỷ cho khách. */
+    public List<Order> getCancellableOrders(int sessionId) throws SQLException {
+        List<Order> out = new ArrayList<>();
+        for (Order o : orderService.getSessionOrders(sessionId)) {
+            if ("ACTIVE".equals(o.getStatus()) && o.isCancellable()) out.add(o);
+        }
+        return out;
+    }
+
+    /** R5 · Khách huỷ đơn — uỷ thác OrderService.voidOrder (cùng guard: chỉ huỷ khi chưa pha). */
+    public boolean cancelOrder(int orderId) throws SQLException {
+        return orderService.voidOrder(orderId, null);
     }
 
     public void callStaff(int sessionId, int branchId) throws SQLException {

@@ -52,6 +52,22 @@
             </div>
         </div>
 
+        <c:if test="${not empty cancellableOrders}">
+            <div class="qr-card">
+                <p class="muted" style="margin:0 0 8px">Đơn chưa pha — có thể huỷ:</p>
+                <c:forEach var="o" items="${cancellableOrders}">
+                    <form action="${ctx}/qr/track" method="post" style="margin-bottom:8px"
+                          onsubmit="return confirm('Huỷ đơn #${o.orderId}?');">
+                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                        <input type="hidden" name="action" value="cancel">
+                        <input type="hidden" name="sessionId" value="${sessionId}">
+                        <input type="hidden" name="orderId" value="${o.orderId}">
+                        <button type="submit" class="btn btn-ghost" style="width:100%;color:var(--st-cancelled)">Huỷ đơn #${o.orderId}</button>
+                    </form>
+                </c:forEach>
+            </div>
+        </c:if>
+
         <div class="qr-actions">
             <form action="${ctx}/qr/track" method="post">
                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">

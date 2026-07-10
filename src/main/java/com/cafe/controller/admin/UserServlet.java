@@ -47,11 +47,23 @@ public class UserServlet extends HttpServlet {
             } else {
                 Integer roleId = parseFilter(req.getParameter("roleId"));
                 Integer branchId = parseFilter(req.getParameter("branchId"));
-                req.setAttribute("staffList", service.getUserList(roleId, branchId));
+                String q = trim(req.getParameter("q"));
+                int page = parsePage(req.getParameter("page"));
+                int pageSize = 6;
+                int total = service.countUsers(roleId, branchId, q);
+                int totalPages = Math.max(1, (int) Math.ceil(total / (double) pageSize));
+                if (page > totalPages) page = totalPages;
+                int offset = (page - 1) * pageSize;
+
+                req.setAttribute("staffList", service.getUserList(roleId, branchId, q, offset, pageSize));
                 req.setAttribute("roles", roleService.getRoleList());
                 req.setAttribute("branches", branchService.getBranchList());
                 req.setAttribute("fRoleId", roleId);
                 req.setAttribute("fBranchId", branchId);
+                req.setAttribute("q", q);
+                req.setAttribute("page", page);
+                req.setAttribute("totalPages", totalPages);
+                req.setAttribute("total", total);
                 req.setAttribute("pageTitle", "Nhân sự");
                 req.getRequestDispatcher("/WEB-INF/views/admin/user-list.jsp").forward(req, resp);
             }
@@ -81,6 +93,7 @@ public class UserServlet extends HttpServlet {
             User u = bind(req);
             String password = req.getParameter("password");
             boolean creating = u.getUserId() == 0;
+            User existing = null;
 
             // ----- Bảo vệ tài khoản Admin: chỉ 1 admin toàn chuỗi -----
             if (creating && u.getRoleId() == adminRoleId()) {
@@ -90,12 +103,14 @@ public class UserServlet extends HttpServlet {
                 return;
             }
             if (!creating) {
-                User existing = service.getUser(u.getUserId());
+                existing = service.getUser(u.getUserId());
+                if (existing == null) { resp.sendError(HttpServletResponse.SC_NOT_FOUND); return; }
                 if (existing != null && Constants.ROLE_ADMIN.equals(existing.getRoleCode())) {
                     req.getSession().setAttribute("flashError", "Tài khoản Admin hệ thống không thể chỉnh sửa.");
                     resp.sendRedirect(ctx + "/admin/user");
                     return;
                 }
+                applyLockedFields(u, existing);
             }
 
             String error = validate(u, password, creating);
@@ -108,8 +123,7 @@ public class UserServlet extends HttpServlet {
             if (creating) {
                 service.createUser(u, password);
             } else {
-                service.updateUser(u);
-                if (password != null && !password.isBlank()) service.resetPassword(u.getUserId(), password);
+                service.updateProfile(u.getUserId(), u.getFullName(), u.getEmail(), u.getPhone());
             }
             resp.sendRedirect(ctx + "/admin/user");
         } catch (Exception e) { throw new ServletException(e); }
@@ -135,10 +149,12 @@ public class UserServlet extends HttpServlet {
     private String validate(User u, String password, boolean creating) throws Exception {
         if (u.getUsername() == null || u.getUsername().isBlank()) return "Tên đăng nhập không được để trống.";
         if (u.getFullName() == null || u.getFullName().isBlank()) return "Họ tên không được để trống.";
+        if (u.getEmail() == null || u.getEmail().isBlank()) return "Email không được để trống.";
+        if (u.getPhone() == null || u.getPhone().isBlank()) return "Số điện thoại không được để trống.";
+        if (!u.getPhone().matches("^0\\d{9}$")) return "Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.";
         if (u.getRoleId() <= 0) return "Vui lòng chọn vai trò.";
+        if (creating && u.getBranchId() == null) return "Vui lòng chọn chi nhánh.";
         if (creating && (password == null || password.length() < 6)) return "Mật khẩu tối thiểu 6 ký tự.";
-        if (!creating && password != null && !password.isBlank() && password.length() < 6)
-            return "Mật khẩu mới tối thiểu 6 ký tự.";
         if (service.usernameTaken(u.getUsername(), u.getUserId())) return "Tên đăng nhập đã tồn tại.";
         if (!"ACTIVE".equals(u.getStatus()) && !"LOCKED".equals(u.getStatus())) return "Trạng thái không hợp lệ.";
         return null;
@@ -165,10 +181,26 @@ public class UserServlet extends HttpServlet {
 
     private String trim(String s) { return s == null ? null : s.trim(); }
 
+    private void applyLockedFields(User target, User source) {
+        target.setUsername(source.getUsername());
+        target.setRoleId(source.getRoleId());
+        target.setRoleCode(source.getRoleCode());
+        target.setRoleName(source.getRoleName());
+        target.setBranchId(source.getBranchId());
+        target.setBranchName(source.getBranchName());
+        target.setStatus(source.getStatus());
+    }
+
     /** Param lọc → Integer; rỗng/"0"/không phải số = null (bỏ lọc). */
     private Integer parseFilter(String s) {
         if (s == null || s.isBlank()) return null;
         try { int v = Integer.parseInt(s.trim()); return v <= 0 ? null : v; }
         catch (NumberFormatException e) { return null; }
+    }
+
+    private int parsePage(String s) {
+        if (s == null || s.isBlank()) return 1;
+        try { return Math.max(1, Integer.parseInt(s.trim())); }
+        catch (NumberFormatException e) { return 1; }
     }
 }

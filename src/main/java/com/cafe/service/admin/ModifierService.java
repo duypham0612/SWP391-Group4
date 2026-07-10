@@ -13,7 +13,10 @@ import com.cafe.model.ProductModifierGroup;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A4 · ModifierService (đặc tả mục 4) — Group → Option → IngredientImpact + gán nhóm cho product.
@@ -63,12 +66,27 @@ public class ModifierService {
     public List<ModifierIngredientImpact> getModifierImpacts(int optionId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) { return impactDao.findByOption(c, optionId); }
     }
-    public void saveModifierImpact(int optionId, int ingredientId, BigDecimal qtyDelta) throws SQLException {
-        ModifierIngredientImpact m = new ModifierIngredientImpact();
-        m.setModifierOptionId(optionId);
-        m.setIngredientId(ingredientId);
-        m.setQtyDelta(qtyDelta);
-        txVoid(c -> impactDao.insert(c, m));
+    /** Định mức của mọi option trong 1 group, gom theo optionId — cho workspace render 1 lần. */
+    public Map<Integer, List<ModifierIngredientImpact>> getImpactsByOptionMap(int groupId) throws SQLException {
+        Map<Integer, List<ModifierIngredientImpact>> map = new HashMap<>();
+        try (Connection c = DBConnection.getConnection()) {
+            for (ModifierIngredientImpact m : impactDao.findByGroup(c, groupId)) {
+                map.computeIfAbsent(m.getModifierOptionId(), k -> new ArrayList<>()).add(m);
+            }
+        }
+        return map;
+    }
+    /** @return true nếu thêm mới; false nếu nguyên liệu đã có trong option (trùng). */
+    public boolean saveModifierImpact(int optionId, int ingredientId, BigDecimal qtyDelta) throws SQLException {
+        return tx(c -> {
+            if (impactDao.exists(c, optionId, ingredientId)) return false;
+            ModifierIngredientImpact m = new ModifierIngredientImpact();
+            m.setModifierOptionId(optionId);
+            m.setIngredientId(ingredientId);
+            m.setQtyDelta(qtyDelta);
+            impactDao.insert(c, m);
+            return true;
+        });
     }
     public void deleteModifierImpact(int impactId) throws SQLException { txVoid(c -> impactDao.delete(c, impactId)); }
 

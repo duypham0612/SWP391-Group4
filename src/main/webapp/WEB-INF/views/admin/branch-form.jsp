@@ -16,23 +16,21 @@
         <input type="hidden" name="action" value="save">
         <input type="hidden" name="branchId" value="${branch.branchId}">
 
-        <div class="form-group">
-            <label for="code">Mã chi nhánh * (vd CN01)</label>
-            <input id="code" type="text" name="code" class="form-control" maxlength="20" value="${branch.code}" required
-                   <c:choose><c:when test="${branch.branchId > 0}">readonly</c:when><c:otherwise>autofocus</c:otherwise></c:choose>>
-            <c:if test="${branch.branchId > 0}"><small class="muted">Mã chi nhánh không thể thay đổi sau khi tạo.</small></c:if>
-        </div>
+        <c:if test="${branch.branchId > 0}">
+            <div class="form-group">
+                <label>Mã chi nhánh</label>
+                <div class="form-control" style="background:var(--surface-2);color:var(--ink-soft)">${branch.code}</div>
+                <small class="muted">Mã chi nhánh không thể thay đổi sau khi tạo.</small>
+            </div>
+        </c:if>
         <div class="form-group">
             <label for="name">Tên chi nhánh *</label>
-            <input id="name" type="text" name="name" class="form-control" maxlength="150" value="${branch.name}" required>
+            <input id="name" type="text" name="name" class="form-control" maxlength="150" value="${branch.name}" required
+                   <c:if test="${branch.branchId == 0}">autofocus</c:if>>
         </div>
         <div class="form-group">
-            <label for="address">Địa chỉ</label>
-            <input id="address" type="text" name="address" class="form-control" maxlength="255" value="${branch.address}">
-        </div>
-        <div class="form-group">
-            <label for="phone">Số điện thoại</label>
-            <input id="phone" type="text" name="phone" class="form-control" maxlength="20" value="${branch.phone}">
+            <label for="address">Địa chỉ *</label>
+            <input id="address" type="text" name="address" class="form-control" maxlength="255" value="${branch.address}" required>
         </div>
         <div class="form-row" style="display:flex;gap:16px">
             <div class="form-group" style="flex:1">
@@ -59,5 +57,26 @@
         <button type="submit" class="btn btn-primary btn-lg">Lưu</button>
     </form>
 </div>
+
+<script>
+(function(){
+    var openTime = document.getElementById('openTime');
+    var closeTime = document.getElementById('closeTime');
+    if (!openTime || !closeTime) return;
+
+    function validateHours() {
+        closeTime.min = openTime.value || '';
+        if (openTime.value && closeTime.value && closeTime.value <= openTime.value) {
+            closeTime.setCustomValidity('Giờ đóng cửa phải sau giờ mở cửa.');
+        } else {
+            closeTime.setCustomValidity('');
+        }
+    }
+
+    openTime.addEventListener('input', validateHours);
+    closeTime.addEventListener('input', validateHours);
+    validateHours();
+})();
+</script>
 
 <jsp:include page="../layout/footer.jsp" />

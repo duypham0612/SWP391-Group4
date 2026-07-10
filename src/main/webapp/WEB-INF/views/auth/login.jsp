@@ -16,10 +16,12 @@
 <body>
 <div class="login-wrap">
     <div class="login-brandpanel">
-        <div class="lb-top">
-            <span class="logo">C</span>
-            <span class="name">Cà Phê Chain</span>
-        </div>
+        <a href="${ctx}/home" style="text-decoration:none;color:inherit">
+            <div class="lb-top">
+                <span class="logo">C</span>
+                <span class="name">Cà Phê Chain</span>
+            </div>
+        </a>
 
         <div class="lb-center">
             <img class="lb-hero" src="${ctx}/assets/img/login-hero.svg" alt="Tách cà phê" width="560" height="480">
@@ -49,6 +51,10 @@
 
     <div class="login-formwrap">
         <div class="login-card">
+            <div class="login-hint" style="margin-bottom:12px;text-align:left">
+                <a href="${ctx}/home">← Về trang chủ</a>
+            </div>
+
             <div class="form-head">
                 <h2>Đăng nhập</h2>
                 <p>Chào mừng trở lại. Vui lòng nhập thông tin của bạn.</p>
@@ -86,15 +92,6 @@
             <div class="login-hint" style="margin-bottom:6px">
                 <a href="${ctx}/auth/forgot">Quên mật khẩu?</a>
             </div>
-            <div class="login-hint">
-                Tài khoản dùng thử (bấm để điền nhanh · mật khẩu <strong>123456</strong>)
-                <div class="demo-accounts">
-                    <button type="button" class="demo-chip" data-user="admin">admin</button>
-                    <button type="button" class="demo-chip" data-user="manager1">manager1</button>
-                    <button type="button" class="demo-chip" data-user="cashier1">cashier1</button>
-                    <button type="button" class="demo-chip" data-user="barista1">barista1</button>
-                </div>
-            </div>
         </div>
     </div>
 </div>
@@ -107,14 +104,6 @@
       var show=p.type==='password'; p.type=show?'text':'password'; t.classList.toggle('is-on',show); p.focus();
     });
   })();
-  // Chip điền nhanh tài khoản demo
-  document.querySelectorAll('.demo-chip').forEach(function(c){
-    c.addEventListener('click',function(){
-      document.getElementById('username').value=c.dataset.user;
-      document.getElementById('password').value='123456';
-      document.getElementById('password').focus();
-    });
-  });
 </script>
 </body>
 </html>

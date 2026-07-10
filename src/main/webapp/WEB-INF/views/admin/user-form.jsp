@@ -27,43 +27,70 @@
         </div>
         <div class="form-group">
             <label for="email">Email</label>
-            <input id="email" type="email" name="email" class="form-control" maxlength="120" value="${staff.email}">
+            <input id="email" type="email" name="email" class="form-control" maxlength="120"
+                   value="${staff.email}" required>
         </div>
         <div class="form-group">
             <label for="phone">Số điện thoại</label>
-            <input id="phone" type="text" name="phone" class="form-control" maxlength="20" value="${staff.phone}">
+            <input id="phone" type="text" name="phone" class="form-control" maxlength="10"
+                   inputmode="numeric" pattern="0[0-9]{9}" title="10 chữ số, bắt đầu bằng 0"
+                   value="${staff.phone}" required>
         </div>
         <div class="form-group">
             <label for="roleId">Vai trò *</label>
-            <select id="roleId" name="roleId" class="form-control" required>
-                <option value="">-- Chọn vai trò --</option>
-                <c:forEach var="r" items="${roles}">
-                    <option value="${r.roleId}" <c:if test="${r.roleId == staff.roleId}">selected</c:if>>${r.name} (${r.code})</option>
-                </c:forEach>
-            </select>
+            <c:choose>
+                <c:when test="${editing}">
+                    <input id="roleIdDisplay" type="text" class="form-control" value="${staff.roleName}" disabled>
+                    <input type="hidden" name="roleId" value="${staff.roleId}">
+                </c:when>
+                <c:otherwise>
+                    <select id="roleId" name="roleId" class="form-control" required>
+                        <option value="">-- Chọn vai trò --</option>
+                        <c:forEach var="r" items="${roles}">
+                            <option value="${r.roleId}" <c:if test="${r.roleId == staff.roleId}">selected</c:if>>${r.name} (${r.code})</option>
+                        </c:forEach>
+                    </select>
+                </c:otherwise>
+            </c:choose>
         </div>
         <div class="form-group">
-            <label for="branchId">Chi nhánh <span class="muted">(để trống nếu là Admin toàn chuỗi)</span></label>
-            <select id="branchId" name="branchId" class="form-control">
-                <option value="">-- Toàn chuỗi (Admin) --</option>
-                <c:forEach var="b" items="${branches}">
-                    <option value="${b.branchId}" <c:if test="${b.branchId == staff.branchId}">selected</c:if>>${b.code} — ${b.name}</option>
-                </c:forEach>
-            </select>
+            <label for="branchId">Chi nhánh</label>
+            <c:choose>
+                <c:when test="${editing}">
+                    <input id="branchIdDisplay" type="text" class="form-control" value="${staff.branchName}" disabled>
+                    <input type="hidden" name="branchId" value="${staff.branchId}">
+                </c:when>
+                <c:otherwise>
+                    <select id="branchId" name="branchId" class="form-control" required>
+                        <option value="">-- Tùy chọn --</option>
+                        <c:forEach var="b" items="${branches}">
+                            <option value="${b.branchId}" <c:if test="${b.branchId == staff.branchId}">selected</c:if>>${b.code} — ${b.name}</option>
+                        </c:forEach>
+                    </select>
+                </c:otherwise>
+            </c:choose>
         </div>
         <div class="form-group">
             <label for="status">Trạng thái</label>
-            <select id="status" name="status" class="form-control">
-                <option value="ACTIVE" <c:if test="${staff.status == 'ACTIVE'}">selected</c:if>>ACTIVE</option>
-                <option value="LOCKED" <c:if test="${staff.status == 'LOCKED'}">selected</c:if>>LOCKED</option>
-            </select>
+            <c:choose>
+                <c:when test="${editing}">
+                    <input id="statusDisplay" type="text" class="form-control" value="${staff.status}" disabled>
+                    <input type="hidden" name="status" value="${staff.status}">
+                </c:when>
+                <c:otherwise>
+                    <select id="status" name="status" class="form-control">
+                        <option value="ACTIVE" <c:if test="${staff.status == 'ACTIVE'}">selected</c:if>>ACTIVE</option>
+                        <option value="LOCKED" <c:if test="${staff.status == 'LOCKED'}">selected</c:if>>LOCKED</option>
+                    </select>
+                </c:otherwise>
+            </c:choose>
         </div>
-        <div class="form-group">
-            <label for="password">
-                <c:choose><c:when test="${editing}">Đổi mật khẩu (để trống nếu giữ nguyên)</c:when><c:otherwise>Mật khẩu * (≥ 6 ký tự)</c:otherwise></c:choose>
-            </label>
-            <input id="password" type="password" name="password" class="form-control" <c:if test="${not editing}">required</c:if>>
-        </div>
+        <c:if test="${not editing}">
+            <div class="form-group">
+                <label for="password">Mật khẩu * (≥ 6 ký tự)</label>
+                <input id="password" type="password" name="password" class="form-control" required>
+            </div>
+        </c:if>
         <button type="submit" class="btn btn-primary btn-lg">Lưu</button>
     </form>
 </div>

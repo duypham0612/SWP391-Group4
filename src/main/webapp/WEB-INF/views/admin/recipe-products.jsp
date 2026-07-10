@@ -4,50 +4,96 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Công thức / Recipe</h1><p>BOM cho sản phẩm · Công thức pha sẵn (PrepRecipe) cho nguyên liệu PREPPED</p></div>
+    <div><h1>Công thức / Recipe</h1><p>Công thức món cho sản phẩm · Công thức pha sẵn cho nguyên liệu pha sẵn</p></div>
 </div>
 
-<h3>Công thức món (BOM) — chọn sản phẩm</h3>
+<h3>Công thức món — chọn sản phẩm</h3>
 <c:choose>
     <c:when test="${empty products}">
         <div class="card empty-state"><div class="icon">📭</div><p>Chưa có sản phẩm. Hãy thêm sản phẩm trước.</p></div>
     </c:when>
     <c:otherwise>
-        <table class="table" style="margin-bottom:26px">
-            <thead><tr><th style="width:60px">#</th><th>Sản phẩm</th><th>Danh mục</th><th style="width:180px">Công thức</th></tr></thead>
-            <tbody>
-                <c:forEach var="p" items="${products}">
-                    <tr>
-                        <td>${p.productId}</td>
-                        <td>${p.name}</td>
-                        <td>${p.categoryName}</td>
-                        <td><a class="btn btn-ghost btn-sm" href="${ctx}/admin/recipe?productId=${p.productId}">Khai báo BOM</a></td>
-                    </tr>
-                </c:forEach>
-            </tbody>
-        </table>
+        <div data-tabletools style="margin-bottom:26px">
+            <div class="table-toolbar">
+                <div class="form-group table-search">
+                    <label for="recipeProductSearch">Tìm kiếm</label>
+                    <input id="recipeProductSearch" class="form-control" type="search" data-tt-search placeholder="Tìm theo tên sản phẩm">
+                </div>
+                <div class="form-group">
+                    <label for="recipeProductCategoryFilter">Danh mục</label>
+                    <select id="recipeProductCategoryFilter" class="form-control tt-filter" data-tt-filter data-tt-col="2" data-tt-autofill>
+                        <option value="">Tất cả</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="recipeProductPageSize">Hiển thị</label>
+                    <select id="recipeProductPageSize" class="form-control tt-size" data-tt-size>
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                    </select>
+                </div>
+            </div>
+            <table class="table">
+                <thead><tr><th style="width:60px" data-tt-nosearch>#</th><th data-tt-search>Sản phẩm</th><th data-tt-nosearch>Danh mục</th><th style="width:180px" data-tt-nosearch>Công thức</th></tr></thead>
+                <tbody>
+                    <c:forEach var="p" items="${products}">
+                        <tr>
+                            <td>${p.productId}</td>
+                            <td>${p.name}</td>
+                            <td>${p.categoryName}</td>
+                            <td><a class="btn btn-ghost btn-sm" href="${ctx}/admin/recipe?productId=${p.productId}">Công thức món</a></td>
+                        </tr>
+                    </c:forEach>
+                </tbody>
+            </table>
+            <div class="table-tools-foot">
+                <span class="tt-summary" data-tt-summary></span>
+                <div class="pagination" data-tt-pager></div>
+            </div>
+        </div>
     </c:otherwise>
 </c:choose>
 
-<h3>Công thức pha sẵn (RAW → PREPPED) — chọn nguyên liệu PREPPED</h3>
+<h3>Công thức pha sẵn — chọn nguyên liệu pha sẵn</h3>
 <c:choose>
     <c:when test="${empty preppedIngredients}">
-        <div class="card empty-state"><div class="icon">🥤</div><p>Chưa có nguyên liệu PREPPED nào. Tạo ở mục Nguyên liệu (loại PREPPED).</p></div>
+        <div class="card empty-state"><div class="icon">🥤</div><p>Chưa có nguyên liệu pha sẵn nào. Tạo ở mục Nguyên liệu (loại Nguyên liệu pha sẵn).</p></div>
     </c:when>
     <c:otherwise>
-        <table class="table">
-            <thead><tr><th style="width:60px">#</th><th>Nguyên liệu PREPPED</th><th style="width:100px">Đơn vị</th><th style="width:180px">Công thức pha</th></tr></thead>
-            <tbody>
-                <c:forEach var="i" items="${preppedIngredients}">
-                    <tr>
-                        <td>${i.ingredientId}</td>
-                        <td>${i.name}</td>
-                        <td>${i.unit}</td>
-                        <td><a class="btn btn-ghost btn-sm" href="${ctx}/admin/recipe?preppedId=${i.ingredientId}">Khai báo PrepRecipe</a></td>
-                    </tr>
-                </c:forEach>
-            </tbody>
-        </table>
+        <div data-tabletools>
+            <div class="table-toolbar">
+                <div class="form-group table-search">
+                    <label for="recipePreppedSearch">Tìm kiếm</label>
+                    <input id="recipePreppedSearch" class="form-control" type="search" data-tt-search placeholder="Tìm theo tên nguyên liệu">
+                </div>
+                <div class="form-group">
+                    <label for="recipePreppedPageSize">Hiển thị</label>
+                    <select id="recipePreppedPageSize" class="form-control tt-size" data-tt-size>
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                    </select>
+                </div>
+            </div>
+            <table class="table">
+                <thead><tr><th style="width:60px" data-tt-nosearch>#</th><th data-tt-search>Nguyên liệu pha sẵn</th><th style="width:100px" data-tt-nosearch>Đơn vị</th><th style="width:180px" data-tt-nosearch>Công thức pha</th></tr></thead>
+                <tbody>
+                    <c:forEach var="i" items="${preppedIngredients}">
+                        <tr>
+                            <td>${i.ingredientId}</td>
+                            <td>${i.name}</td>
+                            <td>${i.unit}</td>
+                            <td><a class="btn btn-ghost btn-sm" href="${ctx}/admin/recipe?preppedId=${i.ingredientId}">Công thức pha sẵn</a></td>
+                        </tr>
+                    </c:forEach>
+                </tbody>
+            </table>
+            <div class="table-tools-foot">
+                <span class="tt-summary" data-tt-summary></span>
+                <div class="pagination" data-tt-pager></div>
+            </div>
+        </div>
     </c:otherwise>
 </c:choose>
 

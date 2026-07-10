@@ -30,7 +30,13 @@ public class BranchService {
     public int createBranch(Branch b) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
-            try { int id = dao.insert(conn, b); conn.commit(); return id; }
+            try {
+                int id = dao.insert(conn, b);
+                if (id <= 0) throw new SQLException("Không lấy được BranchId sau khi tạo chi nhánh.");
+                dao.updateCode(conn, id, String.format("CN%02d", id));
+                conn.commit();
+                return id;
+            }
             catch (SQLException e) { conn.rollback(); throw e; }
             finally { conn.setAutoCommit(true); }
         }

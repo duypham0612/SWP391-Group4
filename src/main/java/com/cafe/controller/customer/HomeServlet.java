@@ -23,6 +23,7 @@ public class HomeServlet extends HttpServlet {
             throws ServletException, IOException {
         try {
             req.setAttribute("sections", catalog.getPublicMenu());
+            req.setAttribute("home", catalog.getHomeSetting());
             req.getRequestDispatcher("/WEB-INF/views/customer/home.jsp").forward(req, resp);
         } catch (Exception e) { throw new ServletException(e); }
     }

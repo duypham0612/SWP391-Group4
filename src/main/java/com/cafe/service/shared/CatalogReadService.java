@@ -1,6 +1,7 @@
 package com.cafe.service.shared;
 
 import com.cafe.config.DBConnection;
+import com.cafe.dao.admin.HomeSettingDao;
 import com.cafe.dao.admin.ProductDao;
 import com.cafe.dao.shared.BranchMenuDao;
 import com.cafe.dao.shared.ModifierGroupDao;
@@ -10,6 +11,7 @@ import com.cafe.dao.shared.PrepRecipeDao;
 import com.cafe.dao.shared.ProductModifierGroupDao;
 import com.cafe.dao.shared.ProductRecipeDao;
 import com.cafe.model.BranchMenuItem;
+import com.cafe.model.HomeSetting;
 import com.cafe.model.ModifierGroup;
 import com.cafe.model.ModifierIngredientImpact;
 import com.cafe.model.ModifierOption;
@@ -36,6 +38,7 @@ public class CatalogReadService {
     private final PrepRecipeDao prepRecipeDao = new PrepRecipeDao();
     private final ModifierIngredientImpactDao impactDao = new ModifierIngredientImpactDao();
     private final ProductDao productDao = new ProductDao();
+    private final HomeSettingDao homeSettingDao = new HomeSettingDao();
 
     /** Menu bán được của chi nhánh: published + available + chưa 86, kèm nhóm modifier. */
     public List<PosMenuItem> getPosMenu(int branchId) throws SQLException {
@@ -71,17 +74,26 @@ public class CatalogReadService {
 
     // ===== Trang Home công khai: catalog theo danh mục (khách xem, không cần login) =====
 
-    /** Menu công khai: các danh mục (theo SortOrder) + sản phẩm đang hiển thị (ảnh, giá). */
+    /**
+     * Menu công khai: các danh mục (theo SortOrder) + sản phẩm Admin chọn hiển thị
+     * (IsActive + ShowOnHome), trong mỗi danh mục sắp theo HomeSortOrder rồi tên.
+     */
     public List<MenuSection> getPublicMenu() throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             java.util.LinkedHashMap<Integer, MenuSection> byCat = new java.util.LinkedHashMap<>();
-            for (Product p : productDao.findAll(conn)) {      // đã ORDER BY SortOrder, Name
-                if (!p.isActive()) continue;
+            for (Product p : productDao.findForHome(conn)) {  // đã lọc Active+ShowOnHome, ORDER BY SortOrder, HomeSortOrder, Name
                 MenuSection s = byCat.get(p.getCategoryId());
                 if (s == null) { s = new MenuSection(); s.name = p.getCategoryName(); byCat.put(p.getCategoryId(), s); }
                 s.products.add(p);
             }
             return new ArrayList<>(byCat.values());
+        }
+    }
+
+    /** Nội dung hero của trang Home (tiêu đề/mô tả/ảnh) do Admin cấu hình; null nếu chưa cấu hình. */
+    public HomeSetting getHomeSetting() throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            return homeSettingDao.find(conn);
         }
     }
 
