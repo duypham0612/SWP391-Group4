@@ -3,6 +3,7 @@
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <jsp:include page="../layout/header.jsp" />
+<script src="${ctx}/assets/js/qrcode.min.js"></script>
 
 <div class="page-header">
     <div><div class="eyebrow">Bán hàng</div><h1>Thanh toán</h1>
@@ -115,18 +116,25 @@
                             </form>
                         </c:if>
                         <%-- Thanh toán --%>
-                        <form action="${ctx}/cashier/checkout" method="post" style="display:flex;gap:6px;align-items:flex-end" onsubmit="return confirm('Xác nhận thu tiền hoá đơn này?');">
+                        <form class="pay-form" action="${ctx}/cashier/checkout" method="post" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap" onsubmit="return confirm(this.querySelector('[name=method]').value === 'QR_BANK' ? 'Xác nhận đã nhận tiền QR?' : 'Xác nhận thu tiền hoá đơn này?');">
                             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                             <input type="hidden" name="action" value="pay">
                             <input type="hidden" name="sessionId" value="${sessionId}">
                             <input type="hidden" name="billId" value="${b.billId}">
                             <div class="form-group" style="margin:0;width:150px"><label>Hình thức</label>
-                                <select name="method" class="form-control">
+                                <select name="method" class="form-control pay-method" data-bill-id="${b.billId}">
                                     <option value="CASH">Tiền mặt</option>
                                     <option value="TRANSFER">Chuyển khoản</option>
                                     <option value="QR_BANK">QR ngân hàng</option>
                                 </select></div>
-                            <button type="submit" class="btn btn-primary">Thu tiền</button>
+                            <div class="qr-pay-panel" id="qr-panel-${b.billId}" data-payload="<c:out value='${qrPayloads[b.billId]}'/>" style="display:none">
+                                <div class="qr-code" id="qr-code-${b.billId}"></div>
+                                <div class="muted" style="font-size:.85rem;margin-top:6px">
+                                    ${vietQrAccountName} · ${vietQrAccountNo}<br>
+                                    Nội dung: CAFE BILL ${b.billId}
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary pay-submit">Thu tiền</button>
                         </form>
                     </div>
                 </c:if>
@@ -155,5 +163,32 @@
         </c:if>
     </c:otherwise>
 </c:choose>
+
+<script>
+document.querySelectorAll('.pay-form').forEach(form => {
+  const method = form.querySelector('.pay-method');
+  const submit = form.querySelector('.pay-submit');
+  const panel = form.querySelector('.qr-pay-panel');
+  const codeBox = panel ? panel.querySelector('.qr-code') : null;
+  let rendered = false;
+  function syncPaymentUi(){
+    const isQr = method.value === 'QR_BANK';
+    if (panel) panel.style.display = isQr ? 'block' : 'none';
+    if (submit) submit.textContent = isQr ? 'Đã nhận tiền' : 'Thu tiền';
+    if (isQr && panel && codeBox && !rendered) {
+      const payload = panel.dataset.payload || '';
+      codeBox.innerHTML = '';
+      if (window.QRCode && payload) {
+        new QRCode(codeBox, {text: payload, width: 180, height: 180, correctLevel: QRCode.CorrectLevel.M});
+      } else {
+        codeBox.textContent = payload || 'Không tạo được QR.';
+      }
+      rendered = true;
+    }
+  }
+  method.addEventListener('change', syncPaymentUi);
+  syncPaymentUi();
+});
+</script>
 
 <jsp:include page="../layout/footer.jsp" />

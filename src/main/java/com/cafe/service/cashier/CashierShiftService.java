@@ -1,6 +1,7 @@
 package com.cafe.service.cashier;
 
 import com.cafe.config.DBConnection;
+import com.cafe.dao.cashier.BillDao;
 import com.cafe.dao.cashier.CashierShiftDao;
 import com.cafe.model.CashierShift;
 
@@ -13,6 +14,7 @@ import java.util.List;
 public class CashierShiftService {
 
     private final CashierShiftDao dao = new CashierShiftDao();
+    private final BillDao billDao = new BillDao();
 
     /** Mở ca (idempotent: nếu đã có ca mở thì trả về ca đó). */
     public int openShift(int branchId, int cashierId, BigDecimal openingCash) throws SQLException {
@@ -51,5 +53,15 @@ public class CashierShiftService {
 
     public List<CashierShift> getShiftList(int branchId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) { return dao.findByBranch(c, branchId); }
+    }
+
+    /** R1/R2 · Tổng doanh thu đã thu (PAID) hôm nay của chi nhánh. */
+    public BigDecimal getTodayRevenue(int branchId) throws SQLException {
+        try (Connection c = DBConnection.getConnection()) { return billDao.sumPaidToday(c, branchId); }
+    }
+
+    /** R1/R2 · Số hoá đơn đã thu hôm nay = "số đơn đã thực hiện". */
+    public int getTodayBillCount(int branchId) throws SQLException {
+        try (Connection c = DBConnection.getConnection()) { return billDao.countPaidToday(c, branchId); }
     }
 }

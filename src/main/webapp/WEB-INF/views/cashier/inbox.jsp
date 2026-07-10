@@ -12,6 +12,10 @@
     <div class="alert alert-success">${sessionScope.flashOk}</div>
     <c:remove var="flashOk" scope="session" />
 </c:if>
+<c:if test="${not empty sessionScope.flashError}">
+    <div class="alert alert-error">${sessionScope.flashError}</div>
+    <c:remove var="flashError" scope="session" />
+</c:if>
 
 <c:choose>
     <c:when test="${empty orders}">
@@ -29,14 +33,26 @@
                         </c:choose>
                         <c:if test="${not empty o.tableNumber}"><span class="badge" style="background:var(--latte)">Bàn ${o.tableNumber}</span></c:if>
                         <c:if test="${o.orderType == 'TAKEAWAY'}"><span class="badge" style="background:var(--latte)">Mang đi</span></c:if>
+                        <c:choose>
+                            <c:when test="${o.paymentStatus == 'PAID'}"><span class="badge badge-ready">Đã thanh toán</span></c:when>
+                            <c:when test="${o.paymentStatus == 'ERROR'}"><span class="badge badge-cancelled">Lỗi thanh toán</span></c:when>
+                            <c:otherwise><span class="badge badge-waiting">Đang thanh toán</span></c:otherwise>
+                        </c:choose>
                         <br><small style="color:var(--muted)">${o.createdAt} · ${o.items.size()} món · Tổng <fmt:formatNumber value="${o.total}" type="number"/>đ</small>
                     </div>
-                    <form action="${ctx}/cashier/inbox" method="post" onsubmit="return confirm('Huỷ đơn #${o.orderId}? Các món chưa pha sẽ bị huỷ.');">
-                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                        <input type="hidden" name="action" value="void">
-                        <input type="hidden" name="orderId" value="${o.orderId}">
-                        <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--st-cancelled)">Huỷ đơn</button>
-                    </form>
+                    <c:choose>
+                        <c:when test="${o.cancellable}">
+                            <form action="${ctx}/cashier/inbox" method="post" onsubmit="return confirm('Huỷ đơn #${o.orderId}? Các món chưa pha sẽ bị huỷ.');">
+                                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                <input type="hidden" name="action" value="void">
+                                <input type="hidden" name="orderId" value="${o.orderId}">
+                                <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--st-cancelled)">Huỷ đơn</button>
+                            </form>
+                        </c:when>
+                        <c:otherwise>
+                            <small style="color:var(--muted)">Đang/đã pha — không thể huỷ</small>
+                        </c:otherwise>
+                    </c:choose>
                 </div>
                 <table class="table" style="margin-top:10px">
                     <thead><tr><th>Món</th><th style="width:70px">SL</th><th style="width:120px">Trạng thái</th><th>Ghi chú</th></tr></thead>

@@ -14,6 +14,15 @@
     </c:if>
 </div>
 
+<%-- R4 · Lọc theo hình thức thanh toán (chuyển khoản / tiền mặt) — giữ nguyên phạm vi đang xem --%>
+<c:set var="sc" value="${empty param.scope ? '' : '&scope='}${param.scope}" />
+<div style="margin:0 0 14px">
+    <a class="btn btn-sm ${empty param.method ? 'btn-primary' : 'btn-ghost'}" href="${ctx}/cashier/history${empty param.scope ? '' : '?scope='}${param.scope}">Tất cả</a>
+    <a class="btn btn-sm ${param.method == 'CASH' ? 'btn-primary' : 'btn-ghost'}" href="${ctx}/cashier/history?method=CASH${sc}">Tiền mặt</a>
+    <a class="btn btn-sm ${param.method == 'TRANSFER' ? 'btn-primary' : 'btn-ghost'}" href="${ctx}/cashier/history?method=TRANSFER${sc}">Chuyển khoản</a>
+    <a class="btn btn-sm ${param.method == 'QR_BANK' ? 'btn-primary' : 'btn-ghost'}" href="${ctx}/cashier/history?method=QR_BANK${sc}">QR ngân hàng</a>
+</div>
+
 <c:if test="${not empty sessionScope.flashOk}">
     <div class="alert alert-success">${sessionScope.flashOk}</div><c:remove var="flashOk" scope="session" />
 </c:if>
@@ -34,7 +43,14 @@
                         <td>${b.billId}</td>
                         <td><c:choose><c:when test="${not empty b.tableNumber}">${b.tableNumber}</c:when><c:otherwise><span class="muted">Đem về</span></c:otherwise></c:choose></td>
                         <td><strong><fmt:formatNumber value="${b.totalAmount}" maxFractionDigits="0"/> ₫</strong></td>
-                        <td>${b.paymentMethod}</td>
+                        <td>
+                            <c:choose>
+                                <c:when test="${b.paymentMethod == 'CASH'}">Tiền mặt</c:when>
+                                <c:when test="${b.paymentMethod == 'TRANSFER'}">Chuyển khoản</c:when>
+                                <c:when test="${b.paymentMethod == 'QR_BANK'}">QR ngân hàng</c:when>
+                                <c:otherwise><span class="muted">—</span></c:otherwise>
+                            </c:choose>
+                        </td>
                         <td>
                             <c:choose>
                                 <c:when test="${b.status == 'PAID'}"><span class="badge badge-ready">Đã thu</span></c:when>
