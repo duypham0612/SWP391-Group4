@@ -9,6 +9,10 @@
     <p>Quản lý chi nhánh · ${sessionScope.authUser.branchName} · ${today}</p>
 </div>
 
+<c:if test="${not empty sessionScope.flashError}">
+    <div class="alert alert-error">${sessionScope.flashError}</div><c:remove var="flashError" scope="session" />
+</c:if>
+
 <div class="card-grid">
     <div class="card stat">
         <span class="label">Doanh thu hôm nay</span>

@@ -8,21 +8,36 @@
     <a class="btn btn-ghost" href="${ctx}/manager/reconciliation">← Quay lại</a>
 </div>
 
-<div class="alert alert-info">Chênh lệch (thực tế − hệ thống) sẽ được ghi 1 dòng <code>ADJUST</code> vào sổ cái và cập nhật tồn.</div>
+<c:if test="${not empty sessionScope.flashError}">
+    <div class="alert alert-error">${sessionScope.flashError}</div><c:remove var="flashError" scope="session" />
+</c:if>
 
-<div class="card form-card">
+<div class="alert alert-info">Tick các nguyên liệu cần kiểm kê, nhập <strong>tồn thực tế</strong> (và đơn vị/lý do nếu cần). Chênh lệch (thực tế − hệ thống) sẽ được ghi 1 dòng <code>ADJUST</code> vào sổ cái và cập nhật tồn. Dòng được tick nhưng chưa nhập tồn thực tế sẽ bỏ qua.</div>
+
+<div class="card">
     <form action="${ctx}/manager/reconciliation" method="post">
         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-        <div class="form-group"><label for="ingredientId">Nguyên liệu *</label>
-            <select id="ingredientId" name="ingredientId" class="form-control" required>
-                <option value="">-- Chọn --</option>
-                <c:forEach var="i" items="${ingredients}"><option value="${i.ingredientId}">${i.name} (${i.unit} · ${i.ingredientType})</option></c:forEach>
-            </select></div>
-        <div class="form-group"><label for="actualQty">Tồn thực tế *</label>
-            <input id="actualQty" type="number" name="actualQty" class="form-control" step="0.001" required></div>
-        <div class="form-group"><label for="reason">Lý do</label>
-            <input id="reason" type="text" name="reason" class="form-control" maxlength="255" placeholder="Kiểm kê cuối ca..."></div>
-        <button type="submit" class="btn btn-primary btn-lg">Ghi điều chỉnh</button>
+        <table class="table">
+            <thead><tr>
+                <th style="width:40px"><input type="checkbox" onclick="document.querySelectorAll('.pickbox').forEach(c=>c.checked=this.checked)"></th>
+                <th>Nguyên liệu</th>
+                <th style="width:120px">Đơn vị</th>
+                <th style="width:150px">Tồn thực tế</th>
+                <th>Lý do</th>
+            </tr></thead>
+            <tbody>
+                <c:forEach var="i" items="${ingredients}">
+                    <tr>
+                        <td><input class="pickbox" type="checkbox" name="pick" value="${i.ingredientId}"></td>
+                        <td>${i.name} <span class="muted">· ${i.ingredientType}</span></td>
+                        <td><input type="text" name="unit_${i.ingredientId}" class="form-control" maxlength="20" value="${i.unit}"></td>
+                        <td><input type="number" name="actual_${i.ingredientId}" class="form-control" min="0" step="any" placeholder="0"></td>
+                        <td><input type="text" name="reason_${i.ingredientId}" class="form-control" maxlength="255" placeholder="Kiểm kê cuối ca..."></td>
+                    </tr>
+                </c:forEach>
+            </tbody>
+        </table>
+        <button type="submit" class="btn btn-primary btn-lg">Ghi điều chỉnh các mục đã chọn</button>
     </form>
 </div>
 

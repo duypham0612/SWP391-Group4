@@ -20,7 +20,12 @@ public class StockAdjustmentService {
         try (Connection c = DBConnection.getConnection()) { return dao.findByBranch(c, branchId); }
     }
 
-    public void createAdjustment(int branchId, int ingredientId, BigDecimal actualQty, String reason, int userId) throws SQLException {
-        inventoryService.createAdjustment(branchId, ingredientId, actualQty, reason, userId);
+    public void createAdjustment(int branchId, int ingredientId, BigDecimal actualQty, String reason, String unit, int userId) throws SQLException {
+        inventoryService.createAdjustment(branchId, ingredientId, actualQty, reason, unit, userId);
+    }
+
+    /** Điều chỉnh nhiều nguyên liệu cùng lúc (tickbox) — 1 transaction. */
+    public void createAdjustments(int branchId, List<StockAdjustment> lines, int userId) throws SQLException {
+        inventoryService.createAdjustments(branchId, lines, userId);
     }
 }

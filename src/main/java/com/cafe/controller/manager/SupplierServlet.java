@@ -1,5 +1,6 @@
 package com.cafe.controller.manager;
 
+import com.cafe.common.BusinessException;
 import com.cafe.common.CsrfUtil;
 import com.cafe.model.Supplier;
 import com.cafe.service.manager.SupplierService;
@@ -35,6 +36,9 @@ public class SupplierServlet extends HttpServlet {
                 req.setAttribute("pageTitle", "Nhà cung cấp");
                 req.getRequestDispatcher("/WEB-INF/views/manager/supplier-list.jsp").forward(req, resp);
             }
+        } catch (NumberFormatException e) {
+            req.getSession().setAttribute("flashError", "Mã nhà cung cấp không hợp lệ.");
+            resp.sendRedirect(req.getContextPath() + "/manager/supplier");
         } catch (Exception e) { throw new ServletException(e); }
     }
 
@@ -51,13 +55,23 @@ public class SupplierServlet extends HttpServlet {
                 return;
             }
             Supplier s = bind(req);
-            if (s.getName() == null || s.getName().isBlank()) {
+            String err = null;
+            if (s.getName() == null || s.getName().isBlank()) err = "Tên nhà cung cấp không được để trống.";
+            else if (s.getPhone() == null || s.getPhone().isBlank()) err = "Số điện thoại không được để trống.";
+            else if (s.getAddress() == null || s.getAddress().isBlank()) err = "Địa chỉ không được để trống.";
+            if (err != null) {
                 req.setAttribute("supplier", s);
-                req.setAttribute("errorMsg", "Tên nhà cung cấp không được để trống.");
+                req.setAttribute("errorMsg", err);
                 forwardForm(req, resp, s.getSupplierId() == 0 ? "Thêm nhà cung cấp" : "Sửa nhà cung cấp");
                 return;
             }
             if (s.getSupplierId() == 0) service.createSupplier(s); else service.updateSupplier(s);
+            resp.sendRedirect(ctx + "/manager/supplier");
+        } catch (BusinessException e) {
+            req.getSession().setAttribute("flashError", e.getMessage());
+            resp.sendRedirect(ctx + "/manager/supplier");
+        } catch (NumberFormatException e) {
+            req.getSession().setAttribute("flashError", "Mã nhà cung cấp không hợp lệ.");
             resp.sendRedirect(ctx + "/manager/supplier");
         } catch (Exception e) { throw new ServletException(e); }
     }

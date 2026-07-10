@@ -1,5 +1,6 @@
 package com.cafe.controller.manager;
 
+import com.cafe.common.BusinessException;
 import com.cafe.common.CsrfUtil;
 import com.cafe.model.BranchMenuItem;
 import com.cafe.service.shared.BranchMenuService;
@@ -11,7 +12,9 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * M8 · ManagerMenuServlet → /manager/menu. list | toggleAvailable | setLocalPrice.
@@ -39,9 +42,20 @@ public class ManagerMenuServlet extends HttpServlet {
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
         int branchId = InventoryDashboardServlet.branchId(req);
-        int productId = Integer.parseInt(req.getParameter("productId"));
         String action = req.getParameter("action");
         try {
+            if ("hideMany".equals(action)) {   // ẩn (ngừng bán) nhiều món đã tick cùng lúc
+                Set<Integer> ids = new HashSet<>();
+                String[] picks = req.getParameterValues("pick");
+                if (picks != null) for (String p : picks) {
+                    try { ids.add(Integer.parseInt(p)); } catch (NumberFormatException ignore) {}
+                }
+                service.hideMany(branchId, ids);
+                req.getSession().setAttribute("flashOk", "Đã ẩn (ngừng bán) " + ids.size() + " món đã chọn.");
+                resp.sendRedirect(req.getContextPath() + "/manager/menu");
+                return;
+            }
+            int productId = Integer.parseInt(req.getParameter("productId"));
             BranchMenuItem cur = findItem(branchId, productId);
             boolean available = cur != null && cur.isAvailable();
             BigDecimal localPrice = cur != null ? cur.getLocalPrice() : null;
@@ -57,8 +71,11 @@ public class ManagerMenuServlet extends HttpServlet {
             }
             service.save(branchId, productId, available, localPrice, is86);
             resp.sendRedirect(req.getContextPath() + "/manager/menu");
+        } catch (BusinessException e) {
+            req.getSession().setAttribute("flashError", e.getMessage());
+            resp.sendRedirect(req.getContextPath() + "/manager/menu");
         } catch (NumberFormatException e) {
-            req.getSession().setAttribute("flashError", "Giá không hợp lệ.");
+            req.getSession().setAttribute("flashError", "Dữ liệu menu hoặc giá không hợp lệ.");
             resp.sendRedirect(req.getContextPath() + "/manager/menu");
         } catch (Exception e) { throw new ServletException(e); }
     }

@@ -8,6 +8,10 @@
     <a class="btn btn-primary" href="${ctx}/manager/supplier?action=new">+ Thêm nhà cung cấp</a>
 </div>
 
+<c:if test="${not empty sessionScope.flashError}">
+    <div class="alert alert-error">${sessionScope.flashError}</div><c:remove var="flashError" scope="session" />
+</c:if>
+
 <c:choose>
     <c:when test="${empty suppliers}">
         <div class="card empty-state"><div class="icon">∅</div><p>Chưa có nhà cung cấp nào.</p></div>

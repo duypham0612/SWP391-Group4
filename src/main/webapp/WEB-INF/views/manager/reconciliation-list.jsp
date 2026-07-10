@@ -8,6 +8,10 @@
     <a class="btn btn-primary" href="${ctx}/manager/reconciliation?action=new">+ Điều chỉnh mới</a>
 </div>
 
+<c:if test="${not empty sessionScope.flashError}">
+    <div class="alert alert-error">${sessionScope.flashError}</div><c:remove var="flashError" scope="session" />
+</c:if>
+
 <c:choose>
     <c:when test="${empty adjustments}">
         <div class="card empty-state"><div class="icon">∅</div><p>Chưa có lần đối soát nào.</p></div>
@@ -20,8 +24,8 @@
                     <tr>
                         <td>${a.stockAdjustmentId}</td>
                         <td>${a.ingredientName}</td>
-                        <td>${a.systemQty} ${a.ingredientUnit}</td>
-                        <td>${a.actualQty} ${a.ingredientUnit}</td>
+                        <td>${a.systemQty} ${a.displayUnit}</td>
+                        <td>${a.actualQty} ${a.displayUnit}</td>
                         <td style="font-weight:600;color:${a.diffQty.signum() < 0 ? 'var(--st-cancelled)' : 'var(--st-ready)'}"><c:if test="${a.diffQty.signum() > 0}">+</c:if>${a.diffQty}</td>
                         <td>${a.reason}</td>
                         <td>${a.adjustedByName}</td>

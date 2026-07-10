@@ -1,5 +1,6 @@
 package com.cafe.controller.manager;
 
+import com.cafe.common.BusinessException;
 import com.cafe.common.CsrfUtil;
 import com.cafe.model.ShiftTemplate;
 import com.cafe.service.manager.ShiftService;
@@ -68,17 +69,19 @@ public class ShiftServlet extends HttpServlet {
                 int templateId = Integer.parseInt(req.getParameter("templateId"));
                 int userId = Integer.parseInt(req.getParameter("userId"));
                 LocalDate date = LocalDate.parse(req.getParameter("workDate"));
-                try {
-                    shiftService.assignShift(templateId, userId, date);
-                } catch (ShiftService.ShiftConflictException ce) {
-                    req.getSession().setAttribute("flashError", ce.getMessage());
-                }
+                shiftService.assignShift(templateId, userId, date);
             } else if ("unassign".equals(action)) {
                 shiftService.unassignShift(Integer.parseInt(req.getParameter("assignmentId")));
             }
             resp.sendRedirect(redirect);
+        } catch (BusinessException e) {
+            req.getSession().setAttribute("flashError", e.getMessage());
+            resp.sendRedirect(redirect);
         } catch (DateTimeParseException e) {
             req.getSession().setAttribute("flashError", "Định dạng ngày/giờ không hợp lệ.");
+            resp.sendRedirect(redirect);
+        } catch (NumberFormatException e) {
+            req.getSession().setAttribute("flashError", "Dữ liệu ca làm không hợp lệ.");
             resp.sendRedirect(redirect);
         } catch (Exception e) { throw new ServletException(e); }
     }
