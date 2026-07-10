@@ -1,6 +1,8 @@
 # PROGRESS.md — Nhật ký tiến trình dự án
 
 > Cập nhật sau mỗi bước/Phase. Ngữ cảnh & quy ước cố định nằm ở `CLAUDE.md`.
+>
+> ⚠ **Nguồn mô tả CHỨC NĂNG chính xác = [`docs/FUNCTION_LIST.md`](FUNCTION_LIST.md)** (dựng trực tiếp từ source code, 2026-07-01). File PROGRESS này là nhật ký lịch sử — vài mô tả cũ đã lệch với code hiện tại (report gộp vào dashboard; `/dashboard` là router theo role; thêm `CashierDutyGuardFilter` + chấm giờ NV; 2 màn Home công khai/Home Editor; theme Espresso/Caramel chứ không phải Highlands đỏ). Khi cần biết chức năng thực tế → đọc FUNCTION_LIST.md.
 
 ## Trạng thái Phase
 
@@ -272,6 +274,17 @@ Quyết định user: **giữ `com.cafe` layer-based**, đổi tên/route đúng
 
 **Còn lại Phase 3 (HR + M8):** M1 Manager Dashboard, M2 Shift + conflict resolver, M3 Attendance, M4 Payroll, M8 Branch Menu config (`/manager/menu`).
 
+- **2026-07-01** — **Gộp SQL về 1 file + làm giàu data demo (yêu cầu user, 0 đổi schema/code):**
+  - Gộp 10 file SQL (`database.sql` + 6 `migration_*` + thư mục `migrations/` + 3 `seed_*`) → **1 file duy nhất `sql/database.sql`** (PART A schema · PART B catalog · PART C demo). Đã verify mọi migration nằm sẵn trong schema nên xoá an toàn.
+  - **Viết lại PART B:** catalog **15 món**, mọi món đủ `ProductRecipe` + Size/Đường/Đá/Topping + ảnh Unsplash (verify 200).
+  - **Viết lại PART C:** **3 chi nhánh, 16 user** (BCrypt `123456`), nhập kho lớn + pha sẵn, **generator 31 ngày** sinh **792 hoá đơn PAID** (trừ kho theo công thức) + story hôm nay đủ mọi role (KDS WAITING/MAKING/READY, ca mở, waste/adjust, 86, handover), voucher/payroll 3 tháng/outbox.
+  - **Verify DB thật:** rebuild OK, **bất biến sổ cái = 0 mismatch**, 0 tồn âm, low-stock 6 dòng, KDS 12 item, doanh thu ~33M/CN × 3. Chưa runtime-test Tomcat đợt này.
+- **2026-06-30** — **Seed demo 1 luồng hoàn chỉnh (`sql/seed_demo.sql`)** — yêu cầu user "thêm db toàn bộ để thành 1 luồng + demo". Không đổi code.
+  - Dựng lại DB sạch: `DROP DATABASE CafeChain` → `database.sql` (schema + seed gốc) → `seed_demo.sql` (câu chuyện vận hành đầy đủ). Nạp vào container `cafechain-sql` (cổng 14333).
+  - **Phủ kín mọi role:** 9 user (thêm cashier2/barista2 CN01; **CN02 Thủ Đức** + manager2/cashier3/barista3) — tất cả mật khẩu `123456` (hash BCrypt thật bake sẵn, không cần listener). 2 NCC, 4 phiếu nhập (3 CONFIRMED + 1 DRAFT), 4 PrepBatch, 1 Waste, 1 Adjust; ca làm + chấm công (2 APPROVED→bảng lương, 2 PENDING chờ duyệt) + Payroll tháng trước + ShiftHandover; phiên A(đóng, 2 bill PAID + voucher), B(mở: READY/MAKING/WAITING→KDS+pickup), C(QR ẩn danh→tracking), D(CN02 đóng, 1 bill PAID). Doanh thu chuỗi CN01 114.264 + CN02 79.920. 7 OutboxEvent.
+  - **Bất biến `BranchInventory == Σ ledger` = 0 mismatch** (cuối script dựng lại BranchInventory từ tổng InventoryTransaction). Low-stock: Cold Brew CN01, Đường/Đào CN02.
+  - Lưu ý môi trường: Azure SQL Edge **tắt CLR** → seed không dùng `FORMAT()` (thay bằng `CONVERT(...,23)`). App đang chạy ROOT http://localhost:8080 (pool đã nối).
+
 ## Điều chỉnh so với plan (đã thống nhất với user)
 
 - **Giao diện theo phong cách Highlands Coffee** (đỏ trầm) thay bảng màu espresso/coffee gốc trong mục 4 của plan. Giữ nguyên *cấu trúc* design token + 5 màu status badge để contract trạng thái không đổi.
@@ -314,3 +327,29 @@ Quyết định user: **giữ `com.cafe` layer-based**, đổi tên/route đúng
   - **A1 · Quên mật khẩu tự phục vụ:** `/auth/forgot` (whitelist AuthFilter) — xác minh username+email khớp tài khoản ACTIVE rồi đặt lại mật khẩu (BCrypt, 1 tx); link từ trang login + flash thành công.
   - **Refund hoá đơn ĐÃ PAID:** thêm `'REFUND'` vào `CK_Bill_Status` (migration S5, VARCHAR(8) đủ chứa); `BillingService.refundBill` PAID→REFUND kèm lý do bắt buộc + log `ops.OutboxEvent(bill.refunded)`, chống hoàn 2 lần bằng `WHERE Status='PAID'`.
   - **Verify chạy thật (Tomcat 10 + DB, login 4 role):** F1 ETA set→NULL khi mở lại ✅ · F2 trang 200 ✅ · F3 DB open=07:00/close=22:30/mgr=2 ✅ · F4 lọc BARISTA hiện barista1, ẩn cashier1 ✅ · F5 sai email bị từ chối, đúng→đặt lại→đăng nhập bằng pass mới OK ✅ · F6 bill PAID→REFUND + event bill.refunded, refund lần 2 không đổi (idempotent) ✅. Test 20/20, WAR build OK.
+- **2026-06-29** — **Tinh chỉnh role Cashier (yêu cầu user, 5 mục — 0 đổi schema):**
+  - **R1 · Ca thu ngân — doanh thu theo ngày:** `BillDao.countPaidToday`; `CashierShiftService.getTodayRevenue/getTodayBillCount`; `shift.jsp` thêm 2 thẻ "Doanh thu hôm nay" + "Số HĐ đã thu".
+  - **R2 · Dashboard cashier có số liệu:** servlet mới `CashierDashboardServlet` @ `/cashier/dashboard`; `DashboardServlet` redirect role CASHIER sang đó (giống manager); `dashboard.jsp` thêm thẻ **Doanh thu hôm nay** + **Số đơn đã thực hiện** (= số bill PAID hôm nay) + lối tắt.
+  - **R3 · Đơn Đến hiện trạng thái thanh toán tổng đơn:** `Order.paymentStatus` (transient); `BillDao.findStatusesBySession`; `OrderService.getIncomingOrders` suy trạng thái theo phiên — **Đã thanh toán** (PAID & hết UNPAID) · **Lỗi thanh toán** (VOID/REFUND, chưa thu được) · **Đang thanh toán** (còn lại). `inbox.jsp` render badge 3 màu. *(Không có cổng thanh toán → ánh xạ VOID/REFUND = "lỗi" là hợp lý nhất, không đổi schema.)*
+  - **R4 · Lịch sử HĐ rõ CK & tiền mặt:** `bill-history.jsp` đổi nhãn `CASH→Tiền mặt`, `TRANSFER→Chuyển khoản`, `QR_BANK→QR ngân hàng` + bộ lọc theo hình thức (giữ phạm vi ca/chi nhánh); `BillHistoryServlet.filterByMethod`.
+  - **R5 · Chặn huỷ đơn khi barista đã pha (Inbox + QR khách):** `OrderService.voidOrder` đổi trả `boolean` + **guard**: chỉ huỷ khi mọi món còn WAITING; có món MAKING/READY/SERVED → false (không đổi gì). `Order.isCancellable()`. Inbox: nút "Huỷ đơn" chỉ hiện khi `cancellable`, else "Đang/đã pha — không thể huỷ" + flashError. **Khách QR:** `QrOrderService.getCancellableOrders/cancelOrder`, `QrTrackServlet action=cancel`, `track.jsp` nút "Huỷ đơn" tự ẩn khi đã pha (server vẫn là nguồn chân lý).
+  - **Build + Test:** `mvn clean package` WAR OK · **20/20 unit test PASS** (logic thuần không đụng). ⚠️ Chưa runtime-test trên Tomcat đợt này — cần deploy thử để verify badge/luồng huỷ.
+- **2026-06-29** — **Manager · Màn Nhập kho — cải tiến nhập liệu (yêu cầu user, 5 mục):**
+  - **Schema (additive):** `inventory.StockReceiptDetail.Unit NVARCHAR(20) NULL` — đơn vị nhập per-line (vd "Túi"); NULL = fallback đơn vị gốc nguyên liệu. **KHÔNG ảnh hưởng sổ cái** (tồn vẫn cộng theo Quantity). File: `database.sql` + `sql/migration_receipt_unit.sql` (idempotent `IF COL_LENGTH ... IS NULL ALTER ADD`).
+  - **#1 Dropdown + đơn vị:** dropdown "Thêm dòng" bỏ hậu tố `(g/ml…)`, chỉ còn tên; thêm ô text **Đơn vị** tự điền theo nguyên liệu chọn (JS `data-unit`), sửa được. Lưu vào `StockReceiptDetail.Unit`, hiển thị qua `getDisplayUnit()`.
+  - **#2/#3 Step:** ô Số lượng `step=0.001→5`; ô Đơn giá `step=100→5000` (mũi tên tăng/giảm theo 5 / 5000).
+  - **#4 Nhập nhiều cùng lúc:** bảng tickbox liệt kê mọi nguyên liệu (checkbox + đơn vị + SL + đơn giá), nút "Thêm các mục đã chọn" → action `addLines` (bỏ qua dòng SL≤0), service `addReceiptLines` 1 transaction.
+  - **#5 Huỷ nhiều phiếu:** list bọc form + cột checkbox **chỉ ở phiếu DRAFT** + "Huỷ phiếu đã chọn" → action `cancelMany`, service `cancelManyReceipts` (DAO vẫn guard `Status='DRAFT'` — phiếu CONFIRMED không bị huỷ).
+  - **Build + Test:** WAR OK · 20/20 test PASS. ⚠️ **Phải chạy `sql/migration_receipt_unit.sql`** trên DB hiện có trước khi deploy (nếu không, query có cột `Unit` sẽ lỗi). Chưa runtime-test Tomcat đợt này.
+- **2026-06-29** — **Manager · Nhà cung cấp + Đối soát tồn (yêu cầu user):**
+  - **Nhà cung cấp — required SDT/Tên/Địa chỉ:** `supplier-form.jsp` thêm `required` cho phone & address (+ nhãn *); `SupplierServlet` validate server-side cả 3 trường (báo lỗi cụ thể, giữ dữ liệu đã nhập).
+  - **Đối soát tồn — kiểm kê tickbox nhiều nguyên liệu + đơn vị tự nhập:**
+    - **Schema (additive):** `inventory.StockAdjustment.Unit NVARCHAR(20) NULL` — đơn vị đếm per-line (vd "Túi" cho đá). NULL = fallback đơn vị gốc. **KHÔNG ảnh hưởng sổ cái** (chênh lệch vẫn = ActualQty−SystemQty). File: `database.sql` + `sql/migration_adjustment_unit.sql` (idempotent).
+    - `reconciliation-form.jsp` đổi từ chọn-1-nguyên-liệu sang **bảng tickbox**: mỗi nguyên liệu 1 dòng (checkbox + đơn vị sửa được + tồn thực tế + lý do), bỏ hiển thị "(g)" gán sẵn; checkbox "chọn tất cả".
+    - `ReconciliationServlet.doPost` parse nhiều dòng (`pick`/`actual_<id>`/`reason_<id>`/`unit_<id>`), bỏ qua dòng chưa nhập tồn; `StockAdjustmentService.createAdjustments` + `InventoryService.createAdjustments` ghi **tất cả trong 1 transaction** (tái dùng `applyAdjustmentLine` → vẫn qua `applyTxn`/sổ cái). `reconciliation-list.jsp` hiển thị `displayUnit`.
+  - **Build + Test:** WAR OK · 20/20 test PASS. ⚠️ **Phải chạy `sql/migration_adjustment_unit.sql`** trước khi deploy. Chưa runtime-test Tomcat đợt này.
+- **2026-06-30** — **Manager · Chấm công + Bảng lương + Menu chi nhánh (yêu cầu user):**
+  - **Chấm công — gộp 1 màn + tickbox ✓ xanh:** bỏ 3 tab (Chờ/Đã duyệt/Từ chối) → 1 danh sách tất cả NV của cơ sở; mỗi dòng có **checkbox accent xanh** = duyệt. `AttendanceDao` thêm join Role/Branch + cột `Phone/RoleName/BranchName`, `findByBranch`, `updateApproval` (ApprovedBy nullable). `AttendanceService.setApprovalStates` (tick→APPROVED ghi người duyệt, bỏ tick→PENDING xoá người duyệt, 1 tx) + `reopenAttendance`. Servlet action `approveMany` (shown[]/approve[]) + giữ reject/edit/reopen. JSP hiện rõ **ngày-giờ ca, tên + role + SĐT, cơ sở**; checkbox dùng `form="bulkAtt"` để không lồng form với form sửa giờ/từ chối.
+  - **Bảng lương — lương/giờ + sửa giờ & lương + thành tiền + Excel:** **bảng mới `hr.Payroll`** (userId, PayMonth, WorkedHours, HourlyRate, UNIQUE(user,month)) — `database.sql` + `sql/migration_payroll.sql`. `Payroll` model + `PayrollDao` (findByMonth→Map, upsert UPDATE-rồi-INSERT). `PayrollService.getMonthlyPayroll` lấy giờ từ chấm công APPROVED làm mặc định **overlay** giờ/lương đã chốt; `savePayroll` upsert từng NV 1 tx. `PayrollRow` thêm hourlyRate + `getSalary()` (giờ×lương). Servlet thêm `doPost` save + export CSV bổ sung cột Lương/giờ + Thành tiền. JSP: input sửa **giờ làm** + **lương/giờ** từng dòng, **thành tiền tính sống bằng JS**, tổng cộng, nút Lưu + Xuất Excel.
+  - **Menu chi nhánh — ẩn nhiều món cùng lúc:** `BranchMenuService.hideMany` (set IsAvailable=0 cho các productId tick, giữ giá địa phương & cờ 86, 1 tx). `ManagerMenuServlet` action `hideMany` (pick[]). JSP thêm cột checkbox (chỉ ở món đang bán) + "chọn tất cả" + nút "Ẩn các món đã chọn" (dùng `form="bulkHide"`).
+  - **Build + Test:** WAR OK · 20/20 test PASS. ⚠️ **Phải chạy `sql/migration_payroll.sql`** trước khi deploy. Chưa runtime-test Tomcat đợt này.
