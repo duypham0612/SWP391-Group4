@@ -8,6 +8,9 @@
     <a class="btn btn-ghost" href="${ctx}/manager/supplier">← Quay lại</a>
 </div>
 
+<c:if test="${not empty sessionScope.flashError}">
+    <div class="alert alert-error">${sessionScope.flashError}</div><c:remove var="flashError" scope="session" />
+</c:if>
 <c:if test="${not empty errorMsg}"><div class="alert alert-error">${errorMsg}</div></c:if>
 
 <div class="card form-card">
@@ -17,10 +20,10 @@
         <input type="hidden" name="supplierId" value="${supplier.supplierId}">
         <div class="form-group"><label for="name">Tên nhà cung cấp *</label>
             <input id="name" type="text" name="name" class="form-control" maxlength="150" value="${supplier.name}" required autofocus></div>
-        <div class="form-group"><label for="phone">Số điện thoại</label>
-            <input id="phone" type="text" name="phone" class="form-control" maxlength="20" value="${supplier.phone}"></div>
-        <div class="form-group"><label for="address">Địa chỉ</label>
-            <input id="address" type="text" name="address" class="form-control" maxlength="255" value="${supplier.address}"></div>
+        <div class="form-group"><label for="phone">Số điện thoại *</label>
+            <input id="phone" type="text" name="phone" class="form-control" maxlength="20" value="${supplier.phone}" required></div>
+        <div class="form-group"><label for="address">Địa chỉ *</label>
+            <input id="address" type="text" name="address" class="form-control" maxlength="255" value="${supplier.address}" required></div>
         <div class="form-group"><label><input type="checkbox" name="active" value="1" <c:if test="${supplier.active or supplier.supplierId == 0}">checked</c:if>> Đang hoạt động</label></div>
         <button type="submit" class="btn btn-primary btn-lg">Lưu</button>
     </form>

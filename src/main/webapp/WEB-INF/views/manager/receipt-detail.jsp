@@ -20,23 +20,68 @@
     <a class="btn btn-ghost" href="${ctx}/manager/receipt">← Danh sách phiếu</a>
 </div>
 
+<c:if test="${not empty sessionScope.flashError}">
+    <div class="alert alert-error">${sessionScope.flashError}</div><c:remove var="flashError" scope="session" />
+</c:if>
+
 <c:if test="${draft}">
+    <%-- Thêm 1 dòng nhanh: dropdown chỉ tên; ô đơn vị tự điền theo nguyên liệu, sửa được (vd "Túi") --%>
     <div class="card" style="margin-bottom:18px">
         <h3 style="margin-top:0">Thêm dòng nguyên liệu</h3>
         <form action="${ctx}/manager/receipt" method="post" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
             <input type="hidden" name="action" value="addLine">
             <input type="hidden" name="receiptId" value="${receipt.stockReceiptId}">
-            <div class="form-group" style="margin:0;flex:1;min-width:220px"><label>Nguyên liệu</label>
-                <select name="ingredientId" class="form-control" required>
+            <div class="form-group" style="margin:0;flex:1;min-width:200px"><label>Nguyên liệu</label>
+                <select id="ingSel" name="ingredientId" class="form-control" required>
                     <option value="">-- Chọn --</option>
-                    <c:forEach var="i" items="${ingredients}"><option value="${i.ingredientId}">${i.name} (${i.unit})</option></c:forEach>
+                    <c:forEach var="i" items="${ingredients}"><option value="${i.ingredientId}" data-unit="${i.unit}">${i.name}</option></c:forEach>
                 </select></div>
-            <div class="form-group" style="margin:0;width:140px"><label>Số lượng</label>
-                <input type="number" name="quantity" class="form-control" min="0" step="0.001" required></div>
+            <div class="form-group" style="margin:0;width:110px"><label>Đơn vị</label>
+                <input id="unitInp" type="text" name="unit" class="form-control" maxlength="20" placeholder="vd: Túi"></div>
+            <div class="form-group" style="margin:0;width:130px"><label>Số lượng</label>
+                <input type="number" name="quantity" class="form-control" min="0" step="5" required></div>
             <div class="form-group" style="margin:0;width:150px"><label>Đơn giá (₫)</label>
-                <input type="number" name="unitCost" class="form-control" min="0" step="100" value="0"></div>
+                <input type="number" name="unitCost" class="form-control" min="0" step="5000" value="0"></div>
             <button type="submit" class="btn btn-primary">+ Thêm</button>
+        </form>
+        <script>
+        (function(){
+            var sel = document.getElementById('ingSel'), inp = document.getElementById('unitInp');
+            if (sel && inp) sel.addEventListener('change', function(){
+                var o = this.options[this.selectedIndex];
+                inp.value = o ? (o.getAttribute('data-unit') || '') : '';
+            });
+        })();
+        </script>
+    </div>
+
+    <%-- Nhập nhiều nguyên liệu cùng lúc: tick chọn + nhập SL/đơn giá/đơn vị từng dòng --%>
+    <div class="card" style="margin-bottom:18px">
+        <h3 style="margin-top:0">Chọn nhiều nguyên liệu</h3>
+        <p class="muted" style="margin-top:-6px">Tick các nguyên liệu cần nhập, điền số lượng rồi bấm "Thêm các mục đã chọn". (Dòng chưa nhập số lượng sẽ bỏ qua.)</p>
+        <form action="${ctx}/manager/receipt" method="post">
+            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+            <input type="hidden" name="action" value="addLines">
+            <input type="hidden" name="receiptId" value="${receipt.stockReceiptId}">
+            <table class="table">
+                <thead><tr>
+                    <th style="width:40px"><input type="checkbox" onclick="document.querySelectorAll('.pickbox').forEach(c=>c.checked=this.checked)"></th>
+                    <th>Nguyên liệu</th><th style="width:120px">Đơn vị</th><th style="width:140px">Số lượng</th><th style="width:160px">Đơn giá (₫)</th>
+                </tr></thead>
+                <tbody>
+                    <c:forEach var="i" items="${ingredients}">
+                        <tr>
+                            <td><input class="pickbox" type="checkbox" name="pick" value="${i.ingredientId}"></td>
+                            <td>${i.name}</td>
+                            <td><input type="text" name="unit_${i.ingredientId}" class="form-control" maxlength="20" value="${i.unit}"></td>
+                            <td><input type="number" name="qty_${i.ingredientId}" class="form-control" min="0" step="5"></td>
+                            <td><input type="number" name="cost_${i.ingredientId}" class="form-control" min="0" step="5000" value="0"></td>
+                        </tr>
+                    </c:forEach>
+                </tbody>
+            </table>
+            <button type="submit" class="btn btn-primary">+ Thêm các mục đã chọn</button>
         </form>
     </div>
 </c:if>
@@ -52,7 +97,7 @@
                 <c:forEach var="d" items="${details}">
                     <tr>
                         <td>${d.ingredientName}</td>
-                        <td>${d.quantity} ${d.ingredientUnit}</td>
+                        <td>${d.quantity} ${d.displayUnit}</td>
                         <td><fmt:formatNumber value="${d.unitCost}" maxFractionDigits="0"/> ₫</td>
                         <td><fmt:formatNumber value="${d.lineCost}" maxFractionDigits="0"/> ₫</td>
                         <c:if test="${draft}">

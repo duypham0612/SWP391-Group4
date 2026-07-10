@@ -1,6 +1,8 @@
 package com.cafe.service.manager;
 
+import com.cafe.common.BusinessException;
 import com.cafe.common.ShiftConflict;
+import com.cafe.common.ShiftHours;
 import com.cafe.config.DBConnection;
 import com.cafe.dao.manager.ShiftAssignmentDao;
 import com.cafe.dao.manager.ShiftTemplateDao;
@@ -9,7 +11,9 @@ import com.cafe.model.ShiftTemplate;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 
 /** M2 · ShiftService — ca làm + ★ Shift Conflict Resolver. */
@@ -44,14 +48,7 @@ public class ShiftService {
         try (Connection c = DBConnection.getConnection()) {
             ShiftTemplate target = templateDao.findById(c, templateId);
             if (target == null) return null;
-            for (ShiftAssignment existing : assignmentDao.findByUserAndDate(c, userId, date)) {
-                if (existing.getShiftTemplateId() == templateId) return existing; // trùng y hệt
-                if (ShiftConflict.overlaps(target.getStartTime(), target.getEndTime(),
-                        existing.getStartTime(), existing.getEndTime())) {
-                    return existing;
-                }
-            }
-            return null;
+            return detectConflict(c, userId, date, target);
         }
     }
 
@@ -60,13 +57,34 @@ public class ShiftService {
      * @throws ShiftConflictException nếu chồng ca khác.
      */
     public int assignShift(int templateId, int userId, LocalDate date) throws SQLException {
-        ShiftAssignment conflict = detectConflict(userId, date, templateId);
-        if (conflict != null) {
-            throw new ShiftConflictException(
-                "Nhân viên đã có ca \"" + conflict.getTemplateName() + "\" (" +
-                conflict.getStartTime() + "–" + conflict.getEndTime() + ") trùng giờ ngày " + date + ".");
-        }
-        return tx(c -> assignmentDao.insert(c, templateId, userId, date));
+        return tx(c -> {
+            ShiftTemplate target = templateDao.findById(c, templateId);
+            if (target == null) throw new ShiftConflictException("Ca làm không tồn tại.");
+
+            List<ShiftAssignment> sameDay = assignmentDao.findByUserAndDate(c, userId, date);
+            ShiftAssignment conflict = detectConflict(target, sameDay);
+            if (conflict != null) {
+                throw new ShiftConflictException(
+                    "Nhân viên đã có ca \"" + conflict.getTemplateName() + "\" (" +
+                    conflict.getStartTime() + "–" + conflict.getEndTime() + ") trùng giờ ngày " + date + ".");
+            }
+
+            double newHours = ShiftHours.hours(target.getStartTime(), target.getEndTime());
+            double dailyTotal = totalHours(sameDay) + newHours;
+            if (ShiftHours.exceedsDaily(dailyTotal)) {
+                throw new ShiftConflictException(
+                    "Vượt 8 giờ/ngày (" + formatHours(dailyTotal) + "h). Không thể xếp thêm ca này.");
+            }
+
+            LocalDate weekStart = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+            double weeklyTotal = totalHours(assignmentDao.findByUserAndWeek(c, userId, weekStart)) + newHours;
+            if (ShiftHours.exceedsWeekly(weeklyTotal)) {
+                throw new ShiftConflictException(
+                    "Vượt 48 giờ/tuần (" + formatHours(weeklyTotal) + "h). Không thể xếp thêm ca này.");
+            }
+
+            return assignmentDao.insert(c, templateId, userId, date);
+        });
     }
 
     public void unassignShift(int assignmentId) throws SQLException {
@@ -74,8 +92,36 @@ public class ShiftService {
     }
 
     /** Báo lỗi nghiệp vụ khi xung đột ca — servlet bắt để hiển thị. */
-    public static class ShiftConflictException extends RuntimeException {
+    public static class ShiftConflictException extends BusinessException {
         public ShiftConflictException(String msg) { super(msg); }
+    }
+
+    private ShiftAssignment detectConflict(Connection c, int userId, LocalDate date, ShiftTemplate target) throws SQLException {
+        return detectConflict(target, assignmentDao.findByUserAndDate(c, userId, date));
+    }
+
+    private ShiftAssignment detectConflict(ShiftTemplate target, List<ShiftAssignment> existingAssignments) {
+        for (ShiftAssignment existing : existingAssignments) {
+            if (existing.getShiftTemplateId() == target.getShiftTemplateId()) return existing; // trùng y hệt
+            if (ShiftConflict.overlaps(target.getStartTime(), target.getEndTime(),
+                    existing.getStartTime(), existing.getEndTime())) {
+                return existing;
+            }
+        }
+        return null;
+    }
+
+    private double totalHours(List<ShiftAssignment> assignments) {
+        double total = 0;
+        for (ShiftAssignment assignment : assignments) {
+            total += ShiftHours.hours(assignment.getStartTime(), assignment.getEndTime());
+        }
+        return total;
+    }
+
+    private String formatHours(double hours) {
+        if (hours == Math.rint(hours)) return String.valueOf((int) hours);
+        return String.format(java.util.Locale.US, "%.1f", hours);
     }
 
     private interface Fn<T>{ T run(Connection c) throws SQLException; }
@@ -84,7 +130,7 @@ public class ShiftService {
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
             try { T r = fn.run(c); c.commit(); return r; }
-            catch (SQLException e){ c.rollback(); throw e; } finally { c.setAutoCommit(true); }
+            catch (SQLException | RuntimeException e){ c.rollback(); throw e; } finally { c.setAutoCommit(true); }
         }
     }
     private void txVoid(V v) throws SQLException { tx(c -> { v.run(c); return null; }); }

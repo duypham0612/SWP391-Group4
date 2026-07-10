@@ -8,6 +8,10 @@
     <a class="btn btn-ghost" href="${ctx}/manager/inventory">← Quay lại tồn kho</a>
 </div>
 
+<c:if test="${not empty sessionScope.flashError}">
+    <div class="alert alert-error">${sessionScope.flashError}</div><c:remove var="flashError" scope="session" />
+</c:if>
+
 <c:choose>
     <c:when test="${empty ledger}">
         <div class="card empty-state"><div class="icon">∅</div><p>Chưa có giao dịch tồn cho nguyên liệu này.</p></div>

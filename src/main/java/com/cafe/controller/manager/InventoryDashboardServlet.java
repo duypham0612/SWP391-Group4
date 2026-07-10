@@ -1,5 +1,6 @@
 package com.cafe.controller.manager;
 
+import com.cafe.common.BusinessException;
 import com.cafe.common.CsrfUtil;
 import com.cafe.common.SessionUtil;
 import com.cafe.model.User;
@@ -39,6 +40,9 @@ public class InventoryDashboardServlet extends HttpServlet {
                 req.setAttribute("pageTitle", "Tồn kho");
                 req.getRequestDispatcher("/WEB-INF/views/manager/inventory-list.jsp").forward(req, resp);
             }
+        } catch (NumberFormatException e) {
+            req.getSession().setAttribute("flashError", "Mã nguyên liệu không hợp lệ.");
+            resp.sendRedirect(req.getContextPath() + "/manager/inventory");
         } catch (Exception e) { throw new ServletException(e); }
     }
 
@@ -53,6 +57,12 @@ public class InventoryDashboardServlet extends HttpServlet {
                 BigDecimal th = new BigDecimal(req.getParameter("threshold").trim());
                 inventoryService.setMinThreshold(branchId, ingredientId, th);
             }
+            resp.sendRedirect(req.getContextPath() + "/manager/inventory");
+        } catch (BusinessException e) {
+            req.getSession().setAttribute("flashError", e.getMessage());
+            resp.sendRedirect(req.getContextPath() + "/manager/inventory");
+        } catch (NumberFormatException e) {
+            req.getSession().setAttribute("flashError", "Ngưỡng cảnh báo không hợp lệ.");
             resp.sendRedirect(req.getContextPath() + "/manager/inventory");
         } catch (Exception e) { throw new ServletException(e); }
     }

@@ -8,6 +8,10 @@
     <a class="btn btn-ghost" href="${ctx}/manager/receipt">← Quay lại</a>
 </div>
 
+<c:if test="${not empty sessionScope.flashError}">
+    <div class="alert alert-error">${sessionScope.flashError}</div><c:remove var="flashError" scope="session" />
+</c:if>
+
 <div class="card form-card">
     <form action="${ctx}/manager/receipt" method="post">
         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">

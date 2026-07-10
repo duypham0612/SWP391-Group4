@@ -42,16 +42,32 @@ public class StockReceiptService {
         }
     }
 
-    public void addReceiptLine(int receiptId, int ingredientId, BigDecimal qty, BigDecimal unitCost) throws SQLException {
+    public void addReceiptLine(int receiptId, int ingredientId, BigDecimal qty, BigDecimal unitCost, String unit) throws SQLException {
         StockReceiptDetail d = new StockReceiptDetail();
         d.setStockReceiptId(receiptId);
         d.setIngredientId(ingredientId);
         d.setQuantity(qty);
         d.setUnitCost(unitCost);
+        d.setUnit(unit);
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
             try { detailDao.insert(c, d); c.commit(); }
             catch (SQLException e){ c.rollback(); throw e; } finally { c.setAutoCommit(true); }
+        }
+    }
+
+    /** Thêm nhiều dòng cùng lúc (tickbox chọn nhiều nguyên liệu) — 1 transaction. */
+    public void addReceiptLines(int receiptId, List<StockReceiptDetail> lines) throws SQLException {
+        if (lines == null || lines.isEmpty()) return;
+        try (Connection c = DBConnection.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                for (StockReceiptDetail d : lines) {
+                    d.setStockReceiptId(receiptId);
+                    detailDao.insert(c, d);
+                }
+                c.commit();
+            } catch (SQLException e){ c.rollback(); throw e; } finally { c.setAutoCommit(true); }
         }
     }
 
@@ -80,6 +96,18 @@ public class StockReceiptService {
             c.setAutoCommit(false);
             try { receiptDao.cancel(c, receiptId); c.commit(); }
             catch (SQLException e){ c.rollback(); throw e; } finally { c.setAutoCommit(true); }
+        }
+    }
+
+    /** Huỷ nhiều phiếu cùng lúc — chỉ phiếu DRAFT bị huỷ (DAO guard Status='DRAFT'), 1 transaction. */
+    public void cancelManyReceipts(List<Integer> receiptIds) throws SQLException {
+        if (receiptIds == null || receiptIds.isEmpty()) return;
+        try (Connection c = DBConnection.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                for (Integer id : receiptIds) if (id != null) receiptDao.cancel(c, id);
+                c.commit();
+            } catch (SQLException e){ c.rollback(); throw e; } finally { c.setAutoCommit(true); }
         }
     }
 }

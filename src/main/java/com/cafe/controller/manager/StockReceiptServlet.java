@@ -1,8 +1,10 @@
 package com.cafe.controller.manager;
 
+import com.cafe.common.BusinessException;
 import com.cafe.common.CsrfUtil;
 import com.cafe.common.SessionUtil;
 import com.cafe.model.StockReceipt;
+import com.cafe.model.StockReceiptDetail;
 import com.cafe.model.User;
 import com.cafe.service.admin.IngredientService;
 import com.cafe.service.manager.StockReceiptService;
@@ -15,6 +17,8 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 /** M6 · StockReceiptServlet → /manager/receipt. list | new | view | create | addLine | confirm | cancel. */
 @WebServlet("/manager/receipt")
@@ -41,6 +45,9 @@ public class StockReceiptServlet extends HttpServlet {
                 req.setAttribute("pageTitle", "Phiếu nhập kho");
                 req.getRequestDispatcher("/WEB-INF/views/manager/receipt-list.jsp").forward(req, resp);
             }
+        } catch (NumberFormatException e) {
+            req.getSession().setAttribute("flashError", "Mã phiếu nhập không hợp lệ.");
+            resp.sendRedirect(req.getContextPath() + "/manager/receipt");
         } catch (Exception e) { throw new ServletException(e); }
     }
 
@@ -52,6 +59,7 @@ public class StockReceiptServlet extends HttpServlet {
         int branchId = InventoryDashboardServlet.branchId(req);
         User u = SessionUtil.currentUser(req);
         String action = req.getParameter("action");
+        String redirect = ctx + "/manager/receipt";
         try {
             switch (action == null ? "" : action) {
                 case "create": {
@@ -67,32 +75,76 @@ public class StockReceiptServlet extends HttpServlet {
                 }
                 case "addLine": {
                     int rid = Integer.parseInt(req.getParameter("receiptId"));
+                    redirect = ctx + "/manager/receipt?action=view&id=" + rid;
                     BigDecimal qty = dec(req.getParameter("quantity"));
                     BigDecimal cost = dec(req.getParameter("unitCost"));
-                    if (qty.signum() > 0) service.addReceiptLine(rid, Integer.parseInt(req.getParameter("ingredientId")), qty, cost);
-                    resp.sendRedirect(ctx + "/manager/receipt?action=view&id=" + rid);
+                    String unit = trim(req.getParameter("unit"));
+                    if (qty.signum() > 0) service.addReceiptLine(rid, Integer.parseInt(req.getParameter("ingredientId")), qty, cost, unit);
+                    resp.sendRedirect(redirect);
+                    return;
+                }
+                case "addLines": {   // tickbox chọn nhiều nguyên liệu cùng lúc
+                    int rid = Integer.parseInt(req.getParameter("receiptId"));
+                    redirect = ctx + "/manager/receipt?action=view&id=" + rid;
+                    String[] picks = req.getParameterValues("pick");
+                    List<StockReceiptDetail> lines = new ArrayList<>();
+                    if (picks != null) {
+                        for (String p : picks) {
+                            int ingId;
+                            try { ingId = Integer.parseInt(p); } catch (NumberFormatException e) { continue; }
+                            BigDecimal qty = dec(req.getParameter("qty_" + ingId));
+                            if (qty.signum() <= 0) continue;   // bỏ qua dòng được tick nhưng chưa nhập SL
+                            StockReceiptDetail d = new StockReceiptDetail();
+                            d.setIngredientId(ingId);
+                            d.setQuantity(qty);
+                            d.setUnitCost(dec(req.getParameter("cost_" + ingId)));
+                            d.setUnit(trim(req.getParameter("unit_" + ingId)));
+                            lines.add(d);
+                        }
+                    }
+                    service.addReceiptLines(rid, lines);
+                    resp.sendRedirect(redirect);
                     return;
                 }
                 case "removeLine": {
                     int rid = Integer.parseInt(req.getParameter("receiptId"));
+                    redirect = ctx + "/manager/receipt?action=view&id=" + rid;
                     service.removeReceiptLine(Integer.parseInt(req.getParameter("detailId")));
-                    resp.sendRedirect(ctx + "/manager/receipt?action=view&id=" + rid);
+                    resp.sendRedirect(redirect);
                     return;
                 }
                 case "confirm": {
                     int rid = Integer.parseInt(req.getParameter("receiptId"));
+                    redirect = ctx + "/manager/receipt?action=view&id=" + rid;
                     service.confirmReceipt(rid, branchId, u.getUserId());
-                    resp.sendRedirect(ctx + "/manager/receipt?action=view&id=" + rid);
+                    resp.sendRedirect(redirect);
                     return;
                 }
                 case "cancel": {
                     int rid = Integer.parseInt(req.getParameter("receiptId"));
+                    redirect = ctx + "/manager/receipt?action=view&id=" + rid;
                     service.cancelReceipt(rid);
-                    resp.sendRedirect(ctx + "/manager/receipt?action=view&id=" + rid);
+                    resp.sendRedirect(redirect);
+                    return;
+                }
+                case "cancelMany": {   // tickbox huỷ nhiều phiếu (chỉ phiếu DRAFT bị huỷ)
+                    String[] ids = req.getParameterValues("rid");
+                    List<Integer> list = new ArrayList<>();
+                    if (ids != null) for (String s : ids) {
+                        try { list.add(Integer.parseInt(s)); } catch (NumberFormatException ignore) {}
+                    }
+                    service.cancelManyReceipts(list);
+                    resp.sendRedirect(ctx + "/manager/receipt");
                     return;
                 }
                 default: resp.sendError(400);
             }
+        } catch (BusinessException e) {
+            req.getSession().setAttribute("flashError", e.getMessage());
+            resp.sendRedirect(redirect);
+        } catch (NumberFormatException e) {
+            req.getSession().setAttribute("flashError", "Số lượng, đơn giá hoặc mã phiếu nhập không hợp lệ.");
+            resp.sendRedirect(redirect);
         } catch (Exception e) { throw new ServletException(e); }
     }
 
@@ -107,8 +159,7 @@ public class StockReceiptServlet extends HttpServlet {
     }
 
     private BigDecimal dec(String s) {
-        try { return s == null || s.isBlank() ? BigDecimal.ZERO : new BigDecimal(s.trim()); }
-        catch (NumberFormatException e) { return BigDecimal.ZERO; }
+        return s == null || s.isBlank() ? BigDecimal.ZERO : new BigDecimal(s.trim());
     }
     private String trim(String s) { return s == null ? null : s.trim(); }
 }
