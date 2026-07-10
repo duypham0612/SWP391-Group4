@@ -7,10 +7,16 @@ import com.cafe.model.ShiftHandover;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 
 /** B7 · HandoverService — bàn giao ca: ghi chú + KPI lead-time (read OrderItem StartedAt/DoneAt). */
 public class HandoverService {
+
+    private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private final ShiftHandoverDao handoverDao = new ShiftHandoverDao();
     private final OrderItemDao orderItemDao = new OrderItemDao();
@@ -34,8 +40,12 @@ public class HandoverService {
     }
 
     public HandoverKpi getKpi(int branchId) throws SQLException {
+        // Mốc "hôm nay" theo giờ VN → UTC (đồng nhất với Waste/Prep; DoneAt lưu UTC).
+        LocalDate today = LocalDate.now(VN_ZONE);
+        LocalDateTime fromUtc = today.atStartOfDay(VN_ZONE).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
+        LocalDateTime toUtc = today.plusDays(1).atStartOfDay(VN_ZONE).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
         try (Connection conn = DBConnection.getConnection()) {
-            long[] s = orderItemDao.leadTimeStatsToday(conn, branchId);
+            long[] s = orderItemDao.leadTimeStats(conn, branchId, fromUtc, toUtc);
             return new HandoverKpi(s[0], s[1]);
         }
     }

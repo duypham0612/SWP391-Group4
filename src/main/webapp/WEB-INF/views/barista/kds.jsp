@@ -4,75 +4,167 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Pha chế</div><h1>Hàng chờ (KDS)</h1><p>Bấm "Xong" để trừ tồn tự động (modifier-aware) và chuyển READY</p></div>
-    <a class="btn btn-ghost" href="${ctx}/barista/pickup">Món sẵn lấy →</a>
+    <div>
+        <div class="eyebrow">Pha chế</div>
+        <h1>Hàng chờ pha</h1>
+        <p>Pha xong bấm “Xong” — hệ thống tự trừ nguyên liệu. Hết nguyên liệu thì bấm “Không pha được”.</p>
+    </div>
+    <a class="btn btn-ghost" href="${ctx}/barista/pickup">Món chờ giao →</a>
 </div>
 
-<c:choose>
-    <c:when test="${empty queue}">
-        <div class="card empty-state"><div class="icon">✓</div><p>Không có món nào đang chờ. Bếp trống.</p></div>
-    </c:when>
-    <c:otherwise>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px">
-            <c:forEach var="it" items="${queue}">
-                <c:set var="barColor" value="${it.status == 'MAKING' ? '#2F6FB0' : '#E0A100'}" />
-                <div class="card" style="display:flex;flex-direction:column;gap:8px;border-left:4px solid ${barColor}">
-                    <div style="display:flex;justify-content:space-between;align-items:center">
-                        <strong style="font-size:1.05rem">${it.quantity}× ${it.productName}</strong>
-                        <c:choose>
-                            <c:when test="${it.status == 'MAKING'}"><span class="badge badge-making">Đang pha</span></c:when>
-                            <c:otherwise><span class="badge badge-waiting">Chờ</span></c:otherwise>
-                        </c:choose>
-                    </div>
-                    <div class="muted">
-                        <c:choose><c:when test="${not empty it.tableNumber}">${it.tableNumber}</c:when><c:otherwise>Đem về</c:otherwise></c:choose>
-                        · đơn #${it.orderId}
-                    </div>
-                    <c:if test="${not empty it.modifiers}">
-                        <div style="font-size:.88rem">
-                            <c:forEach var="om" items="${it.modifiers}" varStatus="st">${om.optionName}<c:if test="${not st.last}">, </c:if></c:forEach>
-                        </div>
-                    </c:if>
-                    <c:if test="${not empty it.note}"><div class="muted" style="font-style:italic">“${it.note}”</div></c:if>
-                    <div style="display:flex;gap:8px;margin-top:6px">
-                        <form action="${ctx}/barista/kds" method="post" title="Đẩy lên đầu hàng chờ">
-                            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                            <input type="hidden" name="action" value="bump">
-                            <input type="hidden" name="orderItemId" value="${it.orderItemId}">
-                            <button type="submit" class="btn btn-ghost btn-sm" title="Ưu tiên">↑</button>
-                        </form>
-                        <c:if test="${it.status == 'WAITING'}">
-                            <form action="${ctx}/barista/kds" method="post" style="flex:1">
-                                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                                <input type="hidden" name="action" value="start">
-                                <input type="hidden" name="orderItemId" value="${it.orderItemId}">
-                                <button type="submit" class="btn btn-ghost btn-sm" style="width:100%">Bắt đầu</button>
-                            </form>
-                        </c:if>
-                        <form action="${ctx}/barista/kds" method="post" style="flex:1" onsubmit="return confirm('Hoàn thành món? Tồn sẽ bị trừ.');">
-                            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                            <input type="hidden" name="action" value="markReady">
-                            <input type="hidden" name="orderItemId" value="${it.orderItemId}">
-                            <button type="submit" class="btn btn-primary btn-sm" style="width:100%">Xong (READY)</button>
-                        </form>
-                    </div>
-                </div>
-            </c:forEach>
-        </div>
-    </c:otherwise>
-</c:choose>
+<jsp:include page="../layout/_baristaShiftBanner.jsp" />
 
-<div class="muted" style="text-align:right;font-size:.8rem;margin-top:12px">
-    <span style="color:var(--st-ready)">●</span> Tự cập nhật mỗi <span id="kdsCountdown">5</span> giây
+<div class="kds-toolbar">
+    <div class="seg" id="kdsDensity" role="group" aria-label="Mật độ hiển thị">
+        <button type="button" class="seg__btn" data-dens="0">Thoáng</button>
+        <button type="button" class="seg__btn" data-dens="1">Gọn</button>
+    </div>
 </div>
+
+<div id="kdsBoard" class="kds-board ${onShift ? '' : 'is-viewonly'}">
+    <jsp:include page="kds_cards.jsp" />
+</div>
+
+<div class="kds-refresh muted">
+    <span class="kds-refresh__dot"></span>
+    Tự cập nhật mỗi <span id="kdsCountdown">5</span> giây
+</div>
+
+<%-- Dialog "Không pha được" — huỷ đúng món + tuỳ chọn đánh dấu hết món (86) --%>
+<div id="cantMakeModal" class="kds-modal" hidden>
+    <div class="kds-modal__backdrop" data-close></div>
+    <div class="kds-modal__panel" role="dialog" aria-modal="true" aria-labelledby="cantMakeTitle">
+        <h3 id="cantMakeTitle">Không pha được món</h3>
+        <p class="muted kds-modal__name" id="cantMakeName"></p>
+        <form id="cantMakeForm" action="${ctx}/barista/kds" method="post">
+            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+            <input type="hidden" name="action" value="cantMake">
+            <input type="hidden" name="orderItemId" id="cantItemId">
+            <input type="hidden" name="productId" id="cantProductId">
+            <label class="kds-field">
+                <span>Lý do (tuỳ chọn)</span>
+                <input type="text" name="reason" maxlength="120" placeholder="VD: hết sữa tươi" autocomplete="off">
+            </label>
+            <label class="kds-check">
+                <input type="checkbox" name="also86" value="true" id="cantAlso86">
+                <span>Đánh dấu hết món này (86) — khoá khỏi POS &amp; QR khách</span>
+            </label>
+            <label class="kds-field kds-eta" hidden>
+                <span>Dự kiến có lại (tuỳ chọn)</span>
+                <input type="datetime-local" name="backInEta">
+            </label>
+            <div class="kds-modal__actions">
+                <button type="button" class="btn btn-ghost" data-close>Huỷ</button>
+                <button type="submit" class="btn btn-danger">Xác nhận huỷ món</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
-  // KDS realtime — auto-poll 5s; tab nền thì tạm dừng (không reload phí + không nuốt thao tác)
   (function(){
-    var n = 5, el = document.getElementById('kdsCountdown');
+    var ctx = '${ctx}';
+    var board = document.getElementById('kdsBoard');
+    var countdown = document.getElementById('kdsCountdown');
+    var modal = document.getElementById('cantMakeModal');
+    var cantForm = document.getElementById('cantMakeForm');
+    var also86 = document.getElementById('cantAlso86');
+    var etaWrap = modal ? modal.querySelector('.kds-eta') : null;
+    var n = 5;
+    var knownIds = readIds();
+    var refreshing = false;
+    var suppressUntil = 0;   // tạm ngưng polling ngay sau một thao tác để không đè kết quả
+
+    // Chế độ Thoáng / Gọn (mật độ) — lưu localStorage, áp lên #kdsBoard (bền qua các lần refresh AJAX)
+    (function(){
+      var seg = document.getElementById('kdsDensity');
+      if (!board || !seg) return;
+      var btns = Array.prototype.slice.call(seg.querySelectorAll('.seg__btn[data-dens]'));
+      function apply(){
+        var compact = localStorage.getItem('kdsCompact') === '1';
+        board.classList.toggle('is-compact', compact);
+        btns.forEach(function(b){ b.classList.toggle('is-active', b.getAttribute('data-dens') === (compact ? '1' : '0')); });
+      }
+      btns.forEach(function(b){
+        b.addEventListener('click', function(){ localStorage.setItem('kdsCompact', b.getAttribute('data-dens')); apply(); });
+      });
+      apply();
+    })();
+
+    function readIds(){
+      var ids = {};
+      if (board) board.querySelectorAll('[data-kds-ticket-id]').forEach(function(c){
+        ids[c.getAttribute('data-kds-ticket-id')] = true;
+      });
+      return ids;
+    }
+
+    function markNew(){
+      board.querySelectorAll('[data-kds-ticket-id]').forEach(function(c){
+        if (!knownIds[c.getAttribute('data-kds-ticket-id')]) c.classList.add('kds-new');
+      });
+      knownIds = readIds();
+    }
+
+    async function postForm(form){
+      suppressUntil = Date.now() + 1500;
+      var body = new FormData(form);
+      body.append('ajax', '1');
+      var res = await fetch(form.action, {method:'POST', body: body, credentials:'same-origin'});
+      if (!res.ok) throw new Error('post failed');
+      board.innerHTML = await res.text();
+      markNew();
+    }
+
+    // Mọi form trong bảng gửi qua AJAX → không reload cả trang, giữ nguyên chỗ cuộn
+    if (board) board.addEventListener('submit', function(e){
+      var form = e.target.closest('form');
+      if (!form) return;
+      e.preventDefault();
+      var msg = form.getAttribute('data-confirm');
+      if (msg && !window.confirm(msg)) return;
+      postForm(form).catch(function(){ form.submit(); });   // lỗi mạng → submit thường (fallback)
+    });
+
+    // Mở dialog "Không pha được"
+    function toggleEta(){ if (etaWrap) etaWrap.hidden = !(also86 && also86.checked); }
+    function closeModal(){ if (modal) modal.hidden = true; }
+
+    if (board) board.addEventListener('click', function(e){
+      var btn = e.target.closest('.js-cantmake');
+      if (!btn || !modal) return;
+      cantForm.reset();
+      document.getElementById('cantItemId').value = btn.dataset.itemId;
+      document.getElementById('cantProductId').value = btn.dataset.productId;
+      document.getElementById('cantMakeName').textContent = btn.dataset.name;
+      toggleEta();
+      modal.hidden = false;
+    });
+
+    if (also86) also86.addEventListener('change', toggleEta);
+    if (modal) modal.addEventListener('click', function(e){ if (e.target.hasAttribute('data-close')) closeModal(); });
+    document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeModal(); });
+    if (cantForm) cantForm.addEventListener('submit', function(e){
+      e.preventDefault();
+      postForm(cantForm).then(closeModal).catch(function(){ cantForm.submit(); });
+    });
+
+    async function refresh(){
+      if (!board || refreshing || document.visibilityState === 'hidden' || Date.now() < suppressUntil) return;
+      refreshing = true;
+      try {
+        var res = await fetch(ctx + '/barista/kds?partial=1', {credentials:'same-origin'});
+        if (!res.ok) return;
+        board.innerHTML = await res.text();
+        markNew();
+      } finally { refreshing = false; }
+    }
+
     setInterval(function(){
       if (document.visibilityState === 'hidden') return;
-      n--; if (el) el.textContent = n;
-      if (n <= 0) location.reload();
+      n -= 1;
+      if (n <= 0) { n = 5; refresh(); }
+      if (countdown) countdown.textContent = n;
     }, 1000);
   })();
 </script>

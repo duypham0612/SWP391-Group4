@@ -2,6 +2,8 @@ package com.cafe.controller.barista;
 import com.cafe.controller.manager.InventoryDashboardServlet;
 
 import com.cafe.common.CsrfUtil;
+import com.cafe.common.SessionUtil;
+import com.cafe.model.User;
 import com.cafe.service.shared.BranchMenuService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -23,7 +25,9 @@ public class EightySixServlet extends HttpServlet {
         int branchId = InventoryDashboardServlet.branchId(req);
         try {
             req.setAttribute("items", service.getMenuAvailability(branchId));
-            req.setAttribute("pageTitle", "Hết món (86)");
+            req.setAttribute("suggest86", service.getSuggested86(branchId));   // gợi ý 86 (soft): nguyên liệu đã cạn
+            req.setAttribute("pageTitle", "Báo hết món");
+            BaristaShift.expose(req, "/barista/eightysix");   // trực ca: banner + khoá thao tác khi ngoài ca
             req.getRequestDispatcher("/WEB-INF/views/barista/eightysix.jsp").forward(req, resp);
         } catch (Exception e) { throw new ServletException(e); }
     }
@@ -32,9 +36,13 @@ public class EightySixServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
+        String action = req.getParameter("action");
+        if (BaristaShift.guardWrite(req, resp, action, "/barista/eightysix")) return;   // vào ca / chặn ngoài ca
         int branchId = InventoryDashboardServlet.branchId(req);
+        User u = SessionUtil.currentUser(req);
+        Integer userId = u != null ? u.getUserId() : null;
         try {
-            if ("toggle86".equals(req.getParameter("action"))) {
+            if ("toggle86".equals(action)) {
                 int productId = Integer.parseInt(req.getParameter("productId"));
                 boolean is86 = "true".equals(req.getParameter("is86"));
                 java.time.LocalDateTime eta = null;
@@ -43,7 +51,7 @@ public class EightySixServlet extends HttpServlet {
                     try { eta = java.time.LocalDateTime.parse(etaStr); }
                     catch (java.time.format.DateTimeParseException ignore) { /* bỏ qua ETA sai định dạng */ }
                 }
-                service.set86(branchId, productId, is86, eta);
+                service.set86(branchId, productId, is86, eta, userId);
             }
             resp.sendRedirect(req.getContextPath() + "/barista/eightysix");
         } catch (Exception e) { throw new ServletException(e); }

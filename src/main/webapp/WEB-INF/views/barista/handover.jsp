@@ -4,22 +4,30 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Pha chế</div><h1>Bàn giao ca</h1><p>Ghi chú bàn giao + KPI hiệu suất pha chế hôm nay</p></div>
+    <div><div class="eyebrow">Pha chế</div><h1>Ca làm & Bàn giao</h1><p>Ghi chú bàn giao + KPI hiệu suất pha chế hôm nay</p></div>
 </div>
 
 <c:if test="${not empty sessionScope.flashError}">
     <div class="alert alert-error">${sessionScope.flashError}</div>
     <c:remove var="flashError" scope="session" />
 </c:if>
+<c:if test="${not empty sessionScope.flashOk}">
+    <div class="alert alert-success">${sessionScope.flashOk}</div>
+    <c:remove var="flashOk" scope="session" />
+</c:if>
 
-<div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:18px">
-    <div class="card" style="flex:1;min-width:200px;text-align:center">
+<c:set var="clockPostUrl" value="${ctx}/barista/handover" />
+<div class="shift-clock-dashboard">
+    <jsp:include page="../layout/_shiftClockCard.jsp" />
+    <div class="card stat">
         <div class="eyebrow">Lead time TB (hôm nay)</div>
-        <div style="font-size:28px;font-weight:700;color:var(--coffee)">${kpi.avgLeadDisplay}</div>
+        <span class="value">${kpi.avgLeadDisplay}</span>
+        <div class="muted" style="font-size:.8em;margin-top:4px">Chỉ tính món có mốc “bắt đầu pha”</div>
     </div>
-    <div class="card" style="flex:1;min-width:200px;text-align:center">
+    <div class="card stat">
         <div class="eyebrow">Số ly đã pha xong (hôm nay)</div>
-        <div style="font-size:28px;font-weight:700;color:var(--coffee)">${kpi.cupCount}</div>
+        <span class="value">${kpi.cupCount}</span>
+        <div class="muted" style="font-size:.8em;margin-top:4px">Gồm cả món pha nhanh (READY thẳng)</div>
     </div>
 </div>
 
