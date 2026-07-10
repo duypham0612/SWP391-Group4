@@ -4,46 +4,54 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Pha chế</div><h1>Món sẵn lấy</h1><p>Trạng thái READY — bấm "Đã phục vụ" khi giao cho khách</p></div>
-    <a class="btn btn-ghost" href="${ctx}/barista/kds">← Hàng chờ</a>
+    <div>
+        <div class="eyebrow">Pha chế</div>
+        <h1>Món chờ giao</h1>
+        <p>Món đã pha xong, chờ mang ra. Kiểm tra đủ món của bàn rồi bấm “Đã giao”.</p>
+    </div>
+    <a class="btn btn-ghost" href="${ctx}/barista/kds">← Hàng chờ pha</a>
 </div>
 
-<c:choose>
-    <c:when test="${empty readyItems}">
-        <div class="card empty-state"><div class="icon">∅</div><p>Chưa có món nào sẵn lấy.</p></div>
-    </c:when>
-    <c:otherwise>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px">
-            <c:forEach var="it" items="${readyItems}">
-                <div class="card" style="display:flex;flex-direction:column;gap:8px;border-left:4px solid var(--st-ready)">
-                    <div style="display:flex;justify-content:space-between;align-items:center">
-                        <strong>${it.quantity}× ${it.productName}</strong>
-                        <span class="badge badge-ready">Sẵn lấy</span>
-                    </div>
-                    <div class="muted"><c:choose><c:when test="${not empty it.tableNumber}">${it.tableNumber}</c:when><c:otherwise>Đem về</c:otherwise></c:choose> · đơn #${it.orderId}</div>
-                    <form action="${ctx}/barista/pickup" method="post">
-                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                        <input type="hidden" name="action" value="markServed">
-                        <input type="hidden" name="orderItemId" value="${it.orderItemId}">
-                        <button type="submit" class="btn btn-primary btn-sm" style="width:100%">Đã phục vụ</button>
-                    </form>
-                </div>
-            </c:forEach>
-        </div>
-    </c:otherwise>
-</c:choose>
+<jsp:include page="../layout/_baristaShiftBanner.jsp" />
 
-<div class="muted" style="text-align:right;font-size:.8rem;margin-top:12px">
-    <span style="color:var(--st-ready)">●</span> Tự cập nhật mỗi <span id="puCountdown">5</span> giây
+<div id="pickupBoard" class="kds-board ${onShift ? '' : 'is-viewonly'}">
+    <jsp:include page="pickup_cards.jsp" />
 </div>
+
+<div class="kds-refresh muted">
+    <span class="kds-refresh__dot"></span>
+    Tự cập nhật mỗi <span id="puCountdown">5</span> giây
+</div>
+
 <script>
-  // Pickup board realtime — auto-poll 5s; tab nền thì tạm dừng
   (function(){
-    var n = 5, el = document.getElementById('puCountdown');
+    var ctx = '${ctx}';
+    var board = document.getElementById('pickupBoard');
+    var countdown = document.getElementById('puCountdown');
+    var n = 5;
+    var refreshing = false;
+
+    function userIsWorking(){
+      return board && board.contains(document.activeElement);
+    }
+
+    async function refresh(){
+      if (!board || refreshing || document.visibilityState === 'hidden' || userIsWorking()) return;
+      refreshing = true;
+      try {
+        var response = await fetch(ctx + '/barista/pickup?partial=1', {credentials:'same-origin'});
+        if (!response.ok) return;
+        board.innerHTML = await response.text();
+      } finally {
+        refreshing = false;
+      }
+    }
+
     setInterval(function(){
       if (document.visibilityState === 'hidden') return;
-      n--; if (el) el.textContent = n;
-      if (n <= 0) location.reload();
+      n -= 1;
+      if (n <= 0) { n = 5; refresh(); }
+      if (countdown) countdown.textContent = n;
     }, 1000);
   })();
 </script>

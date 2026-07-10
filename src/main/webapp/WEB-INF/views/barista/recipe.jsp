@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Pha chế</div><h1>Tra cứu công thức</h1><p>Xem định mức nguyên liệu (RAW/PREPPED) &amp; tác động của modifier — chỉ đọc</p></div>
+    <div><div class="eyebrow">Pha chế</div><h1>Tra cứu công thức</h1><p>Xem định mức nguyên liệu thô / nguyên liệu pha sẵn &amp; tác động của modifier — chỉ đọc</p></div>
 </div>
 
 <div class="card form-card" style="margin-bottom:18px">
@@ -74,7 +74,7 @@
                 </c:choose>
 
                 <c:if test="${not empty preps}">
-                    <h4>Định mức pha sẵn (RAW → PREPPED)</h4>
+                    <h4>Định mức pha sẵn</h4>
                     <c:forEach var="ps" items="${preps}">
                         <p style="margin:6px 0"><strong>${ps.name}</strong></p>
                         <table class="table">
