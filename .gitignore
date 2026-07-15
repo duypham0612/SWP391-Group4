@@ -1,24 +1,3 @@
-# Các thư mục biên dịch tự sinh của NetBeans (Nghiêm cấm up lên)
-**/build/
-**/dist/
-**/nbproject/private/
-**/nbbuild/
-**/nbdist/
-.mtj.tmp/
-
-# Các file nhật ký hệ thống và file tạm của Tomcat
-*.log
-*.war
-*.ear
-*.rar
+target/
 *.class
-
-# File cấu hình riêng của hệ điều hành
-Thumbs.db
-desktop.ini
 .DS_Store
-
-# Thư mục lưu trữ thư viện tải về dạng cache nếu có
-.gradle/
-build/
-node_modules/

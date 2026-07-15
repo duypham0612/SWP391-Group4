@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="480" viewBox="0 0 560 480" fill="none" role="img" aria-label="Tách cà phê">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="46%" r="55%">
+      <stop offset="0" stop-color="#C0934A" stop-opacity=".42"/>
+      <stop offset="1" stop-color="#C0934A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cup" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FCF5E9"/><stop offset="1" stop-color="#EAD8BD"/>
+    </linearGradient>
+    <linearGradient id="coffee" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7A5639"/><stop offset="1" stop-color="#553A27"/>
+    </linearGradient>
+    <linearGradient id="saucer" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F1E2C8"/><stop offset="1" stop-color="#D9C19C"/>
+    </linearGradient>
+  </defs>
+
+  <!-- vầng sáng nền -->
+  <circle cx="280" cy="232" r="220" fill="url(#glow)"/>
+  <!-- vòng trang trí nét đứt -->
+  <circle cx="280" cy="226" r="206" stroke="#E7D2A6" stroke-opacity=".30" stroke-width="2.5" stroke-dasharray="2 14" stroke-linecap="round"/>
+
+  <!-- hơi nước -->
+  <g stroke="#FCF5E9" stroke-opacity=".5" stroke-width="7" fill="none" stroke-linecap="round">
+    <path d="M256 150 q-24 -30 0 -58 q24 -30 0 -58"/>
+    <path d="M300 150 q-24 -30 0 -58 q24 -30 0 -58"/>
+  </g>
+
+  <!-- đĩa lót -->
+  <ellipse cx="280" cy="412" rx="186" ry="34" fill="#2A1B10" opacity=".35"/>
+  <ellipse cx="280" cy="400" rx="178" ry="34" fill="url(#saucer)"/>
+  <ellipse cx="280" cy="394" rx="120" ry="22" fill="#CBB089"/>
+
+  <!-- quai tách -->
+  <path d="M372 262 C 432 256 436 338 374 346" fill="none" stroke="#EAD8BD" stroke-width="20" stroke-linecap="round"/>
+  <path d="M372 262 C 432 256 436 338 374 346" fill="none" stroke="#FCF5E9" stroke-width="9" stroke-linecap="round"/>
+
+  <!-- thân tách -->
+  <path d="M182 230 L378 230 C 372 322 358 366 330 380 C 314 387 246 387 230 380 C 202 366 188 322 182 230 Z" fill="url(#cup)"/>
+  <!-- highlight thân -->
+  <path d="M212 250 C 220 318 232 352 250 368" stroke="#FFFFFF" stroke-opacity=".5" stroke-width="9" stroke-linecap="round" fill="none"/>
+
+  <!-- mặt cà phê -->
+  <ellipse cx="280" cy="230" rx="98" ry="27" fill="url(#cup)"/>
+  <ellipse cx="280" cy="231" rx="86" ry="21" fill="url(#coffee)"/>
+  <ellipse cx="280" cy="231" rx="86" ry="21" fill="none" stroke="#B07D4E" stroke-opacity=".55" stroke-width="3"/>
+
+  <!-- latte art (lá rosetta) -->
+  <g fill="none" stroke="#F3E6CE" stroke-width="3.4" stroke-linecap="round" opacity=".95">
+    <path d="M280 218 C 280 224 280 240 280 244"/>
+    <path d="M280 222 C 268 222 262 227 263 233 C 270 232 276 229 280 226"/>
+    <path d="M280 222 C 292 222 298 227 297 233 C 290 232 284 229 280 226"/>
+    <path d="M280 229 C 270 229 265 233 266 238 C 272 237 277 234 280 232"/>
+    <path d="M280 229 C 290 229 295 233 294 238 C 288 237 283 234 280 232"/>
+  </g>
+
+  <!-- hạt cà phê -->
+  <g fill="#4C3320">
+    <g transform="translate(120 386) rotate(-22)"><ellipse cx="0" cy="0" rx="16" ry="10"/><path d="M0 -9 Q3 0 0 9" stroke="#7A5639" stroke-width="2.2" fill="none"/></g>
+    <g transform="translate(452 392) rotate(24)"><ellipse cx="0" cy="0" rx="16" ry="10"/><path d="M0 -9 Q3 0 0 9" stroke="#7A5639" stroke-width="2.2" fill="none"/></g>
+    <g transform="translate(430 360) rotate(-10)"><ellipse cx="0" cy="0" rx="13" ry="8"/><path d="M0 -7 Q2 0 0 7" stroke="#7A5639" stroke-width="2" fill="none"/></g>
+  </g>
+
+  <!-- lấp lánh -->
+  <g fill="#E7D2A6">
+    <path d="M150 150 l4 11 11 4 -11 4 -4 11 -4 -11 -11 -4 11 -4 z"/>
+    <path d="M430 170 l3 8 8 3 -8 3 -3 8 -3 -8 -8 -3 8 -3 z" opacity=".8"/>
+  </g>
+</svg>

@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="https://jakarta.ee/xml/ns/jakartaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee
+                             https://jakarta.ee/xml/ns/jakartaee/web-app_5_0.xsd"
+         version="5.0">
+
+    <display-name>Cafe Chain Management</display-name>
+
+    <welcome-file-list>
+        <welcome-file>index.jsp</welcome-file>
+    </welcome-file-list>
+
+    <!-- ================= FILTERS (thứ tự CHẠY theo thứ tự mapping) ================= -->
+    <!-- 1) Charset -->
+    <filter>
+        <filter-name>CharsetFilter</filter-name>
+        <filter-class>com.cafe.filter.CharsetFilter</filter-class>
+        <init-param>
+            <param-name>encoding</param-name>
+            <param-value>UTF-8</param-value>
+        </init-param>
+    </filter>
+    <filter-mapping>
+        <filter-name>CharsetFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+    <!-- 2) Auth: chặn khi chưa đăng nhập -->
+    <filter>
+        <filter-name>AuthFilter</filter-name>
+        <filter-class>com.cafe.filter.AuthFilter</filter-class>
+    </filter>
+    <filter-mapping>
+        <filter-name>AuthFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+    <!-- 3) RBAC: phân quyền theo role + prefix -->
+    <filter>
+        <filter-name>RbacFilter</filter-name>
+        <filter-class>com.cafe.filter.RbacFilter</filter-class>
+    </filter>
+    <filter-mapping>
+        <filter-name>RbacFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+    <!-- 4) Branch scope: đặt branchId vào request -->
+    <filter>
+        <filter-name>BranchScopeFilter</filter-name>
+        <filter-class>com.cafe.filter.BranchScopeFilter</filter-class>
+    </filter>
+    <filter-mapping>
+        <filter-name>BranchScopeFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+    <!-- 5) Cashier duty guard: chỉ chặn thao tác ghi khi chưa bắt đầu ca -->
+    <filter>
+        <filter-name>CashierDutyGuardFilter</filter-name>
+        <filter-class>com.cafe.filter.CashierDutyGuardFilter</filter-class>
+    </filter>
+    <filter-mapping>
+        <filter-name>CashierDutyGuardFilter</filter-name>
+        <url-pattern>/cashier/*</url-pattern>
+    </filter-mapping>
+
+    <!-- ================= LISTENER ================= -->
+    <listener>
+        <listener-class>com.cafe.listener.SeedPasswordListener</listener-class>
+    </listener>
+
+    <session-config>
+        <session-timeout>30</session-timeout>
+    </session-config>
+
+    <error-page>
+        <error-code>403</error-code>
+        <location>/WEB-INF/views/error/403.jsp</location>
+    </error-page>
+    <error-page>
+        <error-code>404</error-code>
+        <location>/WEB-INF/views/error/404.jsp</location>
+    </error-page>
+    <error-page>
+        <error-code>500</error-code>
+        <location>/WEB-INF/views/error/500.jsp</location>
+    </error-page>
+</web-app>
