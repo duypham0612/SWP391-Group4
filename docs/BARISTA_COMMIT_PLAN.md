@@ -3,6 +3,18 @@
 > Mục tiêu: mỗi ngày thêm **4 commit việc THẬT** cho role Barista, giữ nguyên toàn bộ commit cũ.
 > Nhánh làm việc: `minhnhat`. **Không** reset/amend/force — chỉ **thêm** commit.
 
+## ⚠ QUY TẮC TÀI KHOẢN GIT (BẮT BUỘC — mọi session)
+
+- **CHỈ được thao tác Git/GitHub trên tài khoản `nhatlmhe160091`** (identity dự án: `Lê Minh Nhật <nhatlmhe160091@fpt.edu.vn>`).
+- **TRƯỚC mọi lần push/PR/thao tác GitHub**, xác minh tài khoản active:
+  ```
+  gh auth status --active        # phải là nhatlmhe160091
+  gh auth switch --user nhatlmhe160091   # nếu chưa đúng → chuyển về
+  ```
+- **KHÔNG** dùng tài khoản `17tuanphamanh` cho bất kỳ thao tác nào trên repo này (không có quyền ghi → 403; và sai identity dự án).
+- Không đổi `git config user.name`/`user.email` khỏi `Lê Minh Nhật <nhatlmhe160091@fpt.edu.vn>`.
+- Không `--force`, không `--no-verify`, không ghi nguồn AI trong commit/PR.
+
 ## Cách dùng (mỗi ngày)
 
 1. Bảo agent: **"Làm ngày N trong `docs/BARISTA_COMMIT_PLAN.md`"**.
