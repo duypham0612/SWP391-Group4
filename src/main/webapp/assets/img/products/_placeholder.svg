@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360" viewBox="0 0 480 360" role="img" aria-label="Sản phẩm">
+  <rect width="480" height="360" fill="#E8D9C5"/>
+  <path d="M150 150 h180 l-14 96 a26 26 0 0 1 -26 22 h-100 a26 26 0 0 1 -26 -22 z" fill="#FFFDF9"/>
+  <path d="M330 168 q52 4 50 48 q-2 40 -52 44 l2 -22 q28 -2 28 -24 q0 -22 -28 -24 z" fill="#FFFDF9"/>
+  <text x="240" y="338" text-anchor="middle" font-family="Arial,sans-serif" font-size="26" font-weight="700" fill="#8A7A6A">Chưa có ảnh</text>
+</svg>
