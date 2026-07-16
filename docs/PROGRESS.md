@@ -359,3 +359,4 @@ Quyết định user: **giữ `com.cafe` layer-based**, đổi tên/route đúng
   - **`WasteScopeTest`** (`service/barista`, 3 test) — cửa sổ lọc: `TODAY` đúng 24h với mốc đầu = 00:00 giờ VN quy về UTC; ca đang mở giữ `checkIn`/`to=null`; ca đã tan giữ cặp `checkIn`/`checkOut`.
   - **`DeductionCalculatorTest`** — mở rộng +4 ca (4→8 test): modifier giảm nhưng net vẫn dương, gộp 2 modifier cùng nguyên liệu, `recipe=null`/`impacts=null` không NPE.
   - **Kết quả:** 3 test class chạy độc lập PASS (WasteSummary 5, WasteScope 3, Deduction 8). 3 commit `test(barista): …` cộng thêm (giữ nguyên history cũ, không rewrite).
+- **2026-07-16** — **Barista · Ngày 1 plan — Widget Hao hụt hôm nay trên dashboard:** thêm `WasteService.getTodayWasteSummary(branchId)`, dashboard servlet nạp `wasteSummary`, `dashboard.jsp` hiển thị thẻ tổng chi phí/top nguyên liệu/số làm lại và mở rộng `WasteSummaryTest` lên 6 test. Verify: `mvn test -Dtest='WasteSummaryTest'` PASS.
