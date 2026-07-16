@@ -31,10 +31,21 @@ public class WasteService {
     private static final DateTimeFormatter DATE_TIME_FMT = DateTimeFormatter.ofPattern("HH:mm dd/MM");
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-    private final InventoryService inventoryService = new InventoryService();
-    private final IngredientService ingredientService = new IngredientService();
-    private final AttendanceService attendanceService = new AttendanceService();
-    private final BranchMenuDao branchMenuDao = new BranchMenuDao();
+    private final InventoryService inventoryService;
+    private final IngredientService ingredientService;
+    private final AttendanceService attendanceService;
+    private final BranchMenuDao branchMenuDao;
+
+    public WasteService() {
+        this(new InventoryService());
+    }
+
+    WasteService(InventoryService inventoryService) {
+        this.inventoryService = inventoryService;
+        this.ingredientService = new IngredientService();
+        this.attendanceService = new AttendanceService();
+        this.branchMenuDao = new BranchMenuDao();
+    }
 
     public List<Ingredient> getIngredients() throws SQLException {
         return ingredientService.getIngredientList();

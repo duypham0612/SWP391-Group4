@@ -1,9 +1,13 @@
 package com.cafe.service.barista;
 
 import com.cafe.model.WasteLog;
+import com.cafe.service.shared.InventoryService;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.sql.SQLException;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -90,5 +94,47 @@ class WasteSummaryTest {
         assertTrue(s.isHasTopIngredient());
         assertEquals("Sữa tươi", s.getTopIngredientName());  // 2000 > 1500
         assertMoney(s.getTopIngredientCost(), "2000");
+    }
+
+    /** getTodayWasteSummary dùng cửa sổ hôm nay rồi gom như summary thường. */
+    @Test
+    void today_summary_uses_today_scope_and_summarizes_logs() throws Exception {
+        FakeInventoryService inventory = new FakeInventoryService(List.of(
+                log("SPILL", "ACTIVE", "Sữa tươi", 2, "2", "1000"),
+                log("REMAKE", "ACTIVE", "Cà phê", 1, "1", "5000"),
+                log("SPILL", "VOIDED", "Đá viên", 4, "10", "100")));
+        WasteService service = new WasteService(inventory);
+
+        WasteService.WasteSummary s = service.getTodayWasteSummary(7);
+
+        assertEquals(7, inventory.branchId);
+        assertTrue(inventory.fromUtc != null);
+        assertTrue(inventory.toUtc != null);
+        assertEquals(24, Duration.between(inventory.fromUtc, inventory.toUtc).toHours());
+        assertEquals(2, s.getActiveCount());
+        assertEquals(1, s.getIngredientWasteCount());
+        assertEquals(1, s.getRemakeCount());
+        assertMoney(s.getTotalCost(), "7000");
+        assertEquals("Cà phê", s.getTopIngredientName());
+    }
+
+    private static class FakeInventoryService extends InventoryService {
+        private final List<WasteLog> logs;
+        private int branchId;
+        private LocalDateTime fromUtc;
+        private LocalDateTime toUtc;
+
+        FakeInventoryService(List<WasteLog> logs) {
+            this.logs = logs;
+        }
+
+        @Override
+        public List<WasteLog> getWasteLogs(int branchId, LocalDateTime fromUtc, LocalDateTime toUtc)
+                throws SQLException {
+            this.branchId = branchId;
+            this.fromUtc = fromUtc;
+            this.toUtc = toUtc;
+            return logs;
+        }
     }
 }
