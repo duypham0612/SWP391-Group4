@@ -1,5 +1,6 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
+<%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <jsp:include page="../layout/header.jsp" />
 
@@ -31,6 +32,20 @@
         <span class="value">${kpi.avgLeadDisplay}</span>
         <span class="muted">${kpi.cupCount} ly đã xong</span>
     </div>
+    <a class="card stat" href="${ctx}/barista/waste" style="${wasteSummary.totalCost gt 0 ? 'border-color:var(--st-waiting)' : ''}">
+        <span class="label">Hao hụt hôm nay</span>
+        <span class="value"><fmt:formatNumber value="${wasteSummary.totalCost}" maxFractionDigits="0"/> ₫</span>
+        <span class="muted">
+            <c:choose>
+                <c:when test="${wasteSummary.hasTopIngredient}">
+                    Top: ${wasteSummary.topIngredientName} · ${wasteSummary.remakeCount} làm lại
+                </c:when>
+                <c:otherwise>
+                    Chưa ghi nhận hao hụt · ${wasteSummary.remakeCount} làm lại
+                </c:otherwise>
+            </c:choose>
+        </span>
+    </a>
     <a class="card stat" href="${ctx}/barista/eightysix" style="${alertCount gt 0 ? 'border-color:var(--st-cancelled)' : ''}">
         <span class="label">Cảnh báo vận hành</span>
         <span class="value">${alertCount}</span>
