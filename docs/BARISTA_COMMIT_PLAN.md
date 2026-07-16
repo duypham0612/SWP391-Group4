@@ -40,10 +40,10 @@
 ## Ngày 1 — Widget "Hao hụt hôm nay" trên Dashboard Barista
 Tái dùng `WasteService.WasteSummary` (đã có test) để hiện tổng quan hao hụt ngay trên `/barista/dashboard`.
 
-- [ ] **C1** `feat(barista): WasteService.getTodayWasteSummary(branchId) gom hao hụt trong ngày` — thêm method wrap `getWasteLogs(branchId, WasteScope.today())` + `summarize(...)`.
-- [ ] **C2** `feat(barista): BaristaDashboardServlet nạp wasteSummary vào request` — set attribute `wasteSummary`.
-- [ ] **C3** `feat(barista): dashboard.jsp thẻ Hao hụt hôm nay (tổng chi phí, top nguyên liệu, số làm lại)` — thẻ JSTL, dùng `_statusBadge`/style chung.
-- [ ] **C4** `test(barista): WasteService.getTodayWasteSummary — logs rỗng/nhiều loại, tổng khớp` — test logic (mock list qua summarize) hoặc mở rộng `WasteSummaryTest`.
+- [x] **C1** `feat(barista): WasteService.getTodayWasteSummary(branchId) gom hao hụt trong ngày` — thêm method wrap `getWasteLogs(branchId, WasteScope.today())` + `summarize(...)`.
+- [x] **C2** `feat(barista): BaristaDashboardServlet nạp wasteSummary vào request` — set attribute `wasteSummary`.
+- [x] **C3** `feat(barista): dashboard.jsp thẻ Hao hụt hôm nay (tổng chi phí, top nguyên liệu, số làm lại)` — thẻ JSTL, dùng `_statusBadge`/style chung.
+- [x] **C4** `test(barista): WasteService.getTodayWasteSummary — logs rỗng/nhiều loại, tổng khớp` — test logic (mock list qua summarize) hoặc mở rộng `WasteSummaryTest`.
 - **Verify:** `mvn test -Dtest='WasteSummaryTest'` PASS; deploy xem thẻ hiện đúng số.
 
 ## Ngày 2 — Bảng "Ly đã pha trong ca" (brew history) ở màn Handover
@@ -133,7 +133,7 @@ Biểu đồ nhỏ số ly pha xong theo từng giờ trong ngày (thanh CSS, kh
 
 | Ngày | Chủ đề | Trạng thái |
 |---|---|---|
-| 1 | Widget hao hụt hôm nay (dashboard) | ⬜ |
+| 1 | Widget hao hụt hôm nay (dashboard) | 🟢 |
 | 2 | Brew history (handover) | ⬜ |
 | 3 | KPI cá nhân barista | ⬜ |
 | 4 | 86 board — lịch sử + tự mở lại | ⬜ |
