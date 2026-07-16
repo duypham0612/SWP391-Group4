@@ -71,6 +71,10 @@ public class WasteService {
         return inventoryService.getWasteLogs(branchId, scope.getFromUtc(), scope.getToUtc());
     }
 
+    public WasteSummary getTodayWasteSummary(int branchId) throws SQLException {
+        return summarize(getWasteLogs(branchId, WasteScope.today()));
+    }
+
     public WasteLog getEditableWasteLog(int branchId, int wasteLogId) throws SQLException {
         WasteLog log = inventoryService.getWasteLog(branchId, wasteLogId);
         if (log == null) return null;
