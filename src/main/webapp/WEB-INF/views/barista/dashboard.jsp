@@ -32,6 +32,11 @@
         <span class="value">${kpi.avgLeadDisplay}</span>
         <span class="muted">${kpi.cupCount} ly đã xong</span>
     </div>
+    <div class="card stat" style="${myKpi.cupCount gt 0 ? 'border-color:var(--st-ready)' : ''}">
+        <span class="label">KPI của tôi</span>
+        <span class="value">${myKpi.cupCount} ly</span>
+        <span class="muted">Lead-time TB ${myKpi.avgLeadDisplay}</span>
+    </div>
     <a class="card stat" href="${ctx}/barista/waste" style="${wasteSummary.totalCost gt 0 ? 'border-color:var(--st-waiting)' : ''}">
         <span class="label">Hao hụt hôm nay</span>
         <span class="value"><fmt:formatNumber value="${wasteSummary.totalCost}" maxFractionDigits="0"/> ₫</span>
