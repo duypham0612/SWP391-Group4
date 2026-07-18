@@ -23,7 +23,7 @@ public class OrderItemDao {
         "            ELSE DATEDIFF(SECOND, oi.StartedAt, SYSUTCDATETIME()) END AS MakingSeconds, " +
         "       CASE WHEN oi.DoneAt IS NULL THEN NULL " +
         "            ELSE DATEDIFF(SECOND, oi.DoneAt, SYSUTCDATETIME()) END AS ServeWaitSeconds, " +
-        "       p.Name AS ProductName, c.Name AS CategoryName, o.BranchId AS OrderBranchId, " +
+        "       p.Name AS ProductName, p.PrepSeconds, c.Name AS CategoryName, o.BranchId AS OrderBranchId, " +
         "       o.OrderType, o.CreatedAt AS OrderCreatedAt, dt.TableNumber, ts.Status AS SessionStatus, " +
         "       bu.FullName AS BaristaName, cu.FullName AS PreparedByName " +
         "FROM sales.OrderItem oi " +
@@ -85,12 +85,41 @@ public class OrderItemDao {
      * bỏ ra thì món biến mất khỏi mọi màn barista và khách chờ mãi không ai biết.
      */
     public List<OrderItem> findBaristaWorkbench(Connection conn, int branchId) throws SQLException {
+        return findBaristaWorkbench(conn, branchId, null);
+    }
+
+    /**
+     * @param businessDayStartUtc mốc đầu ngày kinh doanh; món tạo TRƯỚC mốc này bị loại khỏi
+     *        hàng chờ hiện tại (xem {@link #findStaleItems}). Truyền null để lấy tất cả.
+     */
+    public List<OrderItem> findBaristaWorkbench(Connection conn, int branchId,
+                                                java.time.LocalDateTime businessDayStartUtc) throws SQLException {
         List<OrderItem> out = new ArrayList<>();
         final String sql = SELECT +
             "WHERE o.BranchId=? AND o.Status='ACTIVE' AND oi.Status IN ('WAITING','MAKING','READY','BLOCKED') " +
+            (businessDayStartUtc == null ? "" : "AND o.CreatedAt >= ? ") +
             "ORDER BY CASE WHEN oi.RemakeCount>0 THEN 0 ELSE 1 END, oi.Priority DESC, o.CreatedAt, oi.OrderItemId";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, branchId);
+            if (businessDayStartUtc != null) ps.setTimestamp(2, Timestamp.valueOf(businessDayStartUtc));
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
+        }
+        return out;
+    }
+
+    /**
+     * Món còn dang dở nhưng thuộc ngày kinh doanh TRƯỚC — khu "Đơn treo cần xử lý" cho quản lý.
+     * Tách ra để hàng chờ hiện tại không bị rác cũ làm đỏ toàn bộ và làm lệch thống kê trễ giờ.
+     */
+    public List<OrderItem> findStaleItems(Connection conn, int branchId,
+                                          java.time.LocalDateTime businessDayStartUtc) throws SQLException {
+        List<OrderItem> out = new ArrayList<>();
+        final String sql = SELECT +
+            "WHERE o.BranchId=? AND o.Status='ACTIVE' AND oi.Status IN ('WAITING','MAKING','READY','BLOCKED') " +
+            "AND o.CreatedAt < ? ORDER BY o.CreatedAt, oi.OrderItemId";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setTimestamp(2, Timestamp.valueOf(businessDayStartUtc));
             try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
         }
         return out;
@@ -460,6 +489,7 @@ public class OrderItemDao {
         int serveWaitSeconds = rs.getInt("ServeWaitSeconds");
         it.setServeWaitSeconds(rs.wasNull() ? null : serveWaitSeconds);
         it.setProductName(rs.getString("ProductName"));
+        it.setPrepSeconds(rs.getInt("PrepSeconds"));
         it.setCategoryName(rs.getString("CategoryName"));
         it.setOrderType(rs.getString("OrderType"));
         it.setBaristaName(rs.getString("BaristaName"));
