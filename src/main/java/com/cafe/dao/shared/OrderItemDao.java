@@ -24,7 +24,7 @@ public class OrderItemDao {
         "       CASE WHEN oi.DoneAt IS NULL THEN NULL " +
         "            ELSE DATEDIFF(SECOND, oi.DoneAt, SYSUTCDATETIME()) END AS ServeWaitSeconds, " +
         "       p.Name AS ProductName, p.PrepSeconds, c.Name AS CategoryName, o.BranchId AS OrderBranchId, " +
-        "       o.OrderType, o.CreatedAt AS OrderCreatedAt, dt.TableNumber, ts.Status AS SessionStatus, " +
+        "       o.OrderType, o.CreatedAt AS OrderCreatedAt, o.PickupCode, dt.TableNumber, ts.Status AS SessionStatus, " +
         "       bu.FullName AS BaristaName, cu.FullName AS PreparedByName " +
         "FROM sales.OrderItem oi " +
         "JOIN catalog.Product p ON p.ProductId=oi.ProductId " +
@@ -290,12 +290,20 @@ public class OrderItemDao {
 
     /** Chỉ người đã nhận món mới được hoàn thành. */
     public int completeClaimed(Connection conn, int orderItemId, int branchId, int baristaId) throws SQLException {
+        return completeClaimed(conn, orderItemId, branchId, baristaId, null);
+    }
+
+    /** Hoàn thành + ghi vị trí đặt món (nơi thu ngân ra lấy). handoverLocation null = không đổi ghi NULL. */
+    public int completeClaimed(Connection conn, int orderItemId, int branchId, int baristaId,
+                               String handoverLocation) throws SQLException {
         final String sql = "UPDATE oi SET oi.Status='READY',oi.DoneAt=SYSUTCDATETIME(),oi.PreparedBy=?,"
-                + "oi.HasIssue=0,oi.IssueReason=NULL,oi.RemakeInventoryReserved=0 "
+                + "oi.HasIssue=0,oi.IssueReason=NULL,oi.RemakeInventoryReserved=0,oi.HandoverLocation=? "
                 + "FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId "
                 + "WHERE oi.OrderItemId=? AND o.BranchId=? AND oi.Status='MAKING' AND oi.BaristaId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, baristaId); ps.setInt(2, orderItemId); ps.setInt(3, branchId); ps.setInt(4, baristaId);
+            ps.setInt(1, baristaId);
+            if (handoverLocation == null) ps.setNull(2, java.sql.Types.NVARCHAR); else ps.setString(2, handoverLocation);
+            ps.setInt(3, orderItemId); ps.setInt(4, branchId); ps.setInt(5, baristaId);
             return ps.executeUpdate();
         }
     }
@@ -496,6 +504,7 @@ public class OrderItemDao {
         it.setPreparedByName(rs.getString("PreparedByName"));
         it.setOrderBranchId(rs.getInt("OrderBranchId"));
         it.setTableNumber(rs.getString("TableNumber"));
+        it.setPickupCode(rs.getString("PickupCode"));
         it.setSessionStatus(rs.getString("SessionStatus"));
         return it;
     }

@@ -52,6 +52,11 @@ public class PickupTicket {
 
     public int getOrderId() { return orderId; }
     public String getTableNumber() { return tableNumber; }
+    /** Mã gọi món của đơn (lấy từ dòng món đầu tiên) — để thu ngân đọc số gọi khách. */
+    public String getPickupCode() {
+        if (!readyItems.isEmpty()) return readyItems.get(0).getPickupCode();
+        return items.isEmpty() ? null : items.get(0).getPickupCode();
+    }
     public List<OrderItem> getReadyItems() { return readyItems; }
     public List<OrderItem> getItems() { return items; }
     public int getReadyCount() { return readyCount; }

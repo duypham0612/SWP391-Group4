@@ -16,6 +16,7 @@ public class Order {
     private String status;             // ACTIVE | COMPLETED | CANCELLED
     private Integer createdBy;
     private LocalDateTime createdAt;
+    private String pickupCode;         // mã gọi món (vd D12/T07/G03), sinh lúc tạo đơn
 
     // join / computed
     private String tableNumber;
@@ -48,6 +49,9 @@ public class Order {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime v) { this.createdAt = v; }
+
+    public String getPickupCode() { return pickupCode; }
+    public void setPickupCode(String v) { this.pickupCode = v; }
 
     public String getTableNumber() { return tableNumber; }
     public void setTableNumber(String v) { this.tableNumber = v; }

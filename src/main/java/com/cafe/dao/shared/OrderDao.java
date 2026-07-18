@@ -16,7 +16,7 @@ public class OrderDao {
 
     private static final String SELECT =
         "SELECT o.OrderId, o.BranchId, o.TableSessionId, o.CustomerId, o.Source, o.OrderType, o.Status, " +
-        "       o.CreatedBy, o.CreatedAt, dt.TableNumber " +
+        "       o.CreatedBy, o.CreatedAt, o.PickupCode, dt.TableNumber " +
         "FROM sales.Orders o " +
         "LEFT JOIN sales.TableSession ts ON ts.TableSessionId=o.TableSessionId " +
         "LEFT JOIN sales.DiningTable  dt ON dt.DiningTableId=ts.DiningTableId ";
@@ -61,6 +61,28 @@ public class OrderDao {
             try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
         }
         return out;
+    }
+
+    /**
+     * Số đơn đã tạo ở chi nhánh kể từ mốc (ngày kinh doanh) — để đánh số thứ tự mã gọi món.
+     * Gọi ngay sau insert trong CÙNG transaction nên đã tính cả đơn vừa tạo.
+     */
+    public int countOrdersSince(Connection conn, int branchId, java.time.LocalDateTime sinceUtc) throws SQLException {
+        final String sql = "SELECT COUNT(*) FROM sales.Orders WHERE BranchId=? AND CreatedAt >= ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setTimestamp(2, Timestamp.valueOf(sinceUtc));
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getInt(1) : 0; }
+        }
+    }
+
+    /** Gán mã gọi món cho đơn (sinh lúc tạo đơn). */
+    public void updatePickupCode(Connection conn, int orderId, String code) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("UPDATE sales.Orders SET PickupCode=? WHERE OrderId=?")) {
+            ps.setString(1, code);
+            ps.setInt(2, orderId);
+            ps.executeUpdate();
+        }
     }
 
     public void updateStatus(Connection conn, int orderId, String status) throws SQLException {
@@ -112,6 +134,7 @@ public class OrderDao {
         if (!rs.wasNull()) o.setCreatedBy(cb);
         Timestamp ca = rs.getTimestamp("CreatedAt");
         if (ca != null) o.setCreatedAt(ca.toLocalDateTime());
+        o.setPickupCode(rs.getString("PickupCode"));
         o.setTableNumber(rs.getString("TableNumber"));
         return o;
     }

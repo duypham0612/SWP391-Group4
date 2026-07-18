@@ -35,6 +35,10 @@ public final class Constants {
     // Vượt ngưỡng → bảng chuyển sang xếp thứ tự thay vì tô đỏ hàng loạt.
     public static final int PEAK_THRESHOLD_CUPS = 12;
 
+    // Vị trí đặt món khi pha xong — để thu ngân biết ra đâu lấy. Whitelist ở server (không tin client).
+    public static final java.util.List<String> HANDOVER_LOCATIONS =
+            java.util.List.of("Bar trái", "Bar phải", "Kệ mang đi");
+
     // Payroll
     public static final BigDecimal MIN_HOURLY_RATE = new BigDecimal("25000");
 

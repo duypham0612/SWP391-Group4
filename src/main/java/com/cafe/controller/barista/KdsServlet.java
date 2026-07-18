@@ -65,7 +65,10 @@ public class KdsServlet extends HttpServlet {
                 if (!service.startItem(intParam(req, "orderItemId"), userId, branchId))
                     flashConflict(req);
             } else if ("markReady".equals(action)) {
-                if (!service.markReady(intParam(req, "orderItemId"), userId, branchId))
+                // Vị trí đặt: chỉ nhận giá trị trong whitelist, sai/rỗng → null (không tin client).
+                String loc = req.getParameter("handoverLocation");
+                if (loc != null && !com.cafe.common.Constants.HANDOVER_LOCATIONS.contains(loc)) loc = null;
+                if (!service.markReady(intParam(req, "orderItemId"), userId, branchId, loc))
                     flashConflict(req);
             } else if ("returnQueue".equals(action)) {
                 if (!service.returnToQueue(intParam(req, "orderItemId"), userId, branchId)) flashConflict(req);
@@ -189,6 +192,7 @@ public class KdsServlet extends HttpServlet {
 
         User current = SessionUtil.currentUser(req);
         req.setAttribute("currentUserId", current == null ? 0 : current.getUserId());
+        req.setAttribute("handoverLocations", com.cafe.common.Constants.HANDOVER_LOCATIONS);
     }
 
     @SafeVarargs

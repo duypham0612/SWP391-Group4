@@ -25,5 +25,5 @@
 
 <div class="kds-meta-row">
     <span>${cardItem.waitProgressLabel}</span>
-    <span><c:choose><c:when test="${not empty cardItem.tableNumber}"><c:out value="${cardItem.tableNumber}" /></c:when><c:otherwise>${cardItem.orderTypeLabel}</c:otherwise></c:choose> · #${cardItem.orderId} · ${cardItem.createdDisplay}</span>
+    <span><c:if test="${not empty cardItem.pickupCode}"><strong class="kds-code"><c:out value="${cardItem.pickupCode}" /></strong> · </c:if><c:choose><c:when test="${not empty cardItem.tableNumber}"><c:out value="${cardItem.tableNumber}" /></c:when><c:otherwise>${cardItem.orderTypeLabel}</c:otherwise></c:choose> · #${cardItem.orderId} · ${cardItem.createdDisplay}</span>
 </div>

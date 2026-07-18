@@ -36,6 +36,7 @@ public class OrderItem {
     // join / hiển thị
     private String productName;
     private String tableNumber;
+    private String pickupCode;         // mã gọi món của đơn (join hiển thị)
     private String orderType;
     private String categoryName;
     private String baristaName;
@@ -110,6 +111,9 @@ public class OrderItem {
 
     public String getTableNumber() { return tableNumber; }
     public void setTableNumber(String v) { this.tableNumber = v; }
+
+    public String getPickupCode() { return pickupCode; }
+    public void setPickupCode(String v) { this.pickupCode = v; }
 
     public String getOrderType() { return orderType; }
     public void setOrderType(String v) { this.orderType = v; }

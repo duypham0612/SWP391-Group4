@@ -629,6 +629,13 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
 .kds-sla--late,.kds-sla--blocked{background:var(--st-cancelled);color:#fff}
 /* Cao điểm: số thứ tự pha thay cho nhãn trễ — trung tính, không báo động. */
 .kds-seq{background:var(--st-making);color:#fff}
+/* Mã gọi món — khớp ly với đơn khi bar đông. */
+.kds-code{display:inline-block;padding:1px 7px;border-radius:6px;background:var(--espresso);color:var(--cream);font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:.5px}
+.kds-code--lg{font-size:20px;padding:3px 11px}
+/* Chọn nơi đặt món khi bấm xong. */
+.kds-handoff{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin-bottom:8px}
+.kds-handoff__sel{flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px}
+.pickup-loc{font-size:14px;color:var(--st-making);margin-top:2px}
 /* Banner cao điểm gom cảnh báo về một dòng cấp bảng. */
 .kds-peak{
   display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;
