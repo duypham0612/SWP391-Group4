@@ -67,6 +67,69 @@ public class WasteLogDao {
         return out;
     }
 
+    /** Lấy một trang nhật ký đã lọc tại DB, tránh tải toàn bộ lịch sử về trình duyệt. */
+    public List<WasteLog> findPageByBranchBetween(Connection conn, int branchId, LocalDateTime fromUtc, LocalDateTime toUtc,
+                                                   String query, String wasteType, String status,
+                                                   int offset, int pageSize) throws SQLException {
+        List<WasteLog> out = new ArrayList<>();
+        String sql = SELECT + filteredWhere(branchId, fromUtc, toUtc, query, wasteType, status)
+                + "ORDER BY wl.LoggedAt DESC, wl.WasteLogId DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = bindFilters(ps, 1, branchId, fromUtc, toUtc, query, wasteType, status);
+            ps.setInt(idx++, Math.max(0, offset));
+            ps.setInt(idx, pageSize);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) out.add(map(rs));
+            }
+        }
+        return out;
+    }
+
+    public int countByBranchBetween(Connection conn, int branchId, LocalDateTime fromUtc, LocalDateTime toUtc,
+                                    String query, String wasteType, String status) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM inventory.WasteLog wl "
+                + "JOIN catalog.Ingredient i ON i.IngredientId=wl.IngredientId "
+                + "JOIN iam.[User] u ON u.UserId=wl.LoggedBy "
+                + filteredWhere(branchId, fromUtc, toUtc, query, wasteType, status);
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            bindFilters(ps, 1, branchId, fromUtc, toUtc, query, wasteType, status);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getInt(1) : 0; }
+        }
+    }
+
+    private static String filteredWhere(int branchId, LocalDateTime fromUtc, LocalDateTime toUtc,
+                                        String query, String wasteType, String status) {
+        StringBuilder where = new StringBuilder("WHERE wl.BranchId=? ");
+        if (fromUtc != null) where.append("AND wl.LoggedAt>=? ");
+        if (toUtc != null) where.append("AND wl.LoggedAt<? ");
+        if (hasText(wasteType)) where.append("AND wl.WasteType=? ");
+        if (hasText(status)) where.append("AND wl.Status=? ");
+        if (hasText(query)) {
+            where.append("AND (i.Name LIKE ? ESCAPE '\\' OR wl.Reason LIKE ? ESCAPE '\\' OR u.FullName LIKE ? ESCAPE '\\') ");
+        }
+        return where.toString();
+    }
+
+    private static int bindFilters(PreparedStatement ps, int idx, int branchId, LocalDateTime fromUtc, LocalDateTime toUtc,
+                                   String query, String wasteType, String status) throws SQLException {
+        ps.setInt(idx++, branchId);
+        if (fromUtc != null) ps.setTimestamp(idx++, Timestamp.valueOf(fromUtc));
+        if (toUtc != null) ps.setTimestamp(idx++, Timestamp.valueOf(toUtc));
+        if (hasText(wasteType)) ps.setString(idx++, wasteType);
+        if (hasText(status)) ps.setString(idx++, status);
+        if (hasText(query)) {
+            String pattern = "%" + query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+            ps.setNString(idx++, pattern);
+            ps.setNString(idx++, pattern);
+            ps.setNString(idx++, pattern);
+        }
+        return idx;
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
     public WasteLog findById(Connection conn, int wasteLogId) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(SELECT + "WHERE wl.WasteLogId=?")) {
             ps.setInt(1, wasteLogId);

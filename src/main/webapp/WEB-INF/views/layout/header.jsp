@@ -37,4 +37,5 @@
                 <a class="btn btn-ghost btn-sm" href="${ctx}/auth/logout">Đăng xuất</a>
             </div>
         </header>
-        <main class="app-content">
+        <%-- wideLayout: màn dạng bảng điều hành (quầy pha chế) dùng trọn chiều ngang --%>
+        <main class="app-content${wideLayout ? ' is-wide' : ''}">
