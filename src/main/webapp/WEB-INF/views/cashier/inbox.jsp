@@ -55,14 +55,26 @@
                     </c:choose>
                 </div>
                 <table class="table" style="margin-top:10px">
-                    <thead><tr><th>Món</th><th style="width:70px">SL</th><th style="width:120px">Trạng thái</th><th>Ghi chú</th></tr></thead>
+                    <thead><tr><th>Món</th><th style="width:70px">SL</th><th style="width:120px">Trạng thái</th><th>Ghi chú</th><th style="width:110px">Thao tác</th></tr></thead>
                     <tbody>
                         <c:forEach var="it" items="${o.items}">
                             <tr>
                                 <td>${it.productName}</td>
                                 <td>${it.quantity}</td>
                                 <td><jsp:include page="../layout/_statusBadge.jsp"><jsp:param name="status" value="${it.status}"/></jsp:include></td>
-                                <td>${it.note}</td>
+                                <td><c:if test="${it.hasIssue and not empty it.issueReason}"><span style="color:var(--st-cancelled)">⚠ <c:out value="${it.issueReason}" /></span><br></c:if><c:out value="${it.note}" /></td>
+                                <td>
+                                    <%-- Món bị chặn (hết nguyên liệu/hỏng máy) không tự thoát; Thu ngân huỷ để đóng đơn. --%>
+                                    <c:if test="${it.status == 'BLOCKED'}">
+                                        <form action="${ctx}/cashier/inbox" method="post" onsubmit="return confirm('Huỷ món ${it.productName}? Món này đang bị chặn.');">
+                                            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                            <input type="hidden" name="action" value="cancelItem">
+                                            <input type="hidden" name="orderItemId" value="${it.orderItemId}">
+                                            <input type="hidden" name="reason" value="Huỷ món bị chặn từ Inbox">
+                                            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--st-cancelled)">Huỷ món</button>
+                                        </form>
+                                    </c:if>
+                                </td>
                             </tr>
                         </c:forEach>
                     </tbody>

@@ -489,6 +489,8 @@ public class OrderService {
             if (rows == 0) return "CONFLICT";   // đã bị đổi / khác chi nhánh
             int branchId = branchOf(it);
             String r = sanitizeReason(reason);
+            // Ghi audit như mọi chuyển trạng thái khác (trước đây cancelItem là ngoại lệ thiếu log).
+            actionDao.insert(conn, orderItemId, branchId, "CANCEL", s, "CANCELLED", r.isEmpty() ? null : r, userId);
             EventPublisher.publish(conn, EventType.ORDER_STATUS_CHANGED, String.valueOf(it.getOrderId()), branchId,
                     "{\"orderItemId\":" + orderItemId + ",\"status\":\"CANCELLED\""
                     + (r.isEmpty() ? "" : ",\"reason\":\"" + r + "\"")
