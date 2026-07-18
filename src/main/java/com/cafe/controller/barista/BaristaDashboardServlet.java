@@ -72,8 +72,8 @@ public class BaristaDashboardServlet extends HttpServlet {
             req.setAttribute("kpi", kpi);
             req.setAttribute("myKpi", myKpi);
             req.setAttribute("wasteSummary", wasteSummary);
-            req.setAttribute("queueCount", queue.size());
-            req.setAttribute("readyCount", readyItems.size());
+            req.setAttribute("queueCount", cupCount(queue));
+            req.setAttribute("readyCount", cupCount(readyItems));
             req.setAttribute("lowStockCount", lowStock.size());
             req.setAttribute("eightySixCount", eightySixCount);
             req.setAttribute("oversoldCount", oversoldCount);
@@ -92,5 +92,11 @@ public class BaristaDashboardServlet extends HttpServlet {
         }
         int end = Math.min(source.size(), limit);
         return new ArrayList<>(source.subList(0, end));
+    }
+
+    private static int cupCount(List<OrderItem> items) {
+        int total = 0;
+        if (items != null) for (OrderItem item : items) total += item.getQuantity();
+        return total;
     }
 }

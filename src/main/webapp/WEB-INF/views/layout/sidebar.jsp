@@ -96,6 +96,7 @@
                 <li><a class="${curPath == ctx.concat('/cashier/table') ? 'active' : ''}" href="${ctx}/cashier/table"><svg class="ic"><use href="#ic-grid"/></svg>Sơ đồ bàn</a></li>
                 <li><a class="${curPath == ctx.concat('/cashier/pos') ? 'active' : ''} ${cashierReady ? '' : 'nav-disabled'}" href="${cashierReady ? ctx.concat('/cashier/pos') : ctx.concat('/cashier/shift')}" title="${cashierReady ? '' : cashierLockTitle}"><svg class="ic"><use href="#ic-cart"/></svg>POS / Đặt món</a></li>
                 <li><a class="${curPath == ctx.concat('/cashier/inbox') ? 'active' : ''}" href="${ctx}/cashier/inbox"><svg class="ic"><use href="#ic-inbox"/></svg>Đơn đến (Inbox)</a></li>
+                <li><a class="${curPath == ctx.concat('/cashier/handoff') ? 'active' : ''}" href="${ctx}/cashier/handoff"><svg class="ic"><use href="#ic-bell"/></svg>Sẵn sàng bàn giao</a></li>
                 <li class="nav-section">Thu ngân</li>
                 <li><a class="${curPath == ctx.concat('/cashier/shift') ? 'active' : ''}" href="${ctx}/cashier/shift"><svg class="ic"><use href="#ic-clock"/></svg>Ca thu ngân</a></li>
                 <li><a class="${curPath == ctx.concat('/cashier/checkout') ? 'active' : ''} ${cashierReady ? '' : 'nav-disabled'}" href="${cashierReady ? ctx.concat('/cashier/checkout') : ctx.concat('/cashier/shift')}" title="${cashierReady ? '' : cashierLockTitle}"><svg class="ic"><use href="#ic-card"/></svg>Thanh toán</a></li>
@@ -103,8 +104,7 @@
             </c:when>
             <c:when test="${u.roleCode == 'BARISTA'}">
                 <li class="nav-section">Pha chế</li>
-                <li><a class="${curPath == ctx.concat('/barista/kds') ? 'active' : ''}" href="${ctx}/barista/kds"><svg class="ic"><use href="#ic-flame"/></svg>Hàng chờ pha</a></li>
-                <li><a class="${curPath == ctx.concat('/barista/pickup') ? 'active' : ''}" href="${ctx}/barista/pickup"><svg class="ic"><use href="#ic-bell"/></svg>Món chờ giao</a></li>
+                <li><a class="${curPath == ctx.concat('/barista/kds') ? 'active' : ''}" href="${ctx}/barista/kds"><svg class="ic"><use href="#ic-flame"/></svg>Quầy pha chế</a></li>
                 <li><a class="${curPath == ctx.concat('/barista/prep') ? 'active' : ''}" href="${ctx}/barista/prep"><svg class="ic"><use href="#ic-beaker"/></svg>Pha sẵn nguyên liệu</a></li>
                 <li><a class="${curPath == ctx.concat('/barista/waste') ? 'active' : ''}" href="${ctx}/barista/waste"><svg class="ic"><use href="#ic-trash"/></svg>Hao hụt & Làm lại</a></li>
                 <li><a class="${curPath == ctx.concat('/barista/eightysix') ? 'active' : ''}" href="${ctx}/barista/eightysix"><svg class="ic"><use href="#ic-ban"/></svg>Báo hết món</a></li>

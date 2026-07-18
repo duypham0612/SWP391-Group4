@@ -71,7 +71,7 @@ public class Order {
 
     /**
      * Huỷ được khi đơn còn ≥1 món chưa huỷ VÀ mọi món chưa huỷ đều còn WAITING
-     * (barista chưa nhận pha). Một khi có món MAKING/READY/SERVED → không huỷ được (R5).
+     * (barista chưa nhận pha). Một khi có món MAKING/READY/PICKED_UP/SERVED → không huỷ được.
      */
     public boolean isCancellable() {
         boolean any = false;

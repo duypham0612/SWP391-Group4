@@ -105,7 +105,7 @@
 
                 <%-- panel gập: sửa định mức tại chỗ --%>
                 <details class="opt-detail">
-                    <summary>Định mức nguyên liệu (khi Barista bấm "Xong" sẽ cộng/trừ theo đây)</summary>
+                    <summary>Định mức nguyên liệu (khi Barista bấm "Đã pha xong" sẽ cộng/trừ theo đây)</summary>
                     <div style="padding-top:12px">
                         <c:if test="${not empty impacts}">
                             <table class="table" style="margin-bottom:12px">

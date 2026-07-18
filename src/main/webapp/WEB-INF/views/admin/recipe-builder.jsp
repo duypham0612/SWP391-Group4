@@ -11,7 +11,7 @@
 <c:if test="${not empty errorMsg}"><div class="alert alert-error">${errorMsg}</div></c:if>
 
 <div class="alert alert-info">
-    Định mức ở đây áp dụng khi Barista bấm "Xong" (Phase 4). Nguyên liệu pha sẵn đã gộp nguyên liệu thô lúc tạo mẻ pha sẵn —
+    Định mức ở đây áp dụng khi Barista bấm "Đã pha xong". Nguyên liệu pha sẵn đã gộp nguyên liệu thô lúc tạo mẻ pha sẵn —
     khai báo đúng nguyên liệu công thức tham chiếu, <strong>không khai trùng nguyên liệu thô + nguyên liệu pha sẵn</strong> cho cùng một thành phần.
 </div>
 

@@ -76,11 +76,11 @@ Nâng màn `/barista/eightysix`: xem món nào đang 86, ETA còn bao lâu, tự
 ## Ngày 5 — Pickup board: đồng hồ SLA + cảnh báo chờ giao quá lâu
 Món READY chờ giao quá ngưỡng → đổi màu/nhấp nháy (giống tier của KDS).
 
-- [ ] **C1** `feat(barista): PickupService trả thời gian chờ giao mỗi món (readyAt→now)` — thêm field waitSeconds.
-- [ ] **C2** `feat(barista): Constants ngưỡng SLA pickup (WARN/CRIT) + tier ở servlet`.
-- [ ] **C3** `feat(barista): pickup_cards.jsp tô màu theo SLA + badge "chờ giao N phút"`.
-- [ ] **C4** `test(barista): tier SLA pickup theo ngưỡng (ok/warn/crit)` — test logic thuần.
-- **Verify:** `mvn test`; deploy để món chờ lâu chuyển màu.
+- [x] **C1** thời gian chờ giao mỗi món — `OrderItem.serveWaitSeconds` (DoneAt→now, tính ở `OrderItemDao.SELECT`).
+- [x] **C2** ngưỡng SLA pickup — `Constants.PICKUP_WARN_SECONDS`/`PICKUP_CRIT_SECONDS` + `OrderItem.getServeTier()`.
+- [x] **C3** `pickup_cards.jsp` tô màu theo SLA (`pickup-sla--ok/warn/crit`) + badge "Chờ giao N phút".
+- [x] **C4** `PickupSlaTest` — tier ok/warn/crit theo ngưỡng + hiển thị thời lượng (test logic thuần).
+- **Verify:** `mvn test` PASS; deploy để món chờ lâu chuyển màu. *(Gộp trong đợt rà soát 2026-07-18 — xem PROGRESS.md.)*
 
 ## Ngày 6 — Prep: gợi ý sản lượng theo tồn + cảnh báo prep sắp hết
 Nâng `PrepChecklistRow`: gợi ý số lượng nên pha dựa trên ngưỡng tồn PREPPED.

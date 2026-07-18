@@ -91,17 +91,43 @@ public class InventoryService {
     public void deductForOrderItem(Connection conn, int branchId, int orderItemId, int productId,
                                    int quantity, Integer userId) throws SQLException {
         List<ProductRecipe> recipe = productRecipeDao.findByProduct(conn, productId);
+        if (recipe.isEmpty()) {
+            throw new BusinessException("Món chưa có công thức — không thể hoàn thành vì chưa xác định nguyên liệu cần trừ.");
+        }
         List<ModifierIngredientImpact> impacts = new ArrayList<>();
         for (Integer optionId : oimDao.findOptionIds(conn, orderItemId)) {
             impacts.addAll(impactDao.findByOption(conn, optionId));
         }
         Map<Integer, BigDecimal> required = DeductionCalculator.computeRequired(recipe, impacts, quantity);
+        if (required.isEmpty()) {
+            throw new BusinessException("Công thức món không có định lượng hợp lệ — chưa thể hoàn thành.");
+        }
         for (Map.Entry<Integer, BigDecimal> e : required.entrySet()) {
             applyTxn(conn, branchId, e.getKey(), e.getValue().negate(),
                     TxnType.DEDUCT, "OrderItem", (long) orderItemId, userId);
         }
         EventPublisher.publish(conn, EventType.INVENTORY_DEDUCTED, String.valueOf(orderItemId), branchId,
                 "{\"orderItemId\":" + orderItemId + ",\"productId\":" + productId + ",\"qty\":" + quantity + "}");
+    }
+
+    /**
+     * Giữ nguyên liệu cho lượt làm lại ngay khi READY quay về hàng chờ. Các dòng được ghi là REMAKE/WASTE;
+     * lần hoàn thành sau đó nhìn cờ RemakeInventoryReserved và không trừ lần nữa.
+     */
+    public void reserveRemakeForOrderItem(Connection conn, int branchId, int orderItemId, int productId,
+                                          int quantity, String reason, int userId) throws SQLException {
+        List<ProductRecipe> recipe = productRecipeDao.findByProduct(conn, productId);
+        if (recipe.isEmpty()) throw new BusinessException("Món chưa có công thức — không thể ghi nhận hao hụt làm lại.");
+        List<ModifierIngredientImpact> impacts = new ArrayList<>();
+        for (Integer optionId : oimDao.findOptionIds(conn, orderItemId)) {
+            impacts.addAll(impactDao.findByOption(conn, optionId));
+        }
+        Map<Integer, BigDecimal> required = DeductionCalculator.computeRequired(recipe, impacts, quantity);
+        if (required.isEmpty()) throw new BusinessException("Công thức không có lượng nguyên liệu hợp lệ.");
+        String note = cleanReason("Làm lại dòng món #" + orderItemId + (reason == null ? "" : " - " + reason));
+        for (Map.Entry<Integer, BigDecimal> entry : required.entrySet()) {
+            logWasteInTx(conn, branchId, entry.getKey(), entry.getValue(), "REMAKE", note, userId);
+        }
     }
 
     /**
@@ -625,6 +651,16 @@ public class InventoryService {
             } catch (SQLException e) { conn.rollback(); throw e; }
             finally { conn.setAutoCommit(true); }
         }
+    }
+
+    /**
+     * Điều chỉnh tồn 1 nguyên liệu TRONG transaction của caller (không tự mở/commit connection).
+     * Dùng khi việc chỉnh tồn phải nguyên tử cùng thao tác khác — vd Barista báo hết nguyên liệu
+     * ngay tại màn pha chế: ghi kiểm kê về 0 và chặn món phải cùng thành công hoặc cùng rollback.
+     */
+    public void applyAdjustmentInTx(Connection conn, int branchId, int ingredientId, BigDecimal actualQty,
+                                    String reason, String unit, int userId) throws SQLException {
+        applyAdjustmentLine(conn, branchId, ingredientId, actualQty, reason, unit, userId);
     }
 
     /** 1 dòng điều chỉnh trong tx của caller: đọc tồn hệ thống → ghi StockAdjustment → applyTxn chênh lệch. */

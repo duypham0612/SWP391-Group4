@@ -91,7 +91,7 @@
 <script>
 const CTX='${ctx}', SID=${sessionId};
 function badge(st){
-  const m={WAITING:['badge-waiting','Chờ làm'],MAKING:['badge-making','Đang pha'],READY:['badge-ready','Sẵn lấy'],SERVED:['badge-served','Đã phục vụ'],CANCELLED:['badge-cancelled','Đã huỷ']};
+  const m={WAITING:['badge-waiting','Chờ pha'],MAKING:['badge-making','Đang pha'],READY:['badge-ready','Đã pha xong'],PICKED_UP:['badge-ready','Nhân viên đã nhận'],SERVED:['badge-served','Đã phục vụ'],BLOCKED:['badge-cancelled','Bị chặn'],REMAKE:['badge-waiting','Làm lại'],CANCELLED:['badge-cancelled','Đã huỷ']};
   const x=m[st]||['badge-served',st];return '<span class="badge '+x[0]+'">'+x[1]+'</span>';
 }
 function poll(){
