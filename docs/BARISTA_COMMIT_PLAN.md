@@ -58,10 +58,10 @@ Cho barista xem danh sách món đã hoàn tất (READY/SERVED) hôm nay khi bà
 ## Ngày 3 — KPI cá nhân của barista trên Dashboard
 "Hôm nay bạn đã pha X ly · lead time TB Y" — lấy theo `userId` từ session.
 
-- [ ] **C1** `feat(barista): OrderItemDao.leadTimeStats overload lọc theo userId (người pha)` — thêm tham số `Integer userId`, WHERE `PreparedBy = ?` khi có.
-- [ ] **C2** `feat(barista): HandoverService.getMyKpi(branchId, userId)` — tái dùng `HandoverKpi`.
-- [ ] **C3** `feat(barista): dashboard.jsp thẻ KPI cá nhân (số ly + lead time của tôi)`.
-- [ ] **C4** `test(barista): HandoverKpi.getAvgLeadDisplay — 0s, <60s, >60s, -1 (chưa có)` — test logic thuần.
+- [x] **C1** `feat(barista): OrderItemDao.leadTimeStats overload lọc theo userId (người pha)` — thêm tham số `Integer userId`, WHERE `PreparedBy = ?` khi có.
+- [x] **C2** `feat(barista): HandoverService.getMyKpi(branchId, userId)` — tái dùng `HandoverKpi`.
+- [x] **C3** `feat(barista): dashboard.jsp thẻ KPI cá nhân (số ly + lead time của tôi)`.
+- [x] **C4** `test(barista): HandoverKpi.getAvgLeadDisplay — 0s, <60s, >60s, -1 (chưa có)` — test logic thuần.
 - **Verify:** `mvn test`; deploy so KPI cá nhân ≤ KPI toàn ca.
 
 ## Ngày 4 — 86 board: lịch sử báo hết + tự mở lại khi quá ETA
@@ -135,7 +135,7 @@ Biểu đồ nhỏ số ly pha xong theo từng giờ trong ngày (thanh CSS, kh
 |---|---|---|
 | 1 | Widget hao hụt hôm nay (dashboard) | 🟢 |
 | 2 | Brew history (handover) | ⬜ |
-| 3 | KPI cá nhân barista | ⬜ |
+| 3 | KPI cá nhân barista | 🟢 |
 | 4 | 86 board — lịch sử + tự mở lại | ⬜ |
 | 5 | Pickup — SLA timer | ⬜ |
 | 6 | Prep — gợi ý sản lượng | ⬜ |
