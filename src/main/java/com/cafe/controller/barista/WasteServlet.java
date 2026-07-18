@@ -8,6 +8,7 @@ import com.cafe.model.User;
 import com.cafe.model.WasteLog;
 import com.cafe.model.WasteLogLine;
 import com.cafe.service.barista.WasteService;
+import com.cafe.service.shared.InventoryService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -104,14 +105,28 @@ public class WasteServlet extends HttpServlet {
     private void forwardPage(HttpServletRequest req, HttpServletResponse resp, int branchId, int userId, String editId)
             throws SQLException, ServletException, IOException {
         WasteService.WasteScope scope = service.resolveScope(userId, branchId);
-        List<WasteLog> logs = service.getWasteLogs(branchId, scope);
+        String logQuery = textParam(req, "q", 100);
+        String logWasteType = allowedParam(req, "wasteType", "SPILL", "EXPIRED", "REMAKE", "OTHER");
+        String logStatus = allowedParam(req, "status", "ACTIVE", "VOIDED");
+        int logPageSize = pageSizeParam(req);
+        int requestedLogPage = positiveIntParam(req, "page", 1);
+
+        // Tổng quan giữ nguyên toàn bộ phạm vi; bảng nhật ký thì chỉ lấy đúng trang từ DB.
+        List<WasteLog> scopedLogs = service.getWasteLogs(branchId, scope);
+        InventoryService.WasteLogPage wasteLogPage = service.getWasteLogPage(branchId, scope,
+                logQuery, logWasteType, logStatus, requestedLogPage, logPageSize);
         req.setAttribute("ingredients", service.getIngredients());
         List<com.cafe.model.BranchMenuItem> remakeProducts = service.getRemakeProducts(branchId);
         req.setAttribute("products", remakeProducts);
         req.setAttribute("remakeModifiersJson", service.getRemakeModifiersJson(remakeProducts));
         req.setAttribute("scope", scope);
-        req.setAttribute("logs", logs);
-        req.setAttribute("summary", service.summarize(logs));
+        req.setAttribute("logs", wasteLogPage.getLogs());
+        req.setAttribute("hasWasteLogs", !scopedLogs.isEmpty());
+        req.setAttribute("wasteLogPage", wasteLogPage);
+        req.setAttribute("wasteLogQuery", logQuery);
+        req.setAttribute("wasteLogWasteType", logWasteType);
+        req.setAttribute("wasteLogStatus", logStatus);
+        req.setAttribute("summary", service.summarize(scopedLogs));
         req.setAttribute("pageTitle", "Hao hụt & Làm lại");
         BaristaShift.expose(req, "/barista/waste");   // trực ca: banner + khoá thao tác
 
@@ -232,6 +247,33 @@ public class WasteServlet extends HttpServlet {
 
     private static boolean blank(String value) {
         return value == null || value.trim().isEmpty();
+    }
+
+    private static String textParam(HttpServletRequest req, String name, int maxLength) {
+        String value = req.getParameter(name);
+        if (blank(value)) return "";
+        value = value.trim();
+        return value.length() <= maxLength ? value : value.substring(0, maxLength);
+    }
+
+    private static String allowedParam(HttpServletRequest req, String name, String... allowed) {
+        String value = textParam(req, name, 20).toUpperCase();
+        for (String item : allowed) if (item.equals(value)) return value;
+        return "";
+    }
+
+    private static int positiveIntParam(HttpServletRequest req, String name, int fallback) {
+        try {
+            int value = Integer.parseInt(req.getParameter(name));
+            return value > 0 ? value : fallback;
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    private static int pageSizeParam(HttpServletRequest req) {
+        int value = positiveIntParam(req, "pageSize", 10);
+        return value == 20 || value == 50 ? value : 10;
     }
 
     public static class WasteRowForm {

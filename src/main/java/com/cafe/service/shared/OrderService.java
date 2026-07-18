@@ -193,8 +193,14 @@ public class OrderService {
 
     /** Toàn bộ dữ liệu ba cột Quầy pha chế. */
     public List<OrderItem> getBaristaWorkbench(int branchId) throws SQLException {
+        return getBaristaWorkbench(branchId, null);
+    }
+
+    /** Hàng chờ của ngày kinh doanh hiện tại (null = không cắt theo ngày). */
+    public List<OrderItem> getBaristaWorkbench(int branchId, java.time.LocalDateTime businessDayStartUtc)
+            throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            List<OrderItem> items = itemDao.findBaristaWorkbench(conn, branchId);
+            List<OrderItem> items = itemDao.findBaristaWorkbench(conn, branchId, businessDayStartUtc);
             java.util.Set<Integer> productIds = new java.util.HashSet<>();
             for (OrderItem it : items) productIds.add(it.getProductId());
             java.util.Set<Integer> withRecipe = productRecipeDao.findProductIdsWithRecipe(conn, productIds);
@@ -202,6 +208,16 @@ public class OrderService {
                 it.setModifiers(oimDao.findByItem(conn, it.getOrderItemId()));
                 it.setRecipeMissing(!withRecipe.contains(it.getProductId()));
             }
+            return items;
+        }
+    }
+
+    /** Món dang dở thuộc ngày kinh doanh trước — khu "Đơn treo cần xử lý". */
+    public List<OrderItem> getStaleItems(int branchId, java.time.LocalDateTime businessDayStartUtc)
+            throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            List<OrderItem> items = itemDao.findStaleItems(conn, branchId, businessDayStartUtc);
+            for (OrderItem it : items) it.setModifiers(oimDao.findByItem(conn, it.getOrderItemId()));
             return items;
         }
     }

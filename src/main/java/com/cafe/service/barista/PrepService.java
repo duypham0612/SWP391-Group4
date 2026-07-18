@@ -31,6 +31,11 @@ public class PrepService {
         return inventoryService.getTodayPrepBatches(branchId);
     }
 
+    public InventoryService.PrepBatchPage getTodayBatchPage(int branchId, String query, int ingredientId,
+                                                             String expiry, String status, int page, int pageSize) throws SQLException {
+        return inventoryService.getTodayPrepBatchPage(branchId, query, ingredientId, expiry, status, page, pageSize);
+    }
+
     /** Checklist "cần pha hôm nay": PREPPED tồn ≤ ngưỡng. */
     public List<PrepChecklistRow> getPrepChecklist(int branchId) throws SQLException {
         return inventoryService.getPrepChecklist(branchId);

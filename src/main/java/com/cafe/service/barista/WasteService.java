@@ -82,6 +82,12 @@ public class WasteService {
         return inventoryService.getWasteLogs(branchId, scope.getFromUtc(), scope.getToUtc());
     }
 
+    public InventoryService.WasteLogPage getWasteLogPage(int branchId, WasteScope scope, String query,
+                                                          String wasteType, String status, int page, int pageSize) throws SQLException {
+        return inventoryService.getWasteLogPage(branchId, scope.getFromUtc(), scope.getToUtc(),
+                query, wasteType, status, page, pageSize);
+    }
+
     public WasteSummary getTodayWasteSummary(int branchId) throws SQLException {
         return summarize(getWasteLogs(branchId, WasteScope.today()));
     }

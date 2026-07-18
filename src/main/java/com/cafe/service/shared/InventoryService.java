@@ -526,6 +526,53 @@ public class InventoryService {
         try (Connection conn = DBConnection.getConnection()) { return prepBatchDao.findTodayByBranch(conn, branchId); }
     }
 
+    /** Mẻ pha hôm nay theo trang — tìm kiếm, bộ lọc và phân trang đều được chạy ở database. */
+    public PrepBatchPage getTodayPrepBatchPage(int branchId, String query, int ingredientId,
+                                               String expiry, String status, int requestedPage, int pageSize) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            int total = prepBatchDao.countTodayByBranch(conn, branchId, query, ingredientId, expiry, status);
+            int totalPages = Math.max(1, (int) Math.ceil((double) total / pageSize));
+            int page = Math.max(1, Math.min(requestedPage, totalPages));
+            List<com.cafe.model.PrepBatch> batches = prepBatchDao.findTodayPageByBranch(conn, branchId,
+                    query, ingredientId, expiry, status, (page - 1) * pageSize, pageSize);
+            return new PrepBatchPage(batches, total, page, pageSize);
+        }
+    }
+
+    public static class PrepBatchPage {
+        private final List<com.cafe.model.PrepBatch> batches;
+        private final int total;
+        private final int page;
+        private final int pageSize;
+
+        public PrepBatchPage(List<com.cafe.model.PrepBatch> batches, int total, int page, int pageSize) {
+            this.batches = batches;
+            this.total = total;
+            this.page = page;
+            this.pageSize = pageSize;
+        }
+
+        public List<com.cafe.model.PrepBatch> getBatches() { return batches; }
+        public int getTotal() { return total; }
+        public int getPage() { return page; }
+        public int getPageSize() { return pageSize; }
+        public int getTotalPages() { return Math.max(1, (int) Math.ceil((double) total / pageSize)); }
+        public boolean isHasPrevious() { return page > 1; }
+        public boolean isHasNext() { return page < getTotalPages(); }
+        public int getStartRow() { return total == 0 ? 0 : (page - 1) * pageSize + 1; }
+        public int getEndRow() { return Math.min(page * pageSize, total); }
+
+        public List<Integer> getVisiblePages() {
+            List<Integer> pages = new ArrayList<>();
+            int totalPages = getTotalPages();
+            int start = Math.max(1, page - 2);
+            int end = Math.min(totalPages, start + 4);
+            start = Math.max(1, end - 4);
+            for (int value = start; value <= end; value++) pages.add(value);
+            return pages;
+        }
+    }
+
     /** B4 · Checklist "cần pha": mọi PREPPED của chi nhánh + tồn/ngưỡng + có công thức hay chưa. */
     public List<com.cafe.model.PrepChecklistRow> getPrepChecklist(int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
@@ -564,6 +611,55 @@ public class InventoryService {
             List<WasteLog> logs = wasteLogDao.findByBranchBetween(conn, branchId, fromUtc, toUtc);
             enrichWasteCosts(conn, branchId, logs);
             return logs;
+        }
+    }
+
+    /** Nhật ký hao hụt theo trang — điều kiện tìm/lọc và OFFSET/FETCH đều được xử lý tại database. */
+    public WasteLogPage getWasteLogPage(int branchId, java.time.LocalDateTime fromUtc, java.time.LocalDateTime toUtc,
+                                        String query, String wasteType, String status, int requestedPage, int pageSize) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            int total = wasteLogDao.countByBranchBetween(conn, branchId, fromUtc, toUtc, query, wasteType, status);
+            int totalPages = Math.max(1, (int) Math.ceil((double) total / pageSize));
+            int page = Math.max(1, Math.min(requestedPage, totalPages));
+            List<WasteLog> logs = wasteLogDao.findPageByBranchBetween(conn, branchId, fromUtc, toUtc,
+                    query, wasteType, status, (page - 1) * pageSize, pageSize);
+            enrichWasteCosts(conn, branchId, logs);
+            return new WasteLogPage(logs, total, page, pageSize);
+        }
+    }
+
+    public static class WasteLogPage {
+        private final List<WasteLog> logs;
+        private final int total;
+        private final int page;
+        private final int pageSize;
+
+        public WasteLogPage(List<WasteLog> logs, int total, int page, int pageSize) {
+            this.logs = logs;
+            this.total = total;
+            this.page = page;
+            this.pageSize = pageSize;
+        }
+
+        public List<WasteLog> getLogs() { return logs; }
+        public int getTotal() { return total; }
+        public int getPage() { return page; }
+        public int getPageSize() { return pageSize; }
+        public int getTotalPages() { return Math.max(1, (int) Math.ceil((double) total / pageSize)); }
+        public boolean isHasPrevious() { return page > 1; }
+        public boolean isHasNext() { return page < getTotalPages(); }
+        public int getStartRow() { return total == 0 ? 0 : (page - 1) * pageSize + 1; }
+        public int getEndRow() { return Math.min(page * pageSize, total); }
+
+        /** Tối đa 5 số trang quanh trang hiện tại để pager không phình khi lịch sử dài. */
+        public List<Integer> getVisiblePages() {
+            List<Integer> pages = new ArrayList<>();
+            int totalPages = getTotalPages();
+            int start = Math.max(1, page - 2);
+            int end = Math.min(totalPages, start + 4);
+            start = Math.max(1, end - 4);
+            for (int value = start; value <= end; value++) pages.add(value);
+            return pages;
         }
     }
 
