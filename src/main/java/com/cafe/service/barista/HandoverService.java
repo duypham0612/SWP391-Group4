@@ -56,13 +56,6 @@ public class HandoverService {
         }
     }
 
-    public HandoverKpi getMyKpi(int branchId, int userId) throws SQLException {
-        LocalDateTime[] window = todayWindowUtc();
-        try (Connection conn = DBConnection.getConnection()) {
-            long[] s = orderItemDao.leadTimeStats(conn, branchId, window[0], window[1], userId);
-            return new HandoverKpi(s[0], s[1]);
-        }
-    }
 
     private static LocalDateTime[] todayWindowUtc() {
         // Mốc "hôm nay" theo giờ VN → UTC (đồng nhất với Waste/Prep; DoneAt lưu UTC).

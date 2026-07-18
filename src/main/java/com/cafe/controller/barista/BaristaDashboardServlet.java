@@ -1,11 +1,9 @@
 package com.cafe.controller.barista;
 
 import com.cafe.controller.manager.InventoryDashboardServlet;
-import com.cafe.common.SessionUtil;
 import com.cafe.model.BranchInventory;
 import com.cafe.model.BranchMenuItem;
 import com.cafe.model.OrderItem;
-import com.cafe.model.User;
 import com.cafe.service.barista.HandoverService;
 import com.cafe.service.barista.KdsService;
 import com.cafe.service.barista.WasteService;
@@ -36,14 +34,9 @@ public class BaristaDashboardServlet extends HttpServlet {
             throws ServletException, IOException {
         int branchId = InventoryDashboardServlet.branchId(req);
         try {
-            User user = SessionUtil.currentUser(req);
-            int userId = user != null ? user.getUserId() : 0;
             List<OrderItem> queue = kdsService.getQueue(branchId);
             List<OrderItem> readyItems = kdsService.getReadyItems(branchId);
             HandoverService.HandoverKpi kpi = handoverService.getKpi(branchId);
-            HandoverService.HandoverKpi myKpi = userId > 0
-                    ? handoverService.getMyKpi(branchId, userId)
-                    : new HandoverService.HandoverKpi(-1, 0);
             WasteService.WasteSummary wasteSummary = wasteService.getTodayWasteSummary(branchId);
             List<BranchInventory> lowStock = inventoryService.getLowStock(branchId);
             List<BranchMenuItem> menuItems = branchMenuService.getMenuAvailability(branchId);
@@ -70,7 +63,6 @@ public class BaristaDashboardServlet extends HttpServlet {
             req.setAttribute("lowStock", lowStock);
             req.setAttribute("lowStockPreview", firstItems(lowStock, 5));
             req.setAttribute("kpi", kpi);
-            req.setAttribute("myKpi", myKpi);
             req.setAttribute("wasteSummary", wasteSummary);
             req.setAttribute("queueCount", cupCount(queue));
             req.setAttribute("readyCount", cupCount(readyItems));
