@@ -14,7 +14,7 @@ public class ProductDao {
 
     private static final String SELECT =
         "SELECT p.ProductId, p.CategoryId, p.Name, p.BasePrice, p.ImageUrl, p.IsActive, " +
-        "p.ShowOnHome, p.HomeSortOrder, c.Name AS CategoryName " +
+        "p.ShowOnHome, p.HomeSortOrder, p.PrepSeconds, c.Name AS CategoryName " +
         "FROM catalog.Product p JOIN catalog.Category c ON p.CategoryId = c.CategoryId ";
 
     public List<Product> findAll(Connection conn) throws SQLException {
@@ -47,13 +47,14 @@ public class ProductDao {
     }
 
     public int insert(Connection conn, Product p) throws SQLException {
-        final String sql = "INSERT INTO catalog.Product(CategoryId, Name, BasePrice, ImageUrl, IsActive) VALUES (?,?,?,?,?)";
+        final String sql = "INSERT INTO catalog.Product(CategoryId, Name, BasePrice, ImageUrl, IsActive, PrepSeconds) VALUES (?,?,?,?,?,?)";
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setInt(1, p.getCategoryId());
             ps.setString(2, p.getName());
             ps.setBigDecimal(3, p.getBasePrice());
             ps.setString(4, p.getImageUrl());
             ps.setBoolean(5, p.isActive());
+            ps.setInt(6, p.getPrepSeconds());
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 return keys.next() ? keys.getInt(1) : 0;
@@ -62,14 +63,15 @@ public class ProductDao {
     }
 
     public void update(Connection conn, Product p) throws SQLException {
-        final String sql = "UPDATE catalog.Product SET CategoryId=?, Name=?, BasePrice=?, ImageUrl=?, IsActive=? WHERE ProductId=?";
+        final String sql = "UPDATE catalog.Product SET CategoryId=?, Name=?, BasePrice=?, ImageUrl=?, IsActive=?, PrepSeconds=? WHERE ProductId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, p.getCategoryId());
             ps.setString(2, p.getName());
             ps.setBigDecimal(3, p.getBasePrice());
             ps.setString(4, p.getImageUrl());
             ps.setBoolean(5, p.isActive());
-            ps.setInt(6, p.getProductId());
+            ps.setInt(6, p.getPrepSeconds());
+            ps.setInt(7, p.getProductId());
             ps.executeUpdate();
         }
     }
@@ -127,6 +129,7 @@ public class ProductDao {
         p.setActive(rs.getBoolean("IsActive"));
         p.setShowOnHome(rs.getBoolean("ShowOnHome"));
         p.setHomeSortOrder(rs.getInt("HomeSortOrder"));
+        p.setPrepSeconds(rs.getInt("PrepSeconds"));
         p.setCategoryName(rs.getString("CategoryName"));
         return p;
     }

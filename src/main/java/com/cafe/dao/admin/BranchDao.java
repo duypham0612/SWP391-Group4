@@ -14,7 +14,7 @@ public class BranchDao {
 
     private static final String SELECT =
         "SELECT b.BranchId, b.Code, b.Name, b.Address, b.Phone, b.IsActive, " +
-        "       b.OpenTime, b.CloseTime, b.ManagerUserId, u.FullName AS ManagerName " +
+        "       b.OpenTime, b.CloseTime, b.ManagerUserId, b.PeakThresholdCups, u.FullName AS ManagerName " +
         "FROM org.Branch b LEFT JOIN iam.[User] u ON u.UserId = b.ManagerUserId ";
 
     public List<Branch> findAll(Connection conn) throws SQLException {
@@ -73,7 +73,7 @@ public class BranchDao {
 
     public void update(Connection conn, Branch b) throws SQLException {
         final String sql = "UPDATE org.Branch SET Name=?, Address=?, Phone=?, " +
-                "OpenTime=?, CloseTime=?, ManagerUserId=?, IsActive=? WHERE BranchId=?";
+                "OpenTime=?, CloseTime=?, ManagerUserId=?, IsActive=?, PeakThresholdCups=? WHERE BranchId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, b.getName());
             ps.setString(2, b.getAddress());
@@ -82,7 +82,8 @@ public class BranchDao {
             setTime(ps, 5, b.getCloseTime());
             setInt(ps, 6, b.getManagerUserId());
             ps.setBoolean(7, b.isActive());
-            ps.setInt(8, b.getBranchId());
+            ps.setInt(8, Math.max(0, b.getPeakThresholdCups()));
+            ps.setInt(9, b.getBranchId());
             ps.executeUpdate();
         }
     }
@@ -125,6 +126,7 @@ public class BranchDao {
         if (ct != null) b.setCloseTime(ct.toLocalTime());
         int mgr = rs.getInt("ManagerUserId");
         if (!rs.wasNull()) b.setManagerUserId(mgr);
+        b.setPeakThresholdCups(rs.getInt("PeakThresholdCups"));
         b.setManagerName(rs.getString("ManagerName"));
         return b;
     }
