@@ -70,6 +70,21 @@ public class ProductRecipeDao {
         return out;
     }
 
+    /** Tập productId (trong danh sách đầu vào) ĐÃ khai báo công thức — để KDS cảnh báo món chưa có recipe. */
+    public java.util.Set<Integer> findProductIdsWithRecipe(Connection conn, java.util.Collection<Integer> productIds) throws SQLException {
+        java.util.Set<Integer> out = new java.util.HashSet<>();
+        if (productIds == null || productIds.isEmpty()) return out;
+        StringBuilder in = new StringBuilder();
+        for (int i = 0; i < productIds.size(); i++) in.append(i == 0 ? "?" : ",?");
+        final String sql = "SELECT DISTINCT ProductId FROM catalog.ProductRecipe WHERE ProductId IN (" + in + ")";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = 1;
+            for (Integer id : productIds) ps.setInt(idx++, id);
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(rs.getInt(1)); }
+        }
+        return out;
+    }
+
     public void insert(Connection conn, ProductRecipe r) throws SQLException {
         final String sql = "INSERT INTO catalog.ProductRecipe(ProductId, IngredientId, Quantity) VALUES (?,?,?)";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {

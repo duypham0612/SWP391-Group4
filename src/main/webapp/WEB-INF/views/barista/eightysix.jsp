@@ -20,7 +20,7 @@
                     <input type="hidden" name="productId" value="${s.productId}">
                     <input type="hidden" name="is86" value="true">
                     <span class="badge badge-waiting">${s.productName} · hết ${s.ingredientName}</span>
-                    <button type="submit" class="btn btn-sm btn-ghost" ${onShift ? '' : 'disabled'}>86</button>
+                    <button type="submit" class="btn btn-sm btn-ghost" ${onShift ? '' : 'disabled'}>Báo tạm hết</button>
                 </form>
             </c:forEach>
         </div>
@@ -58,7 +58,7 @@
                             <td>
                                 <c:choose>
                                     <c:when test="${m.is86}">
-                                        <span class="badge badge-cancelled">86 — Hết</span>
+                                        <span class="badge badge-cancelled">Tạm hết</span>
                                         <c:if test="${not empty m.backInEtaText}">
                                             <div class="muted" style="font-size:.82em;margin-top:4px">Có lại: ${m.backInEtaText}</div>
                                         </c:if>
@@ -84,7 +84,7 @@
                                             <input type="hidden" name="productId" value="${m.productId}">
                                             <input type="hidden" name="is86" value="true">
                                             <input type="datetime-local" name="backInEta" class="form-control" style="width:185px" title="Dự kiến có lại (tuỳ chọn)" ${onShift ? '' : 'disabled'}>
-                                            <button type="submit" class="btn btn-sm btn-ghost" ${onShift ? '' : 'disabled'}>Báo hết (86)</button>
+                                            <button type="submit" class="btn btn-sm btn-ghost" ${onShift ? '' : 'disabled'}>Báo tạm hết</button>
                                         </form>
                                     </c:otherwise>
                                 </c:choose>

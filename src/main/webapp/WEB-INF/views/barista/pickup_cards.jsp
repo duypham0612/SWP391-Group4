@@ -1,88 +1,13 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
-
-<c:choose>
-    <c:when test="${empty tickets}">
-        <div class="card empty-state">
-            <div class="icon">✓</div>
-            <p>Chưa có món nào chờ giao.</p>
-        </div>
-    </c:when>
-    <c:otherwise>
-        <div class="kds-grid">
-            <c:forEach var="t" items="${tickets}">
-                <article class="card kds-card pickup-card ${t.allReady ? 'pickup-card--ready' : 'pickup-card--partial'}"
-                         data-kds-ticket-id="${t.orderId}" tabindex="0">
-                    <div class="kds-card__top">
-                        <div>
-                            <div class="kds-table">
-                                <c:choose>
-                                    <c:when test="${not empty t.tableNumber}">${t.tableNumber}</c:when>
-                                    <c:otherwise>Đem về</c:otherwise>
-                                </c:choose>
-                            </div>
-                            <div class="muted">Đơn #${t.orderId} · ${t.readyCount} món chờ giao</div>
-                        </div>
-                        <c:choose>
-                            <c:when test="${t.allReady}">
-                                <span class="badge badge-ready">Đủ món</span>
-                            </c:when>
-                            <c:otherwise>
-                                <span class="badge badge-making">Còn ${t.pendingCount} đang pha</span>
-                            </c:otherwise>
-                        </c:choose>
-                    </div>
-
-                    <%-- Checklist toàn bộ đơn để đối chiếu đủ/đúng trước khi giao --%>
-                    <div class="kds-ticket-items">
-                        <c:forEach var="it" items="${t.items}">
-                            <section class="kds-ticket-item pickup-line ${it.status == 'READY' ? '' : 'pickup-line--pending'}"
-                                     data-order-item-id="${it.orderItemId}">
-                                <div class="kds-ticket-item__head">
-                                    <strong>${it.quantity}× ${it.productName}</strong>
-                                    <jsp:include page="../layout/_statusBadge.jsp">
-                                        <jsp:param name="status" value="${it.status}" />
-                                    </jsp:include>
-                                </div>
-
-                                <c:if test="${not empty it.modifiers}">
-                                    <div class="kds-mods">
-                                        <c:forEach var="om" items="${it.modifiers}">
-                                            <span class="chip">${om.optionName}</span>
-                                        </c:forEach>
-                                    </div>
-                                </c:if>
-
-                                <c:if test="${not empty it.note}">
-                                    <div class="kds-note">${it.note}</div>
-                                </c:if>
-
-                                <c:if test="${it.status == 'READY'}">
-                                    <form action="${ctx}/barista/pickup" method="post" class="pickup-line-form">
-                                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                                        <input type="hidden" name="action" value="markServed">
-                                        <input type="hidden" name="orderItemId" value="${it.orderItemId}">
-                                        <button type="submit" class="btn btn-ghost btn-sm btn-full">Đã giao món này</button>
-                                    </form>
-                                </c:if>
-                            </section>
-                        </c:forEach>
-                    </div>
-
-                    <c:if test="${t.readyCount > 0}">
-                        <div class="kds-actions">
-                            <form action="${ctx}/barista/pickup" method="post" class="kds-action-form"
-                                  onsubmit="return confirm('Đã giao tất cả món sẵn của bàn này cho khách?');">
-                                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                                <input type="hidden" name="action" value="serveAllReady">
-                                <input type="hidden" name="orderId" value="${t.orderId}">
-                                <button type="submit" class="btn btn-primary btn-sm btn-full">Giao các món sẵn (${t.readyCount})</button>
-                            </form>
-                        </div>
-                    </c:if>
-                </article>
-            </c:forEach>
-        </div>
-    </c:otherwise>
-</c:choose>
+<c:if test="${not empty sessionScope.flashOk}"><div class="alert alert-success"><c:out value="${sessionScope.flashOk}" /></div><c:remove var="flashOk" scope="session" /></c:if>
+<c:if test="${not empty sessionScope.flashError}"><div class="alert alert-error"><c:out value="${sessionScope.flashError}" /></div><c:remove var="flashError" scope="session" /></c:if>
+<c:if test="${empty tickets and empty pickedUpItems}"><div class="card empty-state"><div class="icon">✓</div><p>Chưa có món cần bàn giao.</p></div></c:if>
+<c:if test="${not empty tickets}"><h2 class="pickup-recent__head">Đã pha xong · chờ nhân viên nhận</h2><div class="kds-grid">
+<c:forEach var="t" items="${tickets}"><article class="card kds-card pickup-card">
+  <div class="kds-card__top"><div><strong class="kds-table"><c:choose><c:when test="${not empty t.tableNumber}"><c:out value="${t.tableNumber}" /></c:when><c:otherwise>Nhận tại quầy</c:otherwise></c:choose></strong><div class="muted">Đơn #${t.orderId} · ${t.readyCupCount} món sẵn sàng</div></div><c:if test="${t.pendingCupCount gt 0}"><span class="badge badge-making">${t.pendingCupCount} món chưa xong</span></c:if></div>
+  <div class="kds-ticket-items"><c:forEach var="it" items="${t.readyItems}"><section class="kds-ticket-item"><div class="kds-ticket-item__head"><strong>${it.quantity} × <c:out value="${it.productName}" /></strong><span class="pickup-sla pickup-sla--${it.serveTier}">Chờ nhận ${it.serveWaitDisplay}</span></div><c:if test="${not empty it.note}"><div class="kds-note"><c:out value="${it.note}" /></div></c:if><form action="${ctx}/cashier/handoff" method="post"><input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="pickUp"><input type="hidden" name="orderItemId" value="${it.orderItemId}"><button class="btn btn-ghost btn-sm btn-full">Đã nhận ${it.quantity} món</button></form></section></c:forEach></div>
+  <c:if test="${t.readyCount gt 1}"><form action="${ctx}/cashier/handoff" method="post" data-confirm="Xác nhận đã nhận tất cả ${t.readyCupCount} món sẵn sàng của đơn này?"><input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="pickUpAllReady"><input type="hidden" name="orderId" value="${t.orderId}"><button class="btn btn-primary btn-full">Đã nhận ${t.readyCupCount} món sẵn sàng</button></form></c:if>
+</article></c:forEach></div></c:if>
+<c:if test="${not empty pickedUpItems}"><section class="pickup-recent"><h2 class="pickup-recent__head">Đã nhận · đang giao khách</h2><div class="pickup-recent__list"><c:forEach var="it" items="${pickedUpItems}"><div class="pickup-recent__item"><span class="pickup-recent__name"><c:choose><c:when test="${not empty it.tableNumber}"><c:out value="${it.tableNumber}" /></c:when><c:otherwise>Nhận tại quầy</c:otherwise></c:choose> · ${it.quantity} × <c:out value="${it.productName}" /></span><form action="${ctx}/cashier/handoff" method="post"><input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="serve"><input type="hidden" name="orderItemId" value="${it.orderItemId}"><button class="btn btn-primary btn-sm">Đã giao khách</button></form></div></c:forEach></div></section></c:if>

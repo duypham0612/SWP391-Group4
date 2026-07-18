@@ -21,9 +21,15 @@ public final class Constants {
     public static final String ROLE_CASHIER = "CASHIER";
     public static final String ROLE_BARISTA = "BARISTA";
 
-    // KDS SLA thresholds
+    // KDS SLA thresholds (hàng chờ pha)
     public static final int KDS_WARN_SECONDS = 8 * 60;
     public static final int KDS_CRIT_SECONDS = 12 * 60;
+    public static final int KDS_SEVERE_SECONDS = 20 * 60;
+    public static final int KDS_SLA_SECONDS = KDS_CRIT_SECONDS;
+
+    // Pickup SLA thresholds (món pha xong chờ giao — kể từ DoneAt)
+    public static final int PICKUP_WARN_SECONDS = 3 * 60;
+    public static final int PICKUP_CRIT_SECONDS = 6 * 60;
 
     // Payroll
     public static final BigDecimal MIN_HOURLY_RATE = new BigDecimal("25000");

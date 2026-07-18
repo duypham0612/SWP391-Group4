@@ -7,7 +7,7 @@
         - ops.OutboxEvent ghi mọi domain event: order.created,
           order.status_changed, payment.completed, inventory.deducted, stock.low.
         - Trạng thái item (KDS/khách) dùng CHUNG ở sales.OrderItem.Status
-          (WAITING -> MAKING -> READY('Sẵn lấy') -> SERVED).
+          (WAITING -> MAKING -> READY -> PICKED_UP -> SERVED).
    2) Cờ RAW / PREPPED:
         - catalog.Ingredient.IngredientType = 'RAW' | 'PREPPED'.
         - PREPPED (cold brew, syrup...) được tạo từ RAW qua inventory.PrepBatch.
@@ -541,7 +541,7 @@ CREATE TABLE sales.Orders (
     Source         VARCHAR(8)  NOT NULL
                    CONSTRAINT CK_Order_Source CHECK (Source IN ('COUNTER','QR')),
     OrderType      VARCHAR(16) NOT NULL DEFAULT 'DINE_IN'
-                   CONSTRAINT CK_Order_Type CHECK (OrderType IN ('DINE_IN','TAKEAWAY')),
+                   CONSTRAINT CK_Order_Type CHECK (OrderType IN ('DINE_IN','TAKEAWAY','DELIVERY')),
     Status         VARCHAR(12) NOT NULL DEFAULT 'ACTIVE'
                    CONSTRAINT CK_Order_Status CHECK (Status IN ('ACTIVE','COMPLETED','CANCELLED')),
     CreatedBy      INT NULL,                     -- User (Cashier) nếu đơn quầy
@@ -561,15 +561,29 @@ CREATE TABLE sales.OrderItem (
     Quantity    INT NOT NULL DEFAULT 1 CHECK (Quantity > 0),
     UnitPrice   DECIMAL(12,2) NOT NULL,          -- giá tại thời điểm đặt (đã gồm modifier)
     Note        NVARCHAR(255) NULL,
-    Status      VARCHAR(10) NOT NULL DEFAULT 'WAITING'
-                CONSTRAINT CK_Item_Status CHECK (Status IN ('WAITING','MAKING','READY','SERVED','CANCELLED')),
+    Status      VARCHAR(16) NOT NULL DEFAULT 'WAITING'
+                CONSTRAINT CK_Item_Status CHECK (Status IN ('WAITING','MAKING','READY','PICKED_UP','SERVED','BLOCKED','CANCELLED','REMAKE')),
     Priority    INT NOT NULL DEFAULT 0,          -- KDS bump: đẩy đơn quá giờ lên đầu (cao = ưu tiên)
     StartedAt   DATETIME2 NULL,                  -- để tính lead time
-    DoneAt      DATETIME2 NULL,
-    PreparedBy  INT NULL,                         -- barista bấm READY, dùng cho KPI cá nhân
+    DoneAt      DATETIME2 NULL,                  -- mốc pha xong (→READY)
+    BaristaId   INT NULL,                        -- người nhận pha (khóa claim)
+    PreparedBy  INT NULL,                        -- barista bấm READY, dùng cho KPI cá nhân
+    HasIssue    BIT NOT NULL DEFAULT 0,
+    IssueReason NVARCHAR(255) NULL,
+    IssueReportedBy INT NULL,
+    IssueReportedAt DATETIME2 NULL,
+    RemakeCount INT NOT NULL DEFAULT 0,
+    RemakeInventoryReserved BIT NOT NULL DEFAULT 0,
+    HandoverLocation NVARCHAR(80) NULL,
+    PickedUpBy  INT NULL,
+    PickedUpAt  DATETIME2 NULL,
+    ServedAt    DATETIME2 NULL,                  -- mốc giao khách (→SERVED); NULL khi hoàn tác giao
     CONSTRAINT FK_OI_Order   FOREIGN KEY (OrderId)   REFERENCES sales.Orders(OrderId) ON DELETE CASCADE,
     CONSTRAINT FK_OI_Product FOREIGN KEY (ProductId) REFERENCES catalog.Product(ProductId),
-    CONSTRAINT FK_OI_PreparedBy FOREIGN KEY (PreparedBy) REFERENCES iam.[User](UserId)
+    CONSTRAINT FK_OI_Barista FOREIGN KEY (BaristaId) REFERENCES iam.[User](UserId),
+    CONSTRAINT FK_OI_PreparedBy FOREIGN KEY (PreparedBy) REFERENCES iam.[User](UserId),
+    CONSTRAINT FK_OI_IssueBy FOREIGN KEY (IssueReportedBy) REFERENCES iam.[User](UserId),
+    CONSTRAINT FK_OI_PickedUpBy FOREIGN KEY (PickedUpBy) REFERENCES iam.[User](UserId)
 );
 GO
 
@@ -683,6 +697,23 @@ CREATE TABLE ops.OutboxEvent (
 );
 GO
 
+-- Audit nghiệp vụ theo từng dòng món: nhận pha, hoàn thành, sự cố, trả hàng chờ, làm lại, nhận/giao.
+CREATE TABLE ops.OrderItemActionLog (
+    OrderItemActionLogId BIGINT IDENTITY PRIMARY KEY,
+    OrderItemId INT NOT NULL,
+    BranchId INT NOT NULL,
+    ActionType VARCHAR(24) NOT NULL,
+    FromStatus VARCHAR(16) NULL,
+    ToStatus VARCHAR(16) NULL,
+    Reason NVARCHAR(255) NULL,
+    PerformedBy INT NULL,
+    CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT FK_OIAL_Item FOREIGN KEY (OrderItemId) REFERENCES sales.OrderItem(OrderItemId),
+    CONSTRAINT FK_OIAL_Branch FOREIGN KEY (BranchId) REFERENCES org.Branch(BranchId),
+    CONSTRAINT FK_OIAL_User FOREIGN KEY (PerformedBy) REFERENCES iam.[User](UserId)
+);
+GO
+
 /* ---------------------------------------------------------------------------
    INDEXES (FK & cột truy vấn nóng)
    --------------------------------------------------------------------------- */
@@ -698,6 +729,8 @@ CREATE INDEX IX_OrderItem_Order    ON sales.OrderItem(OrderId);
 CREATE INDEX IX_Bill_Session       ON payment.Bill(TableSessionId);
 CREATE INDEX IX_Bill_BranchStatus  ON payment.Bill(BranchId, Status);
 CREATE INDEX IX_Outbox_Unprocessed ON ops.OutboxEvent(ProcessedAt) WHERE ProcessedAt IS NULL;
+CREATE INDEX IX_OrderItem_BaristaStatus ON sales.OrderItem(BaristaId, Status);
+CREATE INDEX IX_OrderItemAction_Item ON ops.OrderItemActionLog(OrderItemId, CreatedAt DESC);
 GO
 
 /* ---------------------------------------------------------------------------
@@ -1359,15 +1392,15 @@ BEGIN
     SET @oO = SCOPE_IDENTITY();
     -- READY (đã trừ kho)
     DECLARE @oiR INT;
-    INSERT INTO sales.OrderItem(OrderId,ProductId,Quantity,UnitPrice,Status,StartedAt,DoneAt)
-    VALUES(@oO,@pSua,1,29000,'READY',DATEADD(MINUTE,-20,@now),DATEADD(MINUTE,-12,@now));
+    INSERT INTO sales.OrderItem(OrderId,ProductId,Quantity,UnitPrice,Status,StartedAt,DoneAt,BaristaId,PreparedBy)
+    VALUES(@oO,@pSua,1,29000,'READY',DATEADD(MINUTE,-20,@now),DATEADD(MINUTE,-12,@now),@lBar,@lBar);
     SET @oiR = SCOPE_IDENTITY();
     INSERT INTO inventory.InventoryTransaction(BranchId,IngredientId,ChangeQty,TxnType,RefTable,RefId,CreatedBy,CreatedAt) VALUES
      (@lB,@iCafe2,-18,'DEDUCT','OrderItem',@oiR,@lBar,DATEADD(MINUTE,-12,@now)),
      (@lB,@iSua2,-30,'DEDUCT','OrderItem',@oiR,@lBar,DATEADD(MINUTE,-12,@now));
     -- MAKING (chưa trừ)
-    INSERT INTO sales.OrderItem(OrderId,ProductId,Quantity,UnitPrice,Status,StartedAt)
-    VALUES(@oO,@pLatte,1,49000,'MAKING',DATEADD(MINUTE,-6,@now));
+    INSERT INTO sales.OrderItem(OrderId,ProductId,Quantity,UnitPrice,Status,StartedAt,BaristaId)
+    VALUES(@oO,@pLatte,1,49000,'MAKING',DATEADD(MINUTE,-6,@now),@lBar);
     -- WAITING
     INSERT INTO sales.OrderItem(OrderId,ProductId,Quantity,UnitPrice,Status,Note)
     VALUES(@oO,@pTra,2,39000,'WAITING',N'Ít đá');

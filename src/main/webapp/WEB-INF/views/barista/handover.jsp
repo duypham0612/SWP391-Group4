@@ -25,7 +25,7 @@
         <div class="muted" style="font-size:.8em;margin-top:4px">Chỉ tính món có mốc “bắt đầu pha”</div>
     </div>
     <div class="card stat">
-        <div class="eyebrow">Số ly đã pha xong (hôm nay)</div>
+        <div class="eyebrow">Số món đã pha xong (hôm nay)</div>
         <span class="value">${kpi.cupCount}</span>
         <div class="muted" style="font-size:.8em;margin-top:4px">Gồm cả món pha nhanh (READY thẳng)</div>
     </div>

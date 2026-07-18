@@ -31,7 +31,7 @@
                             <c:when test="${o.source == 'QR'}"><span class="badge" style="background:var(--caramel);color:#fff">QR</span></c:when>
                             <c:otherwise><span class="badge" style="background:var(--coffee);color:#fff">Quầy</span></c:otherwise>
                         </c:choose>
-                        <c:if test="${not empty o.tableNumber}"><span class="badge" style="background:var(--latte)">Bàn ${o.tableNumber}</span></c:if>
+                        <c:if test="${not empty o.tableNumber}"><span class="badge" style="background:var(--latte)"><c:out value="${o.tableNumber}" /></span></c:if>
                         <c:if test="${o.orderType == 'TAKEAWAY'}"><span class="badge" style="background:var(--latte)">Mang đi</span></c:if>
                         <c:choose>
                             <c:when test="${o.paymentStatus == 'PAID'}"><span class="badge badge-ready">Đã thanh toán</span></c:when>

@@ -71,6 +71,32 @@ public class OrderDao {
         }
     }
 
+    /**
+     * ACTIVE → COMPLETED khi MỌI món của đơn đã kết thúc (SERVED/CANCELLED). NGUYÊN TỬ (1 câu UPDATE,
+     * WHERE-guard NOT EXISTS chống race khi 2 barista giao món cuối song song). Trả số dòng đổi (0/1):
+     * ==1 nghĩa là đơn vừa hoàn tất → caller publish order.status_changed. Không đổi nếu còn món chưa xong.
+     */
+    public int completeIfAllItemsFinal(Connection conn, int orderId) throws SQLException {
+        final String sql =
+            "UPDATE sales.Orders SET Status='COMPLETED' " +
+            "WHERE OrderId=? AND Status='ACTIVE' AND NOT EXISTS (" +
+            "  SELECT 1 FROM sales.OrderItem oi WHERE oi.OrderId=? AND oi.Status NOT IN ('SERVED','CANCELLED'))";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, orderId);
+            ps.setInt(2, orderId);
+            return ps.executeUpdate();
+        }
+    }
+
+    /** COMPLETED → ACTIVE khi hoàn tác giao (món SERVED quay lại READY). Trả số dòng đổi (0/1). */
+    public int reopenIfCompleted(Connection conn, int orderId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE sales.Orders SET Status='ACTIVE' WHERE OrderId=? AND Status='COMPLETED'")) {
+            ps.setInt(1, orderId);
+            return ps.executeUpdate();
+        }
+    }
+
     private Order map(ResultSet rs) throws SQLException {
         Order o = new Order();
         o.setOrderId(rs.getInt("OrderId"));
