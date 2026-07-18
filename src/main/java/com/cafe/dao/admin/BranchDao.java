@@ -72,8 +72,10 @@ public class BranchDao {
     }
 
     public void update(Connection conn, Branch b) throws SQLException {
+        // Không đụng PeakThresholdCups ở đây: cột đó do Manager quản qua updateHoursAndPeak,
+        // để lưu chi nhánh từ màn Admin không vô tình xoá ngưỡng cao điểm về 0.
         final String sql = "UPDATE org.Branch SET Name=?, Address=?, Phone=?, " +
-                "OpenTime=?, CloseTime=?, ManagerUserId=?, IsActive=?, PeakThresholdCups=? WHERE BranchId=?";
+                "OpenTime=?, CloseTime=?, ManagerUserId=?, IsActive=? WHERE BranchId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, b.getName());
             ps.setString(2, b.getAddress());
@@ -82,8 +84,7 @@ public class BranchDao {
             setTime(ps, 5, b.getCloseTime());
             setInt(ps, 6, b.getManagerUserId());
             ps.setBoolean(7, b.isActive());
-            ps.setInt(8, Math.max(0, b.getPeakThresholdCups()));
-            ps.setInt(9, b.getBranchId());
+            ps.setInt(8, b.getBranchId());
             ps.executeUpdate();
         }
     }
@@ -94,6 +95,19 @@ public class BranchDao {
 
     private static void setInt(PreparedStatement ps, int idx, Integer v) throws SQLException {
         if (v == null) ps.setNull(idx, java.sql.Types.INTEGER); else ps.setInt(idx, v);
+    }
+
+    /** Cài đặt vận hành cho Manager: giờ mở/đóng cửa + ngưỡng cao điểm của chi nhánh mình. */
+    public void updateHoursAndPeak(Connection conn, int branchId, java.time.LocalTime openTime,
+                                   java.time.LocalTime closeTime, int peakThresholdCups) throws SQLException {
+        final String sql = "UPDATE org.Branch SET OpenTime=?, CloseTime=?, PeakThresholdCups=? WHERE BranchId=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            setTime(ps, 1, openTime);
+            setTime(ps, 2, closeTime);
+            ps.setInt(3, Math.max(0, peakThresholdCups));
+            ps.setInt(4, branchId);
+            ps.executeUpdate();
+        }
     }
 
     public void updateActive(Connection conn, int id, boolean active) throws SQLException {

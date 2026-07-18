@@ -27,14 +27,9 @@
         <span class="muted">món · chờ mang ra</span>
     </a>
     <div class="card stat">
-        <span class="label">Lead-time TB hôm nay</span>
+        <span class="label">Tốc độ pha cả ca hôm nay</span>
         <span class="value">${kpi.avgLeadDisplay}</span>
-        <span class="muted">${kpi.cupCount} món đã xong</span>
-    </div>
-    <div class="card stat" style="${myKpi.cupCount gt 0 ? 'border-color:var(--st-ready)' : ''}">
-        <span class="label">KPI của tôi</span>
-        <span class="value">${myKpi.cupCount} ly</span>
-        <span class="muted">Lead-time TB ${myKpi.avgLeadDisplay}</span>
+        <span class="muted">${kpi.cupCount} món đã xong · số của cả ca, không chấm điểm cá nhân</span>
     </div>
     <a class="card stat" href="${ctx}/barista/waste" style="${wasteSummary.totalCost gt 0 ? 'border-color:var(--st-waiting)' : ''}">
         <span class="label">Hao hụt hôm nay</span>
