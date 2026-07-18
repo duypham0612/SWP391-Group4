@@ -3,6 +3,7 @@ package com.cafe.service.barista;
 import com.cafe.config.DBConnection;
 import com.cafe.dao.manager.ShiftHandoverDao;
 import com.cafe.dao.shared.OrderItemDao;
+import com.cafe.model.OrderItem;
 import com.cafe.model.ShiftHandover;
 
 import java.sql.Connection;
@@ -44,6 +45,14 @@ public class HandoverService {
         try (Connection conn = DBConnection.getConnection()) {
             long[] s = orderItemDao.leadTimeStats(conn, branchId, window[0], window[1]);
             return new HandoverKpi(s[0], s[1]);
+        }
+    }
+
+    /** Danh sách món đã pha xong hôm nay để bàn giao ca, tính theo ngày giờ Việt Nam. */
+    public List<OrderItem> getBrewHistory(int branchId) throws SQLException {
+        LocalDateTime[] window = todayWindowUtc();
+        try (Connection conn = DBConnection.getConnection()) {
+            return orderItemDao.findBrewedToday(conn, branchId, window[0], window[1]);
         }
     }
 
