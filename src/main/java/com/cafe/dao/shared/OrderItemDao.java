@@ -103,19 +103,30 @@ public class OrderItemDao {
      */
     public long[] leadTimeStats(Connection conn, int branchId,
                                 java.time.LocalDateTime fromUtc, java.time.LocalDateTime toUtc) throws SQLException {
+        return leadTimeStats(conn, branchId, fromUtc, toUtc, null);
+    }
+
+    public long[] leadTimeStats(Connection conn, int branchId,
+                                java.time.LocalDateTime fromUtc, java.time.LocalDateTime toUtc,
+                                Integer userId) throws SQLException {
+        boolean filterUser = userId != null && userId > 0;
+        String userWhere = filterUser ? " AND oi.PreparedBy=? " : " ";
         final String sql =
             "SELECT " +
             "  (SELECT COUNT(*) FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId " +
-            "     WHERE o.BranchId=? AND oi.DoneAt >= ? AND oi.DoneAt < ?) AS Cups, " +
+            "     WHERE o.BranchId=? AND oi.DoneAt >= ? AND oi.DoneAt < ?" + userWhere + ") AS Cups, " +
             "  (SELECT AVG(CAST(DATEDIFF(SECOND, oi.StartedAt, oi.DoneAt) AS BIGINT)) " +
             "     FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId " +
             "     WHERE o.BranchId=? AND oi.StartedAt IS NOT NULL AND oi.DoneAt IS NOT NULL " +
-            "       AND oi.DoneAt >= ? AND oi.DoneAt < ?) AS AvgSec";
+            "       AND oi.DoneAt >= ? AND oi.DoneAt < ?" + userWhere + ") AS AvgSec";
         Timestamp from = Timestamp.valueOf(fromUtc);
         Timestamp to = Timestamp.valueOf(toUtc);
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, branchId); ps.setTimestamp(2, from); ps.setTimestamp(3, to);
-            ps.setInt(4, branchId); ps.setTimestamp(5, from); ps.setTimestamp(6, to);
+            int idx = 1;
+            ps.setInt(idx++, branchId); ps.setTimestamp(idx++, from); ps.setTimestamp(idx++, to);
+            if (filterUser) ps.setInt(idx++, userId);
+            ps.setInt(idx++, branchId); ps.setTimestamp(idx++, from); ps.setTimestamp(idx++, to);
+            if (filterUser) ps.setInt(idx++, userId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
                     long cups = rs.getLong("Cups");
@@ -166,9 +177,17 @@ public class OrderItemDao {
     public int updateStatusIf(Connection conn, int orderItemId, String newStatus,
                               String[] expectedStatuses, int branchId,
                               boolean stampStarted, boolean stampDone) throws SQLException {
+        return updateStatusIf(conn, orderItemId, newStatus, expectedStatuses, branchId, stampStarted, stampDone, null);
+    }
+
+    public int updateStatusIf(Connection conn, int orderItemId, String newStatus,
+                              String[] expectedStatuses, int branchId,
+                              boolean stampStarted, boolean stampDone,
+                              Integer preparedBy) throws SQLException {
         StringBuilder sql = new StringBuilder("UPDATE oi SET oi.Status=?");
         if (stampStarted) sql.append(", oi.StartedAt=SYSUTCDATETIME()");
         if (stampDone)    sql.append(", oi.DoneAt=SYSUTCDATETIME()");
+        if (stampDone && preparedBy != null && preparedBy > 0) sql.append(", oi.PreparedBy=?");
         sql.append(" FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId ")
            .append("WHERE oi.OrderItemId=? AND o.BranchId=? AND oi.Status IN (");
         for (int i = 0; i < expectedStatuses.length; i++) sql.append(i == 0 ? "?" : ",?");
@@ -176,6 +195,7 @@ public class OrderItemDao {
         try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
             int idx = 1;
             ps.setString(idx++, newStatus);
+            if (stampDone && preparedBy != null && preparedBy > 0) ps.setInt(idx++, preparedBy);
             ps.setInt(idx++, orderItemId);
             ps.setInt(idx++, branchId);
             for (String s : expectedStatuses) ps.setString(idx++, s);

@@ -216,7 +216,7 @@ public class OrderService {
             OrderItem it = itemDao.findById(conn, orderItemId);
             if (it == null) return;
             int rows = itemDao.updateStatusIf(conn, orderItemId, "READY",
-                    new String[]{"WAITING", "MAKING"}, sessionBranchId, false, true);
+                    new String[]{"WAITING", "MAKING"}, sessionBranchId, false, true, userId);
             if (rows == 0) return;   // đã READY/SERVED/CANCELLED / khác chi nhánh → không trừ kho
             int branchId = it.getOrderBranchId() == null ? 0 : it.getOrderBranchId();
             inventoryService.deductForOrderItem(conn, branchId, orderItemId, it.getProductId(), it.getQuantity(), userId);
@@ -241,7 +241,7 @@ public class OrderService {
                 String s = it.getStatus();
                 if (!"WAITING".equals(s) && !"MAKING".equals(s)) continue;
                 int rows = itemDao.updateStatusIf(conn, it.getOrderItemId(), "READY",
-                        new String[]{"WAITING", "MAKING"}, sessionBranchId, false, true);
+                        new String[]{"WAITING", "MAKING"}, sessionBranchId, false, true, userId);
                 if (rows == 0) continue;   // đổi bởi người khác / khác chi nhánh
                 int branchId = it.getOrderBranchId() == null ? 0 : it.getOrderBranchId();
                 inventoryService.deductForOrderItem(conn, branchId, it.getOrderItemId(),

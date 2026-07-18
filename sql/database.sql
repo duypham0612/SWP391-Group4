@@ -566,8 +566,10 @@ CREATE TABLE sales.OrderItem (
     Priority    INT NOT NULL DEFAULT 0,          -- KDS bump: đẩy đơn quá giờ lên đầu (cao = ưu tiên)
     StartedAt   DATETIME2 NULL,                  -- để tính lead time
     DoneAt      DATETIME2 NULL,
+    PreparedBy  INT NULL,                         -- barista bấm READY, dùng cho KPI cá nhân
     CONSTRAINT FK_OI_Order   FOREIGN KEY (OrderId)   REFERENCES sales.Orders(OrderId) ON DELETE CASCADE,
-    CONSTRAINT FK_OI_Product FOREIGN KEY (ProductId) REFERENCES catalog.Product(ProductId)
+    CONSTRAINT FK_OI_Product FOREIGN KEY (ProductId) REFERENCES catalog.Product(ProductId),
+    CONSTRAINT FK_OI_PreparedBy FOREIGN KEY (PreparedBy) REFERENCES iam.[User](UserId)
 );
 GO
 
