@@ -40,14 +40,27 @@ public class HandoverService {
     }
 
     public HandoverKpi getKpi(int branchId) throws SQLException {
+        LocalDateTime[] window = todayWindowUtc();
+        try (Connection conn = DBConnection.getConnection()) {
+            long[] s = orderItemDao.leadTimeStats(conn, branchId, window[0], window[1]);
+            return new HandoverKpi(s[0], s[1]);
+        }
+    }
+
+    public HandoverKpi getMyKpi(int branchId, int userId) throws SQLException {
+        LocalDateTime[] window = todayWindowUtc();
+        try (Connection conn = DBConnection.getConnection()) {
+            long[] s = orderItemDao.leadTimeStats(conn, branchId, window[0], window[1], userId);
+            return new HandoverKpi(s[0], s[1]);
+        }
+    }
+
+    private static LocalDateTime[] todayWindowUtc() {
         // Mốc "hôm nay" theo giờ VN → UTC (đồng nhất với Waste/Prep; DoneAt lưu UTC).
         LocalDate today = LocalDate.now(VN_ZONE);
         LocalDateTime fromUtc = today.atStartOfDay(VN_ZONE).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
         LocalDateTime toUtc = today.plusDays(1).atStartOfDay(VN_ZONE).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
-        try (Connection conn = DBConnection.getConnection()) {
-            long[] s = orderItemDao.leadTimeStats(conn, branchId, fromUtc, toUtc);
-            return new HandoverKpi(s[0], s[1]);
-        }
+        return new LocalDateTime[]{fromUtc, toUtc};
     }
 
     /** KPI hôm nay: lead time TB (giây, -1 = chưa có) + số ly đã pha xong. */
