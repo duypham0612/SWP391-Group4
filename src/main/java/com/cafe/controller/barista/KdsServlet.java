@@ -1,7 +1,6 @@
 package com.cafe.controller.barista;
 import com.cafe.controller.manager.InventoryDashboardServlet;
 
-import com.cafe.common.Constants;
 import com.cafe.common.BusinessException;
 import com.cafe.common.CsrfUtil;
 import com.cafe.common.SessionUtil;
@@ -118,41 +117,85 @@ public class KdsServlet extends HttpServlet {
         }
     }
 
-    /** Nạp board ba cột và thống kê theo số ly. */
+    /**
+     * Nạp board ba cột. Thống kê chính đếm theo SỐ LY (khối lượng việc pha thật), kèm số dòng
+     * món và số đơn làm thông tin phụ. Đơn của ngày kinh doanh trước KHÔNG vào hàng chờ mà
+     * nằm ở khu "Đơn treo cần xử lý" — để rác cũ không làm đỏ toàn bộ và lệch số trễ giờ.
+     */
     private void loadBoard(HttpServletRequest req, int branchId) throws SQLException {
-        Map<String, List<OrderItem>> board = service.getWorkbenchBoard(branchId);
+        com.cafe.model.Branch branch = service.getBranch(branchId);
+        java.time.LocalTime openTime = branch == null ? null : branch.getOpenTime();
+        int branchPeakThreshold = branch == null ? 0 : branch.getPeakThresholdCups();
+        java.time.LocalDateTime dayStart = com.cafe.common.BusinessDay.startUtc(openTime);
+        Map<String, List<OrderItem>> board = service.getWorkbenchBoard(branchId, dayStart);
         List<OrderItem> waiting = board.get("waiting");
         List<OrderItem> inProgress = board.get("inProgress");
         List<OrderItem> ready = board.get("ready");
         List<OrderItem> blocked = board.get("blocked");
-        int waitingCups = cups(waiting), progressCups = cups(inProgress), readyCups = cups(ready);
+        List<OrderItem> stale = service.getStaleItems(branchId, dayStart);
+
         int overdue = 0;
         OrderItem oldest = null;
-        for (OrderItem item : waiting) {
-            if (item.getWaitedSeconds() >= Constants.KDS_CRIT_SECONDS) overdue += item.getQuantity();
-            if (oldest == null || item.getWaitedSeconds() > oldest.getWaitedSeconds()) oldest = item;
+        int totalPrepSeconds = 0;
+        java.util.Set<Integer> activeBaristas = new java.util.HashSet<>();
+        for (List<OrderItem> bucket : List.of(waiting, inProgress)) {
+            for (OrderItem item : bucket) {
+                if (item.getSlaTier().equals("late")) overdue += item.getQuantity();
+                if (oldest == null || item.getWaitedSeconds() > oldest.getWaitedSeconds()) oldest = item;
+                totalPrepSeconds += item.getPrepSeconds() * item.getQuantity();
+                if (item.getBaristaId() != null) activeBaristas.add(item.getBaristaId());
+            }
         }
-        for (OrderItem item : inProgress) {
-            if (item.getWaitedSeconds() >= Constants.KDS_CRIT_SECONDS) overdue += item.getQuantity();
-            if (oldest == null || item.getWaitedSeconds() > oldest.getWaitedSeconds()) oldest = item;
-        }
+
+        // Chế độ cao điểm: đo bằng số ly đang chờ+đang pha so ngưỡng chi nhánh.
+        int queueCups = cups(waiting) + cups(inProgress);
+        boolean peakMode = com.cafe.service.barista.KdsService.isPeak(queueCups, branchPeakThreshold);
+        int estLastSeconds = com.cafe.service.barista.KdsService
+                .estimateLastWaitSeconds(totalPrepSeconds, activeBaristas.size());
+        // Số thứ tự pha cho hàng chờ (chỉ dùng khi cao điểm) — theo đúng thứ tự FIFO đã sắp.
+        int seq = 1;
+        for (OrderItem item : waiting) item.setSeqNo(seq++);
+        req.setAttribute("peakMode", peakMode);
+        req.setAttribute("peakQueueCups", queueCups);
+        req.setAttribute("peakEstLastMin", (estLastSeconds + 59) / 60);
+
         req.setAttribute("waitingItems", waiting);
         req.setAttribute("inProgressItems", inProgress);
         req.setAttribute("readyItems", ready);
         req.setAttribute("blockedItems", blocked);
-        req.setAttribute("waitingCount", waitingCups);
-        req.setAttribute("makingCount", progressCups);
-        req.setAttribute("readyCount", readyCups);
+        req.setAttribute("staleItems", stale);
+        req.setAttribute("waitingCount", cups(waiting));
+        req.setAttribute("makingCount", cups(inProgress));
+        req.setAttribute("readyCount", cups(ready));
         req.setAttribute("blockedCount", cups(blocked));
+        req.setAttribute("staleCount", cups(stale));
         req.setAttribute("overdueCount", overdue);
-        req.setAttribute("oldestDisplay", oldest == null ? "—" : (oldest.isOvernight()
-                ? "Đơn treo cần xử lý" : OrderItem.formatMinutesLabel(oldest.getWaitedSeconds())));
+        // Thông tin phụ: số dòng món và số đơn đang mở của cả board.
+        req.setAttribute("waitingLines", waiting.size());
+        req.setAttribute("makingLines", inProgress.size());
+        req.setAttribute("readyLines", ready.size());
+        // Tính cả đơn bị chặn: khách vẫn đang ngồi đợi nên đơn vẫn đang mở —
+        // bỏ ra thì con số này mâu thuẫn với chính chữ ở khu "Cần xử lý".
+        req.setAttribute("openOrderCount", distinctOrders(waiting, inProgress, ready, blocked));
+
+        // Thanh "Chờ lâu nhất": phút + bàn + tên món cụ thể, không còn chuỗi mơ hồ.
+        req.setAttribute("oldestDisplay", oldest == null ? "—"
+                : OrderItem.formatMinutesLabel(oldest.getWaitedSeconds()));
         req.setAttribute("oldestLocation", oldest == null ? "" : location(oldest));
-        req.setAttribute("oldestTier", oldest == null ? "ok" : tier(oldest.getWaitedSeconds()));
+        req.setAttribute("oldestProduct", oldest == null ? "" : oldest.getProductName());
+        req.setAttribute("oldestQty", oldest == null ? 0 : oldest.getQuantity());
+        // Màu thanh "Chờ lâu nhất" khớp đúng màu card của chính món đó (cùng từ vựng tier).
+        req.setAttribute("oldestTier", oldest == null ? "ok" : oldest.getSlaTier());
+
         User current = SessionUtil.currentUser(req);
         req.setAttribute("currentUserId", current == null ? 0 : current.getUserId());
-        req.setAttribute("kdsWarnMin", Constants.KDS_WARN_SECONDS / 60);
-        req.setAttribute("kdsCritMin", Constants.KDS_CRIT_SECONDS / 60);
+    }
+
+    @SafeVarargs
+    private static int distinctOrders(List<OrderItem>... buckets) {
+        java.util.Set<Integer> ids = new java.util.HashSet<>();
+        for (List<OrderItem> bucket : buckets) for (OrderItem it : bucket) ids.add(it.getOrderId());
+        return ids.size();
     }
 
     private static void flashConflict(HttpServletRequest req) {
@@ -223,11 +266,5 @@ public class KdsServlet extends HttpServlet {
         if (raw == null || raw.isBlank()) return null;
         try { return Integer.valueOf(raw.trim()); }
         catch (NumberFormatException e) { return null; }
-    }
-
-    private String tier(int seconds) {
-        if (seconds >= Constants.KDS_CRIT_SECONDS) return "crit";
-        if (seconds >= Constants.KDS_WARN_SECONDS) return "warn";
-        return "ok";
     }
 }

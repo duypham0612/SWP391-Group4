@@ -1,5 +1,6 @@
 package com.cafe.model;
 
+import com.cafe.common.BusinessDay;
 import com.cafe.common.Constants;
 
 import java.math.BigDecimal;
@@ -46,6 +47,8 @@ public class OrderItem {
     private Integer makingSeconds;
     private Integer serveWaitSeconds;   // giây kể từ lúc pha xong (DoneAt) tới hiện tại — SLA màn chờ giao
     private boolean recipeMissing;      // sản phẩm chưa khai báo công thức → backend chặn hoàn thành
+    private int prepSeconds = Constants.KDS_SLA_SECONDS;  // thời gian pha chuẩn của món (catalog.Product); mặc định 12' giữ hành vi cũ
+    private int seqNo;                  // số thứ tự pha ở chế độ cao điểm (0 = không hiển thị)
 
     public int getOrderItemId() { return orderItemId; }
     public void setOrderItemId(int v) { this.orderItemId = v; }
@@ -138,6 +141,17 @@ public class OrderItem {
     public boolean isRecipeMissing() { return recipeMissing; }
     public void setRecipeMissing(boolean v) { this.recipeMissing = v; }
 
+    public int getPrepSeconds() { return prepSeconds; }
+    public void setPrepSeconds(int v) { this.prepSeconds = v; }
+
+    public int getSeqNo() { return seqNo; }
+    public void setSeqNo(int v) { this.seqNo = v; }
+
+    /** Mốc pha chuẩn dùng để tính trễ: theo món; số bất thường (chưa nạp/0) thì lùi về mặc định 12'. */
+    private int effectivePrepSeconds() {
+        return prepSeconds >= 60 ? prepSeconds : Constants.KDS_SLA_SECONDS;
+    }
+
     public String getServeWaitDisplay() {
         return serveWaitSeconds == null ? "" : formatMinutesLabel(serveWaitSeconds);
     }
@@ -160,7 +174,11 @@ public class OrderItem {
 
     public boolean isOvernight() {
         if (orderCreatedAt == null) return false;
-        return orderCreatedAt.toLocalDate().isBefore(java.time.LocalDateTime.now().toLocalDate());
+        // orderCreatedAt lưu theo UTC — phải quy về giờ VN mới so ngày cho đúng,
+        // không so thẳng với đồng hồ máy chủ (dễ lệch 1 ngày quanh nửa đêm).
+        java.time.LocalDate createdVn = orderCreatedAt.atZone(java.time.ZoneOffset.UTC)
+                .withZoneSameInstant(BusinessDay.VN_ZONE).toLocalDate();
+        return createdVn.isBefore(java.time.LocalDate.now(BusinessDay.VN_ZONE));
     }
 
     public String getCreatedDisplay() {
@@ -175,21 +193,47 @@ public class OrderItem {
         return doneAt == null ? "" : doneAt.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
     }
 
-    /** Nhãn thời gian trên card. Chữ phải là chữ nhân viên nói ra miệng được — không dùng "SLA". */
+    /**
+     * Nhãn thời gian CHÍNH trên card — chỉ một con số để liếc 1 giây là quyết được:
+     * còn bao lâu, hay đã quá bao lâu. Phần "đã chờ X/12 phút" nằm ở dòng phụ
+     * ({@link #getWaitProgressLabel()}) vì biết đã-chờ và định-mức thì còn-lại tự suy ra;
+     * ba con số cùng cỡ sẽ cạnh tranh với tên món, đúng lỗi ưu tiên ngược cần tránh.
+     */
     public String getSlaLabel() {
         if (isOvernight()) return "Trễ từ hôm qua";
-        if (waitedSeconds >= Constants.KDS_CRIT_SECONDS) {
-            return "Trễ " + formatMinutesLabel(waitedSeconds - Constants.KDS_SLA_SECONDS);
-        }
-        if (waitedSeconds >= Constants.KDS_WARN_SECONDS) return "Sắp trễ";
-        return "Chờ " + formatMinutesLabel(waitedSeconds);
+        int remaining = effectivePrepSeconds() - waitedSeconds;
+        // Phút làm tròn xuống, nên cả phút đầu tiên hai bên vạch đều ra "0 phút" —
+        // "Trễ 0 phút" thì vô nghĩa, nói thẳng là vừa chạm hạn.
+        if (remaining <= 0 && remaining > -60) return "Vừa quá hạn";
+        if (remaining <= 0) return "Trễ " + formatMinutesLabel(-remaining);
+        if (remaining < 60) return "Sắp hết giờ";
+        return "Còn " + formatMinutesLabel(remaining);
     }
 
+    /** Dòng phụ: đã chờ bao lâu so với mốc pha chuẩn CỦA MÓN. Gọn dạng "5/12 phút". */
+    public String getWaitProgressLabel() {
+        return "Đã chờ " + (Math.max(0, waitedSeconds) / 60)
+                + "/" + (effectivePrepSeconds() / 60) + " phút";
+    }
+
+    /**
+     * Món pha xong đã nằm chờ quá lâu → cảnh báo chất lượng (đồ nguội, đá tan).
+     * Tách khỏi bậc SLA hàng chờ vì đây là vấn đề của khâu bàn giao, không phải khâu pha.
+     */
+    public boolean isStaleReady() {
+        return serveWaitSeconds != null && serveWaitSeconds >= Constants.PICKUP_CRIT_SECONDS;
+    }
+
+    /**
+     * Chỉ ba bậc: bình thường / sắp trễ / đã trễ. Bỏ bậc "severe" cũ vì đơn qua đêm nay nằm
+     * ở khu "Đơn treo" riêng — giữ nó lại thì mọi card đều đỏ chỉ vì dữ liệu cũ, và cảnh báo
+     * lúc nào cũng bật thì không còn là cảnh báo. Đỏ dành riêng cho quá giờ thật hoặc sự cố thật.
+     */
     public String getSlaTier() {
         if (hasIssue) return "blocked";
-        if (isOvernight() || waitedSeconds >= Constants.KDS_SEVERE_SECONDS) return "severe";
-        if (waitedSeconds >= Constants.KDS_CRIT_SECONDS) return "crit";
-        if (waitedSeconds >= Constants.KDS_WARN_SECONDS) return "warn";
+        int prep = effectivePrepSeconds();
+        if (waitedSeconds >= prep) return "late";           // quá mốc pha chuẩn của chính món này
+        if (waitedSeconds >= prep * 2 / 3) return "warn";   // sắp tới hạn (2/3 chặng)
         return "ok";
     }
 
@@ -213,12 +257,6 @@ public class OrderItem {
 
     public String getMakingDisplay() {
         return makingSeconds == null ? "" : formatMinutesLabel(makingSeconds);
-    }
-
-    public String getAgeTier() {
-        if (waitedSeconds >= Constants.KDS_CRIT_SECONDS) return "crit";
-        if (waitedSeconds >= Constants.KDS_WARN_SECONDS) return "warn";
-        return "ok";
     }
 
     public static String formatDuration(int seconds) {

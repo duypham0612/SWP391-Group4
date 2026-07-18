@@ -24,12 +24,16 @@ public final class Constants {
     // KDS SLA thresholds (hàng chờ pha)
     public static final int KDS_WARN_SECONDS = 8 * 60;
     public static final int KDS_CRIT_SECONDS = 12 * 60;
-    public static final int KDS_SEVERE_SECONDS = 20 * 60;
+    // Mốc pha chuẩn mặc định khi món chưa khai PrepSeconds (giữ hành vi cũ 12 phút).
     public static final int KDS_SLA_SECONDS = KDS_CRIT_SECONDS;
 
     // Pickup SLA thresholds (món pha xong chờ giao — kể từ DoneAt)
     public static final int PICKUP_WARN_SECONDS = 3 * 60;
     public static final int PICKUP_CRIT_SECONDS = 6 * 60;
+
+    // Ngưỡng cao điểm mặc định (số ly đang chờ+đang pha) khi chi nhánh chưa đặt riêng.
+    // Vượt ngưỡng → bảng chuyển sang xếp thứ tự thay vì tô đỏ hàng loạt.
+    public static final int PEAK_THRESHOLD_CUPS = 12;
 
     // Payroll
     public static final BigDecimal MIN_HOURLY_RATE = new BigDecimal("25000");

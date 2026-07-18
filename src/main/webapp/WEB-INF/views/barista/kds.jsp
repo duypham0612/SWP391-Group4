@@ -1,14 +1,12 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
+<c:set var="wideLayout" value="true" scope="request" />
 <jsp:include page="../layout/header.jsp" />
 
-<div class="page-header">
-    <div>
-        <div class="eyebrow">Pha chế</div>
-        <h1>Quầy pha chế</h1>
-        <p>Nhận món, pha và báo hoàn thành trên cùng một màn hình. Mỗi card là một dòng món độc lập.</p>
-    </div>
+<%-- Header một dòng: danh sách món phải xuất hiện càng sớm càng tốt trên màn quầy. --%>
+<div class="kds-head">
+    <h1>Quầy pha chế</h1>
     <div id="kdsConnection" class="kds-connection" role="status"><span class="kds-refresh__dot"></span><span>Đang kết nối</span></div>
 </div>
 
@@ -16,17 +14,25 @@
 
 <div class="kds-toolbar">
     <div class="kds-filters" id="kdsFilters" role="group" aria-label="Lọc món">
-        <button type="button" class="chip-filter is-active" data-filter="default">Ưu tiên của tôi</button>
-        <button type="button" class="chip-filter" data-filter="all">Tất cả</button>
+        <button type="button" class="chip-filter is-active" data-filter="all">Tất cả</button>
         <button type="button" class="chip-filter" data-filter="mine">Món của tôi</button>
-        <button type="button" class="chip-filter" data-filter="unassigned">Chưa có người nhận</button>
-        <button type="button" class="chip-filter" data-filter="station:COFFEE">Quầy cà phê</button>
-        <button type="button" class="chip-filter" data-filter="station:TEA">Quầy trà</button>
-        <button type="button" class="chip-filter" data-filter="station:BLENDER">Máy xay</button>
-        <button type="button" class="chip-filter" data-filter="type:DINE_IN">Tại bàn</button>
-        <button type="button" class="chip-filter" data-filter="type:TAKEAWAY">Mang đi</button>
-        <button type="button" class="chip-filter" data-filter="type:DELIVERY">Giao hàng</button>
+        <button type="button" class="chip-filter" data-filter="unassigned">Chưa nhận</button>
+        <button type="button" class="chip-filter" data-filter="overdue">Trễ giờ</button>
     </div>
+    <%-- Lọc theo quầy/loại đơn là cấu hình đầu ca, không phải thao tác thường xuyên → gom vào dropdown. --%>
+    <details class="kds-more" id="kdsMore">
+        <summary class="chip-filter">Bộ lọc</summary>
+        <div class="kds-more__panel">
+            <span class="kds-more__label">Quầy</span>
+            <button type="button" class="chip-filter" data-filter="station:COFFEE">Quầy cà phê</button>
+            <button type="button" class="chip-filter" data-filter="station:TEA">Quầy trà</button>
+            <button type="button" class="chip-filter" data-filter="station:BLENDER">Máy xay</button>
+            <span class="kds-more__label">Loại đơn</span>
+            <button type="button" class="chip-filter" data-filter="type:DINE_IN">Tại bàn</button>
+            <button type="button" class="chip-filter" data-filter="type:TAKEAWAY">Mang đi</button>
+            <button type="button" class="chip-filter" data-filter="type:DELIVERY">Giao hàng</button>
+        </div>
+    </details>
     <div class="seg" id="kdsDensity" role="group" aria-label="Mật độ hiển thị">
         <button type="button" class="seg__btn" data-dens="0">Thoáng</button><button type="button" class="seg__btn" data-dens="1">Gọn</button>
     </div>
@@ -73,13 +79,13 @@
 <script>
 (function(){
   var ctx='${ctx}', board=document.getElementById('kdsBoard'), connection=document.getElementById('kdsConnection');
-  var currentFilter='default', refreshing=false, suppressUntil=0, known=readIds(), tiers=readTiers(),signatures=readSignatures(),noticeTimer;
+  var currentFilter=localStorage.getItem('kdsFilter')||'all', refreshing=false, suppressUntil=0, known=readIds(), tiers=readTiers(),signatures=readSignatures(),noticeTimer;
   function readIds(){ var ids={}; if(board) board.querySelectorAll('[data-kds-item-id]').forEach(function(el){ids[el.dataset.kdsItemId]=true;}); return ids; }
   function readTiers(){var out={};board.querySelectorAll('[data-kds-item-id]').forEach(function(el){out[el.dataset.kdsItemId]=el.dataset.slaTier;});return out;}
   function signature(el){var copy=el.cloneNode(true);copy.querySelectorAll('.kds-sla,.kds-clock,.kds-meta-row,.kds-ready-facts').forEach(function(x){x.remove()});return copy.textContent.replace(/\s+/g,' ').trim();}
   function readSignatures(){var out={};board.querySelectorAll('[data-kds-item-id]').forEach(function(el){out[el.dataset.kdsItemId]=signature(el);});return out;}
   function notice(text){var el=document.getElementById('kdsLiveNotice');el.textContent=text;el.hidden=false;clearTimeout(noticeTimer);noticeTimer=setTimeout(function(){el.hidden=true},5000);}
-  function markNew(){ var added=0,urgent=0,priority=0,changed=0,removed=0,next=readIds();board.querySelectorAll('[data-kds-item-id]').forEach(function(el){var id=el.dataset.kdsItemId;if(!known[id]){el.classList.add('kds-new');added++;if(el.dataset.priority==='true')priority++;}else if(signatures[id]&&signatures[id]!==signature(el))changed++;if(tiers[id]&&tiers[id]!==el.dataset.slaTier&&(el.dataset.slaTier==='warn'||el.dataset.slaTier==='crit'||el.dataset.slaTier==='severe'))urgent++;});Object.keys(known).forEach(function(id){if(!next[id])removed++;});if(priority)notice('Có '+priority+' món làm lại ưu tiên.');else if(urgent)notice('Có '+urgent+' dòng món gần hoặc quá SLA.');else if(added)notice('Có '+added+' dòng món mới.');else if(removed)notice('Một món đã được nhân viên nhận hoặc đơn đã thay đổi.');else if(changed)notice('Ghi chú hoặc thông tin món vừa được cập nhật.');known=next;tiers=readTiers();signatures=readSignatures(); }
+  function markNew(){ var added=0,urgent=0,priority=0,changed=0,removed=0,next=readIds();board.querySelectorAll('[data-kds-item-id]').forEach(function(el){var id=el.dataset.kdsItemId;if(!known[id]){el.classList.add('kds-new');added++;if(el.dataset.priority==='true')priority++;}else if(signatures[id]&&signatures[id]!==signature(el))changed++;if(tiers[id]&&tiers[id]!==el.dataset.slaTier&&(el.dataset.slaTier==='warn'||el.dataset.slaTier==='late'))urgent++;});Object.keys(known).forEach(function(id){if(!next[id])removed++;});if(priority)notice('Có '+priority+' món làm lại ưu tiên.');else if(urgent)notice('Có '+urgent+' dòng món gần hoặc quá SLA.');else if(added)notice('Có '+added+' dòng món mới.');else if(removed)notice('Một món đã được nhân viên nhận hoặc đơn đã thay đổi.');else if(changed)notice('Ghi chú hoặc thông tin món vừa được cập nhật.');known=next;tiers=readTiers();signatures=readSignatures(); }
   function setConnection(ok){ connection.classList.toggle('is-offline',!ok); connection.querySelector('span:last-child').textContent=ok?'Đang kết nối':'Mất kết nối — dữ liệu có thể chưa cập nhật'; }
   function applyFilter(){
     var uid=board.dataset.userId;
@@ -87,8 +93,9 @@
       var owner=card.dataset.owner, show=true;
       // Món "Cần xử lý" nằm ngoài hàng chờ nên không chịu bộ lọc — nếu lọc, tiêu đề khu sẽ
       // hiện kèm số đếm mà bên dưới trống trơn.
-      if(owner==='blocked'){card.hidden=false;return;}
-      if(currentFilter==='default') show=owner==='unassigned'||owner===uid||owner==='ready';
+      if(owner==='blocked'||owner==='stale'){card.hidden=false;return;}
+      if(currentFilter==='all') show=true;
+      else if(currentFilter==='overdue') show=card.dataset.slaTier==='late';
       else if(currentFilter==='mine') show=owner===uid;
       else if(currentFilter==='unassigned') show=owner==='unassigned';
       else if(currentFilter.indexOf('station:')===0) show=card.dataset.station===currentFilter.split(':')[1];
@@ -96,7 +103,20 @@
       card.hidden=!show;
     });
   }
-  document.getElementById('kdsFilters').addEventListener('click',function(e){var b=e.target.closest('[data-filter]');if(!b)return;currentFilter=b.dataset.filter;this.querySelectorAll('[data-filter]').forEach(function(x){x.classList.toggle('is-active',x===b);});applyFilter();});
+  // Lọc nằm ở 2 chỗ (4 chip chính + dropdown Bộ lọc) nhưng chỉ một lựa chọn có hiệu lực.
+  function selectFilter(btn){
+    currentFilter=btn.dataset.filter;
+    localStorage.setItem('kdsFilter',currentFilter);   // nhớ qua mỗi lần tải lại: lúc đông không ai muốn chọn lại
+    document.querySelectorAll('#kdsFilters [data-filter],#kdsMore [data-filter]')
+      .forEach(function(x){x.classList.toggle('is-active',x===btn);});
+    var more=document.getElementById('kdsMore');
+    more.classList.toggle('has-active',!!more.querySelector('[data-filter].is-active'));
+    applyFilter();
+  }
+  document.querySelectorAll('#kdsFilters [data-filter],#kdsMore [data-filter]').forEach(function(b){
+    b.addEventListener('click',function(){selectFilter(b);document.getElementById('kdsMore').open=false;});
+    if(b.dataset.filter===currentFilter) selectFilter(b);
+  });
   (function(){var root=document.getElementById('kdsDensity'),btns=root.querySelectorAll('[data-dens]');function apply(){var compact=localStorage.getItem('kdsCompact')==='1';board.classList.toggle('is-compact',compact);btns.forEach(function(b){b.classList.toggle('is-active',b.dataset.dens===(compact?'1':'0'));});}btns.forEach(function(b){b.addEventListener('click',function(){localStorage.setItem('kdsCompact',b.dataset.dens);apply();});});apply();})();
   function modal(id,trigger){var m=document.getElementById(id);m.querySelector('[data-item-input]').value=trigger.dataset.itemId;m.querySelector('[data-modal-name]').textContent=trigger.dataset.name;m.dataset.productId=trigger.dataset.productId||'';m.hidden=false;m.querySelector('select').focus();}
   function close(m){m.hidden=true;m.querySelector('form').reset();var other=m.querySelector('.js-other-reason');if(other)other.hidden=true;

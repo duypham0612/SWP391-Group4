@@ -1,9 +1,8 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
-<article class="card kds-card kds-${cardItem.slaTier}" data-kds-item-id="${cardItem.orderItemId}" data-owner="${cardItem.baristaId}" data-station="${cardItem.station}" data-order-type="${cardItem.orderType}" data-priority="${cardItem.priority}" data-sla-tier="${cardItem.slaTier}">
+<article class="card kds-card kds-${peakMode ? 'ok' : cardItem.slaTier}" data-kds-item-id="${cardItem.orderItemId}" data-owner="${cardItem.baristaId}" data-station="${cardItem.station}" data-order-type="${cardItem.orderType}" data-priority="${cardItem.priority}" data-sla-tier="${cardItem.slaTier}">
     <jsp:include page="_kdsCardHeader.jsp" />
-    <div class="kds-assignee"><strong>Pha bởi:</strong> <c:out value="${cardItem.baristaName}" /><span>· nhận lúc ${cardItem.startedDisplay}</span></div>
-    <c:if test="${cardItem.makingSeconds ne null}"><div class="kds-clock kds-clock--making">Đang pha ${cardItem.makingDisplay}</div></c:if>
+    <div class="kds-assignee"><strong>Pha bởi:</strong> <c:out value="${cardItem.baristaName}" /><span>· nhận lúc ${cardItem.startedDisplay}<c:if test="${cardItem.makingSeconds ne null}"> · đang pha ${cardItem.makingDisplay}</c:if></span></div>
     <c:if test="${onShift and cardItem.baristaId == currentUserId}">
         <div class="kds-item-actions">
             <form action="${ctx}/barista/kds" method="post" class="kds-primary-form">
