@@ -49,10 +49,10 @@ Tái dùng `WasteService.WasteSummary` (đã có test) để hiện tổng quan 
 ## Ngày 2 — Bảng "Ly đã pha trong ca" (brew history) ở màn Handover
 Cho barista xem danh sách món đã hoàn tất (READY/SERVED) hôm nay khi bàn giao ca.
 
-- [ ] **C1** `feat(barista): OrderItemDao.findBrewedToday(conn, branchId, fromUtc, toUtc)` — SQL đọc OrderItem có `DoneAt` trong khoảng, join tên món (PreparedStatement, nhận `Connection`).
-- [ ] **C2** `feat(barista): HandoverService.getBrewHistory(branchId) trả danh sách đã pha` — mở connection đọc, đóng thủ công (pattern đọc độc lập).
-- [ ] **C3** `feat(barista): handover.jsp thêm bảng Ly đã pha hôm nay (giờ xong, món, SL)` — bảng JSTL, empty-state khi chưa có.
-- [ ] **C4** ⚙️DB `test(barista): HandoverService.getBrewHistory lọc đúng theo ngày/chi nhánh` — hoặc `@Disabled` nếu chưa có DB test.
+- [x] **C1** `feat(barista): OrderItemDao.findBrewedToday(conn, branchId, fromUtc, toUtc)` — SQL đọc OrderItem có `DoneAt` trong khoảng, join tên món (PreparedStatement, nhận `Connection`).
+- [x] **C2** `feat(barista): HandoverService.getBrewHistory(branchId) trả danh sách đã pha` — mở connection đọc, đóng thủ công (pattern đọc độc lập).
+- [x] **C3** `feat(barista): handover.jsp thêm bảng Ly đã pha hôm nay (giờ xong, món, SL)` — bảng JSTL, empty-state khi chưa có.
+- [x] **C4** ⚙️DB `test(barista): HandoverService.getBrewHistory lọc đúng theo ngày/chi nhánh` — hoặc `@Disabled` nếu chưa có DB test.
 - **Verify:** deploy, pha 1 món tới READY → thấy trong bảng; branch khác không lẫn.
 
 ## Ngày 3 — KPI cá nhân của barista trên Dashboard
@@ -134,7 +134,7 @@ Biểu đồ nhỏ số ly pha xong theo từng giờ trong ngày (thanh CSS, kh
 | Ngày | Chủ đề | Trạng thái |
 |---|---|---|
 | 1 | Widget hao hụt hôm nay (dashboard) | 🟢 |
-| 2 | Brew history (handover) | ⬜ |
+| 2 | Brew history (handover) | 🟢 |
 | 3 | KPI cá nhân barista | 🟢 |
 | 4 | 86 board — lịch sử + tự mở lại | ⬜ |
 | 5 | Pickup — SLA timer | ⬜ |
