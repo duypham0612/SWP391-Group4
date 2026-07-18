@@ -12,6 +12,7 @@ public class Product {
     private boolean active = true;
     private boolean showOnHome = true;   // hiển thị trên trang Home công khai
     private int homeSortOrder = 0;        // thứ tự ưu tiên trong danh mục trên Home (nhỏ = trước)
+    private int prepSeconds = 720;        // thời gian pha chuẩn (giây); nền cho SLA theo món (mặc định 12 phút)
 
     private String categoryName; // join để hiển thị
 
@@ -38,6 +39,12 @@ public class Product {
 
     public int getHomeSortOrder() { return homeSortOrder; }
     public void setHomeSortOrder(int homeSortOrder) { this.homeSortOrder = homeSortOrder; }
+
+    public int getPrepSeconds() { return prepSeconds; }
+    public void setPrepSeconds(int prepSeconds) { this.prepSeconds = prepSeconds; }
+
+    /** Phút (làm tròn) để hiển thị/nhập trên màn admin — EL `div` trả số thực nên tính sẵn ở đây. */
+    public int getPrepMinutes() { return prepSeconds / 60; }
 
     public String getCategoryName() { return categoryName; }
     public void setCategoryName(String categoryName) { this.categoryName = categoryName; }

@@ -73,7 +73,7 @@
                 <thead><tr>
                     <th style="width:44px" data-tt-nosearch><input id="checkAllProducts" type="checkbox" aria-label="Chọn tất cả sản phẩm"></th>
                     <th style="width:60px" data-tt-nosearch>#</th><th style="width:64px" data-tt-nosearch>Ảnh</th><th data-tt-search>Tên</th><th data-tt-search>Danh mục</th>
-                    <th style="width:140px" data-tt-nosearch>Giá gốc</th><th style="width:110px" data-tt-nosearch>Trạng thái</th><th style="width:170px" data-tt-nosearch>Thao tác</th>
+                    <th style="width:140px" data-tt-nosearch>Giá gốc</th><th style="width:110px" data-tt-nosearch>Trạng thái</th><th style="width:100px" data-tt-nosearch>Pha chuẩn</th><th style="width:170px" data-tt-nosearch>Thao tác</th>
                 </tr></thead>
                 <tbody>
                     <c:forEach var="p" items="${products}">
@@ -86,6 +86,7 @@
                             <td>${p.categoryName}</td>
                             <td><fmt:formatNumber value="${p.basePrice}" type="number" maxFractionDigits="0"/> ₫</td>
                             <td data-tt-val="${p.active}"><c:choose><c:when test="${p.active}"><span class="badge badge-ready">Hiển thị</span></c:when><c:otherwise><span class="badge badge-cancelled">Ẩn</span></c:otherwise></c:choose></td>
+                            <td>${p.prepMinutes} phút</td>
                             <td>
                                 <a class="btn btn-ghost btn-sm" href="${ctx}/admin/product?action=edit&id=${p.productId}">Sửa</a>
                                 <a class="btn btn-ghost btn-sm" href="${ctx}/admin/recipe?productId=${p.productId}">Công thức</a>
