@@ -26,7 +26,7 @@
             <div class="card" style="margin-bottom:14px">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
                     <div>
-                        <strong>Đơn #${o.orderId}</strong>
+                        <c:if test="${not empty o.pickupCode}"><span class="kds-code"><c:out value="${o.pickupCode}" /></span> </c:if><strong>Đơn #${o.orderId}</strong>
                         <c:choose>
                             <c:when test="${o.source == 'QR'}"><span class="badge" style="background:var(--caramel);color:#fff">QR</span></c:when>
                             <c:otherwise><span class="badge" style="background:var(--coffee);color:#fff">Quầy</span></c:otherwise>

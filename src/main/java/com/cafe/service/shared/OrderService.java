@@ -48,6 +48,7 @@ public class OrderService {
     private final BillDao billDao = new BillDao();
     private final BillItemDao billItemDao = new BillItemDao();
     private final ProductRecipeDao productRecipeDao = new ProductRecipeDao();
+    private final com.cafe.dao.admin.BranchDao branchDao = new com.cafe.dao.admin.BranchDao();
     private final InventoryService inventoryService = new InventoryService();
 
     /** Một dòng giỏ hàng từ POS/QR. */
@@ -86,6 +87,11 @@ public class OrderService {
                 o.setStatus("ACTIVE");
                 o.setCreatedBy(createdBy);
                 int orderId = orderDao.insert(conn, o);
+
+                // Mã gọi món: sinh ngay trong transaction tạo đơn để KDS/bàn giao/khách QR khớp
+                // đúng ly với đơn. Số thứ tự đếm theo ngày kinh doanh của chi nhánh.
+                String pickupCode = buildPickupCode(conn, branchId, o.getSource(), o.getOrderType());
+                orderDao.updatePickupCode(conn, orderId, pickupCode);
 
                 for (CartLine line : lines) {
                     if (line.quantity <= 0) continue;
@@ -132,6 +138,21 @@ public class OrderService {
                 throw e;
             } finally { conn.setAutoCommit(true); }
         }
+    }
+
+    /**
+     * Sinh mã gọi món dạng {prefix}{seq}: G=đơn QR khách, T=mang đi, D=tại bàn.
+     * seq là thứ tự đơn trong ngày kinh doanh của chi nhánh (đếm ngay sau insert nên gồm cả đơn này).
+     * Chấp nhận rủi ro trùng cực hiếm khi hai đơn commit cùng nano-giây — đủ cho tải một quán.
+     */
+    private String buildPickupCode(Connection conn, int branchId, String source, String orderType)
+            throws SQLException {
+        com.cafe.model.Branch branch = branchDao.findById(conn, branchId);
+        java.time.LocalTime openTime = branch == null ? null : branch.getOpenTime();
+        java.time.LocalDateTime dayStart = com.cafe.common.BusinessDay.startUtc(openTime);
+        int seq = orderDao.countOrdersSince(conn, branchId, dayStart);
+        String prefix = "QR".equals(source) ? "G" : ("TAKEAWAY".equals(orderType) ? "T" : "D");
+        return prefix + seq;
     }
 
     private List<Integer> validateOptions(Connection conn, int productId, List<Integer> optionIds) throws SQLException {
@@ -274,11 +295,16 @@ public class OrderService {
      * song song; scope chi nhánh chặn thao tác chéo chi nhánh.
      */
     public boolean markItemReady(int orderItemId, Integer userId, int sessionBranchId) throws SQLException {
+        return markItemReady(orderItemId, userId, sessionBranchId, null);
+    }
+
+    public boolean markItemReady(int orderItemId, Integer userId, int sessionBranchId,
+                                 String handoverLocation) throws SQLException {
         if (userId == null) return false;
         return tx(conn -> {
             OrderItem it = itemDao.findById(conn, orderItemId);
             if (it == null) return false;
-            int rows = itemDao.completeClaimed(conn, orderItemId, sessionBranchId, userId);
+            int rows = itemDao.completeClaimed(conn, orderItemId, sessionBranchId, userId, handoverLocation);
             if (rows == 0) return false;   // đã READY/SERVED/CANCELLED / khác chi nhánh → không trừ kho
             int branchId = branchOf(it);
             if (!it.isRemakeInventoryReserved()) {

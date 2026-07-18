@@ -123,6 +123,7 @@ public class KdsService {
     public boolean startItem(int orderItemId, Integer userId, int branchId) throws SQLException { return orderService.startItem(orderItemId, userId, branchId); }
     public void bump(int orderItemId, int branchId) throws SQLException { orderService.bumpItem(orderItemId, branchId); }
     public boolean markReady(int orderItemId, Integer userId, int branchId) throws SQLException { return orderService.markItemReady(orderItemId, userId, branchId); }
+    public boolean markReady(int orderItemId, Integer userId, int branchId, String handoverLocation) throws SQLException { return orderService.markItemReady(orderItemId, userId, branchId, handoverLocation); }
 
     public boolean returnToQueue(int orderItemId, Integer userId, int branchId) throws SQLException {
         return orderService.returnItemToQueue(orderItemId, userId, branchId);

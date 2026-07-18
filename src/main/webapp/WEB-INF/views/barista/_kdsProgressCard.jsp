@@ -7,6 +7,12 @@
         <div class="kds-item-actions">
             <form action="${ctx}/barista/kds" method="post" class="kds-primary-form">
                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="markReady"><input type="hidden" name="orderItemId" value="${cardItem.orderItemId}">
+                <label class="kds-handoff">Đặt tại
+                    <select name="handoverLocation" class="kds-handoff__sel">
+                        <option value="">— chọn nơi —</option>
+                        <c:forEach var="loc" items="${handoverLocations}"><option value="${loc}">${loc}</option></c:forEach>
+                    </select>
+                </label>
                 <button type="submit" class="btn btn-primary btn-full" ${cardItem.recipeMissing ? 'disabled' : ''}>Đã pha xong ${cardItem.quantity} món</button>
             </form>
             <div class="kds-subactions">
