@@ -82,6 +82,28 @@ public class OrderItemDao {
         return out;
     }
 
+    /**
+     * Lịch sử các món đã pha xong trong một khoảng thời gian theo giờ UTC.
+     * Chỉ lấy READY/SERVED thuộc đúng chi nhánh; {@code DoneAt} là mốc hoàn tất
+     * để món đã giao vẫn xuất hiện trong bàn giao ca.
+     */
+    public List<OrderItem> findBrewedToday(Connection conn, int branchId,
+                                            java.time.LocalDateTime fromUtc,
+                                            java.time.LocalDateTime toUtc) throws SQLException {
+        List<OrderItem> out = new ArrayList<>();
+        final String sql = SELECT +
+            "WHERE o.BranchId=? AND oi.Status IN ('READY','SERVED') " +
+            "AND oi.DoneAt >= ? AND oi.DoneAt < ? " +
+            "ORDER BY oi.DoneAt DESC, oi.OrderItemId DESC";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setTimestamp(2, Timestamp.valueOf(fromUtc));
+            ps.setTimestamp(3, Timestamp.valueOf(toUtc));
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
+        }
+        return out;
+    }
+
     /** Các món của 1 phiên bàn (cho khách theo dõi). */
     public List<OrderItem> findBySession(Connection conn, int sessionId) throws SQLException {
         List<OrderItem> out = new ArrayList<>();
