@@ -31,6 +31,30 @@
     </div>
 </div>
 
+<h3>Ly đã pha hôm nay</h3>
+<c:choose>
+    <c:when test="${empty brewHistory}">
+        <div class="card empty-state"><div class="icon">∅</div><p>Chưa có món nào hoàn tất hôm nay.</p></div>
+    </c:when>
+    <c:otherwise>
+        <div class="card" style="margin-bottom:18px;padding:0;overflow:auto">
+            <table class="table" style="margin:0;min-width:560px">
+                <thead><tr><th style="width:180px">Giờ xong</th><th>Món</th><th style="width:100px">SL</th><th style="width:120px">Trạng thái</th></tr></thead>
+                <tbody>
+                    <c:forEach var="item" items="${brewHistory}">
+                        <tr>
+                            <td>${item.doneAt}</td>
+                            <td>${item.productName}</td>
+                            <td>${item.quantity}</td>
+                            <td><c:set var="st" value="${item.status}" /><jsp:include page="../layout/_statusBadge.jsp" /></td>
+                        </tr>
+                    </c:forEach>
+                </tbody>
+            </table>
+        </div>
+    </c:otherwise>
+</c:choose>
+
 <div class="card form-card" style="margin-bottom:18px">
     <h3 style="margin-top:0">Ghi bàn giao</h3>
     <form action="${ctx}/barista/handover" method="post">

@@ -30,6 +30,7 @@ public class ShiftHandoverServlet extends HttpServlet {
         try {
             req.setAttribute("handovers", service.getHandovers(branchId));
             req.setAttribute("kpi", service.getKpi(branchId));
+            req.setAttribute("brewHistory", service.getBrewHistory(branchId));
             if (u != null) {
                 req.setAttribute("clockStatus", attendanceService.getMyShiftStatus(u.getUserId(), branchId, LocalDate.now()));
             }
