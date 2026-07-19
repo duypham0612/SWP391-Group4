@@ -26,12 +26,12 @@
             <div class="card" style="margin-bottom:14px">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
                     <div>
-                        <strong>Đơn #${o.orderId}</strong>
+                        <c:if test="${not empty o.pickupCode}"><span class="kds-code"><c:out value="${o.pickupCode}" /></span> </c:if><strong>Đơn #${o.orderId}</strong>
                         <c:choose>
                             <c:when test="${o.source == 'QR'}"><span class="badge" style="background:var(--caramel);color:#fff">QR</span></c:when>
                             <c:otherwise><span class="badge" style="background:var(--coffee);color:#fff">Quầy</span></c:otherwise>
                         </c:choose>
-                        <c:if test="${not empty o.tableNumber}"><span class="badge" style="background:var(--latte)">Bàn ${o.tableNumber}</span></c:if>
+                        <c:if test="${not empty o.tableNumber}"><span class="badge" style="background:var(--latte)"><c:out value="${o.tableNumber}" /></span></c:if>
                         <c:if test="${o.orderType == 'TAKEAWAY'}"><span class="badge" style="background:var(--latte)">Mang đi</span></c:if>
                         <c:choose>
                             <c:when test="${o.paymentStatus == 'PAID'}"><span class="badge badge-ready">Đã thanh toán</span></c:when>
@@ -55,14 +55,26 @@
                     </c:choose>
                 </div>
                 <table class="table" style="margin-top:10px">
-                    <thead><tr><th>Món</th><th style="width:70px">SL</th><th style="width:120px">Trạng thái</th><th>Ghi chú</th></tr></thead>
+                    <thead><tr><th>Món</th><th style="width:70px">SL</th><th style="width:120px">Trạng thái</th><th>Ghi chú</th><th style="width:110px">Thao tác</th></tr></thead>
                     <tbody>
                         <c:forEach var="it" items="${o.items}">
                             <tr>
                                 <td>${it.productName}</td>
                                 <td>${it.quantity}</td>
                                 <td><jsp:include page="../layout/_statusBadge.jsp"><jsp:param name="status" value="${it.status}"/></jsp:include></td>
-                                <td>${it.note}</td>
+                                <td><c:if test="${it.hasIssue and not empty it.issueReason}"><span style="color:var(--st-cancelled)">⚠ <c:out value="${it.issueReason}" /></span><br></c:if><c:out value="${it.note}" /></td>
+                                <td>
+                                    <%-- Món bị chặn (hết nguyên liệu/hỏng máy) không tự thoát; Thu ngân huỷ để đóng đơn. --%>
+                                    <c:if test="${it.status == 'BLOCKED'}">
+                                        <form action="${ctx}/cashier/inbox" method="post" onsubmit="return confirm('Huỷ món ${it.productName}? Món này đang bị chặn.');">
+                                            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                            <input type="hidden" name="action" value="cancelItem">
+                                            <input type="hidden" name="orderItemId" value="${it.orderItemId}">
+                                            <input type="hidden" name="reason" value="Huỷ món bị chặn từ Inbox">
+                                            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--st-cancelled)">Huỷ món</button>
+                                        </form>
+                                    </c:if>
+                                </td>
                             </tr>
                         </c:forEach>
                     </tbody>

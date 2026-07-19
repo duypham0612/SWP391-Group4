@@ -27,13 +27,48 @@
 <jsp:include page="../layout/_baristaShiftBanner.jsp" />
 
 <div class="${onShift ? '' : 'is-viewonly'}">
+<%-- ===== Mẻ pha sẵn quá hạn: cắt theo ExpiresAt, không theo MadeAt ===== --%>
+<c:if test="${expiredBatchCount > 0}">
+    <div class="card prep-expired" style="margin-bottom:var(--s4)">
+        <div class="prep-expired__head">
+            <div>
+                <h3 style="margin:0">Mẻ pha sẵn quá hạn</h3>
+                <p class="muted" style="margin:4px 0 0">${expiredBatchCount} mẻ cần kiểm tra và ghi hao hụt nếu còn trong tủ.</p>
+            </div>
+            <span class="badge badge-cancelled">Quá hạn</span>
+        </div>
+        <div class="prep-expired__list">
+            <c:forEach var="b" items="${expiredBatches}">
+                <div class="prep-expired__item">
+                    <div class="prep-expired__main">
+                        <strong>#${b.prepBatchId} · ${b.preppedIngredientName}</strong>
+                        <span>Hạn ${b.expiresAtDisplay} · sản lượng ${b.quantityProduced} ${b.preppedIngredientUnit} · tồn hiện có ${b.branchQuantityOnHand} ${b.preppedIngredientUnit}</span>
+                    </div>
+                    <c:choose>
+                        <c:when test="${b.hasSuggestedWaste}">
+                            <c:url var="expiredWasteUrl" value="/barista/waste">
+                                <c:param name="ingredientId" value="${b.preppedIngredientId}" />
+                                <c:param name="qty" value="${b.suggestedWasteQuantity}" />
+                            </c:url>
+                            <a class="btn btn-ghost btn-sm" href="${expiredWasteUrl}">Ghi hao hụt ${b.suggestedWasteQuantity} ${b.preppedIngredientUnit}</a>
+                        </c:when>
+                        <c:otherwise>
+                            <span class="muted">Không đề xuất trừ thêm vì tồn hiện có không dương.</span>
+                        </c:otherwise>
+                    </c:choose>
+                </div>
+            </c:forEach>
+        </div>
+    </div>
+</c:if>
+
 <%-- ===== Checklist: cần pha hôm nay ===== --%>
 <c:set var="needCount" value="0" />
 <c:forEach var="r" items="${checklist}"><c:if test="${r.needPrep}"><c:set var="needCount" value="${needCount + 1}" /></c:if></c:forEach>
 <div class="card prep-checklist" style="margin-bottom:var(--s4)">
     <div class="prep-checklist__head">
         <h3 style="margin:0">Cần pha hôm nay</h3>
-        <span class="muted">${needCount} loại cần pha · ${fn:length(batches)} mẻ hôm nay</span>
+        <span class="muted">${needCount} loại cần pha · ${prepBatchPage.total} mẻ hôm nay</span>
     </div>
     <c:choose>
         <c:when test="${needCount == 0}">
@@ -109,64 +144,128 @@
 
 <%-- ===== Mẻ pha hôm nay ===== --%>
 <h3>Mẻ pha hôm nay</h3>
-<c:choose>
-    <c:when test="${empty batches}">
-        <div class="card empty-state"><div class="icon">∅</div><p>Hôm nay chưa pha mẻ nào.</p></div>
-    </c:when>
-    <c:otherwise>
-        <table class="table">
-            <thead><tr>
-                <th style="width:46px">#</th><th>Nguyên liệu</th><th style="width:140px">Sản lượng</th>
-                <th style="width:150px">Hạn dùng</th><th>Người pha</th><th style="width:110px">Lúc</th>
-                <th style="width:104px">Trạng thái</th><th style="width:240px">Thao tác</th>
-            </tr></thead>
-            <tbody>
-                <c:forEach var="b" items="${batches}">
-                    <tr<c:if test="${b.status == 'CANCELLED'}"> class="row-muted"</c:if>>
-                        <td>${b.prepBatchId}</td>
-                        <td>${b.preppedIngredientName}</td>
-                        <td><strong>${b.quantityProduced}</strong> ${b.preppedIngredientUnit}</td>
-                        <td>
-                            <c:choose>
-                                <c:when test="${b.expiryTier == 'expired'}"><span class="badge badge-cancelled">Hết hạn · ${b.expiresAtDisplay}</span></c:when>
-                                <c:when test="${b.expiryTier == 'soon'}"><span class="badge badge-waiting">Sắp hết · ${b.expiresAtDisplay}</span></c:when>
-                                <c:when test="${b.expiryTier == 'ok'}">${b.expiresAtDisplay}</c:when>
-                                <c:otherwise><span class="muted">—</span></c:otherwise>
-                            </c:choose>
-                        </td>
-                        <td>${b.madeByName}</td>
-                        <td>${b.madeAtDisplay}</td>
-                        <td>
-                            <c:choose>
-                                <c:when test="${b.status == 'CANCELLED'}"><span class="badge badge-cancelled">Đã huỷ</span></c:when>
-                                <c:otherwise><span class="badge badge-ready">Hiệu lực</span></c:otherwise>
-                            </c:choose>
-                        </td>
-                        <td>
-                            <c:if test="${b.status == 'ACTIVE'}">
-                                <form action="${ctx}/barista/prep" method="post" class="prep-row-form"
-                                      onsubmit="return confirm('Cập nhật sản lượng mẻ này? Chênh lệch sẽ ghi vào sổ cái tồn kho.');">
-                                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                                    <input type="hidden" name="action" value="updateBatch">
-                                    <input type="hidden" name="prepBatchId" value="${b.prepBatchId}">
-                                    <input type="number" name="quantityProduced" class="form-control prep-row-qty" min="0.001" step="0.001" value="${b.quantityProduced}" required>
-                                    <button type="submit" class="btn btn-ghost btn-sm">Sửa</button>
-                                </form>
-                                <form action="${ctx}/barista/prep" method="post" style="display:inline"
-                                      onsubmit="return confirm('Huỷ mẻ này? Tồn kho sẽ được hoàn lại qua sổ cái.');">
-                                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                                    <input type="hidden" name="action" value="cancelBatch">
-                                    <input type="hidden" name="prepBatchId" value="${b.prepBatchId}">
-                                    <button type="submit" class="btn btn-ghost btn-sm prep-cancel-btn">Huỷ</button>
-                                </form>
-                            </c:if>
-                        </td>
-                    </tr>
+<div>
+    <form id="prepBatchFilters" class="table-toolbar" action="${ctx}/barista/prep" method="get">
+        <input type="hidden" name="page" value="1">
+        <div class="form-group table-search">
+            <label for="prepBatchSearch">Tìm kiếm</label>
+            <input id="prepBatchSearch" class="form-control" type="search" name="q" value="${fn:escapeXml(prepBatchQuery)}"
+                   placeholder="Mã mẻ, nguyên liệu hoặc người pha" autocomplete="off">
+        </div>
+        <div class="form-group">
+            <label for="prepBatchIngredientFilter">Nguyên liệu</label>
+            <select id="prepBatchIngredientFilter" name="ingredientId" class="form-control tt-filter">
+                <option value="">Tất cả</option>
+                <c:forEach var="i" items="${preppedIngredients}">
+                    <option value="${i.ingredientId}" ${prepBatchIngredientId == i.ingredientId ? 'selected' : ''}>${i.name}</option>
                 </c:forEach>
-            </tbody>
-        </table>
-    </c:otherwise>
-</c:choose>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="prepBatchExpiryFilter">Hạn dùng</label>
+            <select id="prepBatchExpiryFilter" name="expiry" class="form-control tt-filter">
+                <option value="">Tất cả</option>
+                <option value="expired" ${prepBatchExpiry == 'expired' ? 'selected' : ''}>Đã hết hạn</option>
+                <option value="soon" ${prepBatchExpiry == 'soon' ? 'selected' : ''}>Sắp hết hạn</option>
+                <option value="ok" ${prepBatchExpiry == 'ok' ? 'selected' : ''}>Còn hạn</option>
+                <option value="none" ${prepBatchExpiry == 'none' ? 'selected' : ''}>Chưa đặt</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="prepBatchStatusFilter">Trạng thái</label>
+            <select id="prepBatchStatusFilter" name="status" class="form-control tt-filter">
+                <option value="">Tất cả</option>
+                <option value="ACTIVE" ${prepBatchStatus == 'ACTIVE' ? 'selected' : ''}>Hiệu lực</option>
+                <option value="CANCELLED" ${prepBatchStatus == 'CANCELLED' ? 'selected' : ''}>Đã huỷ</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="prepBatchPageSize">Hiển thị</label>
+            <select id="prepBatchPageSize" name="pageSize" class="form-control tt-size">
+                <option value="10" ${prepBatchPage.pageSize == 10 ? 'selected' : ''}>10</option>
+                <option value="20" ${prepBatchPage.pageSize == 20 ? 'selected' : ''}>20</option>
+                <option value="50" ${prepBatchPage.pageSize == 50 ? 'selected' : ''}>50</option>
+            </select>
+        </div>
+    </form>
+    <table class="table">
+        <thead><tr>
+            <th style="width:46px">#</th><th>Nguyên liệu</th><th style="width:140px">Sản lượng</th>
+            <th style="width:150px">Hạn dùng</th><th>Người pha</th><th style="width:110px">Lúc</th>
+            <th style="width:104px">Trạng thái</th><th style="width:240px">Thao tác</th>
+        </tr></thead>
+        <tbody>
+            <c:choose>
+                <c:when test="${empty batches}">
+                    <tr class="tt-empty"><td colspan="8">Không tìm thấy mẻ pha phù hợp.</td></tr>
+                </c:when>
+                <c:otherwise>
+                    <c:forEach var="b" items="${batches}">
+                        <tr<c:if test="${b.status == 'CANCELLED'}"> class="row-muted"</c:if>>
+                            <td>${b.prepBatchId}</td>
+                            <td>${b.preppedIngredientName}</td>
+                            <td><strong>${b.quantityProduced}</strong> ${b.preppedIngredientUnit}</td>
+                            <td>
+                                <c:choose>
+                                    <c:when test="${b.expiryTier == 'expired'}"><span class="badge badge-cancelled">Hết hạn · ${b.expiresAtDisplay}</span></c:when>
+                                    <c:when test="${b.expiryTier == 'soon'}"><span class="badge badge-waiting">Sắp hết · ${b.expiresAtDisplay}</span></c:when>
+                                    <c:when test="${b.expiryTier == 'ok'}">${b.expiresAtDisplay}</c:when>
+                                    <c:otherwise><span class="muted">—</span></c:otherwise>
+                                </c:choose>
+                            </td>
+                            <td>${b.madeByName}</td>
+                            <td>${b.madeAtDisplay}</td>
+                            <td>
+                                <c:choose>
+                                    <c:when test="${b.status == 'CANCELLED'}"><span class="badge badge-cancelled">Đã huỷ</span></c:when>
+                                    <c:otherwise><span class="badge badge-ready">Hiệu lực</span></c:otherwise>
+                                </c:choose>
+                            </td>
+                            <td>
+                                <c:if test="${b.status == 'ACTIVE'}">
+                                    <form action="${ctx}/barista/prep" method="post" class="prep-row-form"
+                                          onsubmit="return confirm('Cập nhật sản lượng mẻ này? Chênh lệch sẽ ghi vào sổ cái tồn kho.');">
+                                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                        <input type="hidden" name="action" value="updateBatch">
+                                        <input type="hidden" name="prepBatchId" value="${b.prepBatchId}">
+                                        <input type="number" name="quantityProduced" class="form-control prep-row-qty" min="0.001" step="0.001" value="${b.quantityProduced}" required>
+                                        <button type="submit" class="btn btn-ghost btn-sm">Sửa</button>
+                                    </form>
+                                    <form action="${ctx}/barista/prep" method="post" style="display:inline"
+                                          onsubmit="return confirm('Huỷ mẻ này? Tồn kho sẽ được hoàn lại qua sổ cái.');">
+                                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                        <input type="hidden" name="action" value="cancelBatch">
+                                        <input type="hidden" name="prepBatchId" value="${b.prepBatchId}">
+                                        <button type="submit" class="btn btn-ghost btn-sm prep-cancel-btn">Huỷ</button>
+                                    </form>
+                                </c:if>
+                            </td>
+                        </tr>
+                    </c:forEach>
+                </c:otherwise>
+            </c:choose>
+        </tbody>
+    </table>
+    <div class="table-tools-foot">
+        <span class="tt-summary" aria-live="polite">${prepBatchPage.startRow}-${prepBatchPage.endRow} / ${prepBatchPage.total}</span>
+        <c:if test="${prepBatchPage.totalPages > 1}">
+            <div class="pagination" aria-label="Phân trang mẻ pha hôm nay">
+                <c:url var="firstPrepBatchPageUrl" value="/barista/prep"><c:param name="q" value="${prepBatchQuery}" /><c:param name="ingredientId" value="${prepBatchIngredientId}" /><c:param name="expiry" value="${prepBatchExpiry}" /><c:param name="status" value="${prepBatchStatus}" /><c:param name="pageSize" value="${prepBatchPage.pageSize}" /><c:param name="page" value="1" /></c:url>
+                <c:url var="previousPrepBatchPageUrl" value="/barista/prep"><c:param name="q" value="${prepBatchQuery}" /><c:param name="ingredientId" value="${prepBatchIngredientId}" /><c:param name="expiry" value="${prepBatchExpiry}" /><c:param name="status" value="${prepBatchStatus}" /><c:param name="pageSize" value="${prepBatchPage.pageSize}" /><c:param name="page" value="${prepBatchPage.page - 1}" /></c:url>
+                <a class="page" href="${firstPrepBatchPageUrl}" aria-disabled="${not prepBatchPage.hasPrevious}">«</a>
+                <a class="page" href="${previousPrepBatchPageUrl}" aria-disabled="${not prepBatchPage.hasPrevious}">‹</a>
+                <c:forEach var="pageNumber" items="${prepBatchPage.visiblePages}">
+                    <c:url var="prepBatchPageUrl" value="/barista/prep"><c:param name="q" value="${prepBatchQuery}" /><c:param name="ingredientId" value="${prepBatchIngredientId}" /><c:param name="expiry" value="${prepBatchExpiry}" /><c:param name="status" value="${prepBatchStatus}" /><c:param name="pageSize" value="${prepBatchPage.pageSize}" /><c:param name="page" value="${pageNumber}" /></c:url>
+                    <a class="page ${pageNumber == prepBatchPage.page ? 'is-active' : ''}" href="${prepBatchPageUrl}" aria-current="${pageNumber == prepBatchPage.page ? 'page' : 'false'}">${pageNumber}</a>
+                </c:forEach>
+                <c:url var="nextPrepBatchPageUrl" value="/barista/prep"><c:param name="q" value="${prepBatchQuery}" /><c:param name="ingredientId" value="${prepBatchIngredientId}" /><c:param name="expiry" value="${prepBatchExpiry}" /><c:param name="status" value="${prepBatchStatus}" /><c:param name="pageSize" value="${prepBatchPage.pageSize}" /><c:param name="page" value="${prepBatchPage.page + 1}" /></c:url>
+                <c:url var="lastPrepBatchPageUrl" value="/barista/prep"><c:param name="q" value="${prepBatchQuery}" /><c:param name="ingredientId" value="${prepBatchIngredientId}" /><c:param name="expiry" value="${prepBatchExpiry}" /><c:param name="status" value="${prepBatchStatus}" /><c:param name="pageSize" value="${prepBatchPage.pageSize}" /><c:param name="page" value="${prepBatchPage.totalPages}" /></c:url>
+                <a class="page" href="${nextPrepBatchPageUrl}" aria-disabled="${not prepBatchPage.hasNext}">›</a>
+                <a class="page" href="${lastPrepBatchPageUrl}" aria-disabled="${not prepBatchPage.hasNext}">»</a>
+            </div>
+        </c:if>
+    </div>
+</div>
 </div><%-- /is-viewonly --%>
 
 <script>
@@ -398,6 +497,30 @@
       addRow();   // dòng khởi tạo
     }
     syncSubmit();
+  })();
+</script>
+<script>
+  (function(){
+    var form = document.getElementById('prepBatchFilters');
+    if (!form) return;
+    var search = document.getElementById('prepBatchSearch');
+    var page = form.querySelector('input[name="page"]');
+    var timer;
+
+    function submitFromFirstPage(){
+      if (page) page.value = '1';
+      if (form.requestSubmit) form.requestSubmit();
+      else form.submit();
+    }
+
+    if (search) search.addEventListener('input', function(){
+      window.clearTimeout(timer);
+      timer = window.setTimeout(submitFromFirstPage, 350);
+    });
+
+    Array.prototype.forEach.call(form.querySelectorAll('select'), function(control){
+      control.addEventListener('change', submitFromFirstPage);
+    });
   })();
 </script>
 <jsp:include page="../layout/footer.jsp" />

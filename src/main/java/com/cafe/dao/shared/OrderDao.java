@@ -16,7 +16,7 @@ public class OrderDao {
 
     private static final String SELECT =
         "SELECT o.OrderId, o.BranchId, o.TableSessionId, o.CustomerId, o.Source, o.OrderType, o.Status, " +
-        "       o.CreatedBy, o.CreatedAt, dt.TableNumber " +
+        "       o.CreatedBy, o.CreatedAt, o.PickupCode, dt.TableNumber " +
         "FROM sales.Orders o " +
         "LEFT JOIN sales.TableSession ts ON ts.TableSessionId=o.TableSessionId " +
         "LEFT JOIN sales.DiningTable  dt ON dt.DiningTableId=ts.DiningTableId ";
@@ -63,11 +63,59 @@ public class OrderDao {
         return out;
     }
 
+    /**
+     * Số đơn đã tạo ở chi nhánh kể từ mốc (ngày kinh doanh) — để đánh số thứ tự mã gọi món.
+     * Gọi ngay sau insert trong CÙNG transaction nên đã tính cả đơn vừa tạo.
+     */
+    public int countOrdersSince(Connection conn, int branchId, java.time.LocalDateTime sinceUtc) throws SQLException {
+        final String sql = "SELECT COUNT(*) FROM sales.Orders WHERE BranchId=? AND CreatedAt >= ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setTimestamp(2, Timestamp.valueOf(sinceUtc));
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getInt(1) : 0; }
+        }
+    }
+
+    /** Gán mã gọi món cho đơn (sinh lúc tạo đơn). */
+    public void updatePickupCode(Connection conn, int orderId, String code) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("UPDATE sales.Orders SET PickupCode=? WHERE OrderId=?")) {
+            ps.setString(1, code);
+            ps.setInt(2, orderId);
+            ps.executeUpdate();
+        }
+    }
+
     public void updateStatus(Connection conn, int orderId, String status) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement("UPDATE sales.Orders SET Status=? WHERE OrderId=?")) {
             ps.setString(1, status);
             ps.setInt(2, orderId);
             ps.executeUpdate();
+        }
+    }
+
+    /**
+     * ACTIVE → COMPLETED khi MỌI món của đơn đã kết thúc (SERVED/CANCELLED). NGUYÊN TỬ (1 câu UPDATE,
+     * WHERE-guard NOT EXISTS chống race khi 2 barista giao món cuối song song). Trả số dòng đổi (0/1):
+     * ==1 nghĩa là đơn vừa hoàn tất → caller publish order.status_changed. Không đổi nếu còn món chưa xong.
+     */
+    public int completeIfAllItemsFinal(Connection conn, int orderId) throws SQLException {
+        final String sql =
+            "UPDATE sales.Orders SET Status='COMPLETED' " +
+            "WHERE OrderId=? AND Status='ACTIVE' AND NOT EXISTS (" +
+            "  SELECT 1 FROM sales.OrderItem oi WHERE oi.OrderId=? AND oi.Status NOT IN ('SERVED','CANCELLED'))";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, orderId);
+            ps.setInt(2, orderId);
+            return ps.executeUpdate();
+        }
+    }
+
+    /** COMPLETED → ACTIVE khi hoàn tác giao (món SERVED quay lại READY). Trả số dòng đổi (0/1). */
+    public int reopenIfCompleted(Connection conn, int orderId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE sales.Orders SET Status='ACTIVE' WHERE OrderId=? AND Status='COMPLETED'")) {
+            ps.setInt(1, orderId);
+            return ps.executeUpdate();
         }
     }
 
@@ -86,6 +134,7 @@ public class OrderDao {
         if (!rs.wasNull()) o.setCreatedBy(cb);
         Timestamp ca = rs.getTimestamp("CreatedAt");
         if (ca != null) o.setCreatedAt(ca.toLocalDateTime());
+        o.setPickupCode(rs.getString("PickupCode"));
         o.setTableNumber(rs.getString("TableNumber"));
         return o;
     }

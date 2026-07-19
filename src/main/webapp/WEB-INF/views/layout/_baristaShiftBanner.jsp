@@ -3,9 +3,11 @@
 <%-- Banner trực ca cho màn barista. Cần: onShift, clockStatus, clockPostUrl. --%>
 <c:if test="${not onShift}">
     <div class="alert alert-warn barista-offshift">
+        <%-- Một dòng: banner này nằm giữa header và danh sách món, mỗi dòng thừa đẩy việc
+             xuống khỏi tầm mắt. Chi tiết trạng thái ca đã có ở màn Chấm công. --%>
         <div class="barista-offshift__text">
-            <strong>Bạn đang ngoài ca — màn hình chỉ để xem.</strong>
-            <span>${not empty clockStatus.statusText ? clockStatus.statusText : 'Hôm nay bạn chưa được xếp ca.'} Vào ca để bắt đầu thao tác.</span>
+            <strong>Ngoài ca — chỉ xem.</strong>
+            <span>${not empty clockStatus.statusText ? clockStatus.statusText : 'Hôm nay bạn chưa được xếp ca.'}</span>
         </div>
         <c:choose>
             <c:when test="${not empty clockStatus and clockStatus.canClockIn}">
@@ -16,7 +18,7 @@
                 </form>
             </c:when>
             <c:otherwise>
-                <a class="btn btn-ghost" href="${pageContext.request.contextPath}/barista/handover">Tới chấm công →</a>
+                <a class="btn btn-ghost" href="${pageContext.request.contextPath}/barista/shift">Tới chấm công →</a>
             </c:otherwise>
         </c:choose>
     </div>

@@ -16,6 +16,7 @@ public class Order {
     private String status;             // ACTIVE | COMPLETED | CANCELLED
     private Integer createdBy;
     private LocalDateTime createdAt;
+    private String pickupCode;         // mã gọi món (vd D12/T07/G03), sinh lúc tạo đơn
 
     // join / computed
     private String tableNumber;
@@ -49,6 +50,9 @@ public class Order {
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime v) { this.createdAt = v; }
 
+    public String getPickupCode() { return pickupCode; }
+    public void setPickupCode(String v) { this.pickupCode = v; }
+
     public String getTableNumber() { return tableNumber; }
     public void setTableNumber(String v) { this.tableNumber = v; }
 
@@ -71,7 +75,7 @@ public class Order {
 
     /**
      * Huỷ được khi đơn còn ≥1 món chưa huỷ VÀ mọi món chưa huỷ đều còn WAITING
-     * (barista chưa nhận pha). Một khi có món MAKING/READY/SERVED → không huỷ được (R5).
+     * (barista chưa nhận pha). Một khi có món MAKING/READY/PICKED_UP/SERVED → không huỷ được.
      */
     public boolean isCancellable() {
         boolean any = false;

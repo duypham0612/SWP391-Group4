@@ -10,6 +10,7 @@ public class KdsTicket {
     private int orderId;
     private String tableNumber;
     private int waitedSeconds;
+    private int orderPendingCount;      // tổng món chưa xong (WAITING+MAKING) của CẢ đơn — cho nút "Xong cả đơn"
     private final List<OrderItem> items = new ArrayList<>();
 
     public KdsTicket(OrderItem firstItem) {
@@ -36,6 +37,12 @@ public class KdsTicket {
     public List<OrderItem> getItems() { return items; }
 
     public int getItemCount() { return items.size(); }
+
+    /** Tổng món chưa xong của CẢ đơn (cả 2 cột) — mặc định = số món cột này nếu chưa set. */
+    public int getOrderPendingCount() { return orderPendingCount > 0 ? orderPendingCount : items.size(); }
+    public void setOrderPendingCount(int v) { this.orderPendingCount = v; }
+    /** Đơn có món nằm ở cột còn lại (KDS 2 cột) → nút "Xong cả đơn" ảnh hưởng cả cột kia. */
+    public boolean isSpansBothColumns() { return orderPendingCount > items.size(); }
 
     public void addItem(OrderItem item) {
         items.add(item);

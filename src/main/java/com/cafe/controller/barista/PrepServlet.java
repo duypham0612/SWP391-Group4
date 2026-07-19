@@ -7,6 +7,7 @@ import com.cafe.common.SessionUtil;
 import com.cafe.model.Ingredient;
 import com.cafe.model.User;
 import com.cafe.service.barista.PrepService;
+import com.cafe.service.shared.InventoryService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -153,9 +154,26 @@ public class PrepServlet extends HttpServlet {
     private void forwardPage(HttpServletRequest req, HttpServletResponse resp, int branchId)
             throws ServletException, IOException, SQLException {
         List<Ingredient> prepped = service.getPreppedIngredients();
+        String batchQuery = textParam(req, "q", 100);
+        int batchIngredientId = positiveIntParam(req, "ingredientId", 0);
+        String batchExpiry = allowedParam(req, "expiry", "expired", "soon", "ok", "none");
+        String batchStatus = allowedParam(req, "status", "ACTIVE", "CANCELLED");
+        int batchPageSize = pageSizeParam(req);
+        int requestedBatchPage = positiveIntParam(req, "page", 1);
+        InventoryService.PrepBatchPage batchPage = service.getTodayBatchPage(branchId, batchQuery,
+                batchIngredientId, batchExpiry, batchStatus, requestedBatchPage, batchPageSize);
+        List<com.cafe.model.PrepBatch> expiredBatches = service.getExpiredActiveBatches(branchId);
+
         req.setAttribute("preppedIngredients", prepped);
         req.setAttribute("checklist", service.getPrepChecklist(branchId));
-        req.setAttribute("batches", service.getTodayBatches(branchId));
+        req.setAttribute("expiredBatches", expiredBatches);
+        req.setAttribute("expiredBatchCount", expiredBatches.size());
+        req.setAttribute("batches", batchPage.getBatches());
+        req.setAttribute("prepBatchPage", batchPage);
+        req.setAttribute("prepBatchQuery", batchQuery);
+        req.setAttribute("prepBatchIngredientId", batchIngredientId);
+        req.setAttribute("prepBatchExpiry", batchExpiry);
+        req.setAttribute("prepBatchStatus", batchStatus);
         req.setAttribute("recipeJson", service.getRecipeJson(prepped));
         req.setAttribute("rawOnHandJson", service.getRawOnHandJson(branchId));
         req.setAttribute("pageTitle", "Pha sẵn nguyên liệu");
@@ -197,6 +215,33 @@ public class PrepServlet extends HttpServlet {
     private static int len(String[] a) { return a == null ? 0 : a.length; }
     private static String value(String[] a, int i) { return a != null && i < a.length && a[i] != null ? a[i] : ""; }
     private static boolean blank(String s) { return s == null || s.isBlank(); }
+
+    private static String textParam(HttpServletRequest req, String name, int maxLength) {
+        String value = req.getParameter(name);
+        if (value == null) return "";
+        value = value.trim();
+        return value.length() <= maxLength ? value : value.substring(0, maxLength);
+    }
+
+    private static String allowedParam(HttpServletRequest req, String name, String... allowed) {
+        String value = textParam(req, name, 20);
+        for (String item : allowed) if (item.equals(value)) return value;
+        return "";
+    }
+
+    private static int positiveIntParam(HttpServletRequest req, String name, int fallback) {
+        try {
+            int value = Integer.parseInt(req.getParameter(name));
+            return value > 0 ? value : fallback;
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    private static int pageSizeParam(HttpServletRequest req) {
+        int value = positiveIntParam(req, "pageSize", 10);
+        return value == 20 || value == 50 ? value : 10;
+    }
 
     private static String json(String s) {
         if (s == null) return "";

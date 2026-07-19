@@ -2,6 +2,7 @@ package com.cafe.common;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -35,5 +36,21 @@ class ShiftHoursTest {
     @Test
     void weekly_boundary_blocks_above_limit() {
         assertTrue(ShiftHours.exceedsWeekly(48.5));
+    }
+
+    @Test
+    void worked_returns_zero_when_missing_or_negative() {
+        LocalDateTime start = LocalDateTime.parse("2026-07-19T08:00:00");
+
+        assertEquals(0d, ShiftHours.worked(null, start));
+        assertEquals(0d, ShiftHours.worked(start, start.minusHours(1)));
+    }
+
+    @Test
+    void worked_rounds_to_one_decimal() {
+        LocalDateTime start = LocalDateTime.parse("2026-07-19T08:00:00");
+        LocalDateTime end = LocalDateTime.parse("2026-07-19T12:20:00");
+
+        assertEquals(4.3, ShiftHours.worked(start, end));
     }
 }
