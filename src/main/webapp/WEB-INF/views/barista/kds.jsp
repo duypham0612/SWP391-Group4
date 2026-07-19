@@ -2,43 +2,47 @@
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <c:set var="wideLayout" value="true" scope="request" />
+<c:set var="bodyClass" value="page-kds" scope="request" />
 <jsp:include page="../layout/header.jsp" />
-
-<%-- Header một dòng: danh sách món phải xuất hiện càng sớm càng tốt trên màn quầy. --%>
-<div class="kds-head">
-    <h1>Quầy pha chế</h1>
-    <div id="kdsConnection" class="kds-connection" role="status"><span class="kds-refresh__dot"></span><span>Đang kết nối</span></div>
-</div>
+<h1 class="visually-hidden">Quầy pha chế</h1>
 
 <jsp:include page="../layout/_baristaShiftBanner.jsp" />
 
 <div class="kds-toolbar">
-    <div class="kds-filters" id="kdsFilters" role="group" aria-label="Lọc món">
-        <button type="button" class="chip-filter is-active" data-filter="all">Tất cả</button>
-        <button type="button" class="chip-filter" data-filter="mine">Món của tôi</button>
-        <button type="button" class="chip-filter" data-filter="unassigned">Chưa nhận</button>
-        <button type="button" class="chip-filter" data-filter="overdue">Trễ giờ</button>
+    <div class="kds-filters" id="kdsOwnerFilters" role="group" aria-label="Lọc theo người phụ trách">
+        <button type="button" class="chip-filter is-active" data-filter-group="owner" data-filter-value="all" aria-pressed="true">Tất cả món</button>
+        <button type="button" class="chip-filter" data-filter-group="owner" data-filter-value="mine" aria-pressed="false">Món của tôi</button>
+        <button type="button" class="chip-filter" data-filter-group="owner" data-filter-value="unassigned" aria-pressed="false">Chưa nhận</button>
     </div>
-    <%-- Lọc theo quầy/loại đơn là cấu hình đầu ca, không phải thao tác thường xuyên → gom vào dropdown. --%>
-    <details class="kds-more" id="kdsMore">
-        <summary class="chip-filter">Bộ lọc</summary>
+    <button type="button" class="chip-filter chip-filter--urgent" id="kdsUrgencyFilter" data-filter-group="urgency" data-filter-value="late" aria-pressed="false">Trễ giờ</button>
+    <details class="kds-more" id="kdsMoreFilters">
+        <summary class="chip-filter">Quầy &amp; loại đơn <span class="kds-filter-badge" id="kdsFilterBadge" hidden></span></summary>
         <div class="kds-more__panel">
-            <span class="kds-more__label">Quầy</span>
-            <button type="button" class="chip-filter" data-filter="station:COFFEE">Quầy cà phê</button>
-            <button type="button" class="chip-filter" data-filter="station:TEA">Quầy trà</button>
-            <button type="button" class="chip-filter" data-filter="station:BLENDER">Máy xay</button>
-            <span class="kds-more__label">Loại đơn</span>
-            <button type="button" class="chip-filter" data-filter="type:DINE_IN">Tại bàn</button>
-            <button type="button" class="chip-filter" data-filter="type:TAKEAWAY">Mang đi</button>
-            <button type="button" class="chip-filter" data-filter="type:DELIVERY">Giao hàng</button>
+            <label class="kds-filter-field" for="kdsStationFilter"><span>Quầy</span>
+                <select id="kdsStationFilter" data-filter-select="station">
+                    <option value="all">Tất cả quầy</option>
+                    <option value="COFFEE">Quầy cà phê</option>
+                    <option value="TEA">Quầy trà</option>
+                    <option value="BLENDER">Máy xay</option>
+                </select>
+            </label>
+            <label class="kds-filter-field" for="kdsOrderTypeFilter"><span>Loại đơn</span>
+                <select id="kdsOrderTypeFilter" data-filter-select="orderType">
+                    <option value="all">Tất cả loại đơn</option>
+                    <option value="DINE_IN">Tại bàn</option>
+                    <option value="TAKEAWAY">Mang đi</option>
+                    <option value="DELIVERY">Giao hàng</option>
+                </select>
+            </label>
+            <button type="button" class="btn btn-ghost btn-sm btn-full" id="kdsClearFilters">Xóa bộ lọc</button>
         </div>
     </details>
-    <div class="seg" id="kdsDensity" role="group" aria-label="Mật độ hiển thị">
-        <button type="button" class="seg__btn" data-dens="0">Thoáng</button><button type="button" class="seg__btn" data-dens="1">Gọn</button>
+    <div id="kdsConnection" class="kds-connection" role="status">
+        <span class="kds-refresh__dot"></span><span>Đang kết nối</span>
     </div>
 </div>
 
-<div id="kdsBoard" class="kds-board" data-user-id="${currentUserId}" aria-live="polite">
+<div id="kdsBoard" class="kds-board" data-user-id="${currentUserId}" data-endpoint="${ctx}/barista/kds" aria-busy="false">
     <jsp:include page="kds_cards.jsp" />
 </div>
 <div id="kdsLiveNotice" class="kds-live-notice" role="status" aria-live="assertive" hidden></div>
@@ -76,78 +80,5 @@
     </div>
 </div>
 
-<script>
-(function(){
-  var ctx='${ctx}', board=document.getElementById('kdsBoard'), connection=document.getElementById('kdsConnection');
-  var currentFilter=localStorage.getItem('kdsFilter')||'all', refreshing=false, suppressUntil=0, known=readIds(), tiers=readTiers(),signatures=readSignatures(),noticeTimer;
-  function readIds(){ var ids={}; if(board) board.querySelectorAll('[data-kds-item-id]').forEach(function(el){ids[el.dataset.kdsItemId]=true;}); return ids; }
-  function readTiers(){var out={};board.querySelectorAll('[data-kds-item-id]').forEach(function(el){out[el.dataset.kdsItemId]=el.dataset.slaTier;});return out;}
-  function signature(el){var copy=el.cloneNode(true);copy.querySelectorAll('.kds-sla,.kds-clock,.kds-meta-row,.kds-ready-facts').forEach(function(x){x.remove()});return copy.textContent.replace(/\s+/g,' ').trim();}
-  function readSignatures(){var out={};board.querySelectorAll('[data-kds-item-id]').forEach(function(el){out[el.dataset.kdsItemId]=signature(el);});return out;}
-  function notice(text){var el=document.getElementById('kdsLiveNotice');el.textContent=text;el.hidden=false;clearTimeout(noticeTimer);noticeTimer=setTimeout(function(){el.hidden=true},5000);}
-  function markNew(){ var added=0,urgent=0,priority=0,changed=0,removed=0,next=readIds();board.querySelectorAll('[data-kds-item-id]').forEach(function(el){var id=el.dataset.kdsItemId;if(!known[id]){el.classList.add('kds-new');added++;if(el.dataset.priority==='true')priority++;}else if(signatures[id]&&signatures[id]!==signature(el))changed++;if(tiers[id]&&tiers[id]!==el.dataset.slaTier&&(el.dataset.slaTier==='warn'||el.dataset.slaTier==='late'))urgent++;});Object.keys(known).forEach(function(id){if(!next[id])removed++;});if(priority)notice('Có '+priority+' món làm lại ưu tiên.');else if(urgent)notice('Có '+urgent+' dòng món gần hoặc quá SLA.');else if(added)notice('Có '+added+' dòng món mới.');else if(removed)notice('Một món đã được nhân viên nhận hoặc đơn đã thay đổi.');else if(changed)notice('Ghi chú hoặc thông tin món vừa được cập nhật.');known=next;tiers=readTiers();signatures=readSignatures(); }
-  function setConnection(ok){ connection.classList.toggle('is-offline',!ok); connection.querySelector('span:last-child').textContent=ok?'Đang kết nối':'Mất kết nối — dữ liệu có thể chưa cập nhật'; }
-  function applyFilter(){
-    var uid=board.dataset.userId;
-    board.querySelectorAll('[data-kds-item-id]').forEach(function(card){
-      var owner=card.dataset.owner, show=true;
-      // Món "Cần xử lý" nằm ngoài hàng chờ nên không chịu bộ lọc — nếu lọc, tiêu đề khu sẽ
-      // hiện kèm số đếm mà bên dưới trống trơn.
-      if(owner==='blocked'||owner==='stale'){card.hidden=false;return;}
-      if(currentFilter==='all') show=true;
-      else if(currentFilter==='overdue') show=card.dataset.slaTier==='late';
-      else if(currentFilter==='mine') show=owner===uid;
-      else if(currentFilter==='unassigned') show=owner==='unassigned';
-      else if(currentFilter.indexOf('station:')===0) show=card.dataset.station===currentFilter.split(':')[1];
-      else if(currentFilter.indexOf('type:')===0) show=card.dataset.orderType===currentFilter.split(':')[1];
-      card.hidden=!show;
-    });
-  }
-  // Lọc nằm ở 2 chỗ (4 chip chính + dropdown Bộ lọc) nhưng chỉ một lựa chọn có hiệu lực.
-  function selectFilter(btn){
-    currentFilter=btn.dataset.filter;
-    localStorage.setItem('kdsFilter',currentFilter);   // nhớ qua mỗi lần tải lại: lúc đông không ai muốn chọn lại
-    document.querySelectorAll('#kdsFilters [data-filter],#kdsMore [data-filter]')
-      .forEach(function(x){x.classList.toggle('is-active',x===btn);});
-    var more=document.getElementById('kdsMore');
-    more.classList.toggle('has-active',!!more.querySelector('[data-filter].is-active'));
-    applyFilter();
-  }
-  document.querySelectorAll('#kdsFilters [data-filter],#kdsMore [data-filter]').forEach(function(b){
-    b.addEventListener('click',function(){selectFilter(b);document.getElementById('kdsMore').open=false;});
-    if(b.dataset.filter===currentFilter) selectFilter(b);
-  });
-  (function(){var root=document.getElementById('kdsDensity'),btns=root.querySelectorAll('[data-dens]');function apply(){var compact=localStorage.getItem('kdsCompact')==='1';board.classList.toggle('is-compact',compact);btns.forEach(function(b){b.classList.toggle('is-active',b.dataset.dens===(compact?'1':'0'));});}btns.forEach(function(b){b.addEventListener('click',function(){localStorage.setItem('kdsCompact',b.dataset.dens);apply();});});apply();})();
-  function modal(id,trigger){var m=document.getElementById(id);m.querySelector('[data-item-input]').value=trigger.dataset.itemId;m.querySelector('[data-modal-name]').textContent=trigger.dataset.name;m.dataset.productId=trigger.dataset.productId||'';m.hidden=false;m.querySelector('select').focus();}
-  function close(m){m.hidden=true;m.querySelector('form').reset();var other=m.querySelector('.js-other-reason');if(other)other.hidden=true;
-    var ing=m.querySelector('.js-ingredients'),note=m.querySelector('.js-blocking-note');
-    if(ing){ing.hidden=true;ing.querySelector('[data-ingredient-slot]').innerHTML='';}
-    if(note)note.hidden=true;}
-  document.addEventListener('click',function(e){var i=e.target.closest('.js-issue'),r=e.target.closest('.js-remake'),x=e.target.closest('[data-close]');if(i)modal('issueModal',i);if(r)modal('remakeModal',r);if(x)close(x.closest('.kds-modal'));});
-  // Lý do quyết định form hiện gì: hết nguyên liệu cần tick nguyên liệu (để ghi sổ kho),
-  // các lý do chặn món chỉ cần báo trước rằng món sẽ rời hàng chờ.
-  var BLOCKING=['EQUIPMENT','DISCONTINUED'];
-  document.querySelector('#issueModal select').addEventListener('change',async function(){
-    var m=document.getElementById('issueModal'),v=this.value;
-    var other=m.querySelector('.js-other-reason');other.hidden=v!=='OTHER';other.querySelector('input').required=v==='OTHER';
-    var ing=m.querySelector('.js-ingredients'),slot=ing.querySelector('[data-ingredient-slot]');
-    var note=m.querySelector('.js-blocking-note');
-    note.hidden=BLOCKING.indexOf(v)<0;
-    if(v!=='OUT_OF_STOCK'){ing.hidden=true;slot.innerHTML='';return;}
-    ing.hidden=false;slot.textContent='Đang tải nguyên liệu…';
-    try{var r=await fetch(ctx+'/barista/kds?partial=recipe&productId='+encodeURIComponent(m.dataset.productId),{credentials:'same-origin'});
-      if(!r.ok)throw new Error();slot.innerHTML=await r.text();}
-    catch(e){slot.textContent='Không tải được danh sách nguyên liệu. Vui lòng thử lại.';}
-  });
-  document.addEventListener('keydown',function(e){if(e.key==='Escape')document.querySelectorAll('.kds-modal:not([hidden])').forEach(close);});
-  async function postForm(form){
-    if(form.dataset.busy==='1')return; form.dataset.busy='1'; var buttons=form.querySelectorAll('button');buttons.forEach(function(b){b.disabled=true;b.classList.add('is-loading');});
-    suppressUntil=Date.now()+1800;var body=new FormData(form);body.append('ajax','1');
-    try{var res=await fetch(form.action,{method:'POST',body:body,credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest'}});if(!res.ok)throw new Error();board.innerHTML=await res.text();markNew();applyFilter();setConnection(true);var m=form.closest('.kds-modal');if(m)close(m);}catch(err){setConnection(false);form.submit();}
-  }
-  document.addEventListener('submit',function(e){var form=e.target;if(!form.matches('#kdsBoard form,.kds-modal form'))return;e.preventDefault();var msg=form.dataset.confirm;if(msg&&!confirm(msg))return;postForm(form);});
-  async function refresh(){if(refreshing||document.visibilityState==='hidden'||Date.now()<suppressUntil)return;refreshing=true;try{var res=await fetch(ctx+'/barista/kds?partial=1',{credentials:'same-origin'});if(!res.ok)throw new Error();board.innerHTML=await res.text();markNew();applyFilter();setConnection(true);}catch(e){setConnection(false);}finally{refreshing=false;}}
-  setInterval(refresh,5000);window.addEventListener('online',refresh);window.addEventListener('offline',function(){setConnection(false);});applyFilter();
-})();
-</script>
+<script src="${ctx}/assets/js/kds-board.js?v=${applicationScope.assetVersion}" defer></script>
 <jsp:include page="../layout/footer.jsp" />

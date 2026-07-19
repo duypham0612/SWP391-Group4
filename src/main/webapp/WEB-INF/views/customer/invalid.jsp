@@ -5,7 +5,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mã QR không hợp lệ</title>
-<link rel="stylesheet" href="${pageContext.request.contextPath}/assets/css/cafe-theme.css">
+<link rel="stylesheet" href="${pageContext.request.contextPath}/assets/css/cafe-theme.css?v=${applicationScope.assetVersion}">
 <style>body{background:var(--foam)} .wrap{max-width:480px;margin:40px auto;padding:0 18px;text-align:center}</style>
 </head>
 <body>

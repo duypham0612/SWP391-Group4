@@ -108,7 +108,7 @@ public class WasteServlet extends HttpServlet {
         String logQuery = textParam(req, "q", 100);
         String logWasteType = allowedParam(req, "wasteType", "SPILL", "EXPIRED", "REMAKE", "OTHER");
         String logStatus = allowedParam(req, "status", "ACTIVE", "VOIDED");
-        int logPageSize = pageSizeParam(req);
+        int logPageSize = pageSize();
         int requestedLogPage = positiveIntParam(req, "page", 1);
 
         // Tổng quan giữ nguyên toàn bộ phạm vi; bảng nhật ký thì chỉ lấy đúng trang từ DB.
@@ -271,9 +271,9 @@ public class WasteServlet extends HttpServlet {
         }
     }
 
-    private static int pageSizeParam(HttpServletRequest req) {
-        int value = positiveIntParam(req, "pageSize", 10);
-        return value == 20 || value == 50 ? value : 10;
+    /** Nhật ký luôn hiển thị 5 dòng/trang để dễ theo dõi tại quầy. */
+    private static int pageSize() {
+        return 5;
     }
 
     public static class WasteRowForm {

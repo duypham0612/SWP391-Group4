@@ -272,14 +272,6 @@
                         <option value="VOIDED" ${wasteLogStatus == 'VOIDED' ? 'selected' : ''}>Đã huỷ</option>
                     </select>
                 </div>
-                <div class="form-group">
-                    <label for="wasteLogPageSize">Hiển thị</label>
-                    <select id="wasteLogPageSize" name="pageSize" class="form-control tt-size">
-                        <option value="10" ${wasteLogPage.pageSize == 10 ? 'selected' : ''}>10</option>
-                        <option value="20" ${wasteLogPage.pageSize == 20 ? 'selected' : ''}>20</option>
-                        <option value="50" ${wasteLogPage.pageSize == 50 ? 'selected' : ''}>50</option>
-                    </select>
-                </div>
             </form>
             <div class="table-scroll">
                 <table class="table waste-table">
@@ -348,28 +340,28 @@
                     <div class="pagination" aria-label="Phân trang nhật ký hao hụt">
                         <c:url var="firstWasteLogPageUrl" value="/barista/waste">
                             <c:param name="q" value="${wasteLogQuery}" /><c:param name="wasteType" value="${wasteLogWasteType}" />
-                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" /><c:param name="page" value="1" />
+                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="page" value="1" />
                         </c:url>
                         <c:url var="previousWasteLogPageUrl" value="/barista/waste">
                             <c:param name="q" value="${wasteLogQuery}" /><c:param name="wasteType" value="${wasteLogWasteType}" />
-                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" /><c:param name="page" value="${wasteLogPage.page - 1}" />
+                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="page" value="${wasteLogPage.page - 1}" />
                         </c:url>
                         <a class="page" href="${firstWasteLogPageUrl}" aria-disabled="${not wasteLogPage.hasPrevious}">«</a>
                         <a class="page" href="${previousWasteLogPageUrl}" aria-disabled="${not wasteLogPage.hasPrevious}">‹</a>
                         <c:forEach var="pageNumber" items="${wasteLogPage.visiblePages}">
                             <c:url var="wasteLogPageUrl" value="/barista/waste">
                                 <c:param name="q" value="${wasteLogQuery}" /><c:param name="wasteType" value="${wasteLogWasteType}" />
-                                <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" /><c:param name="page" value="${pageNumber}" />
+                                <c:param name="status" value="${wasteLogStatus}" /><c:param name="page" value="${pageNumber}" />
                             </c:url>
                             <a class="page ${pageNumber == wasteLogPage.page ? 'is-active' : ''}" href="${wasteLogPageUrl}" aria-current="${pageNumber == wasteLogPage.page ? 'page' : 'false'}">${pageNumber}</a>
                         </c:forEach>
                         <c:url var="nextWasteLogPageUrl" value="/barista/waste">
                             <c:param name="q" value="${wasteLogQuery}" /><c:param name="wasteType" value="${wasteLogWasteType}" />
-                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" /><c:param name="page" value="${wasteLogPage.page + 1}" />
+                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="page" value="${wasteLogPage.page + 1}" />
                         </c:url>
                         <c:url var="lastWasteLogPageUrl" value="/barista/waste">
                             <c:param name="q" value="${wasteLogQuery}" /><c:param name="wasteType" value="${wasteLogWasteType}" />
-                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" /><c:param name="page" value="${wasteLogPage.totalPages}" />
+                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="page" value="${wasteLogPage.totalPages}" />
                         </c:url>
                         <a class="page" href="${nextWasteLogPageUrl}" aria-disabled="${not wasteLogPage.hasNext}">›</a>
                         <a class="page" href="${lastWasteLogPageUrl}" aria-disabled="${not wasteLogPage.hasNext}">»</a>

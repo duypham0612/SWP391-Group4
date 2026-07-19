@@ -30,11 +30,60 @@
         <span class="label">Chấm công chờ duyệt</span>
         <span class="value">${summary.pendingApprovals}</span>
     </a>
+    <a class="card stat" href="${ctx}/manager/menu-block"
+       style="${summary.overdueMenuBlockCount gt 0 ? 'border-color:var(--st-cancelled)' : ''}">
+        <span class="label">Yêu cầu tạm hết chờ xử lý</span>
+        <span class="value">${summary.openMenuBlockCount}</span>
+        <span class="muted">
+            <c:choose>
+                <c:when test="${summary.overdueMenuBlockCount > 0}">${summary.overdueMenuBlockCount} món đã quá hạn dự kiến có lại</c:when>
+                <c:when test="${summary.openMenuBlockCount > 0}">món đang bị chặn bán</c:when>
+                <c:otherwise>Không có món nào bị chặn bán</c:otherwise>
+            </c:choose>
+        </span>
+    </a>
+    <a class="card stat" href="${ctx}/manager/waste">
+        <span class="label">Hao hụt hôm nay</span>
+        <span class="value"><fmt:formatNumber value="${summary.todayWaste.totalCost}" maxFractionDigits="0"/> ₫</span>
+        <span class="muted">${summary.todayWaste.activeCount} dòng · ${summary.todayWaste.remakeCount} làm lại</span>
+    </a>
     <a class="card stat" href="${ctx}/manager/receipt">
         <span class="label">Nhập kho</span>
         <span class="value">→</span>
     </a>
 </div>
+
+<c:if test="${summary.hasOpenMenuBlocks}">
+<div class="card" style="margin-bottom:var(--s5)">
+    <h3 style="margin-top:0">Yêu cầu tạm hết đang chờ</h3>
+    <p class="muted">Món đã bị chặn bán ngay khi pha chế báo. Duyệt hoặc mở bán lại để món quay về menu.</p>
+    <table class="table">
+        <thead>
+            <tr><th>Món</th><th>Lý do</th><th>Người báo</th><th>Báo lúc</th><th>Dự kiến có lại</th><th></th></tr>
+        </thead>
+        <tbody>
+            <c:forEach var="r" items="${summary.openMenuBlocks}">
+                <tr>
+                    <td>
+                        <strong>${r.productName}</strong>
+                        <c:if test="${r.overdue}"><span class="badge badge-cancelled" style="margin-left:6px">Quá hạn</span></c:if>
+                    </td>
+                    <td>${r.reasonLabel}</td>
+                    <td>${r.requesterName}</td>
+                    <td>${r.requestedAtText}</td>
+                    <td>
+                        <c:choose>
+                            <c:when test="${empty r.backInEtaText}">Chưa rõ</c:when>
+                            <c:otherwise>${r.backInEtaText}</c:otherwise>
+                        </c:choose>
+                    </td>
+                    <td><a class="btn btn-ghost btn-sm" href="${ctx}/manager/menu-block">Xử lý</a></td>
+                </tr>
+            </c:forEach>
+        </tbody>
+    </table>
+</div>
+</c:if>
 
 <div class="grid-2">
     <div class="card">

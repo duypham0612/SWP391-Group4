@@ -12,6 +12,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 
 /** B7 · HandoverService — bàn giao ca: ghi chú + KPI lead-time (read OrderItem StartedAt/DoneAt). */
@@ -56,6 +57,20 @@ public class HandoverService {
         }
     }
 
+    public BrewHistoryPage getBrewHistoryPage(int branchId, String query, String status, String orderType,
+                                              int requestedPage, int pageSize) throws SQLException {
+        LocalDateTime[] window = todayWindowUtc();
+        int safePageSize = pageSize > 0 ? pageSize : 10;
+        try (Connection conn = DBConnection.getConnection()) {
+            int total = orderItemDao.countBrewedToday(conn, branchId, window[0], window[1], query, status, orderType);
+            int totalPages = Math.max(1, (int) Math.ceil((double) total / safePageSize));
+            int page = Math.max(1, Math.min(requestedPage, totalPages));
+            List<OrderItem> items = orderItemDao.findBrewedTodayPage(conn, branchId, window[0], window[1],
+                    query, status, orderType, (page - 1) * safePageSize, safePageSize);
+            return new BrewHistoryPage(items, total, page, safePageSize);
+        }
+    }
+
 
     private static LocalDateTime[] todayWindowUtc() {
         // Mốc "hôm nay" theo giờ VN → UTC (đồng nhất với Waste/Prep; DoneAt lưu UTC).
@@ -80,6 +95,40 @@ public class HandoverService {
             if (avgLeadSeconds < 0) return "—";
             long m = avgLeadSeconds / 60, s = avgLeadSeconds % 60;
             return (m > 0 ? m + " phút " : "") + s + " giây";
+        }
+    }
+
+    public static class BrewHistoryPage {
+        private final List<OrderItem> items;
+        private final int total;
+        private final int page;
+        private final int pageSize;
+
+        public BrewHistoryPage(List<OrderItem> items, int total, int page, int pageSize) {
+            this.items = items;
+            this.total = total;
+            this.page = page;
+            this.pageSize = pageSize;
+        }
+
+        public List<OrderItem> getItems() { return items; }
+        public int getTotal() { return total; }
+        public int getPage() { return page; }
+        public int getPageSize() { return pageSize; }
+        public int getTotalPages() { return Math.max(1, (int) Math.ceil((double) total / pageSize)); }
+        public boolean isHasPrevious() { return page > 1; }
+        public boolean isHasNext() { return page < getTotalPages(); }
+        public int getStartRow() { return total == 0 ? 0 : (page - 1) * pageSize + 1; }
+        public int getEndRow() { return Math.min(page * pageSize, total); }
+
+        public List<Integer> getVisiblePages() {
+            List<Integer> pages = new ArrayList<>();
+            int totalPages = getTotalPages();
+            int start = Math.max(1, page - 2);
+            int end = Math.min(totalPages, start + 4);
+            start = Math.max(1, end - 4);
+            for (int value = start; value <= end; value++) pages.add(value);
+            return pages;
         }
     }
 }

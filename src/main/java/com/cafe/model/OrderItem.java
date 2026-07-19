@@ -186,15 +186,15 @@ public class OrderItem {
     }
 
     public String getCreatedDisplay() {
-        return orderCreatedAt == null ? "" : orderCreatedAt.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+        return BusinessDay.fmtTimeVn(orderCreatedAt);
     }
 
     public String getStartedDisplay() {
-        return startedAt == null ? "" : startedAt.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+        return BusinessDay.fmtTimeVn(startedAt);
     }
 
     public String getDoneDisplay() {
-        return doneAt == null ? "" : doneAt.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+        return BusinessDay.fmtTimeVn(doneAt);
     }
 
     /**

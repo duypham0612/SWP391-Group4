@@ -108,6 +108,39 @@ public class ProductDao {
         return out;
     }
 
+    public List<Product> findForRecipeLookup(Connection conn, String q, Integer categoryId,
+                                             String recipeState, Integer branchId,
+                                             int offset, int limit) throws SQLException {
+        StringBuilder sql = new StringBuilder(SELECT + "WHERE p.IsActive = 1");
+        appendRecipeWhere(sql, q, categoryId, recipeState, branchId);
+        sql.append(" ORDER BY c.SortOrder, p.Name, p.ProductId OFFSET ? ROWS FETCH NEXT ? ROWS ONLY");
+        List<Product> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
+            int i = bindRecipeFilters(ps, q, categoryId, recipeState, branchId);
+            ps.setInt(i++, Math.max(0, offset));
+            ps.setInt(i, Math.max(1, limit));
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) out.add(map(rs));
+            }
+        }
+        return out;
+    }
+
+    public int countForRecipeLookup(Connection conn, String q, Integer categoryId,
+                                    String recipeState, Integer branchId) throws SQLException {
+        StringBuilder sql = new StringBuilder(
+                "SELECT COUNT(*) " +
+                "FROM catalog.Product p JOIN catalog.Category c ON p.CategoryId = c.CategoryId " +
+                "WHERE p.IsActive = 1");
+        appendRecipeWhere(sql, q, categoryId, recipeState, branchId);
+        try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
+            bindRecipeFilters(ps, q, categoryId, recipeState, branchId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        }
+    }
+
     /** Cập nhật trạng thái hiển thị + thứ tự trên Home cho 1 sản phẩm. */
     public void updateHomeDisplay(Connection conn, int id, boolean showOnHome, int homeSortOrder) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
@@ -117,6 +150,39 @@ public class ProductDao {
             ps.setInt(3, id);
             ps.executeUpdate();
         }
+    }
+
+    private void appendRecipeWhere(StringBuilder sql, String q, Integer categoryId,
+                                   String recipeState, Integer branchId) {
+        if (q != null && !q.isBlank()) {
+            sql.append(" AND p.Name COLLATE SQL_Latin1_General_CP1_CI_AI LIKE ? COLLATE SQL_Latin1_General_CP1_CI_AI ESCAPE '\\'");
+        }
+        if (categoryId != null) sql.append(" AND p.CategoryId = ?");
+        if ("HAS".equals(recipeState)) {
+            sql.append(" AND EXISTS (SELECT 1 FROM catalog.ProductRecipe pr WHERE pr.ProductId = p.ProductId)");
+        } else if ("NONE".equals(recipeState)) {
+            sql.append(" AND NOT EXISTS (SELECT 1 FROM catalog.ProductRecipe pr WHERE pr.ProductId = p.ProductId)");
+        }
+        if (branchId != null) {
+            sql.append(" AND EXISTS (SELECT 1 FROM catalog.BranchMenu bm WHERE bm.ProductId = p.ProductId AND bm.BranchId = ?)");
+        }
+    }
+
+    private int bindRecipeFilters(PreparedStatement ps, String q, Integer categoryId,
+                                  String recipeState, Integer branchId) throws SQLException {
+        int i = 1;
+        if (q != null && !q.isBlank()) ps.setString(i++, "%" + escapeLike(q.trim()) + "%");
+        if (categoryId != null) ps.setInt(i++, categoryId);
+        if (branchId != null) ps.setInt(i++, branchId);
+        return i;
+    }
+
+    private String escapeLike(String value) {
+        return value
+                .replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_")
+                .replace("[", "\\[");
     }
 
     private Product map(ResultSet rs) throws SQLException {

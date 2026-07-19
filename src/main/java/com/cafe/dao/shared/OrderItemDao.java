@@ -127,7 +127,7 @@ public class OrderItemDao {
 
     /**
      * Lịch sử các món đã pha xong trong một khoảng thời gian theo giờ UTC.
-     * Chỉ lấy READY/SERVED thuộc đúng chi nhánh; {@code DoneAt} là mốc hoàn tất
+     * Chỉ lấy các món đã pha xong thuộc đúng chi nhánh; {@code DoneAt} là mốc hoàn tất
      * để món đã giao vẫn xuất hiện trong bàn giao ca.
      */
     public List<OrderItem> findBrewedToday(Connection conn, int branchId,
@@ -135,7 +135,7 @@ public class OrderItemDao {
                                             java.time.LocalDateTime toUtc) throws SQLException {
         List<OrderItem> out = new ArrayList<>();
         final String sql = SELECT +
-            "WHERE o.BranchId=? AND oi.Status IN ('READY','SERVED') " +
+            "WHERE o.BranchId=? AND oi.Status IN ('READY','PICKED_UP','SERVED') " +
             "AND oi.DoneAt >= ? AND oi.DoneAt < ? " +
             "ORDER BY oi.DoneAt DESC, oi.OrderItemId DESC";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -145,6 +145,44 @@ public class OrderItemDao {
             try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
         }
         return out;
+    }
+
+    /** Lịch sử món đã pha xong hôm nay theo trang; tìm kiếm/lọc/paging chạy ở database. */
+    public List<OrderItem> findBrewedTodayPage(Connection conn, int branchId,
+                                               java.time.LocalDateTime fromUtc,
+                                               java.time.LocalDateTime toUtc,
+                                               String query, String status, String orderType,
+                                               int offset, int pageSize) throws SQLException {
+        List<OrderItem> out = new ArrayList<>();
+        final String sql = SELECT + brewedTodayWhere(query, status, orderType) +
+            "ORDER BY oi.DoneAt DESC, oi.OrderItemId DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = bindBrewedTodayFilters(ps, 1, branchId, fromUtc, toUtc, query, status, orderType);
+            ps.setInt(idx++, Math.max(0, offset));
+            ps.setInt(idx, pageSize);
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
+        }
+        return out;
+    }
+
+    public int countBrewedToday(Connection conn, int branchId,
+                                java.time.LocalDateTime fromUtc,
+                                java.time.LocalDateTime toUtc,
+                                String query, String status, String orderType) throws SQLException {
+        final String sql =
+            "SELECT COUNT(*) FROM sales.OrderItem oi " +
+            "JOIN catalog.Product p ON p.ProductId=oi.ProductId " +
+            "JOIN catalog.Category c ON c.CategoryId=p.CategoryId " +
+            "JOIN sales.Orders o ON o.OrderId=oi.OrderId " +
+            "LEFT JOIN sales.TableSession ts ON ts.TableSessionId=o.TableSessionId " +
+            "LEFT JOIN sales.DiningTable dt ON dt.DiningTableId=ts.DiningTableId " +
+            "LEFT JOIN iam.[User] cu ON cu.UserId=oi.PreparedBy " +
+            brewedTodayWhere(query, status, orderType);
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            bindBrewedTodayFilters(ps, 1, branchId, fromUtc, toUtc, query, status, orderType);
+            try (ResultSet rs = ps.executeQuery()) { if (rs.next()) return rs.getInt(1); }
+        }
+        return 0;
     }
 
     /** Bảng lấy món: READY của chi nhánh, đơn còn ACTIVE. Cũ nhất trước (tie-break theo Id cho ổn định). */
@@ -459,6 +497,45 @@ public class OrderItemDao {
             for (String s : expectedStatuses) ps.setString(idx++, s);
             return ps.executeUpdate();
         }
+    }
+
+    private static String brewedTodayWhere(String query, String status, String orderType) {
+        StringBuilder where = new StringBuilder(
+            "WHERE o.BranchId=? AND oi.Status IN ('READY','PICKED_UP','SERVED') " +
+            "AND oi.DoneAt >= ? AND oi.DoneAt < ? ");
+        if (hasText(status)) where.append("AND oi.Status=? ");
+        if (hasText(orderType)) where.append("AND o.OrderType=? ");
+        if (hasText(query)) {
+            where.append("AND (CAST(oi.OrderItemId AS NVARCHAR(20)) LIKE ? ESCAPE '\\' " +
+                    "OR CAST(oi.OrderId AS NVARCHAR(20)) LIKE ? ESCAPE '\\' " +
+                    "OR p.Name LIKE ? ESCAPE '\\' " +
+                    "OR c.Name LIKE ? ESCAPE '\\' " +
+                    "OR cu.FullName LIKE ? ESCAPE '\\' " +
+                    "OR oi.HandoverLocation LIKE ? ESCAPE '\\' " +
+                    "OR o.PickupCode LIKE ? ESCAPE '\\' " +
+                    "OR dt.TableNumber LIKE ? ESCAPE '\\') ");
+        }
+        return where.toString();
+    }
+
+    private static int bindBrewedTodayFilters(PreparedStatement ps, int idx, int branchId,
+                                              java.time.LocalDateTime fromUtc,
+                                              java.time.LocalDateTime toUtc,
+                                              String query, String status, String orderType) throws SQLException {
+        ps.setInt(idx++, branchId);
+        ps.setTimestamp(idx++, Timestamp.valueOf(fromUtc));
+        ps.setTimestamp(idx++, Timestamp.valueOf(toUtc));
+        if (hasText(status)) ps.setString(idx++, status);
+        if (hasText(orderType)) ps.setString(idx++, orderType);
+        if (hasText(query)) {
+            String pattern = "%" + query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+            for (int i = 0; i < 8; i++) ps.setNString(idx++, pattern);
+        }
+        return idx;
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private OrderItem map(ResultSet rs) throws SQLException {

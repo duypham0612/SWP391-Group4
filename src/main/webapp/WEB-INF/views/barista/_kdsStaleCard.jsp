@@ -2,7 +2,7 @@
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%-- Đơn treo từ ngày kinh doanh trước — chỉ đọc. Barista đang đứng pha không xử lý được
      (đơn cũ thường phải huỷ hoặc hoàn tiền), nên card này KHÔNG có nút thao tác. --%>
-<article class="card kds-card kds-ok" data-kds-item-id="${cardItem.orderItemId}" data-owner="stale" data-station="${cardItem.station}" data-order-type="${cardItem.orderType}" data-priority="false" data-sla-tier="ok">
+<article class="card kds-card kds-ok" tabindex="0" data-kds-item-id="${cardItem.orderItemId}" data-owner="stale" data-station="${cardItem.station}" data-order-type="${cardItem.orderType}" data-priority="false" data-sla-tier="ok">
     <div class="kds-card__top">
         <strong class="kds-product"><span class="kds-qty">${cardItem.quantity}×</span> <c:out value="${cardItem.productName}" /></strong>
         <span class="kds-sla kds-sla--ok"><jsp:include page="../layout/_statusBadge.jsp"><jsp:param name="status" value="${cardItem.status}" /></jsp:include></span>
