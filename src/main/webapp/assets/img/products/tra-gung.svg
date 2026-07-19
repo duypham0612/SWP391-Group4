@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360" viewBox="0 0 480 360" role="img" aria-label="Trà gừng mật ong">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4A6B49"/><stop offset="1" stop-color="#5B7B5A"/>
+    </linearGradient>
+  </defs>
+  <rect width="480" height="360" fill="url(#bg)"/>
+  <g opacity="0.10" fill="#FFFFFF">
+    <circle cx="70" cy="70" r="46"/><circle cx="420" cy="300" r="64"/>
+  </g>
+  <!-- steam -->
+  <g stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" opacity="0.55" fill="none">
+    <path d="M214 96 q-14 -20 0 -40 q14 -20 0 -40"/>
+    <path d="M246 96 q-14 -20 0 -40 q14 -20 0 -40"/>
+  </g>
+  <!-- saucer -->
+  <ellipse cx="240" cy="266" rx="120" ry="22" fill="#000000" opacity="0.18"/>
+  <!-- cup body -->
+  <path d="M150 150 h180 l-14 96 a26 26 0 0 1 -26 22 h-100 a26 26 0 0 1 -26 -22 z" fill="#FBF7F0"/>
+  <!-- liquid -->
+  <path d="M161 162 h158 l-7 46 h-144 z" fill="#C9772E"/>
+  <!-- handle -->
+  <path d="M330 168 q52 4 50 48 q-2 40 -52 44 l2 -22 q28 -2 28 -24 q0 -22 -28 -24 z" fill="#FBF7F0"/>
+  <!-- title -->
+  <rect x="0" y="300" width="480" height="60" fill="#000000" opacity="0.28"/>
+  <text x="240" y="338" text-anchor="middle" font-family="'Be Vietnam Pro',Arial,sans-serif"
+        font-size="30" font-weight="700" fill="#FFFFFF">Trà gừng mật ong</text>
+</svg>
