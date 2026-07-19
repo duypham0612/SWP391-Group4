@@ -13,6 +13,7 @@ public class ProductRecipe {
     private String ingredientName;
     private String ingredientUnit;
     private String ingredientType;
+    private BigDecimal branchQuantityOnHand;
 
     public int getProductRecipeId() { return productRecipeId; }
     public void setProductRecipeId(int productRecipeId) { this.productRecipeId = productRecipeId; }
@@ -34,4 +35,7 @@ public class ProductRecipe {
 
     public String getIngredientType() { return ingredientType; }
     public void setIngredientType(String ingredientType) { this.ingredientType = ingredientType; }
+
+    public BigDecimal getBranchQuantityOnHand() { return branchQuantityOnHand; }
+    public void setBranchQuantityOnHand(BigDecimal branchQuantityOnHand) { this.branchQuantityOnHand = branchQuantityOnHand; }
 }

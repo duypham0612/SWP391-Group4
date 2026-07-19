@@ -8,7 +8,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Đặt món · ${table.tableNumber}</title>
-<link rel="stylesheet" href="${ctx}/assets/css/cafe-theme.css">
+<link rel="stylesheet" href="${ctx}/assets/css/cafe-theme.css?v=${applicationScope.assetVersion}">
 <style>
   body{background:var(--paper);margin:0}
   .qr-app{max-width:540px;margin:0 auto;padding:0 0 132px}

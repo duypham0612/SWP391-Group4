@@ -1,27 +1,33 @@
 package com.cafe.service.manager;
 
 import com.cafe.config.DBConnection;
+import com.cafe.common.BusinessDay;
+import com.cafe.common.ShiftHours;
 import com.cafe.dao.manager.AttendanceDao;
+import com.cafe.dao.manager.PayrollDao;
 import com.cafe.model.Attendance;
+import com.cafe.model.MonthlyAttendanceRow;
+import com.cafe.model.MonthlyWorkSummary;
+import com.cafe.model.Payroll;
 import com.cafe.model.ShiftAssignment;
 import com.cafe.model.ShiftClockStatus;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Set;
 
 /** M3 · AttendanceService — duyệt chấm công. */
 public class AttendanceService {
 
-    private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
-
     private final AttendanceDao dao = new AttendanceDao();
+    private final PayrollDao payrollDao = new PayrollDao();
 
     public List<Attendance> getPendingAttendance(int branchId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) { return dao.findByStatus(c, branchId, "PENDING"); }
@@ -85,6 +91,65 @@ public class AttendanceService {
             List<ShiftAssignment> assignments = dao.findTodayAssignments(c, userId, branchId, date);
             return buildStatus(c, assignments, date);
         }
+    }
+
+    /** Lịch đi làm 1 tháng của chính nhân viên đang đăng nhập. */
+    public List<MonthlyAttendanceRow> getMyMonthlyHistory(int userId, int branchId, YearMonth ym)
+            throws SQLException {
+        try (Connection c = DBConnection.getConnection()) {
+            List<MonthlyAttendanceRow> rows = dao.findMonthlyByUser(
+                    c, userId, branchId, ym.atDay(1), ym.plusMonths(1).atDay(1));
+            for (MonthlyAttendanceRow r : rows) {
+                r.setWorkHours(ShiftHours.worked(r.getCheckInAt(), r.getCheckOutAt()));
+            }
+            return rows;
+        }
+    }
+
+    /** Tổng hợp tháng. Nhận rows từ caller để không truy vấn lại lần hai. */
+    public MonthlyWorkSummary getMyMonthlySummary(int userId, int branchId, YearMonth ym,
+                                                   List<MonthlyAttendanceRow> rows)
+            throws SQLException {
+        MonthlyWorkSummary s = summarize(rows);
+        try (Connection c = DBConnection.getConnection()) {
+            Payroll p = payrollDao.findByMonth(c, branchId, ym.toString()).get(userId);
+            if (p != null) {
+                s.setLockedHours(p.getWorkedHours());
+                s.setHourlyRate(p.getHourlyRate());
+            }
+        }
+        return s;
+    }
+
+    static MonthlyWorkSummary summarize(List<MonthlyAttendanceRow> rows) {
+        MonthlyWorkSummary s = new MonthlyWorkSummary();
+        BigDecimal approved = BigDecimal.ZERO;
+        BigDecimal pending = BigDecimal.ZERO;
+        BigDecimal rejected = BigDecimal.ZERO;
+        if (rows == null) rows = List.of();
+        for (MonthlyAttendanceRow r : rows) {
+            if (r.isAbsent()) {
+                s.setAbsentCount(s.getAbsentCount() + 1);
+                continue;
+            }
+            if (r.isOpen()) {
+                s.setOpenCount(s.getOpenCount() + 1);
+                continue;
+            }
+            s.setShiftsWorked(s.getShiftsWorked() + 1);
+            BigDecimal hours = BigDecimal.valueOf(r.getWorkHours());
+            if ("APPROVED".equals(r.getStatus())) approved = approved.add(hours);
+            else if ("REJECTED".equals(r.getStatus())) rejected = rejected.add(hours);
+            else pending = pending.add(hours);
+        }
+        s.setApprovedHours(round1(approved));
+        s.setPendingHours(round1(pending));
+        s.setRejectedHours(round1(rejected));
+        return s;
+    }
+
+    private static double round1(BigDecimal v) {
+        return v.setScale(1, RoundingMode.HALF_UP).doubleValue();
     }
 
     /** Vào ca: yêu cầu đã được xếp ca hôm nay, idempotent nếu đã có bản đang mở. */
@@ -179,7 +244,7 @@ public class AttendanceService {
         status.setCheckInAt(attendance.getCheckInAt());
         if (attendance.getCheckOutAt() == null) {
             status.setCanClockOut(true);
-            status.setStatusText("Đang trong ca từ " + attendance.getCheckInAt().toLocalTime().format(TIME_FMT) + ".");
+            status.setStatusText("Đang trong ca từ " + BusinessDay.fmtTimeVn(attendance.getCheckInAt()) + ".");
             status.setWorkHours(hoursBetween(attendance.getCheckInAt(), dao.currentUtc(c).toLocalDateTime()));
             return status;
         }
@@ -211,10 +276,7 @@ public class AttendanceService {
     }
 
     private double hoursBetween(LocalDateTime start, LocalDateTime end) {
-        if (start == null || end == null) return 0d;
-        long minutes = Duration.between(start, end).toMinutes();
-        if (minutes < 0) return 0d;
-        return Math.round(minutes / 60.0 * 10) / 10.0;
+        return ShiftHours.worked(start, end);
     }
 
     private interface V{ void run(Connection c) throws SQLException; }

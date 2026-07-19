@@ -122,6 +122,10 @@ public class ProductServlet extends HttpServlet {
         catch (NumberFormatException e) { p.setBasePrice(BigDecimal.valueOf(-1)); }
         p.setImageUrl(trim(req.getParameter("imageUrl")));
         p.setActive(req.getParameter("active") != null);
+        // Nhập theo phút cho dễ; lưu theo giây. -1 = sentinel để validate bắt lỗi định dạng.
+        String prep = req.getParameter("prepMinutes");
+        try { p.setPrepSeconds(prep == null || prep.isBlank() ? 720 : Integer.parseInt(prep.trim()) * 60); }
+        catch (NumberFormatException e) { p.setPrepSeconds(-1); }
         return p;
     }
 
@@ -129,6 +133,7 @@ public class ProductServlet extends HttpServlet {
         if (p.getName() == null || p.getName().isBlank()) return "Tên sản phẩm không được để trống.";
         if (p.getCategoryId() <= 0) return "Vui lòng chọn danh mục.";
         if (p.getBasePrice() == null || p.getBasePrice().signum() < 0) return "Giá phải là số >= 0.";
+        if (p.getPrepSeconds() < 60) return "Thời gian pha chuẩn phải là số phút >= 1.";
         return null;
     }
 

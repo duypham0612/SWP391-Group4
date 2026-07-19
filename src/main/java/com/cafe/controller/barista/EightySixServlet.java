@@ -1,7 +1,10 @@
 package com.cafe.controller.barista;
 import com.cafe.controller.manager.InventoryDashboardServlet;
 
+import com.cafe.common.BusinessException;
+import com.cafe.common.Constants;
 import com.cafe.common.CsrfUtil;
+import com.cafe.common.Reason86;
 import com.cafe.common.SessionUtil;
 import com.cafe.model.User;
 import com.cafe.service.shared.BranchMenuService;
@@ -12,12 +15,16 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 
 /** B3 · EightySixServlet → /barista/eightysix. Bật/tắt hết món (khoá khỏi POS + QR). */
 @WebServlet("/barista/eightysix")
 public class EightySixServlet extends HttpServlet {
 
     private final BranchMenuService service = new BranchMenuService();
+    private static final DateTimeFormatter HTML_DT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm");
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -26,6 +33,11 @@ public class EightySixServlet extends HttpServlet {
         try {
             req.setAttribute("items", service.getMenuAvailability(branchId));
             req.setAttribute("suggest86", service.getSuggested86(branchId));   // gợi ý 86 (soft): nguyên liệu đã cạn
+            req.setAttribute("openRequests", service.getOpenRequestsMap(branchId));
+            req.setAttribute("reasons", Reason86.values());
+            LocalDateTime now = LocalDateTime.now();
+            req.setAttribute("etaMin", now.plusMinutes(Constants.MENU86_ETA_MIN_MINUTES).format(HTML_DT));
+            req.setAttribute("etaMax", now.plusDays(Constants.MENU86_ETA_MAX_DAYS).format(HTML_DT));
             req.setAttribute("pageTitle", "Báo hết món");
             BaristaShift.expose(req, "/barista/eightysix");   // trực ca: banner + khoá thao tác khi ngoài ca
             req.getRequestDispatcher("/WEB-INF/views/barista/eightysix.jsp").forward(req, resp);
@@ -40,20 +52,35 @@ public class EightySixServlet extends HttpServlet {
         if (BaristaShift.guardWrite(req, resp, action, "/barista/eightysix")) return;   // vào ca / chặn ngoài ca
         int branchId = InventoryDashboardServlet.branchId(req);
         User u = SessionUtil.currentUser(req);
-        Integer userId = u != null ? u.getUserId() : null;
+        int userId = u != null ? u.getUserId() : 0;
+        String redirect = req.getContextPath() + "/barista/eightysix";
         try {
-            if ("toggle86".equals(action)) {
+            if ("report86".equals(action)) {
                 int productId = Integer.parseInt(req.getParameter("productId"));
-                boolean is86 = "true".equals(req.getParameter("is86"));
-                java.time.LocalDateTime eta = null;
-                String etaStr = req.getParameter("backInEta");
-                if (is86 && etaStr != null && !etaStr.isBlank()) {
-                    try { eta = java.time.LocalDateTime.parse(etaStr); }
-                    catch (java.time.format.DateTimeParseException ignore) { /* bỏ qua ETA sai định dạng */ }
-                }
-                service.set86(branchId, productId, is86, eta, userId);
+                LocalDateTime eta = parseEta(req.getParameter("backInEta"));
+                service.request86(branchId, productId,
+                        req.getParameter("reasonCode"), req.getParameter("note"), eta, userId);
+                req.getSession().setAttribute("flashOk", "Đã báo tạm hết món, chờ quản lý xử lý.");
+            } else if ("askReopen".equals(action)) {
+                int productId = Integer.parseInt(req.getParameter("productId"));
+                service.requestReopen(branchId, productId, userId);
+                req.getSession().setAttribute("flashOk", "Đã gửi yêu cầu, chờ quản lý duyệt.");
             }
-            resp.sendRedirect(req.getContextPath() + "/barista/eightysix");
+            resp.sendRedirect(redirect);
+        } catch (BusinessException e) {
+            req.getSession().setAttribute("flashError", e.getMessage());
+            resp.sendRedirect(redirect);
+        } catch (DateTimeParseException e) {
+            req.getSession().setAttribute("flashError", "Định dạng thời gian không hợp lệ.");
+            resp.sendRedirect(redirect);
+        } catch (NumberFormatException e) {
+            req.getSession().setAttribute("flashError", "Mã món không hợp lệ.");
+            resp.sendRedirect(redirect);
         } catch (Exception e) { throw new ServletException(e); }
+    }
+
+    private LocalDateTime parseEta(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        return LocalDateTime.parse(raw);
     }
 }

@@ -84,7 +84,7 @@ public class BranchMenuDao {
 
     /** Chỉ đổi cờ 86 (+ ETA quay lại) — Barista toggle, giữ nguyên giá/available.
      *  Mở bán lại (is86=false) luôn xoá ETA; báo hết (is86=true) ghi ETA nếu có. */
-    public void updateIs86(Connection conn, int branchId, int productId, boolean is86,
+    public int updateIs86(Connection conn, int branchId, int productId, boolean is86,
                            java.sql.Timestamp backInEta) throws SQLException {
         final String sql = "UPDATE catalog.BranchMenu SET Is86=?, BackInEta=? WHERE BranchId=? AND ProductId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -93,7 +93,7 @@ public class BranchMenuDao {
             else ps.setTimestamp(2, backInEta);
             ps.setInt(3, branchId);
             ps.setInt(4, productId);
-            ps.executeUpdate();
+            return ps.executeUpdate();
         }
     }
 

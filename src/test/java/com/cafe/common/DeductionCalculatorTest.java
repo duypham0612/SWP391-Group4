@@ -66,4 +66,36 @@ class DeductionCalculatorTest {
                 List.of(pr(2, "30")), List.of(mi(2, "-30")), 1);
         assertFalse(req.containsKey(2), "net 0 → không trừ");
     }
+
+    /** Modifier giảm nhưng net vẫn dương ("ít sữa" -10 trên 30) → vẫn trừ phần còn lại. */
+    @Test
+    void modifier_reduces_but_stays_positive() {
+        Map<Integer, BigDecimal> req = DeductionCalculator.computeRequired(
+                List.of(pr(2, "30")), List.of(mi(2, "-10")), 1);
+        assertQty(req, 2, "20");
+    }
+
+    /** Hai modifier cùng một nguyên liệu → cộng dồn định mức. */
+    @Test
+    void two_modifiers_same_ingredient_merge() {
+        Map<Integer, BigDecimal> req = DeductionCalculator.computeRequired(
+                List.of(pr(1, "18")), List.of(mi(1, "18"), mi(1, "9")), 1);
+        assertQty(req, 1, "45");  // 18 + 18 + 9
+    }
+
+    /** Recipe null (chỉ có tác động modifier) → không NPE, tính theo impacts. */
+    @Test
+    void null_recipe_uses_impacts_only() {
+        Map<Integer, BigDecimal> req = DeductionCalculator.computeRequired(
+                null, List.of(mi(5, "10")), 2);
+        assertQty(req, 5, "20");  // 10 * 2
+    }
+
+    /** Impacts null → không NPE, chỉ trừ theo công thức gốc. */
+    @Test
+    void null_impacts_uses_recipe_only() {
+        Map<Integer, BigDecimal> req = DeductionCalculator.computeRequired(
+                List.of(pr(1, "18")), null, 1);
+        assertQty(req, 1, "18");
+    }
 }

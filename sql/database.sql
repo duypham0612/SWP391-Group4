@@ -7,7 +7,7 @@
         - ops.OutboxEvent ghi mọi domain event: order.created,
           order.status_changed, payment.completed, inventory.deducted, stock.low.
         - Trạng thái item (KDS/khách) dùng CHUNG ở sales.OrderItem.Status
-          (WAITING -> MAKING -> READY('Sẵn lấy') -> SERVED).
+          (WAITING -> MAKING -> READY -> PICKED_UP -> SERVED).
    2) Cờ RAW / PREPPED:
         - catalog.Ingredient.IngredientType = 'RAW' | 'PREPPED'.
         - PREPPED (cold brew, syrup...) được tạo từ RAW qua inventory.PrepBatch.
@@ -49,6 +49,9 @@ DROP TABLE IF EXISTS payment.Bill;
 DROP TABLE IF EXISTS payment.CashierShift;
 DROP TABLE IF EXISTS payment.Voucher;
 DROP TABLE IF EXISTS sales.OrderItemModifier;
+-- Phải drop TRƯỚC sales.OrderItem: FK_OIAL_Item trỏ sang OrderItem, thiếu dòng này
+-- thì script chạy được trên DB trắng nhưng chết ngay lần chạy lại thứ hai.
+DROP TABLE IF EXISTS ops.OrderItemActionLog;
 DROP TABLE IF EXISTS sales.OrderItem;
 DROP TABLE IF EXISTS sales.Orders;
 DROP TABLE IF EXISTS sales.TableSession;
@@ -61,10 +64,14 @@ DROP TABLE IF EXISTS inventory.StockReceiptDetail;
 DROP TABLE IF EXISTS inventory.StockReceipt;
 DROP TABLE IF EXISTS inventory.BranchInventory;
 DROP TABLE IF EXISTS inventory.Supplier;
+-- Trỏ tới org.Branch + iam.User nên phải drop trước hai bảng đó.
+DROP TABLE IF EXISTS hr.ShiftHandover;
 DROP TABLE IF EXISTS hr.Payroll;
 DROP TABLE IF EXISTS hr.Attendance;
 DROP TABLE IF EXISTS hr.ShiftAssignment;
 DROP TABLE IF EXISTS hr.ShiftTemplate;
+-- Trỏ tới catalog.Product + org.Branch + iam.User nên phải drop trước ba bảng đó.
+DROP TABLE IF EXISTS catalog.MenuBlockRequest;
 DROP TABLE IF EXISTS catalog.HomeSetting;
 DROP TABLE IF EXISTS catalog.BranchMenu;
 DROP TABLE IF EXISTS catalog.ModifierIngredientImpact;
@@ -125,6 +132,9 @@ CREATE TABLE org.Branch (
     CloseTime       TIME          NULL,
     ManagerUserId   INT           NULL,          -- FK thêm sau (ALTER)
     IsActive        BIT           NOT NULL DEFAULT 1,
+    -- Ngưỡng cao điểm KDS (số ly đang chờ+đang pha). 0 = dùng mặc định toàn hệ
+    -- (Constants.PEAK_THRESHOLD_CUPS). Manager chỉnh ở màn Cài đặt chi nhánh.
+    PeakThresholdCups INT         NOT NULL DEFAULT 0,
     CreatedAt       DATETIME2     NOT NULL DEFAULT SYSUTCDATETIME()
 );
 GO
@@ -191,6 +201,9 @@ CREATE TABLE catalog.Product (
     IsActive      BIT NOT NULL DEFAULT 1,
     ShowOnHome    BIT NOT NULL DEFAULT 1,   -- hiển thị trên trang Home công khai (Admin chỉnh)
     HomeSortOrder INT NOT NULL DEFAULT 0,   -- thứ tự ưu tiên trong danh mục trên Home (nhỏ = trước)
+    -- Thời gian pha chuẩn từng món (giây). 720 = 12 phút, giữ nguyên hành vi SLA cũ
+    -- cho mọi món cho tới khi Admin nhập số thật.
+    PrepSeconds   INT NOT NULL DEFAULT 720,
     CONSTRAINT FK_Product_Category FOREIGN KEY (CategoryId) REFERENCES catalog.Category(CategoryId)
 );
 GO
@@ -304,6 +317,39 @@ CREATE TABLE catalog.BranchMenu (
     CONSTRAINT FK_BM_Branch  FOREIGN KEY (BranchId)  REFERENCES org.Branch(BranchId),
     CONSTRAINT FK_BM_Product FOREIGN KEY (ProductId) REFERENCES catalog.Product(ProductId)
 );
+GO
+
+-- Lịch sử/yêu cầu báo tạm hết món: Barista báo, Manager duyệt/mở bán lại.
+CREATE TABLE catalog.MenuBlockRequest (
+    RequestId    INT IDENTITY PRIMARY KEY,
+    BranchId     INT NOT NULL,
+    ProductId    INT NOT NULL,
+    Reason       VARCHAR(20)   NOT NULL,
+    Note         NVARCHAR(255) NULL,
+    BackInEta    DATETIME2     NOT NULL,
+    RequestedBy  INT NOT NULL,
+    RequestedAt  DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+    ReopenRequestedAt DATETIME2 NULL,
+    Status       VARCHAR(10) NOT NULL DEFAULT 'PENDING',
+    ReviewedBy   INT NULL,
+    ReviewedAt   DATETIME2 NULL,
+    ReviewNote   NVARCHAR(255) NULL,
+    ClosedAt     DATETIME2 NULL,
+    CONSTRAINT FK_MBR_Branch  FOREIGN KEY (BranchId)    REFERENCES org.Branch(BranchId),
+    CONSTRAINT FK_MBR_Product FOREIGN KEY (ProductId)   REFERENCES catalog.Product(ProductId),
+    CONSTRAINT FK_MBR_ReqBy   FOREIGN KEY (RequestedBy) REFERENCES iam.[User](UserId),
+    CONSTRAINT FK_MBR_RevBy   FOREIGN KEY (ReviewedBy)  REFERENCES iam.[User](UserId),
+    CONSTRAINT CK_MBR_Status  CHECK (Status IN ('PENDING','APPROVED','REJECTED','RESOLVED'))
+);
+GO
+
+CREATE UNIQUE INDEX UX_MenuBlockRequest_Open
+    ON catalog.MenuBlockRequest(BranchId, ProductId)
+    WHERE ClosedAt IS NULL;
+GO
+
+CREATE INDEX IX_MenuBlockRequest_Queue
+    ON catalog.MenuBlockRequest(BranchId, ClosedAt, BackInEta);
 GO
 
 /* ===========================================================================
@@ -541,10 +587,13 @@ CREATE TABLE sales.Orders (
     Source         VARCHAR(8)  NOT NULL
                    CONSTRAINT CK_Order_Source CHECK (Source IN ('COUNTER','QR')),
     OrderType      VARCHAR(16) NOT NULL DEFAULT 'DINE_IN'
-                   CONSTRAINT CK_Order_Type CHECK (OrderType IN ('DINE_IN','TAKEAWAY')),
+                   CONSTRAINT CK_Order_Type CHECK (OrderType IN ('DINE_IN','TAKEAWAY','DELIVERY')),
     Status         VARCHAR(12) NOT NULL DEFAULT 'ACTIVE'
                    CONSTRAINT CK_Order_Status CHECK (Status IN ('ACTIVE','COMPLETED','CANCELLED')),
     CreatedBy      INT NULL,                     -- User (Cashier) nếu đơn quầy
+    -- Mã gọi món cấp lúc tạo đơn (vd D12/T07/G03) — dùng ở KDS, bàn giao, màn khách QR
+    -- để khớp ly với đơn. NULL cho đơn cũ (JSP kiểm not empty).
+    PickupCode     VARCHAR(8) NULL,
     CreatedAt      DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT FK_Ord_Branch   FOREIGN KEY (BranchId)       REFERENCES org.Branch(BranchId),
     CONSTRAINT FK_Ord_Session  FOREIGN KEY (TableSessionId) REFERENCES sales.TableSession(TableSessionId),
@@ -561,13 +610,29 @@ CREATE TABLE sales.OrderItem (
     Quantity    INT NOT NULL DEFAULT 1 CHECK (Quantity > 0),
     UnitPrice   DECIMAL(12,2) NOT NULL,          -- giá tại thời điểm đặt (đã gồm modifier)
     Note        NVARCHAR(255) NULL,
-    Status      VARCHAR(10) NOT NULL DEFAULT 'WAITING'
-                CONSTRAINT CK_Item_Status CHECK (Status IN ('WAITING','MAKING','READY','SERVED','CANCELLED')),
+    Status      VARCHAR(16) NOT NULL DEFAULT 'WAITING'
+                CONSTRAINT CK_Item_Status CHECK (Status IN ('WAITING','MAKING','READY','PICKED_UP','SERVED','BLOCKED','CANCELLED','REMAKE')),
     Priority    INT NOT NULL DEFAULT 0,          -- KDS bump: đẩy đơn quá giờ lên đầu (cao = ưu tiên)
     StartedAt   DATETIME2 NULL,                  -- để tính lead time
-    DoneAt      DATETIME2 NULL,
+    DoneAt      DATETIME2 NULL,                  -- mốc pha xong (→READY)
+    BaristaId   INT NULL,                        -- người nhận pha (khóa claim)
+    PreparedBy  INT NULL,                        -- barista bấm READY, dùng cho KPI cá nhân
+    HasIssue    BIT NOT NULL DEFAULT 0,
+    IssueReason NVARCHAR(255) NULL,
+    IssueReportedBy INT NULL,
+    IssueReportedAt DATETIME2 NULL,
+    RemakeCount INT NOT NULL DEFAULT 0,
+    RemakeInventoryReserved BIT NOT NULL DEFAULT 0,
+    HandoverLocation NVARCHAR(80) NULL,
+    PickedUpBy  INT NULL,
+    PickedUpAt  DATETIME2 NULL,
+    ServedAt    DATETIME2 NULL,                  -- mốc giao khách (→SERVED); NULL khi hoàn tác giao
     CONSTRAINT FK_OI_Order   FOREIGN KEY (OrderId)   REFERENCES sales.Orders(OrderId) ON DELETE CASCADE,
-    CONSTRAINT FK_OI_Product FOREIGN KEY (ProductId) REFERENCES catalog.Product(ProductId)
+    CONSTRAINT FK_OI_Product FOREIGN KEY (ProductId) REFERENCES catalog.Product(ProductId),
+    CONSTRAINT FK_OI_Barista FOREIGN KEY (BaristaId) REFERENCES iam.[User](UserId),
+    CONSTRAINT FK_OI_PreparedBy FOREIGN KEY (PreparedBy) REFERENCES iam.[User](UserId),
+    CONSTRAINT FK_OI_IssueBy FOREIGN KEY (IssueReportedBy) REFERENCES iam.[User](UserId),
+    CONSTRAINT FK_OI_PickedUpBy FOREIGN KEY (PickedUpBy) REFERENCES iam.[User](UserId)
 );
 GO
 
@@ -681,6 +746,23 @@ CREATE TABLE ops.OutboxEvent (
 );
 GO
 
+-- Audit nghiệp vụ theo từng dòng món: nhận pha, hoàn thành, sự cố, trả hàng chờ, làm lại, nhận/giao.
+CREATE TABLE ops.OrderItemActionLog (
+    OrderItemActionLogId BIGINT IDENTITY PRIMARY KEY,
+    OrderItemId INT NOT NULL,
+    BranchId INT NOT NULL,
+    ActionType VARCHAR(24) NOT NULL,
+    FromStatus VARCHAR(16) NULL,
+    ToStatus VARCHAR(16) NULL,
+    Reason NVARCHAR(255) NULL,
+    PerformedBy INT NULL,
+    CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT FK_OIAL_Item FOREIGN KEY (OrderItemId) REFERENCES sales.OrderItem(OrderItemId),
+    CONSTRAINT FK_OIAL_Branch FOREIGN KEY (BranchId) REFERENCES org.Branch(BranchId),
+    CONSTRAINT FK_OIAL_User FOREIGN KEY (PerformedBy) REFERENCES iam.[User](UserId)
+);
+GO
+
 /* ---------------------------------------------------------------------------
    INDEXES (FK & cột truy vấn nóng)
    --------------------------------------------------------------------------- */
@@ -696,6 +778,8 @@ CREATE INDEX IX_OrderItem_Order    ON sales.OrderItem(OrderId);
 CREATE INDEX IX_Bill_Session       ON payment.Bill(TableSessionId);
 CREATE INDEX IX_Bill_BranchStatus  ON payment.Bill(BranchId, Status);
 CREATE INDEX IX_Outbox_Unprocessed ON ops.OutboxEvent(ProcessedAt) WHERE ProcessedAt IS NULL;
+CREATE INDEX IX_OrderItem_BaristaStatus ON sales.OrderItem(BaristaId, Status);
+CREATE INDEX IX_OrderItemAction_Item ON ops.OrderItemActionLog(OrderItemId, CreatedAt DESC);
 GO
 
 /* ---------------------------------------------------------------------------
@@ -1357,15 +1441,15 @@ BEGIN
     SET @oO = SCOPE_IDENTITY();
     -- READY (đã trừ kho)
     DECLARE @oiR INT;
-    INSERT INTO sales.OrderItem(OrderId,ProductId,Quantity,UnitPrice,Status,StartedAt,DoneAt)
-    VALUES(@oO,@pSua,1,29000,'READY',DATEADD(MINUTE,-20,@now),DATEADD(MINUTE,-12,@now));
+    INSERT INTO sales.OrderItem(OrderId,ProductId,Quantity,UnitPrice,Status,StartedAt,DoneAt,BaristaId,PreparedBy)
+    VALUES(@oO,@pSua,1,29000,'READY',DATEADD(MINUTE,-20,@now),DATEADD(MINUTE,-12,@now),@lBar,@lBar);
     SET @oiR = SCOPE_IDENTITY();
     INSERT INTO inventory.InventoryTransaction(BranchId,IngredientId,ChangeQty,TxnType,RefTable,RefId,CreatedBy,CreatedAt) VALUES
      (@lB,@iCafe2,-18,'DEDUCT','OrderItem',@oiR,@lBar,DATEADD(MINUTE,-12,@now)),
      (@lB,@iSua2,-30,'DEDUCT','OrderItem',@oiR,@lBar,DATEADD(MINUTE,-12,@now));
     -- MAKING (chưa trừ)
-    INSERT INTO sales.OrderItem(OrderId,ProductId,Quantity,UnitPrice,Status,StartedAt)
-    VALUES(@oO,@pLatte,1,49000,'MAKING',DATEADD(MINUTE,-6,@now));
+    INSERT INTO sales.OrderItem(OrderId,ProductId,Quantity,UnitPrice,Status,StartedAt,BaristaId)
+    VALUES(@oO,@pLatte,1,49000,'MAKING',DATEADD(MINUTE,-6,@now),@lBar);
     -- WAITING
     INSERT INTO sales.OrderItem(OrderId,ProductId,Quantity,UnitPrice,Status,Note)
     VALUES(@oO,@pTra,2,39000,'WAITING',N'Ít đá');
@@ -1456,4 +1540,129 @@ FROM (
 ) d;
 GO
 PRINT N'== DEMO HOÀN TẤT — 3 chi nhánh, 15 món, ~31 ngày doanh thu · mật khẩu 123456 ==';
+GO
+
+/* ===========================================================================
+   PART D) DEMO HAO HỤT & LÀM LẠI — 28 dòng ở CN01 để thử tìm kiếm/lọc/phân trang.
+   Idempotent: mỗi ngày Việt Nam chỉ thêm một bộ. Bỏ qua nếu không cần dữ liệu này.
+   =========================================================================== */
+/*
+   Dữ liệu demo cho màn Barista > Hao hụt & Làm lại.
+   - Thêm 28 dòng ở CN01 để kiểm tra tìm kiếm realtime, lọc và phân trang.
+   - Có đủ SPILL / EXPIRED / REMAKE / OTHER và 3 dòng VOIDED.
+   - Ghi InventoryTransaction cùng lúc để không lệch tồn kho.
+   Script có thể chạy lại an toàn: mỗi ngày Việt Nam chỉ thêm một bộ demo.
+*/
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+
+BEGIN TRANSACTION;
+
+DECLARE @branchId INT = (SELECT BranchId FROM org.Branch WHERE Code = 'CN01');
+DECLARE @baristaId INT = (SELECT UserId FROM iam.[User] WHERE Username = 'barista1');
+DECLARE @now DATETIME2 = SYSUTCDATETIME();
+DECLARE @vnToday DATE = CONVERT(DATE, DATEADD(HOUR, 7, @now));
+DECLARE @vnTodayStartUtc DATETIME2 = DATEADD(HOUR, -7, CAST(@vnToday AS DATETIME2));
+
+IF @branchId IS NULL OR @baristaId IS NULL
+BEGIN
+    ROLLBACK TRANSACTION;
+    THROW 50001, N'Không tìm thấy CN01 hoặc tài khoản barista1 để tạo dữ liệu demo.', 1;
+END;
+
+IF EXISTS (
+    SELECT 1
+    FROM inventory.WasteLog
+    WHERE BranchId = @branchId
+      AND Reason LIKE N'DEMO-WASTE-PAGER:%'
+      AND LoggedAt >= @vnTodayStartUtc
+)
+BEGIN
+    ROLLBACK TRANSACTION;
+    PRINT N'Dữ liệu demo Hao hụt & Làm lại cho hôm nay đã tồn tại — không thêm trùng.';
+    RETURN;
+END;
+
+DECLARE @demo TABLE (
+    Seq INT PRIMARY KEY,
+    IngredientId INT NOT NULL,
+    Quantity DECIMAL(12,3) NOT NULL,
+    WasteType VARCHAR(12) NOT NULL,
+    Reason NVARCHAR(255) NOT NULL,
+    MinutesAgo INT NOT NULL,
+    Status VARCHAR(10) NOT NULL
+);
+
+INSERT INTO @demo(Seq, IngredientId, Quantity, WasteType, Reason, MinutesAgo, Status) VALUES
+ ( 1,  4, 180.000, 'SPILL',   N'DEMO-WASTE-PAGER: Đổ đá khi sang khay',                    1, 'ACTIVE'),
+ ( 2,  2,  35.000, 'REMAKE',  N'DEMO-WASTE-PAGER: Làm lại Cà phê sữa - sai định lượng',    2, 'ACTIVE'),
+ ( 3,  1,  18.000, 'REMAKE',  N'DEMO-WASTE-PAGER: Làm lại Cà phê sữa - sai định lượng',    2, 'ACTIVE'),
+ ( 4, 10, 120.000, 'EXPIRED', N'DEMO-WASTE-PAGER: Sữa tươi quá thời gian mở nắp',           3, 'ACTIVE'),
+ ( 5,  8,  45.000, 'OTHER',   N'DEMO-WASTE-PAGER: Mẫu thử chất lượng topping',              4, 'ACTIVE'),
+ ( 6, 11,  12.000, 'SPILL',   N'DEMO-WASTE-PAGER: Rơi trà sen khi cân nguyên liệu',         5, 'ACTIVE'),
+ ( 7,  7,  30.000, 'REMAKE',  N'DEMO-WASTE-PAGER: Làm lại Trà Đào - khách yêu cầu',          6, 'ACTIVE'),
+ ( 8,  5,  25.000, 'REMAKE',  N'DEMO-WASTE-PAGER: Làm lại Trà Đào - khách yêu cầu',          6, 'ACTIVE'),
+ ( 9,  3,  20.000, 'OTHER',   N'DEMO-WASTE-PAGER: Kiểm kê lệch cuối ca',                     7, 'VOIDED'),
+ (10,  6, 150.000, 'SPILL',   N'DEMO-WASTE-PAGER: Cold Brew bị đổ khi vệ sinh vòi',          8, 'ACTIVE'),
+ (11, 18,   8.000, 'EXPIRED', N'DEMO-WASTE-PAGER: Bột Matcha hết hạn sử dụng',               9, 'ACTIVE'),
+ (12, 19,  16.000, 'REMAKE',  N'DEMO-WASTE-PAGER: Làm lại Chocolate đá xay - lỗi chất lượng',10, 'ACTIVE'),
+ (13, 17,  40.000, 'REMAKE',  N'DEMO-WASTE-PAGER: Làm lại Chocolate đá xay - lỗi chất lượng',10, 'ACTIVE'),
+ (14, 13,  30.000, 'SPILL',   N'DEMO-WASTE-PAGER: Rơi vải ngâm khi thay hộp topping',       11, 'ACTIVE'),
+ (15, 15,  25.000, 'OTHER',   N'DEMO-WASTE-PAGER: Mẫu thử công thức trà gừng',              12, 'ACTIVE'),
+ (16, 12,  10.000, 'EXPIRED', N'DEMO-WASTE-PAGER: Trà đen bảo quản không đúng nhiệt độ',    13, 'VOIDED'),
+ (17, 16,  18.000, 'SPILL',   N'DEMO-WASTE-PAGER: Vụn Cookie rơi khi thao tác',             14, 'ACTIVE'),
+ (18,  9,  35.000, 'REMAKE',  N'DEMO-WASTE-PAGER: Làm lại Kem cheese - pha chưa đạt',       15, 'ACTIVE'),
+ (19, 14,  15.000, 'OTHER',   N'DEMO-WASTE-PAGER: Điều chỉnh mẻ thử gừng mật ong',           16, 'ACTIVE'),
+ (20,  2,  50.000, 'SPILL',   N'DEMO-WASTE-PAGER: Đổ sữa đặc khi thay chai',                17, 'ACTIVE'),
+ (21,  1,  20.000, 'EXPIRED', N'DEMO-WASTE-PAGER: Cà phê hạt lưu kho quá hạn',              18, 'ACTIVE'),
+ (22,  4, 220.000, 'REMAKE',  N'DEMO-WASTE-PAGER: Làm lại Matcha đá xay - khách yêu cầu',    19, 'ACTIVE'),
+ (23, 18,   6.000, 'REMAKE',  N'DEMO-WASTE-PAGER: Làm lại Matcha đá xay - khách yêu cầu',    19, 'ACTIVE'),
+ (24,  3,  30.000, 'OTHER',   N'DEMO-WASTE-PAGER: Kiểm kê lệch thùng đường',                20, 'ACTIVE'),
+ (25, 10,  80.000, 'EXPIRED', N'DEMO-WASTE-PAGER: Sữa tươi hỏng do bảo quản lỗi',           21, 'VOIDED'),
+ (26,  5,  40.000, 'SPILL',   N'DEMO-WASTE-PAGER: Đổ đào ngâm khi sang khay',               22, 'ACTIVE'),
+ (27,  7,  45.000, 'REMAKE',  N'DEMO-WASTE-PAGER: Làm lại Trà Đào - sai công thức',         23, 'ACTIVE'),
+ (28, 11,   9.000, 'OTHER',   N'DEMO-WASTE-PAGER: Mẫu thử định lượng trà sen',               24, 'ACTIVE');
+
+DECLARE @inserted TABLE (
+    WasteLogId INT NOT NULL,
+    IngredientId INT NOT NULL,
+    Quantity DECIMAL(12,3) NOT NULL,
+    Status VARCHAR(10) NOT NULL,
+    LoggedAt DATETIME2 NOT NULL
+);
+
+INSERT INTO inventory.WasteLog(BranchId, IngredientId, Quantity, WasteType, Reason, LoggedBy, LoggedAt, Status, VoidedAt)
+OUTPUT inserted.WasteLogId, inserted.IngredientId, inserted.Quantity, inserted.Status, inserted.LoggedAt
+    INTO @inserted(WasteLogId, IngredientId, Quantity, Status, LoggedAt)
+SELECT @branchId, d.IngredientId, d.Quantity, d.WasteType, d.Reason, @baristaId,
+       DATEADD(MINUTE, -d.MinutesAgo, @now), d.Status,
+       CASE WHEN d.Status = 'VOIDED' THEN DATEADD(SECOND, 30, DATEADD(MINUTE, -d.MinutesAgo, @now)) END
+FROM @demo d;
+
+-- Ghi trừ tồn cho mọi dòng; dòng đã huỷ có thêm txn bù để tổng chênh lệch bằng 0.
+INSERT INTO inventory.InventoryTransaction(BranchId, IngredientId, ChangeQty, TxnType, RefTable, RefId, CreatedBy, CreatedAt)
+SELECT @branchId, i.IngredientId, -i.Quantity, 'WASTE', 'WasteLog', i.WasteLogId, @baristaId, i.LoggedAt
+FROM @inserted i;
+
+INSERT INTO inventory.InventoryTransaction(BranchId, IngredientId, ChangeQty, TxnType, RefTable, RefId, CreatedBy, CreatedAt)
+SELECT @branchId, i.IngredientId, i.Quantity, 'WASTE', 'WasteLog', i.WasteLogId, @baristaId, DATEADD(SECOND, 30, i.LoggedAt)
+FROM @inserted i
+WHERE i.Status = 'VOIDED';
+
+-- Đồng bộ cache tồn kho với sổ cái cho các dòng còn hiệu lực.
+UPDATE bi
+SET bi.QuantityOnHand = bi.QuantityOnHand - d.TotalQuantity,
+    bi.UpdatedAt = @now
+FROM inventory.BranchInventory bi
+JOIN (
+    SELECT IngredientId, SUM(Quantity) AS TotalQuantity
+    FROM @inserted
+    WHERE Status = 'ACTIVE'
+    GROUP BY IngredientId
+) d ON d.IngredientId = bi.IngredientId
+WHERE bi.BranchId = @branchId;
+
+COMMIT TRANSACTION;
+
+PRINT N'Đã thêm 28 dữ liệu demo cho Hao hụt & Làm lại tại CN01.';
 GO

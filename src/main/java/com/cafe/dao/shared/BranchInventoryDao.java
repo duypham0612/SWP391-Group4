@@ -41,6 +41,21 @@ public class BranchInventoryDao {
         return out;
     }
 
+    /** Tồn âm hiện tại. Outbox stock.oversold là audit trail; màn quản lý đọc số dư cache để phản ánh trạng thái đang còn lệch. */
+    public List<BranchInventory> findOversold(Connection conn, int branchId) throws SQLException {
+        final String sql =
+            "SELECT bi.BranchId, bi.IngredientId, bi.QuantityOnHand, bi.MinThreshold, " +
+            "       i.Name AS IngredientName, i.Unit AS IngredientUnit, i.IngredientType " +
+            "FROM inventory.BranchInventory bi JOIN catalog.Ingredient i ON bi.IngredientId = i.IngredientId " +
+            "WHERE bi.BranchId = ? AND bi.QuantityOnHand < 0 ORDER BY i.Name";
+        List<BranchInventory> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
+        }
+        return out;
+    }
+
     /** Trả về [quantityOnHand, minThreshold] hoặc null nếu chưa có dòng. */
     public BigDecimal[] findQtyAndThreshold(Connection conn, int branchId, int ingredientId) throws SQLException {
         final String sql = "SELECT QuantityOnHand, MinThreshold FROM inventory.BranchInventory WHERE BranchId=? AND IngredientId=?";
