@@ -18,7 +18,7 @@
                 </form>
             </c:when>
             <c:otherwise>
-                <a class="btn btn-ghost" href="${pageContext.request.contextPath}/barista/handover">Tới chấm công →</a>
+                <a class="btn btn-ghost" href="${pageContext.request.contextPath}/barista/shift">Tới chấm công →</a>
             </c:otherwise>
         </c:choose>
     </div>

@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 
 /**
  * Mốc "ngày kinh doanh" của một chi nhánh.
@@ -25,6 +26,31 @@ public final class BusinessDay {
     public static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private BusinessDay() { }
+
+    /** Chỉ giờ — card KDS, nơi mốc luôn nằm trong ngày kinh doanh hiện tại. */
+    private static final DateTimeFormatter TIME_VN = DateTimeFormatter.ofPattern("HH:mm");
+    /** Giờ kèm ngày — chấm công, vì ca đêm tan sang ngày hôm sau. */
+    private static final DateTimeFormatter DATE_TIME_VN = DateTimeFormatter.ofPattern("HH:mm dd/MM");
+    /** Ngày trước giờ — đơn treo nhiều ngày, mắt đọc theo trục ngày nhanh hơn. */
+    private static final DateTimeFormatter STAMP_VN = DateTimeFormatter.ofPattern("dd/MM HH:mm");
+
+    /** UTC (như DB lưu) → giờ Việt Nam để hiển thị. */
+    public static LocalDateTime toVn(LocalDateTime utc) {
+        return utc == null ? null
+                : utc.atZone(ZoneOffset.UTC).withZoneSameInstant(VN_ZONE).toLocalDateTime();
+    }
+
+    public static String fmtTimeVn(LocalDateTime utc) {
+        return utc == null ? "" : toVn(utc).format(TIME_VN);
+    }
+
+    public static String fmtDateTimeVn(LocalDateTime utc) {
+        return utc == null ? "-" : toVn(utc).format(DATE_TIME_VN);
+    }
+
+    public static String fmtStampVn(LocalDateTime utc) {
+        return utc == null ? "—" : toVn(utc).format(STAMP_VN);
+    }
 
     /** Mốc bắt đầu ngày kinh doanh hiện tại, theo giờ UTC để so trực tiếp với cột DATETIME2. */
     public static LocalDateTime startUtc(LocalTime openTime) {
