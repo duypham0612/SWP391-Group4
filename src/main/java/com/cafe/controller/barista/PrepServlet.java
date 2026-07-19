@@ -162,9 +162,12 @@ public class PrepServlet extends HttpServlet {
         int requestedBatchPage = positiveIntParam(req, "page", 1);
         InventoryService.PrepBatchPage batchPage = service.getTodayBatchPage(branchId, batchQuery,
                 batchIngredientId, batchExpiry, batchStatus, requestedBatchPage, batchPageSize);
+        List<com.cafe.model.PrepBatch> expiredBatches = service.getExpiredActiveBatches(branchId);
 
         req.setAttribute("preppedIngredients", prepped);
         req.setAttribute("checklist", service.getPrepChecklist(branchId));
+        req.setAttribute("expiredBatches", expiredBatches);
+        req.setAttribute("expiredBatchCount", expiredBatches.size());
         req.setAttribute("batches", batchPage.getBatches());
         req.setAttribute("prepBatchPage", batchPage);
         req.setAttribute("prepBatchQuery", batchQuery);

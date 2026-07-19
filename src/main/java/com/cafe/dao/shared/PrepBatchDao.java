@@ -96,22 +96,50 @@ public class PrepBatchDao {
         }
     }
 
+    /** Me ACTIVE da qua han, cat theo ExpiresAt thay vi MadeAt de bat ca me pha tu ngay truoc. */
+    public List<PrepBatch> findExpiredActive(Connection conn, int branchId) throws SQLException {
+        final String sql =
+            "SELECT pb.PrepBatchId, pb.BranchId, pb.PreppedIngredientId, pb.QuantityProduced, pb.MadeBy, pb.MadeAt, pb.ExpiresAt, pb.Status, pb.VoidedAt, " +
+            "       i.Name AS IngName, i.Unit AS IngUnit, u.FullName AS MadeByName, " +
+            "       ISNULL(bi.QuantityOnHand, 0) AS BranchQuantityOnHand " +
+            "FROM inventory.PrepBatch pb " +
+            "JOIN catalog.Ingredient i ON i.IngredientId=pb.PreppedIngredientId " +
+            "JOIN iam.[User] u ON u.UserId=pb.MadeBy " +
+            "LEFT JOIN inventory.BranchInventory bi ON bi.BranchId=pb.BranchId AND bi.IngredientId=pb.PreppedIngredientId " +
+            "WHERE pb.BranchId=? AND pb.Status='ACTIVE' AND pb.ExpiresAt<SYSUTCDATETIME() " +
+            "ORDER BY pb.ExpiresAt ASC, pb.MadeAt ASC, pb.PrepBatchId ASC";
+        List<PrepBatch> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    PrepBatch batch = map(rs);
+                    batch.setBranchQuantityOnHand(rs.getBigDecimal("BranchQuantityOnHand"));
+                    out.add(batch);
+                }
+            }
+        }
+        return out;
+    }
+
     /** Đánh dấu trạng thái (CANCELLED kèm VoidedAt). KHÔNG hard-delete — tồn hoàn qua txn bù. */
-    public void updateStatus(Connection conn, int prepBatchId, String status) throws SQLException {
+    public int updateStatus(Connection conn, int prepBatchId, String status) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE inventory.PrepBatch SET Status=?, VoidedAt=CASE WHEN ?='CANCELLED' THEN SYSUTCDATETIME() ELSE NULL END WHERE PrepBatchId=?")) {
+                "UPDATE inventory.PrepBatch SET Status=?, VoidedAt=CASE WHEN ?='CANCELLED' THEN SYSUTCDATETIME() ELSE NULL END WHERE PrepBatchId=? AND Status='ACTIVE'")) {
             ps.setString(1, status);
             ps.setString(2, status);
             ps.setInt(3, prepBatchId);
-            ps.executeUpdate();
+            return ps.executeUpdate();
         }
     }
 
-    public void updateQuantity(Connection conn, int prepBatchId, BigDecimal qtyProduced) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("UPDATE inventory.PrepBatch SET QuantityProduced=? WHERE PrepBatchId=?")) {
+    public int updateQuantity(Connection conn, int prepBatchId, BigDecimal qtyProduced, BigDecimal expectedQtyProduced) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE inventory.PrepBatch SET QuantityProduced=? WHERE PrepBatchId=? AND Status='ACTIVE' AND QuantityProduced=?")) {
             ps.setBigDecimal(1, qtyProduced);
             ps.setInt(2, prepBatchId);
-            ps.executeUpdate();
+            ps.setBigDecimal(3, expectedQtyProduced);
+            return ps.executeUpdate();
         }
     }
 

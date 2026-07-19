@@ -4,6 +4,7 @@ import com.cafe.common.Constants;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -36,7 +37,7 @@ class BaristaWorkbenchItemTest {
     @Test
     void overnight_order_does_not_get_its_own_red_tier() {
         OrderItem item = new OrderItem();
-        item.setOrderCreatedAt(LocalDateTime.now().minusDays(1));
+        item.setOrderCreatedAt(LocalDateTime.now(ZoneOffset.UTC).minusDays(1));
         item.setWaitedSeconds(27 * 60 * 60);
         assertEquals("Trễ từ hôm qua", item.getSlaLabel());
         assertEquals("late", item.getSlaTier());

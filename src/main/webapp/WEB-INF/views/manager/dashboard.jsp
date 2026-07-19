@@ -22,6 +22,16 @@
         <span class="label">Nguyên liệu sắp hết</span>
         <span class="value">${summary.lowStockCount}</span>
     </a>
+    <a class="card stat" href="${ctx}/manager/inventory" style="${summary.oversoldCount gt 0 ? 'border-color:var(--st-cancelled)' : ''}">
+        <span class="label">Âm kho cần kiểm kê</span>
+        <span class="value">${summary.oversoldCount}</span>
+        <span class="muted">
+            <c:choose>
+                <c:when test="${summary.oversoldCount > 0}">đang lệch số dư tồn</c:when>
+                <c:otherwise>Không có tồn âm</c:otherwise>
+            </c:choose>
+        </span>
+    </a>
     <a class="card stat" href="${ctx}/manager/shift">
         <span class="label">Nhân viên có ca hôm nay</span>
         <span class="value">${summary.staffOnShift}</span>
@@ -52,6 +62,26 @@
         <span class="value">→</span>
     </a>
 </div>
+
+<c:if test="${summary.hasOversold}">
+<div class="card" style="margin-bottom:var(--s5);border-color:var(--st-cancelled)">
+    <h3 style="margin-top:0">Tồn âm cần đối soát</h3>
+    <p class="muted">Số dư hiện tại đang thấp hơn 0. Kiểm kê thực tế rồi ghi điều chỉnh để đưa tồn về đúng số.</p>
+    <table class="table">
+        <thead><tr><th>Nguyên liệu</th><th style="width:150px">Tồn hiện tại</th><th style="width:120px">Loại</th><th></th></tr></thead>
+        <tbody>
+            <c:forEach var="o" items="${oversoldAlerts}">
+                <tr>
+                    <td><strong>${o.ingredientName}</strong></td>
+                    <td><span class="badge badge-cancelled">${o.quantityOnHand} ${o.ingredientUnit}</span></td>
+                    <td><c:choose><c:when test="${o.ingredientType == 'RAW'}">Thô</c:when><c:otherwise>Pha sẵn</c:otherwise></c:choose></td>
+                    <td><a class="btn btn-ghost btn-sm" href="${ctx}/manager/reconciliation?action=new">Kiểm kê</a></td>
+                </tr>
+            </c:forEach>
+        </tbody>
+    </table>
+</div>
+</c:if>
 
 <c:if test="${summary.hasOpenMenuBlocks}">
 <div class="card" style="margin-bottom:var(--s5)">
@@ -116,7 +146,7 @@
                     <tbody>
                         <c:forEach var="l" items="${lowStockAlerts}">
                             <tr>
-                                <td>${l.ingredientName} <span class="badge badge-cancelled" style="margin-left:6px">Thấp</span></td>
+                                <td>${l.ingredientName} <span class="badge badge-waiting" style="margin-left:6px">Thấp</span></td>
                                 <td>${l.quantityOnHand} ${l.ingredientUnit}</td>
                                 <td>${l.minThreshold}</td>
                             </tr>

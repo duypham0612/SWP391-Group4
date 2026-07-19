@@ -17,6 +17,13 @@
     <c:remove var="flashOk" scope="session" />
 </c:if>
 
+<c:if test="${expiredPrepBatchCount > 0}">
+    <div class="alert alert-warn handover-expiry">
+        Có ${expiredPrepBatchCount} mẻ pha sẵn đã quá hạn. Kiểm tra tủ trước khi bàn giao ca.
+        <a href="${ctx}/barista/prep">Mở màn Pha sẵn</a>
+    </div>
+</c:if>
+
 <div class="card form-card" style="margin-bottom:18px">
     <h3 style="margin-top:0">Ghi bàn giao</h3>
     <form action="${ctx}/barista/handover" method="post">

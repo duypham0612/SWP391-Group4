@@ -3,10 +3,13 @@ import com.cafe.controller.manager.InventoryDashboardServlet;
 
 import com.cafe.common.BusinessException;
 import com.cafe.common.CsrfUtil;
+import com.cafe.common.RecountValidator;
 import com.cafe.common.SessionUtil;
 import com.cafe.model.OrderItem;
+import com.cafe.model.StockAdjustment;
 import com.cafe.model.User;
 import com.cafe.service.barista.KdsService;
+import com.cafe.service.shared.OrderService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -41,6 +44,13 @@ public class KdsServlet extends HttpServlet {
                 req.setAttribute("recipeLines", productId == null
                         ? java.util.List.of() : service.getRecipeIngredients(productId));
                 req.getRequestDispatcher("/WEB-INF/views/barista/_kdsIngredientPicker.jsp").forward(req, resp);
+                return;
+            }
+            if ("depleted".equals(req.getParameter("partial"))) {
+                Integer productId = optionalIntParam(req, "productId");
+                req.setAttribute("depletedLines", productId == null
+                        ? java.util.List.of() : service.getDepletedRecipeIngredients(branchId, productId));
+                req.getRequestDispatcher("/WEB-INF/views/barista/_kdsRecountPicker.jsp").forward(req, resp);
                 return;
             }
             loadBoard(req, branchId);
@@ -94,8 +104,21 @@ public class KdsServlet extends HttpServlet {
                     else req.getSession().setAttribute("flashOk", "Đã báo sự cố cho Thu ngân/Quản lý. Món chưa bị hủy.");
                 }
             } else if ("unblock".equals(action)) {
-                if (!service.unblockItem(intParam(req, "orderItemId"), userId, branchId)) flashConflict(req);
-                else req.getSession().setAttribute("flashOk", "Đã trả món về hàng chờ.");
+                if ("1".equals(req.getParameter("recount"))) {
+                    List<StockAdjustment> recounts = RecountValidator.parse(
+                            req.getParameterValues("ingredientId"), req.getParameterValues("actualQty"));
+                    OrderService.UnblockResult result =
+                            service.unblockItem(intParam(req, "orderItemId"), recounts, userId, branchId);
+                    if (!result.isSuccess()) flashConflict(req);
+                    else if (result.getRemainingBlockedWithRecountedIngredients() > 0) {
+                        req.getSession().setAttribute("flashOk", "Đã trả món về hàng chờ. Còn "
+                                + result.getRemainingBlockedWithRecountedIngredients()
+                                + " món đang cần xử lý dùng nguyên liệu vừa kiểm lại.");
+                    } else req.getSession().setAttribute("flashOk", "Đã trả món về hàng chờ.");
+                } else {
+                    if (!service.unblockItem(intParam(req, "orderItemId"), userId, branchId)) flashConflict(req);
+                    else req.getSession().setAttribute("flashOk", "Đã trả món về hàng chờ.");
+                }
             } else if ("remake".equals(action)) {
                 if (!service.remakeItem(intParam(req, "orderItemId"), remakeReason(req), userId, branchId)) flashConflict(req);
                 else req.getSession().setAttribute("flashOk", "Đã đưa món về hàng chờ với ưu tiên làm lại.");

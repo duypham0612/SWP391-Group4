@@ -18,6 +18,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 /** M1 · ManagerDashboardService — tổng hợp chỉ số chi nhánh. */
@@ -32,7 +33,16 @@ public class ManagerDashboardService {
 
     /** Cảnh báo tồn thấp (QuantityOnHand <= MinThreshold). */
     public List<BranchInventory> getLowStockAlerts(int branchId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) { return biDao.findLowStock(c, branchId); }
+        try (Connection c = DBConnection.getConnection()) {
+            List<BranchInventory> rows = new ArrayList<>(biDao.findLowStock(c, branchId));
+            rows.removeIf(BranchInventory::isOversold);
+            return rows;
+        }
+    }
+
+    /** Tồn âm đang còn ở số dư hiện tại; stock.oversold trong outbox chỉ giữ dấu vết lịch sử. */
+    public List<BranchInventory> getOversoldAlerts(int branchId) throws SQLException {
+        try (Connection c = DBConnection.getConnection()) { return biDao.findOversold(c, branchId); }
     }
 
     /** Số chấm công đang chờ duyệt. */
@@ -71,6 +81,7 @@ public class ManagerDashboardService {
     public Summary getTodaySummary(int branchId, LocalDate today) throws SQLException {
         Summary s = new Summary();
         s.lowStockCount = getLowStockAlerts(branchId).size();
+        s.oversoldCount = getOversoldAlerts(branchId).size();
         s.pendingApprovals = getPendingApprovals(branchId);
         s.staffOnShift = getStaffOnShift(branchId, today).size();
         s.todayRevenue = getTodayRevenue(branchId);
@@ -81,6 +92,7 @@ public class ManagerDashboardService {
 
     public static class Summary {
         public int lowStockCount;
+        public int oversoldCount;
         public int pendingApprovals;
         public int staffOnShift;
         public BigDecimal todayRevenue = BigDecimal.ZERO;
@@ -88,6 +100,8 @@ public class ManagerDashboardService {
         public WasteSummary todayWaste = WasteSummary.from(List.of());
 
         public int getLowStockCount() { return lowStockCount; }
+        public int getOversoldCount() { return oversoldCount; }
+        public boolean isHasOversold() { return oversoldCount > 0; }
         public int getPendingApprovals() { return pendingApprovals; }
         public int getStaffOnShift() { return staffOnShift; }
         public BigDecimal getTodayRevenue() { return todayRevenue; }

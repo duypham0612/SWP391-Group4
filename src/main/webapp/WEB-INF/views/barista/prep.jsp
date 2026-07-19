@@ -27,6 +27,41 @@
 <jsp:include page="../layout/_baristaShiftBanner.jsp" />
 
 <div class="${onShift ? '' : 'is-viewonly'}">
+<%-- ===== Mẻ pha sẵn quá hạn: cắt theo ExpiresAt, không theo MadeAt ===== --%>
+<c:if test="${expiredBatchCount > 0}">
+    <div class="card prep-expired" style="margin-bottom:var(--s4)">
+        <div class="prep-expired__head">
+            <div>
+                <h3 style="margin:0">Mẻ pha sẵn quá hạn</h3>
+                <p class="muted" style="margin:4px 0 0">${expiredBatchCount} mẻ cần kiểm tra và ghi hao hụt nếu còn trong tủ.</p>
+            </div>
+            <span class="badge badge-cancelled">Quá hạn</span>
+        </div>
+        <div class="prep-expired__list">
+            <c:forEach var="b" items="${expiredBatches}">
+                <div class="prep-expired__item">
+                    <div class="prep-expired__main">
+                        <strong>#${b.prepBatchId} · ${b.preppedIngredientName}</strong>
+                        <span>Hạn ${b.expiresAtDisplay} · sản lượng ${b.quantityProduced} ${b.preppedIngredientUnit} · tồn hiện có ${b.branchQuantityOnHand} ${b.preppedIngredientUnit}</span>
+                    </div>
+                    <c:choose>
+                        <c:when test="${b.hasSuggestedWaste}">
+                            <c:url var="expiredWasteUrl" value="/barista/waste">
+                                <c:param name="ingredientId" value="${b.preppedIngredientId}" />
+                                <c:param name="qty" value="${b.suggestedWasteQuantity}" />
+                            </c:url>
+                            <a class="btn btn-ghost btn-sm" href="${expiredWasteUrl}">Ghi hao hụt ${b.suggestedWasteQuantity} ${b.preppedIngredientUnit}</a>
+                        </c:when>
+                        <c:otherwise>
+                            <span class="muted">Không đề xuất trừ thêm vì tồn hiện có không dương.</span>
+                        </c:otherwise>
+                    </c:choose>
+                </div>
+            </c:forEach>
+        </div>
+    </div>
+</c:if>
+
 <%-- ===== Checklist: cần pha hôm nay ===== --%>
 <c:set var="needCount" value="0" />
 <c:forEach var="r" items="${checklist}"><c:if test="${r.needPrep}"><c:set var="needCount" value="${needCount + 1}" /></c:if></c:forEach>

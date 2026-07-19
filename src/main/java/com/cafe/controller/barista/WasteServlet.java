@@ -33,6 +33,7 @@ public class WasteServlet extends HttpServlet {
         int branchId = InventoryDashboardServlet.branchId(req);
         int userId = currentUserId(req);
         try {
+            applyExpiredPrefill(req);
             forwardPage(req, resp, branchId, userId, req.getParameter("edit"));
         } catch (Exception e) {
             throw new ServletException(e);
@@ -172,6 +173,22 @@ public class WasteServlet extends HttpServlet {
     private List<WasteRowForm> legacyRow(HttpServletRequest req) {
         return List.of(new WasteRowForm(req.getParameter("ingredientId"), req.getParameter("quantity"),
                 req.getParameter("wasteType"), "", req.getParameter("reason")));
+    }
+
+    private void applyExpiredPrefill(HttpServletRequest req) {
+        String ingredientId = req.getParameter("ingredientId");
+        String qty = req.getParameter("qty");
+        if (blank(ingredientId) || blank(qty)) return;
+        try {
+            int parsedIngredientId = Integer.parseInt(ingredientId.trim());
+            BigDecimal parsedQty = new BigDecimal(qty.trim());
+            if (parsedIngredientId <= 0 || parsedQty.signum() <= 0) return;
+            req.setAttribute("submittedWasteRows", List.of(new WasteRowForm(
+                    String.valueOf(parsedIngredientId), parsedQty.stripTrailingZeros().toPlainString(),
+                    "EXPIRED", "Hết hạn", "")));
+        } catch (NumberFormatException ignored) {
+            // Prefill URL params are editable by the user; bad values simply fall back to a blank form.
+        }
     }
 
     private List<WasteLogLine> toWasteLines(List<WasteRowForm> forms) {

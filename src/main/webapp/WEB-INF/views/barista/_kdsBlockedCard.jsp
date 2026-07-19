@@ -7,7 +7,9 @@
         <form action="${ctx}/barista/kds" method="post" class="kds-primary-form"
               data-confirm="Nguyên liệu/thiết bị đã sẵn sàng trở lại? Món sẽ về hàng chờ pha.">
             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="unblock"><input type="hidden" name="orderItemId" value="${cardItem.orderItemId}">
-            <button type="submit" class="btn btn-primary btn-full">Có lại rồi — trả về chờ pha</button>
+            <button type="submit" class="btn btn-primary btn-full js-unblock"
+                    data-item-id="${cardItem.orderItemId}" data-product-id="${cardItem.productId}"
+                    data-name="${cardItem.quantity} × <c:out value='${cardItem.productName}' />">Có lại rồi — trả về chờ pha</button>
         </form>
     </c:if>
 </article>
