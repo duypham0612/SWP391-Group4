@@ -1,5 +1,7 @@
 package com.cafe.model;
 
+import com.cafe.common.BusinessDay;
+
 import java.time.LocalDateTime;
 
 /** hr.ShiftHandover — ghi chú bàn giao ca (Barista, B7). */
@@ -30,4 +32,9 @@ public class ShiftHandover {
 
     public String getCreatedByName() { return createdByName; }
     public void setCreatedByName(String v) { this.createdByName = v; }
+
+    /** Giờ ghi bàn giao theo giờ Việt Nam để JSP hiển thị (createdAt lưu UTC). */
+    public String getCreatedDisplay() {
+        return BusinessDay.fmtDateTimeVn(createdAt);
+    }
 }

@@ -17,18 +17,23 @@ public class PickupTicket {
     private final int makingCount;
     private final int waitingCount;
     private final boolean allReady;              // không còn món đang chờ/đang pha
+    private final String sessionStatus;          // OPEN/CLOSED của phiên bàn (CLOSED = khách đã thanh toán)
 
-    public PickupTicket(int orderId, List<OrderItem> readyItems, Order fullOrder) {
+    /**
+     * Dựng ticket từ danh sách món đã nạp sẵn (1 connection ở OrderService.getPickupTickets).
+     * {@code allOpenItems} là TOÀN BỘ món của đơn (mọi trạng thái) để render checklist đối chiếu.
+     */
+    public PickupTicket(int orderId, String tableNumber, List<OrderItem> readyItems, List<OrderItem> allOpenItems) {
         this.orderId = orderId;
         this.readyItems = readyItems == null ? new ArrayList<>() : readyItems;
-        String table = (!this.readyItems.isEmpty()) ? this.readyItems.get(0).getTableNumber()
-                : (fullOrder != null ? fullOrder.getTableNumber() : null);
-        this.tableNumber = table;
+        this.tableNumber = tableNumber;
 
         List<OrderItem> all = new ArrayList<>();
         int r = 0, m = 0, w = 0;
-        if (fullOrder != null && fullOrder.getItems() != null) {
-            for (OrderItem it : fullOrder.getItems()) {
+        String sess = null;
+        if (allOpenItems != null) {
+            for (OrderItem it : allOpenItems) {
+                if (sess == null) sess = it.getSessionStatus();
                 String s = it.getStatus();
                 if ("CANCELLED".equals(s)) continue;
                 all.add(it);
@@ -42,16 +47,27 @@ public class PickupTicket {
         this.makingCount = m;
         this.waitingCount = w;
         this.allReady = (m == 0 && w == 0);
+        this.sessionStatus = sess;
     }
 
     public int getOrderId() { return orderId; }
     public String getTableNumber() { return tableNumber; }
+    /** Mã gọi món của đơn (lấy từ dòng món đầu tiên) — để thu ngân đọc số gọi khách. */
+    public String getPickupCode() {
+        if (!readyItems.isEmpty()) return readyItems.get(0).getPickupCode();
+        return items.isEmpty() ? null : items.get(0).getPickupCode();
+    }
     public List<OrderItem> getReadyItems() { return readyItems; }
     public List<OrderItem> getItems() { return items; }
     public int getReadyCount() { return readyCount; }
+    public int getReadyCupCount() { int n=0; for (OrderItem it : readyItems) n+=it.getQuantity(); return n; }
     public int getMakingCount() { return makingCount; }
     public int getWaitingCount() { return waitingCount; }
     /** Số món chưa pha xong (chờ + đang pha) — để hiển thị cảnh báo giao thiếu. */
     public int getPendingCount() { return makingCount + waitingCount; }
+    public int getPendingCupCount() { int n=0; for (OrderItem it : items) if ("WAITING".equals(it.getStatus()) || "MAKING".equals(it.getStatus())) n+=it.getQuantity(); return n; }
     public boolean isAllReady() { return allReady; }
+    public String getSessionStatus() { return sessionStatus; }
+    /** Khách đã thanh toán (phiên bàn đã đóng) → ưu tiên giao ngay. */
+    public boolean isPaid() { return "CLOSED".equals(sessionStatus); }
 }

@@ -1,5 +1,6 @@
 package com.cafe.controller.manager;
 
+import com.cafe.common.BusinessDay;
 import com.cafe.service.manager.ManagerDashboardService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -20,11 +21,12 @@ public class ManagerDashboardServlet extends HttpServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         int branchId = InventoryDashboardServlet.branchId(req);
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(BusinessDay.VN_ZONE);
         try {
             req.setAttribute("summary", service.getTodaySummary(branchId, today));
             req.setAttribute("staffOnShift", service.getStaffOnShift(branchId, today));
             req.setAttribute("lowStockAlerts", service.getLowStockAlerts(branchId));
+            req.setAttribute("oversoldAlerts", service.getOversoldAlerts(branchId));
             req.setAttribute("today", today);
             req.setAttribute("pageTitle", "Bảng điều khiển");
             req.getRequestDispatcher("/WEB-INF/views/manager/dashboard.jsp").forward(req, resp);

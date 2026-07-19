@@ -40,17 +40,36 @@ public class OrderInboxServlet extends HttpServlet {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
         User u = SessionUtil.currentUser(req);
         Integer userId = u != null ? u.getUserId() : null;
+        int branchId = InventoryDashboardServlet.branchId(req);
+        String action = req.getParameter("action");
         try {
-            if ("void".equals(req.getParameter("action"))) {
+            if ("void".equals(action)) {
                 int orderId = Integer.parseInt(req.getParameter("orderId"));
                 boolean ok = orderService.voidOrder(orderId, userId);
                 req.getSession().setAttribute(ok ? "flashOk" : "flashError",
                         ok ? "Đã huỷ đơn — các món chưa pha chuyển CANCELLED (không đụng tồn)."
                            : "Không thể huỷ — đơn đã được pha (hoặc đã xử lý).");
+            } else if ("cancelItem".equals(action)) {
+                // Huỷ một dòng món (đặc biệt món BLOCKED: hết nguyên liệu/hỏng máy → thoát bế tắc).
+                int orderItemId = Integer.parseInt(req.getParameter("orderItemId"));
+                String reason = req.getParameter("reason");
+                String code = orderService.cancelItem(orderItemId, reason, userId, branchId);
+                req.getSession().setAttribute("OK".equals(code) ? "flashOk" : "flashError",
+                        cancelItemMessage(code));
             }
             resp.sendRedirect(req.getContextPath() + "/cashier/inbox");
         } catch (NumberFormatException e) {
             resp.sendRedirect(req.getContextPath() + "/cashier/inbox");
         } catch (Exception e) { throw new ServletException(e); }
+    }
+
+    /** Thông điệp theo mã kết quả cancelItem (OK/NOT_FOUND/ALREADY_BILLED/CONFLICT). */
+    private static String cancelItemMessage(String code) {
+        switch (code == null ? "" : code) {
+            case "OK": return "Đã huỷ món.";
+            case "ALREADY_BILLED": return "Không huỷ được — món đã lên hoá đơn, xử lý ở Thanh toán.";
+            case "NOT_FOUND": return "Không tìm thấy món.";
+            default: return "Không huỷ được — món đã được pha hoặc vừa thay đổi.";
+        }
     }
 }

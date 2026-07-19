@@ -1,5 +1,6 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
+<%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <jsp:include page="../layout/header.jsp" />
 
@@ -10,8 +11,7 @@
         <p>${sessionScope.authUser.branchName} · tự cập nhật mỗi <span id="baristaCountdown">5</span> giây</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <a class="btn btn-primary" href="${ctx}/barista/kds">Mở hàng chờ</a>
-        <a class="btn btn-ghost" href="${ctx}/barista/pickup">Món chờ giao</a>
+        <a class="btn btn-primary" href="${ctx}/barista/kds">Mở quầy pha chế</a>
     </div>
 </div>
 
@@ -19,28 +19,42 @@
     <a class="card stat" href="${ctx}/barista/kds">
         <span class="label">Đang chờ pha</span>
         <span class="value">${queueCount}</span>
-        <span class="muted">WAITING + MAKING</span>
+        <span class="muted">món · chờ pha + đang pha</span>
     </a>
-    <a class="card stat" href="${ctx}/barista/pickup" style="${readyCount gt 0 ? 'border-color:var(--st-ready)' : ''}">
-        <span class="label">Sẵn để giao</span>
+    <a class="card stat" href="${ctx}/barista/kds" style="${readyCount gt 0 ? 'border-color:var(--st-ready)' : ''}">
+        <span class="label">Đã pha xong</span>
         <span class="value">${readyCount}</span>
-        <span class="muted">READY</span>
+        <span class="muted">món · chờ mang ra</span>
     </a>
     <div class="card stat">
-        <span class="label">Lead-time TB hôm nay</span>
+        <span class="label">Tốc độ pha cả ca hôm nay</span>
         <span class="value">${kpi.avgLeadDisplay}</span>
-        <span class="muted">${kpi.cupCount} ly đã xong</span>
+        <span class="muted">${kpi.cupCount} món đã xong · số của cả ca, không chấm điểm cá nhân</span>
     </div>
+    <a class="card stat" href="${ctx}/barista/waste" style="${wasteSummary.totalCost gt 0 ? 'border-color:var(--st-waiting)' : ''}">
+        <span class="label">Hao hụt hôm nay</span>
+        <span class="value"><fmt:formatNumber value="${wasteSummary.totalCost}" maxFractionDigits="0"/> ₫</span>
+        <span class="muted">
+            <c:choose>
+                <c:when test="${wasteSummary.hasTopIngredient}">
+                    Top: ${wasteSummary.topIngredientName} · ${wasteSummary.remakeCount} làm lại
+                </c:when>
+                <c:otherwise>
+                    Chưa ghi nhận hao hụt · ${wasteSummary.remakeCount} làm lại
+                </c:otherwise>
+            </c:choose>
+        </span>
+    </a>
     <a class="card stat" href="${ctx}/barista/eightysix" style="${alertCount gt 0 ? 'border-color:var(--st-cancelled)' : ''}">
         <span class="label">Cảnh báo vận hành</span>
         <span class="value">${alertCount}</span>
-        <span class="muted">${lowStockCount} tồn thấp<c:if test="${oversoldCount gt 0}"> (${oversoldCount} âm kho)</c:if> · ${eightySixCount} món 86</span>
+        <span class="muted">${lowStockCount} tồn thấp<c:if test="${oversoldCount gt 0}"> (${oversoldCount} âm kho)</c:if> · ${eightySixCount} món tạm hết</span>
     </a>
 </div>
 
 <c:if test="${suggest86Count gt 0}">
     <a class="alert alert-warn" href="${ctx}/barista/eightysix" style="display:block;margin-top:16px;text-decoration:none">
-        <strong>${suggest86Count} món có nguyên liệu đã cạn</strong> — cân nhắc báo hết (86). Bấm để xem &amp; xử lý →
+        <strong>${suggest86Count} món có nguyên liệu đã cạn</strong> — cân nhắc báo tạm hết. Bấm để xem &amp; xử lý →
     </a>
 </c:if>
 
@@ -111,7 +125,7 @@
 
 <div class="card" style="margin-top:24px">
     <h3 style="margin-top:0">Trạng thái món</h3>
-    <p class="muted" style="margin-top:0">Status dùng chung cho Hàng chờ pha, Cashier và tracking QR khách.</p>
+    <p class="muted" style="margin-top:0">Trạng thái dùng chung cho Quầy pha chế, Thu ngân và tracking QR khách.</p>
     <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:6px">
         <jsp:include page="../layout/_statusBadge.jsp"><jsp:param name="status" value="WAITING" /></jsp:include>
         <jsp:include page="../layout/_statusBadge.jsp"><jsp:param name="status" value="MAKING" /></jsp:include>

@@ -27,6 +27,17 @@ public class CategoryDao {
         return out;
     }
 
+    public List<Category> findActive(Connection conn) throws SQLException {
+        final String sql = "SELECT CategoryId, Name, SortOrder, IsActive FROM catalog.Category " +
+                "WHERE IsActive = 1 ORDER BY SortOrder, Name";
+        List<Category> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) out.add(map(rs));
+        }
+        return out;
+    }
+
     public Category findById(Connection conn, int id) throws SQLException {
         final String sql = "SELECT CategoryId, Name, SortOrder, IsActive FROM catalog.Category WHERE CategoryId = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {

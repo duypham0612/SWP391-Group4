@@ -14,7 +14,7 @@ public class BranchDao {
 
     private static final String SELECT =
         "SELECT b.BranchId, b.Code, b.Name, b.Address, b.Phone, b.IsActive, " +
-        "       b.OpenTime, b.CloseTime, b.ManagerUserId, u.FullName AS ManagerName " +
+        "       b.OpenTime, b.CloseTime, b.ManagerUserId, b.PeakThresholdCups, u.FullName AS ManagerName " +
         "FROM org.Branch b LEFT JOIN iam.[User] u ON u.UserId = b.ManagerUserId ";
 
     public List<Branch> findAll(Connection conn) throws SQLException {
@@ -72,6 +72,8 @@ public class BranchDao {
     }
 
     public void update(Connection conn, Branch b) throws SQLException {
+        // Không đụng PeakThresholdCups ở đây: cột đó do Manager quản qua updateHoursAndPeak,
+        // để lưu chi nhánh từ màn Admin không vô tình xoá ngưỡng cao điểm về 0.
         final String sql = "UPDATE org.Branch SET Name=?, Address=?, Phone=?, " +
                 "OpenTime=?, CloseTime=?, ManagerUserId=?, IsActive=? WHERE BranchId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -93,6 +95,19 @@ public class BranchDao {
 
     private static void setInt(PreparedStatement ps, int idx, Integer v) throws SQLException {
         if (v == null) ps.setNull(idx, java.sql.Types.INTEGER); else ps.setInt(idx, v);
+    }
+
+    /** Cài đặt vận hành cho Manager: giờ mở/đóng cửa + ngưỡng cao điểm của chi nhánh mình. */
+    public void updateHoursAndPeak(Connection conn, int branchId, java.time.LocalTime openTime,
+                                   java.time.LocalTime closeTime, int peakThresholdCups) throws SQLException {
+        final String sql = "UPDATE org.Branch SET OpenTime=?, CloseTime=?, PeakThresholdCups=? WHERE BranchId=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            setTime(ps, 1, openTime);
+            setTime(ps, 2, closeTime);
+            ps.setInt(3, Math.max(0, peakThresholdCups));
+            ps.setInt(4, branchId);
+            ps.executeUpdate();
+        }
     }
 
     public void updateActive(Connection conn, int id, boolean active) throws SQLException {
@@ -125,6 +140,7 @@ public class BranchDao {
         if (ct != null) b.setCloseTime(ct.toLocalTime());
         int mgr = rs.getInt("ManagerUserId");
         if (!rs.wasNull()) b.setManagerUserId(mgr);
+        b.setPeakThresholdCups(rs.getInt("PeakThresholdCups"));
         b.setManagerName(rs.getString("ManagerName"));
         return b;
     }

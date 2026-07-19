@@ -1,6 +1,7 @@
 package com.cafe.service.shared;
 
 import com.cafe.config.DBConnection;
+import com.cafe.dao.admin.CategoryDao;
 import com.cafe.dao.admin.HomeSettingDao;
 import com.cafe.dao.admin.ProductDao;
 import com.cafe.dao.shared.BranchMenuDao;
@@ -11,6 +12,7 @@ import com.cafe.dao.shared.PrepRecipeDao;
 import com.cafe.dao.shared.ProductModifierGroupDao;
 import com.cafe.dao.shared.ProductRecipeDao;
 import com.cafe.model.BranchMenuItem;
+import com.cafe.model.Category;
 import com.cafe.model.HomeSetting;
 import com.cafe.model.ModifierGroup;
 import com.cafe.model.ModifierIngredientImpact;
@@ -38,6 +40,7 @@ public class CatalogReadService {
     private final PrepRecipeDao prepRecipeDao = new PrepRecipeDao();
     private final ModifierIngredientImpactDao impactDao = new ModifierIngredientImpactDao();
     private final ProductDao productDao = new ProductDao();
+    private final CategoryDao categoryDao = new CategoryDao();
     private final HomeSettingDao homeSettingDao = new HomeSettingDao();
 
     /** Menu bán được của chi nhánh: published + available + chưa 86, kèm nhóm modifier. */
@@ -107,6 +110,51 @@ public class CatalogReadService {
     }
 
     // ===== B6 · Tra cứu công thức (Barista, read-only) =====
+
+    public ProductPage getRecipeProductPage(String q, Integer categoryId, String recipeState,
+                                            Integer branchId, int page, int pageSize) throws SQLException {
+        int safePageSize = Math.max(1, pageSize);
+        try (Connection conn = DBConnection.getConnection()) {
+            int total = productDao.countForRecipeLookup(conn, q, categoryId, recipeState, branchId);
+            int totalPages = Math.max(1, (int) Math.ceil(total / (double) safePageSize));
+            int safePage = Math.min(Math.max(1, page), totalPages);
+            int offset = (safePage - 1) * safePageSize;
+            List<Product> items = productDao.findForRecipeLookup(
+                    conn, q, categoryId, recipeState, branchId, offset, safePageSize);
+            return new ProductPage(items, total, safePage, totalPages);
+        }
+    }
+
+    public Product getRecipeProduct(int productId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            return productDao.findById(conn, productId);
+        }
+    }
+
+    public List<Category> getRecipeFilterCategories() throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            return categoryDao.findActive(conn);
+        }
+    }
+
+    public static class ProductPage {
+        private final List<Product> items;
+        private final int total;
+        private final int page;
+        private final int totalPages;
+
+        public ProductPage(List<Product> items, int total, int page, int totalPages) {
+            this.items = items;
+            this.total = total;
+            this.page = page;
+            this.totalPages = totalPages;
+        }
+
+        public List<Product> getItems() { return items; }
+        public int getTotal() { return total; }
+        public int getPage() { return page; }
+        public int getTotalPages() { return totalPages; }
+    }
 
     /** Công thức món: từng dòng nguyên liệu (RAW/PREPPED) + định mức. */
     public List<ProductRecipe> getRecipeForProduct(int productId) throws SQLException {
