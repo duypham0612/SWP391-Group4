@@ -399,6 +399,27 @@ public class OrderItemDao {
         }
     }
 
+    /** Đếm các dòng món BLOCKED còn lại trong chi nhánh có dùng một trong các nguyên liệu vừa kiểm kê. */
+    public int countBlockedUsingIngredients(Connection conn, int branchId,
+                                            java.util.Collection<Integer> ingredientIds) throws SQLException {
+        if (ingredientIds == null || ingredientIds.isEmpty()) return 0;
+        StringBuilder in = new StringBuilder();
+        for (int i = 0; i < ingredientIds.size(); i++) in.append(i == 0 ? "?" : ",?");
+        final String sql =
+            "SELECT COUNT(DISTINCT oi.OrderItemId) " +
+            "FROM sales.OrderItem oi " +
+            "JOIN sales.Orders o ON o.OrderId = oi.OrderId " +
+            "JOIN catalog.ProductRecipe pr ON pr.ProductId = oi.ProductId " +
+            "WHERE o.BranchId = ? AND o.Status = 'ACTIVE' AND oi.Status = 'BLOCKED' " +
+            "AND pr.IngredientId IN (" + in + ")";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = 1;
+            ps.setInt(idx++, branchId);
+            for (Integer ingredientId : ingredientIds) ps.setInt(idx++, ingredientId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getInt(1) : 0; }
+        }
+    }
+
     /** READY → REMAKE là claim chuyển tiếp, chống hai người tạo remake trùng. */
     public int beginRemake(Connection conn, int orderItemId, int branchId) throws SQLException {
         final String sql = "UPDATE oi SET oi.Status='REMAKE' FROM sales.OrderItem oi "

@@ -137,25 +137,27 @@ public class WasteLogDao {
         }
     }
 
-    public void update(Connection conn, int wasteLogId, BigDecimal qty, String wasteType, String reason) throws SQLException {
-        final String sql = "UPDATE inventory.WasteLog SET Quantity=?, WasteType=?, Reason=? WHERE WasteLogId=?";
+    public int update(Connection conn, int wasteLogId, BigDecimal qty, String wasteType, String reason,
+                      BigDecimal expectedQty) throws SQLException {
+        final String sql = "UPDATE inventory.WasteLog SET Quantity=?, WasteType=?, Reason=? WHERE WasteLogId=? AND Status='ACTIVE' AND Quantity=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setBigDecimal(1, qty);
             ps.setString(2, wasteType);
             if (reason == null) ps.setNull(3, java.sql.Types.NVARCHAR); else ps.setString(3, reason);
             ps.setInt(4, wasteLogId);
-            ps.executeUpdate();
+            ps.setBigDecimal(5, expectedQty);
+            return ps.executeUpdate();
         }
     }
 
     /** Đánh dấu VOIDED (kèm VoidedAt). KHÔNG hard-delete — tồn hoàn qua txn bù. */
-    public void updateStatus(Connection conn, int wasteLogId, String status) throws SQLException {
+    public int updateStatus(Connection conn, int wasteLogId, String status) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE inventory.WasteLog SET Status=?, VoidedAt=CASE WHEN ?='VOIDED' THEN SYSUTCDATETIME() ELSE NULL END WHERE WasteLogId=?")) {
+                "UPDATE inventory.WasteLog SET Status=?, VoidedAt=CASE WHEN ?='VOIDED' THEN SYSUTCDATETIME() ELSE NULL END WHERE WasteLogId=? AND Status='ACTIVE'")) {
             ps.setString(1, status);
             ps.setString(2, status);
             ps.setInt(3, wasteLogId);
-            ps.executeUpdate();
+            return ps.executeUpdate();
         }
     }
 

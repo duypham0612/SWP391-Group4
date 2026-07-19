@@ -61,6 +61,7 @@ public class BranchMenuService {
             conn.setAutoCommit(false);
             try { dao.upsert(conn, branchId, productId, available, localPrice, is86); conn.commit(); }
             catch (SQLException e) { conn.rollback(); throw e; }
+            catch (RuntimeException e) { conn.rollback(); throw e; }
             finally { conn.setAutoCommit(true); }
         }
     }
@@ -85,7 +86,9 @@ public class BranchMenuService {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
             try {
-                dao.updateIs86(conn, branchId, productId, is86, ts);
+                if (dao.updateIs86(conn, branchId, productId, is86, ts) != 1) {
+                    throw new BusinessException("Món này không còn trong menu chi nhánh. Vui lòng tải lại.");
+                }
                 String payload = "{\"productId\":" + productId + ",\"is86\":" + is86
                         + (backInEta == null ? "" : ",\"eta\":\"" + backInEta + "\"")
                         + (userId == null ? "" : ",\"by\":" + userId) + "}";
@@ -93,6 +96,7 @@ public class BranchMenuService {
                 conn.commit();
             }
             catch (SQLException e) { conn.rollback(); throw e; }
+            catch (RuntimeException e) { conn.rollback(); throw e; }
             finally { conn.setAutoCommit(true); }
         }
     }
@@ -116,7 +120,9 @@ public class BranchMenuService {
                 r.setBackInEta(v.getBackInEta());
                 r.setRequestedBy(userId);
                 int requestId = menuBlockDao.insert(conn, r);
-                dao.updateIs86(conn, branchId, productId, true, Timestamp.valueOf(v.getBackInEta()));
+                if (dao.updateIs86(conn, branchId, productId, true, Timestamp.valueOf(v.getBackInEta())) != 1) {
+                    throw new BusinessException("Món này không còn trong menu chi nhánh. Vui lòng tải lại.");
+                }
                 String payload = "{\"productId\":" + productId
                         + ",\"is86\":true,\"eta\":\"" + v.getBackInEta()
                         + "\",\"reason\":\"" + v.getReason().name()
@@ -193,7 +199,9 @@ public class BranchMenuService {
                 int affected = menuBlockDao.review(conn, requestId, branchId,
                         rejected ? "REJECTED" : "RESOLVED", reviewerId, reviewNote, true);
                 if (affected != 1) throw new BusinessException("Yêu cầu đã được xử lý.");
-                dao.updateIs86(conn, branchId, open.getProductId(), false, null);
+                if (dao.updateIs86(conn, branchId, open.getProductId(), false, null) != 1) {
+                    throw new BusinessException("Món này không còn trong menu chi nhánh. Vui lòng tải lại.");
+                }
                 String payload = "{\"productId\":" + open.getProductId()
                         + ",\"is86\":false,\"requestId\":" + requestId
                         + ",\"by\":" + reviewerId + "}";
@@ -226,6 +234,7 @@ public class BranchMenuService {
                 }
                 conn.commit();
             } catch (SQLException e) { conn.rollback(); throw e; }
+            catch (RuntimeException e) { conn.rollback(); throw e; }
             finally { conn.setAutoCommit(true); }
         }
     }
@@ -235,6 +244,7 @@ public class BranchMenuService {
             conn.setAutoCommit(false);
             try { dao.remove(conn, branchId, productId); conn.commit(); }
             catch (SQLException e) { conn.rollback(); throw e; }
+            catch (RuntimeException e) { conn.rollback(); throw e; }
             finally { conn.setAutoCommit(true); }
         }
     }

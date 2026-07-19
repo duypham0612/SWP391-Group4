@@ -149,9 +149,22 @@ public class KdsService {
         return orderService.unblockItem(orderItemId, userId, branchId);
     }
 
+    /** BLOCKED → WAITING kèm kiểm kê nhanh tồn thật cho các nguyên liệu vừa có lại. */
+    public OrderService.UnblockResult unblockItem(int orderItemId,
+                                                  java.util.List<com.cafe.model.StockAdjustment> recounts,
+                                                  Integer userId, int branchId) throws SQLException {
+        return orderService.unblockItem(orderItemId, recounts, userId, branchId);
+    }
+
     /** Nguyên liệu trong công thức của món — dựng danh sách chọn ở modal "Hết nguyên liệu". */
     public java.util.List<com.cafe.model.ProductRecipe> getRecipeIngredients(int productId) throws SQLException {
         return orderService.getRecipeIngredients(productId);
+    }
+
+    /** Nguyên liệu trong công thức đang cạn tại chi nhánh — dựng modal kiểm kê khi bỏ chặn. */
+    public java.util.List<com.cafe.model.ProductRecipe> getDepletedRecipeIngredients(int branchId, int productId)
+            throws SQLException {
+        return orderService.getDepletedRecipeIngredients(branchId, productId);
     }
 
     public boolean remakeItem(int orderItemId, String reason, Integer userId, int branchId) throws SQLException {

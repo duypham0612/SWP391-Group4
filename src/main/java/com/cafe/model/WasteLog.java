@@ -107,4 +107,5 @@ public class WasteLog {
 
     public boolean isRemake() { return "REMAKE".equals(wasteType); }
     public boolean isEditable() { return isActive() && !isRemake(); }
+    public boolean isVoidable() { return isActive() && !isRemake(); }
 }

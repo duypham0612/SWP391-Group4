@@ -1,5 +1,6 @@
 package com.cafe.service.manager;
 
+import com.cafe.model.BranchInventory;
 import com.cafe.model.MenuBlockRequest;
 import org.junit.jupiter.api.Test;
 
@@ -53,6 +54,27 @@ class ManagerDashboardSignalsTest {
         assertNotNull(s.getTodayWaste());
         assertEquals(0, s.getTodayWaste().getTotalCost().compareTo(BigDecimal.ZERO));
         assertEquals(0, s.getOpenMenuBlockCount());
+        assertEquals(0, s.getOversoldCount());
+        assertFalse(s.isHasOversold());
+    }
+
+    @Test
+    void oversold_summary_has_dedicated_signal() {
+        ManagerDashboardService.Summary s = new ManagerDashboardService.Summary();
+        s.oversoldCount = 2;
+
+        assertEquals(2, s.getOversoldCount());
+        assertTrue(s.isHasOversold());
+    }
+
+    @Test
+    void branch_inventory_distinguishes_oversold_from_low_stock() {
+        BranchInventory bi = new BranchInventory();
+        bi.setQuantityOnHand(new BigDecimal("-0.001"));
+        bi.setMinThreshold(BigDecimal.ZERO);
+
+        assertTrue(bi.isOversold());
+        assertTrue(bi.isLow());
     }
 
     private static MenuBlockRequest request(LocalDateTime backInEta, LocalDateTime closedAt) {

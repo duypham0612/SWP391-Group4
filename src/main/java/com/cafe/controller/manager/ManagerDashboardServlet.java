@@ -26,6 +26,7 @@ public class ManagerDashboardServlet extends HttpServlet {
             req.setAttribute("summary", service.getTodaySummary(branchId, today));
             req.setAttribute("staffOnShift", service.getStaffOnShift(branchId, today));
             req.setAttribute("lowStockAlerts", service.getLowStockAlerts(branchId));
+            req.setAttribute("oversoldAlerts", service.getOversoldAlerts(branchId));
             req.setAttribute("today", today);
             req.setAttribute("pageTitle", "Bảng điều khiển");
             req.getRequestDispatcher("/WEB-INF/views/manager/dashboard.jsp").forward(req, resp);

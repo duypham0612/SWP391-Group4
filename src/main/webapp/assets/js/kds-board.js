@@ -345,7 +345,8 @@
     modal.dataset.productId = trigger.dataset.productId || '';
     modal.hidden = false;
     document.body.classList.add('kds-modal-open');
-    modal.querySelector('select').focus();
+    var first = modal.querySelector('select,input:not([type="hidden"]),button:not([disabled])');
+    if (first) first.focus();
   }
 
   function closeModal(modal, restoreTrigger) {
@@ -364,11 +365,13 @@
       other.querySelector('input').required = false;
     }
     var ingredients = modal.querySelector('.js-ingredients');
+    var recount = modal.querySelector('.js-recount');
     var note = modal.querySelector('.js-blocking-note');
     if (ingredients) {
       ingredients.hidden = true;
       ingredients.querySelector('[data-ingredient-slot]').innerHTML = '';
     }
+    if (recount) recount.querySelector('[data-recount-slot]').innerHTML = '';
     if (note) note.hidden = true;
     if (!document.querySelector('.kds-modal:not([hidden])')) document.body.classList.remove('kds-modal-open');
     if (restoreTrigger && modalReturnFocus && document.contains(modalReturnFocus)) modalReturnFocus.focus();
@@ -399,6 +402,23 @@
     } catch (ignore) {
       slot.textContent = 'Không tải được danh sách nguyên liệu. Vui lòng thử lại.';
     }
+  }
+
+  async function loadRecount(modal) {
+    var slot = modal.querySelector('[data-recount-slot]');
+    slot.textContent = 'Đang tải nguyên liệu…';
+    try {
+      var response = await fetch(endpoint + '?partial=depleted&productId=' + encodeURIComponent(modal.dataset.productId), { credentials: 'same-origin' });
+      if (!response.ok) throw new Error('depleted');
+      slot.innerHTML = await response.text();
+    } catch (ignore) {
+      slot.textContent = 'Không tải được danh sách nguyên liệu. Vui lòng thử lại.';
+    }
+  }
+
+  function openUnblockModal(trigger) {
+    openModal('unblockModal', trigger);
+    loadRecount(document.getElementById('unblockModal'));
   }
 
   async function postForm(form) {
@@ -463,6 +483,7 @@
     var laneTab = event.target.closest('[data-lane-tab]');
     var issue = event.target.closest('.js-issue');
     var remake = event.target.closest('.js-remake');
+    var unblock = event.target.closest('.js-unblock');
     var close = event.target.closest('[data-close]');
 
     if (owner) {
@@ -479,6 +500,9 @@
       openModal('issueModal', issue);
     } else if (remake) {
       openModal('remakeModal', remake);
+    } else if (unblock) {
+      event.preventDefault();
+      openUnblockModal(unblock);
     } else if (close) {
       closeModal(close.closest('.kds-modal'), true);
     }

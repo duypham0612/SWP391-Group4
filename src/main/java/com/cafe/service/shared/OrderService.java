@@ -2,6 +2,7 @@ package com.cafe.service.shared;
 
 import com.cafe.common.EventPublisher;
 import com.cafe.common.EventType;
+import com.cafe.common.BusinessException;
 import com.cafe.config.DBConnection;
 import com.cafe.dao.cashier.BillDao;
 import com.cafe.dao.cashier.BillItemDao;
@@ -20,7 +21,9 @@ import com.cafe.model.ModifierOption;
 import com.cafe.model.Order;
 import com.cafe.model.OrderItem;
 import com.cafe.model.PickupTicket;
+import com.cafe.model.ProductRecipe;
 import com.cafe.model.ProductModifierGroup;
+import com.cafe.model.StockAdjustment;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -57,6 +60,21 @@ public class OrderService {
         public int quantity;
         public String note;
         public List<Integer> optionIds = new ArrayList<>();
+    }
+
+    public static class UnblockResult {
+        private final boolean success;
+        private final int remainingBlockedWithRecountedIngredients;
+
+        public UnblockResult(boolean success, int remainingBlockedWithRecountedIngredients) {
+            this.success = success;
+            this.remainingBlockedWithRecountedIngredients = remainingBlockedWithRecountedIngredients;
+        }
+
+        public boolean isSuccess() { return success; }
+        public int getRemainingBlockedWithRecountedIngredients() {
+            return remainingBlockedWithRecountedIngredients;
+        }
     }
 
     /**
@@ -412,10 +430,55 @@ public class OrderService {
         });
     }
 
+    /**
+     * BLOCKED → WAITING kèm kiểm kê tồn thật cho nguyên liệu vừa có lại.
+     * Chốt trạng thái trước; nếu món đã bị thao tác khác xử lý thì không ghi sổ kho.
+     */
+    public UnblockResult unblockItem(int orderItemId, List<StockAdjustment> recounts,
+                                     Integer userId, int branchId) throws SQLException {
+        if (userId == null) return new UnblockResult(false, 0);
+        List<StockAdjustment> cleanRecounts = recounts == null ? List.of() : recounts;
+        return tx(conn -> {
+            OrderItem it = itemDao.findById(conn, orderItemId);
+            if (it == null || itemDao.unblockItem(conn, orderItemId, branchId) == 0) {
+                return new UnblockResult(false, 0);
+            }
+
+            Map<Integer, String> unitByIngredient = new HashMap<>();
+            for (ProductRecipe line : productRecipeDao.findByProduct(conn, it.getProductId())) {
+                unitByIngredient.put(line.getIngredientId(), line.getIngredientUnit());
+            }
+
+            java.util.Set<Integer> recountedIds = new java.util.LinkedHashSet<>();
+            for (StockAdjustment recount : cleanRecounts) {
+                if (recount == null || recount.getActualQty() == null) continue;
+                if (!unitByIngredient.containsKey(recount.getIngredientId())) {
+                    throw new BusinessException("Nguyên liệu kiểm kê không thuộc công thức của món này.");
+                }
+                String unit = unitByIngredient.get(recount.getIngredientId());
+                inventoryService.applyAdjustmentInTx(conn, branchId, recount.getIngredientId(),
+                        recount.getActualQty(), "Barista kiểm lại khi bỏ chặn tại quầy pha chế", unit, userId);
+                recountedIds.add(recount.getIngredientId());
+            }
+
+            actionDao.insert(conn, orderItemId, branchId, "UNBLOCK", "BLOCKED", "WAITING", null, userId);
+            publishStatus(conn, it, "WAITING");
+            int remaining = itemDao.countBlockedUsingIngredients(conn, branchId, recountedIds);
+            return new UnblockResult(true, remaining);
+        });
+    }
+
     /** Nguyên liệu trong công thức của một món — dựng danh sách chọn ở modal "Hết nguyên liệu". */
     public List<com.cafe.model.ProductRecipe> getRecipeIngredients(int productId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             return productRecipeDao.findByProduct(conn, productId);
+        }
+    }
+
+    /** Nguyên liệu trong công thức đang cạn tại chi nhánh — dựng modal kiểm kê khi bỏ chặn. */
+    public List<ProductRecipe> getDepletedRecipeIngredients(int branchId, int productId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            return productRecipeDao.findDepletedByProduct(conn, branchId, productId);
         }
     }
 

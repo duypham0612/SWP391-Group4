@@ -80,5 +80,18 @@
     </div>
 </div>
 
+<div id="unblockModal" class="kds-modal" hidden>
+    <div class="kds-modal__backdrop" data-close></div>
+    <div class="kds-modal__panel" role="dialog" aria-modal="true" aria-labelledby="unblockTitle">
+        <h3 id="unblockTitle">Trả món về chờ pha</h3><p class="muted kds-modal__name" data-modal-name></p>
+        <p class="kds-modal__hint">Nếu nguyên liệu đã có lại, kiểm lại tồn thực tế trước khi trả món về hàng chờ.</p>
+        <form action="${ctx}/barista/kds" method="post">
+            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="unblock"><input type="hidden" name="recount" value="1"><input type="hidden" name="orderItemId" data-item-input>
+            <div class="kds-field js-recount"><span>Kiểm kê nguyên liệu</span><div data-recount-slot></div></div>
+            <div class="kds-modal__actions"><button type="button" class="btn btn-ghost" data-close>Đóng</button><button type="submit" class="btn btn-primary">Xác nhận</button></div>
+        </form>
+    </div>
+</div>
+
 <script src="${ctx}/assets/js/kds-board.js?v=${applicationScope.assetVersion}" defer></script>
 <jsp:include page="../layout/footer.jsp" />

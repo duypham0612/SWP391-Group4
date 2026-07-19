@@ -30,6 +30,7 @@ public class ShiftHandoverServlet extends HttpServlet {
             BaristaShift.expose(req, MyShiftServlet.PATH);
             req.setAttribute("handovers", service.getHandovers(branchId));
             req.setAttribute("kpi", service.getKpi(branchId));
+            req.setAttribute("expiredPrepBatchCount", service.countExpiredActivePrepBatches(branchId));
             String brewQuery = textParam(req, "q", 100);
             String brewStatus = allowedParam(req, "status", "READY", "PICKED_UP", "SERVED");
             String brewOrderType = allowedParam(req, "orderType", "DINE_IN", "TAKEAWAY", "DELIVERY");

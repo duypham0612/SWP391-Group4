@@ -5,6 +5,7 @@ import com.cafe.dao.manager.ShiftHandoverDao;
 import com.cafe.dao.shared.OrderItemDao;
 import com.cafe.model.OrderItem;
 import com.cafe.model.ShiftHandover;
+import com.cafe.service.shared.InventoryService;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -22,6 +23,7 @@ public class HandoverService {
 
     private final ShiftHandoverDao handoverDao = new ShiftHandoverDao();
     private final OrderItemDao orderItemDao = new OrderItemDao();
+    private final InventoryService inventoryService = new InventoryService();
 
     public List<ShiftHandover> getHandovers(int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
@@ -55,6 +57,10 @@ public class HandoverService {
         try (Connection conn = DBConnection.getConnection()) {
             return orderItemDao.findBrewedToday(conn, branchId, window[0], window[1]);
         }
+    }
+
+    public int countExpiredActivePrepBatches(int branchId) throws SQLException {
+        return inventoryService.getExpiredActivePrepBatches(branchId).size();
     }
 
     public BrewHistoryPage getBrewHistoryPage(int branchId, String query, String status, String orderType,

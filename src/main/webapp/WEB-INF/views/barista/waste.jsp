@@ -317,7 +317,7 @@
                                                 <c:if test="${w.editable}">
                                                     <a class="btn btn-ghost btn-sm" href="${ctx}/barista/waste?edit=${w.wasteLogId}#editWaste">Sửa</a>
                                                 </c:if>
-                                                <c:if test="${w.status == 'ACTIVE'}">
+                                                <c:if test="${w.voidable}">
                                                     <form action="${ctx}/barista/waste" method="post" onsubmit="return confirm('Huỷ bản ghi này? Tồn kho sẽ được hoàn lại qua sổ cái.');">
                                                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                                         <input type="hidden" name="action" value="void">

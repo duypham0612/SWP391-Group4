@@ -4,6 +4,8 @@ import com.cafe.common.BusinessException;
 import com.cafe.common.DeductionCalculator;
 import com.cafe.common.EventPublisher;
 import com.cafe.common.EventType;
+import com.cafe.common.ExpiryWasteCalculator;
+import com.cafe.common.PrepConsumptionCalculator;
 import com.cafe.common.TxnType;
 import com.cafe.config.DBConnection;
 import com.cafe.dao.shared.BranchMenuDao;
@@ -191,7 +193,7 @@ public class InventoryService {
         // Tiền-kiểm đủ tồn RAW (chặn tồn âm). Tính lượng tiêu hao từng RAW.
         List<String> shortfalls = new ArrayList<>();
         for (PrepRecipe pr : lines) {
-            BigDecimal consumed = consumedRaw(qtyProduced, pr);
+            BigDecimal consumed = PrepConsumptionCalculator.consumedRaw(qtyProduced, pr);
             BigDecimal[] qt = biDao.findQtyAndThreshold(conn, branchId, pr.getRawIngredientId());
             BigDecimal onHand = (qt == null || qt[0] == null) ? BigDecimal.ZERO : qt[0];
             if (onHand.compareTo(consumed) < 0)
@@ -203,17 +205,12 @@ public class InventoryService {
 
         int batchId = prepBatchDao.insert(conn, branchId, preppedIngredientId, qtyProduced, expiresAt, userId);
         for (PrepRecipe pr : lines) {
-            applyTxn(conn, branchId, pr.getRawIngredientId(), consumedRaw(qtyProduced, pr).negate(),
+            applyTxn(conn, branchId, pr.getRawIngredientId(), PrepConsumptionCalculator.consumedRaw(qtyProduced, pr).negate(),
                     TxnType.PREP_OUT, "PrepBatch", (long) batchId, userId);
         }
         applyTxn(conn, branchId, preppedIngredientId, qtyProduced,
                 TxnType.PREP_IN, "PrepBatch", (long) batchId, userId);
         return batchId;
-    }
-
-    /** Lượng RAW tiêu hao = sảnLượng / yield × quantity (HALF_UP 6 chữ số). */
-    private static BigDecimal consumedRaw(BigDecimal qtyProduced, PrepRecipe pr) {
-        return qtyProduced.divide(pr.getYieldQty(), 6, RoundingMode.HALF_UP).multiply(pr.getQuantity());
     }
 
     private static String plain(BigDecimal v) {
@@ -233,19 +230,22 @@ public class InventoryService {
                 if (b == null || b.getBranchId() != branchId) throw new SQLException("Mẻ pha không tồn tại ở chi nhánh này.");
                 if (!b.isActive()) { conn.rollback(); return; }   // idempotent: đã huỷ rồi
                 BigDecimal qtyProduced = b.getQuantityProduced();
+                requirePreppedOnHandForReduction(conn, branchId, b.getPreppedIngredientId(),
+                        b.getPreppedIngredientName(), b.getPreppedIngredientUnit(), qtyProduced, "huỷ mẻ");
                 List<PrepRecipe> lines = prepRecipeDao.findByPrepped(conn, b.getPreppedIngredientId());
                 for (PrepRecipe pr : lines) {
-                    BigDecimal consumed = qtyProduced
-                            .divide(pr.getYieldQty(), 6, RoundingMode.HALF_UP)
-                            .multiply(pr.getQuantity());
+                    BigDecimal consumed = PrepConsumptionCalculator.consumedRaw(qtyProduced, pr);
                     applyTxn(conn, branchId, pr.getRawIngredientId(), consumed,   // hoàn RAW (+)
                             TxnType.PREP_OUT, "PrepBatch", (long) prepBatchId, userId);
                 }
                 applyTxn(conn, branchId, b.getPreppedIngredientId(), qtyProduced.negate(),  // rút PREPPED (-)
                         TxnType.PREP_IN, "PrepBatch", (long) prepBatchId, userId);
-                prepBatchDao.updateStatus(conn, prepBatchId, "CANCELLED");
+                if (prepBatchDao.updateStatus(conn, prepBatchId, "CANCELLED") != 1) {
+                    throw new BusinessException("Mẻ đã được thay đổi bởi thao tác khác. Vui lòng tải lại.");
+                }
                 conn.commit();
             } catch (SQLException e) { conn.rollback(); throw e; }
+            catch (RuntimeException e) { conn.rollback(); throw e; }
             finally { conn.setAutoCommit(true); }
         }
     }
@@ -269,7 +269,7 @@ public class InventoryService {
                     if (delta.signum() > 0) {
                         List<String> shortfalls = new ArrayList<>();
                         for (PrepRecipe pr : lines) {
-                            BigDecimal need = consumedRaw(delta, pr);
+                            BigDecimal need = PrepConsumptionCalculator.consumedRaw(delta, pr);
                             BigDecimal[] qt = biDao.findQtyAndThreshold(conn, branchId, pr.getRawIngredientId());
                             BigDecimal onHand = (qt == null || qt[0] == null) ? BigDecimal.ZERO : qt[0];
                             if (onHand.compareTo(need) < 0)
@@ -278,21 +278,41 @@ public class InventoryService {
                         }
                         if (!shortfalls.isEmpty())
                             throw new BusinessException("Không đủ nguyên liệu thô để tăng sản lượng: " + String.join("; ", shortfalls) + ".");
+                    } else {
+                        requirePreppedOnHandForReduction(conn, branchId, b.getPreppedIngredientId(),
+                                b.getPreppedIngredientName(), b.getPreppedIngredientUnit(), delta.abs(), "giảm sản lượng mẻ");
                     }
                     for (PrepRecipe pr : lines) {
-                        BigDecimal consumedDelta = consumedRaw(delta, pr);
+                        BigDecimal consumedDelta = PrepConsumptionCalculator.consumedRaw(delta, pr);
                         applyTxn(conn, branchId, pr.getRawIngredientId(), consumedDelta.negate(),  // delta>0 trừ thêm RAW
                                 TxnType.PREP_OUT, "PrepBatch", (long) prepBatchId, userId);
                     }
                     applyTxn(conn, branchId, b.getPreppedIngredientId(), delta,                    // delta>0 cộng thêm PREPPED
                             TxnType.PREP_IN, "PrepBatch", (long) prepBatchId, userId);
-                    prepBatchDao.updateQuantity(conn, prepBatchId, newQtyProduced);
+                    if (prepBatchDao.updateQuantity(conn, prepBatchId, newQtyProduced, b.getQuantityProduced()) != 1) {
+                        throw new BusinessException("Mẻ đã được thay đổi bởi thao tác khác. Vui lòng tải lại.");
+                    }
                 }
                 conn.commit();
             } catch (SQLException e) { conn.rollback(); throw e; }
             catch (RuntimeException e) { conn.rollback(); throw e; }   // BusinessException → hoàn tác sạch
             finally { conn.setAutoCommit(true); }
         }
+    }
+
+    private void requirePreppedOnHandForReduction(Connection conn, int branchId, int preppedIngredientId,
+                                                  String name, String unit, BigDecimal qtyToRemove,
+                                                  String actionLabel) throws SQLException {
+        BigDecimal[] qt = biDao.findQtyAndThreshold(conn, branchId, preppedIngredientId);
+        BigDecimal onHand = (qt == null || qt[0] == null) ? BigDecimal.ZERO : qt[0];
+        if (onHand.compareTo(qtyToRemove) >= 0) return;
+
+        String ingredient = (name == null || name.isBlank()) ? "nguyên liệu pha sẵn" : name;
+        String suffix = unit == null || unit.isBlank() ? "" : " " + unit;
+        // BranchInventory gộp theo nguyên liệu, không theo từng mẻ; guard này chặn rút quá tồn hiện có.
+        throw new BusinessException("Không thể " + actionLabel + " " + ingredient + ": cần rút "
+                + plain(qtyToRemove) + suffix + " nhưng tồn hiện còn " + plain(onHand) + suffix
+                + ". Phần còn lại có thể đã được dùng; hãy ghi hao hụt phần tồn còn lại hoặc báo Quản lý kiểm kê.");
     }
 
     /** Ghi hao hụt (Barista) — insert WasteLog + applyTxn(-qty, WASTE). Own tx. */
@@ -449,7 +469,10 @@ public class InventoryService {
                     applyTxn(conn, branchId, w.getIngredientId(), delta.negate(),  // delta>0 trừ thêm tồn
                             TxnType.WASTE, "WasteLog", (long) wasteLogId, userId);
                 }
-                wasteLogDao.update(conn, wasteLogId, newQty, normalizeWasteType(wasteType), cleanReason(reason));
+                if (wasteLogDao.update(conn, wasteLogId, newQty, normalizeWasteType(wasteType),
+                        cleanReason(reason), w.getQuantity()) != 1) {
+                    throw new BusinessException("Bản ghi hao hụt đã được thay đổi bởi thao tác khác. Vui lòng tải lại.");
+                }
                 conn.commit();
             } catch (SQLException e) { conn.rollback(); throw e; }
             catch (RuntimeException e) { conn.rollback(); throw e; }
@@ -468,11 +491,17 @@ public class InventoryService {
                 com.cafe.model.WasteLog w = wasteLogDao.findById(conn, wasteLogId);
                 if (w == null || w.getBranchId() != branchId) throw new SQLException("Bản ghi hao hụt không tồn tại ở chi nhánh này.");
                 if (!w.isActive()) { conn.rollback(); return; }   // idempotent
+                if (w.isRemake()) {
+                    throw new BusinessException("Dòng làm lại món gắn với ly đã pha nên không huỷ lẻ được. Nếu tồn kho sai, báo Quản lý kiểm kê lại.");
+                }
                 applyTxn(conn, branchId, w.getIngredientId(), w.getQuantity(),  // hoàn lại tồn (+)
                         TxnType.WASTE, "WasteLog", (long) wasteLogId, userId);
-                wasteLogDao.updateStatus(conn, wasteLogId, "VOIDED");
+                if (wasteLogDao.updateStatus(conn, wasteLogId, "VOIDED") != 1) {
+                    throw new BusinessException("Bản ghi hao hụt đã được thay đổi bởi thao tác khác. Vui lòng tải lại.");
+                }
                 conn.commit();
             } catch (SQLException e) { conn.rollback(); throw e; }
+            catch (RuntimeException e) { conn.rollback(); throw e; }
             finally { conn.setAutoCommit(true); }
         }
     }
@@ -524,6 +553,17 @@ public class InventoryService {
     /** B4 · Mẻ pha HÔM NAY (thay vì toàn bộ lịch sử). */
     public List<com.cafe.model.PrepBatch> getTodayPrepBatches(int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) { return prepBatchDao.findTodayByBranch(conn, branchId); }
+    }
+
+    /** F4 · Me ACTIVE da qua han, kem so hao hut de xuat an toan. */
+    public List<com.cafe.model.PrepBatch> getExpiredActivePrepBatches(int branchId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            List<com.cafe.model.PrepBatch> batches = prepBatchDao.findExpiredActive(conn, branchId);
+            for (com.cafe.model.PrepBatch batch : batches) {
+                batch.setSuggestedWasteQuantity(ExpiryWasteCalculator.suggestedWasteQuantity(batch));
+            }
+            return batches;
+        }
     }
 
     /** Mẻ pha hôm nay theo trang — tìm kiếm, bộ lọc và phân trang đều được chạy ở database. */
@@ -778,6 +818,10 @@ public class InventoryService {
 
     public List<BranchInventory> getLowStock(int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) { return biDao.findLowStock(conn, branchId); }
+    }
+
+    public List<BranchInventory> getOversoldStock(int branchId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) { return biDao.findOversold(conn, branchId); }
     }
 
     public List<InventoryTransaction> getIngredientLedger(int branchId, int ingredientId) throws SQLException {
