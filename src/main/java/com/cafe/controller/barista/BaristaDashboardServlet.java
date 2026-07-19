@@ -9,6 +9,7 @@ import com.cafe.service.barista.KdsService;
 import com.cafe.service.barista.WasteService;
 import com.cafe.service.shared.BranchMenuService;
 import com.cafe.service.shared.InventoryService;
+import com.cafe.service.shared.WasteSummary;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -37,7 +38,7 @@ public class BaristaDashboardServlet extends HttpServlet {
             List<OrderItem> queue = kdsService.getQueue(branchId);
             List<OrderItem> readyItems = kdsService.getReadyItems(branchId);
             HandoverService.HandoverKpi kpi = handoverService.getKpi(branchId);
-            WasteService.WasteSummary wasteSummary = wasteService.getTodayWasteSummary(branchId);
+            WasteSummary wasteSummary = wasteService.getTodayWasteSummary(branchId);
             List<BranchInventory> lowStock = inventoryService.getLowStock(branchId);
             List<BranchMenuItem> menuItems = branchMenuService.getMenuAvailability(branchId);
 

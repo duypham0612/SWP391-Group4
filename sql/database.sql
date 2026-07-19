@@ -49,6 +49,9 @@ DROP TABLE IF EXISTS payment.Bill;
 DROP TABLE IF EXISTS payment.CashierShift;
 DROP TABLE IF EXISTS payment.Voucher;
 DROP TABLE IF EXISTS sales.OrderItemModifier;
+-- Phải drop TRƯỚC sales.OrderItem: FK_OIAL_Item trỏ sang OrderItem, thiếu dòng này
+-- thì script chạy được trên DB trắng nhưng chết ngay lần chạy lại thứ hai.
+DROP TABLE IF EXISTS ops.OrderItemActionLog;
 DROP TABLE IF EXISTS sales.OrderItem;
 DROP TABLE IF EXISTS sales.Orders;
 DROP TABLE IF EXISTS sales.TableSession;
@@ -61,10 +64,14 @@ DROP TABLE IF EXISTS inventory.StockReceiptDetail;
 DROP TABLE IF EXISTS inventory.StockReceipt;
 DROP TABLE IF EXISTS inventory.BranchInventory;
 DROP TABLE IF EXISTS inventory.Supplier;
+-- Trỏ tới org.Branch + iam.User nên phải drop trước hai bảng đó.
+DROP TABLE IF EXISTS hr.ShiftHandover;
 DROP TABLE IF EXISTS hr.Payroll;
 DROP TABLE IF EXISTS hr.Attendance;
 DROP TABLE IF EXISTS hr.ShiftAssignment;
 DROP TABLE IF EXISTS hr.ShiftTemplate;
+-- Trỏ tới catalog.Product + org.Branch + iam.User nên phải drop trước ba bảng đó.
+DROP TABLE IF EXISTS catalog.MenuBlockRequest;
 DROP TABLE IF EXISTS catalog.HomeSetting;
 DROP TABLE IF EXISTS catalog.BranchMenu;
 DROP TABLE IF EXISTS catalog.ModifierIngredientImpact;
@@ -310,6 +317,39 @@ CREATE TABLE catalog.BranchMenu (
     CONSTRAINT FK_BM_Branch  FOREIGN KEY (BranchId)  REFERENCES org.Branch(BranchId),
     CONSTRAINT FK_BM_Product FOREIGN KEY (ProductId) REFERENCES catalog.Product(ProductId)
 );
+GO
+
+-- Lịch sử/yêu cầu báo tạm hết món: Barista báo, Manager duyệt/mở bán lại.
+CREATE TABLE catalog.MenuBlockRequest (
+    RequestId    INT IDENTITY PRIMARY KEY,
+    BranchId     INT NOT NULL,
+    ProductId    INT NOT NULL,
+    Reason       VARCHAR(20)   NOT NULL,
+    Note         NVARCHAR(255) NULL,
+    BackInEta    DATETIME2     NOT NULL,
+    RequestedBy  INT NOT NULL,
+    RequestedAt  DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+    ReopenRequestedAt DATETIME2 NULL,
+    Status       VARCHAR(10) NOT NULL DEFAULT 'PENDING',
+    ReviewedBy   INT NULL,
+    ReviewedAt   DATETIME2 NULL,
+    ReviewNote   NVARCHAR(255) NULL,
+    ClosedAt     DATETIME2 NULL,
+    CONSTRAINT FK_MBR_Branch  FOREIGN KEY (BranchId)    REFERENCES org.Branch(BranchId),
+    CONSTRAINT FK_MBR_Product FOREIGN KEY (ProductId)   REFERENCES catalog.Product(ProductId),
+    CONSTRAINT FK_MBR_ReqBy   FOREIGN KEY (RequestedBy) REFERENCES iam.[User](UserId),
+    CONSTRAINT FK_MBR_RevBy   FOREIGN KEY (ReviewedBy)  REFERENCES iam.[User](UserId),
+    CONSTRAINT CK_MBR_Status  CHECK (Status IN ('PENDING','APPROVED','REJECTED','RESOLVED'))
+);
+GO
+
+CREATE UNIQUE INDEX UX_MenuBlockRequest_Open
+    ON catalog.MenuBlockRequest(BranchId, ProductId)
+    WHERE ClosedAt IS NULL;
+GO
+
+CREATE INDEX IX_MenuBlockRequest_Queue
+    ON catalog.MenuBlockRequest(BranchId, ClosedAt, BackInEta);
 GO
 
 /* ===========================================================================

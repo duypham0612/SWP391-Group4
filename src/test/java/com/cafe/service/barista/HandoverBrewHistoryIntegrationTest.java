@@ -20,7 +20,7 @@ class HandoverBrewHistoryIntegrationTest {
     private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     @Test
-    @Disabled("Cần SQL Server CafeChain local với dữ liệu READY/SERVED để xác nhận truy vấn bàn giao")
+    @Disabled("Cần SQL Server CafeChain local với dữ liệu READY/PICKED_UP/SERVED để xác nhận truy vấn bàn giao")
     void getBrewHistory_filtersByVietnamDayAndBranch() throws Exception {
         List<OrderItem> history = new HandoverService().getBrewHistory(BRANCH_ID);
         LocalDate today = LocalDate.now(VN_ZONE);
@@ -32,7 +32,7 @@ class HandoverBrewHistoryIntegrationTest {
             assertTrue(item.getDoneAt().compareTo(fromUtc) >= 0);
             assertTrue(item.getDoneAt().compareTo(toUtc) < 0);
             assertTrue(BRANCH_ID == item.getOrderBranchId());
-            assertTrue("READY".equals(item.getStatus()) || "SERVED".equals(item.getStatus()));
+            assertTrue("READY".equals(item.getStatus()) || "PICKED_UP".equals(item.getStatus()) || "SERVED".equals(item.getStatus()));
         }
     }
 }

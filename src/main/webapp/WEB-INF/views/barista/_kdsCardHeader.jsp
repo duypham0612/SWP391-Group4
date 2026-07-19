@@ -23,7 +23,10 @@
 <c:if test="${cardItem.hasIssue}"><div class="kds-issue"><strong>⚠ Sự cố:</strong> <c:out value="${cardItem.issueReason}" /></div></c:if>
 <c:if test="${cardItem.recipeMissing}"><div class="kds-note kds-note--warn"><span class="kds-note__tag">⚠ Chưa có công thức</span> Không thể hoàn thành hoặc làm lại cho đến khi cấu hình công thức.</div></c:if>
 
-<div class="kds-meta-row">
-    <span>${cardItem.waitProgressLabel}</span>
-    <span><c:if test="${not empty cardItem.pickupCode}"><strong class="kds-code"><c:out value="${cardItem.pickupCode}" /></strong> · </c:if><c:choose><c:when test="${not empty cardItem.tableNumber}"><c:out value="${cardItem.tableNumber}" /></c:when><c:otherwise>${cardItem.orderTypeLabel}</c:otherwise></c:choose> · #${cardItem.orderId} · ${cardItem.createdDisplay}</span>
+<div class="kds-card__identity">
+    <div class="kds-card__destination">
+        <span>Giao tại</span>
+        <strong><c:if test="${not empty cardItem.pickupCode}"><span class="kds-code"><c:out value="${cardItem.pickupCode}" /></span> · </c:if><c:choose><c:when test="${not empty cardItem.tableNumber}"><c:out value="${cardItem.tableNumber}" /></c:when><c:otherwise>${cardItem.orderTypeLabel}</c:otherwise></c:choose></strong>
+    </div>
+    <div class="kds-meta-row"><span>${cardItem.waitProgressLabel}</span><span>${cardItem.orderTypeLabel} · Đơn #${cardItem.orderId} · ${cardItem.createdDisplay}</span></div>
 </div>

@@ -30,7 +30,18 @@ public class ShiftHandoverServlet extends HttpServlet {
             BaristaShift.expose(req, MyShiftServlet.PATH);
             req.setAttribute("handovers", service.getHandovers(branchId));
             req.setAttribute("kpi", service.getKpi(branchId));
-            req.setAttribute("brewHistory", service.getBrewHistory(branchId));
+            String brewQuery = textParam(req, "q", 100);
+            String brewStatus = allowedParam(req, "status", "READY", "PICKED_UP", "SERVED");
+            String brewOrderType = allowedParam(req, "orderType", "DINE_IN", "TAKEAWAY", "DELIVERY");
+            int brewPageSize = pageSizeParam(req);
+            int requestedBrewPage = positiveIntParam(req, "page", 1);
+            HandoverService.BrewHistoryPage brewHistoryPage = service.getBrewHistoryPage(branchId, brewQuery,
+                    brewStatus, brewOrderType, requestedBrewPage, brewPageSize);
+            req.setAttribute("brewHistory", brewHistoryPage.getItems());
+            req.setAttribute("brewHistoryPage", brewHistoryPage);
+            req.setAttribute("brewHistoryQuery", brewQuery);
+            req.setAttribute("brewHistoryStatus", brewStatus);
+            req.setAttribute("brewHistoryOrderType", brewOrderType);
             req.setAttribute("pageTitle", "Bàn giao ca");
             req.getRequestDispatcher("/WEB-INF/views/barista/handover.jsp").forward(req, resp);
         } catch (Exception e) { throw new ServletException(e); }
@@ -54,5 +65,32 @@ public class ShiftHandoverServlet extends HttpServlet {
             }
             resp.sendRedirect(req.getContextPath() + SELF);
         } catch (Exception e) { throw new ServletException(e); }
+    }
+
+    private static String textParam(HttpServletRequest req, String name, int maxLength) {
+        String value = req.getParameter(name);
+        if (value == null) return "";
+        value = value.trim();
+        return value.length() <= maxLength ? value : value.substring(0, maxLength);
+    }
+
+    private static String allowedParam(HttpServletRequest req, String name, String... allowed) {
+        String value = textParam(req, name, 20);
+        for (String item : allowed) if (item.equals(value)) return value;
+        return "";
+    }
+
+    private static int positiveIntParam(HttpServletRequest req, String name, int fallback) {
+        try {
+            int value = Integer.parseInt(req.getParameter(name));
+            return value > 0 ? value : fallback;
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    private static int pageSizeParam(HttpServletRequest req) {
+        int value = positiveIntParam(req, "pageSize", 10);
+        return value == 20 || value == 50 ? value : 10;
     }
 }

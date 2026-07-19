@@ -52,6 +52,18 @@ public final class BusinessDay {
         return utc == null ? "—" : toVn(utc).format(STAMP_VN);
     }
 
+    /** Đầu ngày VN (00:00) quy về UTC, để so với cột DATETIME2 lưu UTC. */
+    public static LocalDateTime vnDayStartUtc(LocalDate vnDate) {
+        if (vnDate == null) return null;
+        return vnDate.atStartOfDay(VN_ZONE).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
+    }
+
+    /** Đầu ngày VN kế tiếp quy về UTC — mốc kết thúc theo kiểu nửa mở [from, to). */
+    public static LocalDateTime vnDayEndExclusiveUtc(LocalDate vnDate) {
+        if (vnDate == null) return null;
+        return vnDate.plusDays(1).atStartOfDay(VN_ZONE).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
+    }
+
     /** Mốc bắt đầu ngày kinh doanh hiện tại, theo giờ UTC để so trực tiếp với cột DATETIME2. */
     public static LocalDateTime startUtc(LocalTime openTime) {
         return startUtc(openTime, LocalDateTime.now(VN_ZONE));

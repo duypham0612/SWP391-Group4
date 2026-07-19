@@ -2,6 +2,7 @@ package com.cafe.service.barista;
 
 import com.cafe.model.WasteLog;
 import com.cafe.service.shared.InventoryService;
+import com.cafe.service.shared.WasteSummary;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -15,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * B5 · Test tổng hợp hao hụt/làm lại (WasteService.WasteSummary.from) — logic thuần, không đụng DB.
+ * B5 · Test tổng hợp hao hụt/làm lại (WasteSummary.from) — logic thuần, không đụng DB.
  * Kiểm: bỏ dòng VOIDED, tách hao hụt nguyên liệu vs làm lại, dòng thiếu giá, top nguyên liệu tốn nhất.
  */
 class WasteSummaryTest {
@@ -41,7 +42,7 @@ class WasteSummaryTest {
     /** Danh sách rỗng/null → tất cả 0, không có top. */
     @Test
     void empty_list_yields_zeroes() {
-        WasteService.WasteSummary s = WasteService.WasteSummary.from(null);
+        WasteSummary s = WasteSummary.from(null);
         assertEquals(0, s.getActiveCount());
         assertEquals(0, s.getIngredientWasteCount());
         assertEquals(0, s.getRemakeCount());
@@ -53,7 +54,7 @@ class WasteSummaryTest {
     /** Dòng VOIDED không được tính vào bất kỳ tổng nào. */
     @Test
     void voided_log_is_ignored() {
-        WasteService.WasteSummary s = WasteService.WasteSummary.from(List.of(
+        WasteSummary s = WasteSummary.from(List.of(
                 log("SPILL", "VOIDED", "Sữa tươi", 2, "3", "1000")));
         assertEquals(0, s.getActiveCount());
         assertMoney(s.getTotalCost(), "0");
@@ -62,7 +63,7 @@ class WasteSummaryTest {
     /** Tách rõ hao hụt nguyên liệu vs làm lại (REMAKE) theo cả số dòng lẫn chi phí. */
     @Test
     void splits_ingredient_waste_and_remake() {
-        WasteService.WasteSummary s = WasteService.WasteSummary.from(List.of(
+        WasteSummary s = WasteSummary.from(List.of(
                 log("SPILL",  "ACTIVE", "Sữa tươi", 2, "2", "1000"),   // 2000 hao hụt
                 log("REMAKE", "ACTIVE", "Cà phê",   1, "1", "5000")));  // 5000 làm lại
         assertEquals(2, s.getActiveCount());
@@ -76,7 +77,7 @@ class WasteSummaryTest {
     /** Dòng thiếu giá (unitCost null) → đếm missingCost, KHÔNG cộng vào totalCost. */
     @Test
     void missing_cost_counted_but_not_summed() {
-        WasteService.WasteSummary s = WasteService.WasteSummary.from(List.of(
+        WasteSummary s = WasteSummary.from(List.of(
                 log("SPILL", "ACTIVE", "Đá viên", 4, "10", null),      // thiếu giá
                 log("SPILL", "ACTIVE", "Sữa tươi", 2, "1", "1000")));   // 1000
         assertEquals(2, s.getActiveCount());
@@ -87,7 +88,7 @@ class WasteSummaryTest {
     /** Top nguyên liệu = tốn nhất sau khi gộp nhiều dòng cùng tên. */
     @Test
     void top_ingredient_is_the_costliest_aggregated() {
-        WasteService.WasteSummary s = WasteService.WasteSummary.from(List.of(
+        WasteSummary s = WasteSummary.from(List.of(
                 log("SPILL", "ACTIVE", "Sữa tươi", 2, "1", "1000"),    // Sữa 1000
                 log("SPILL", "ACTIVE", "Sữa tươi", 2, "1", "1000"),    // Sữa +1000 = 2000
                 log("SPILL", "ACTIVE", "Cà phê",   1, "1", "1500")));   // Cà phê 1500
@@ -105,7 +106,7 @@ class WasteSummaryTest {
                 log("SPILL", "VOIDED", "Đá viên", 4, "10", "100")));
         WasteService service = new WasteService(inventory);
 
-        WasteService.WasteSummary s = service.getTodayWasteSummary(7);
+        WasteSummary s = service.getTodayWasteSummary(7);
 
         assertEquals(7, inventory.branchId);
         assertTrue(inventory.fromUtc != null);
