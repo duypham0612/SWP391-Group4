@@ -39,6 +39,12 @@ public final class Constants {
     public static final java.util.List<String> HANDOVER_LOCATIONS =
             java.util.List.of("Bar trái", "Bar phải", "Kệ mang đi");
 
+    // Báo tạm hết món (Barista) — ràng buộc form, chặn ở server (HTML required không đủ).
+    public static final int MENU86_NOTE_MAX_CHARS = 255;        // khớp NVARCHAR(255)
+    public static final int MENU86_OTHER_NOTE_MIN_CHARS = 10;   // lý do "Khác" phải ghi rõ
+    public static final int MENU86_ETA_MIN_MINUTES = 15;        // dự kiến có lại: sớm nhất
+    public static final int MENU86_ETA_MAX_DAYS = 7;            // dự kiến có lại: xa nhất
+
     // Payroll
     public static final BigDecimal MIN_HOURLY_RATE = new BigDecimal("25000");
 
