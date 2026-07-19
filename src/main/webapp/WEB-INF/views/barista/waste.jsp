@@ -1,6 +1,7 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
+<%@ taglib prefix="fn" uri="jakarta.tags.functions" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <jsp:include page="../layout/header.jsp" />
 
@@ -245,67 +246,129 @@
 </c:if>
 
 <h3 class="section-title">Nhật ký trong phạm vi đang xem</h3>
-<c:choose>
-    <c:when test="${empty logs}">
-        <div class="card empty-state"><div class="icon">∅</div><p>Chưa có ghi nhận hao hụt nào trong phạm vi này.</p></div>
-    </c:when>
-    <c:otherwise>
-        <div class="table-scroll">
-            <table class="table waste-table">
-                <thead>
-                    <tr>
-                        <th style="width:110px">Thời gian</th>
-                        <th>Nguyên liệu</th>
-                        <th style="width:120px">Số lượng</th>
-                        <th style="width:120px">Loại</th>
-                        <th>Lý do</th>
-                        <th style="width:130px">Thành tiền</th>
-                        <th>Người ghi</th>
-                        <th style="width:100px">Trạng thái</th>
-                        <th style="width:150px">Thao tác</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <c:forEach var="w" items="${logs}">
-                        <tr class="${w.status == 'VOIDED' ? 'row-muted' : ''}">
-                            <td>${w.loggedAtDisplay}</td>
-                            <td>
-                                <strong>${w.ingredientName}</strong>
-                                <c:if test="${w.ingredientType == 'PREPPED'}"><span class="badge badge-making">Pha sẵn</span></c:if>
-                            </td>
-                            <td><strong>${w.quantity}</strong> ${w.ingredientUnit}</td>
-                            <td>${w.wasteTypeLabel}</td>
-                            <td>${w.reason}</td>
-                            <td><strong>${w.costDisplay}</strong></td>
-                            <td>${w.loggedByName}</td>
-                            <td>
-                                <c:choose>
-                                    <c:when test="${w.status == 'VOIDED'}"><span class="badge badge-cancelled">Đã huỷ</span></c:when>
-                                    <c:otherwise><span class="badge badge-ready">Hiệu lực</span></c:otherwise>
-                                </c:choose>
-                            </td>
-                            <td>
-                                <div class="waste-actions">
-                                    <c:if test="${w.editable}">
-                                        <a class="btn btn-ghost btn-sm" href="${ctx}/barista/waste?edit=${w.wasteLogId}#editWaste">Sửa</a>
-                                    </c:if>
-                                    <c:if test="${w.status == 'ACTIVE'}">
-                                        <form action="${ctx}/barista/waste" method="post" onsubmit="return confirm('Huỷ bản ghi này? Tồn kho sẽ được hoàn lại qua sổ cái.');">
-                                            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                                            <input type="hidden" name="action" value="void">
-                                            <input type="hidden" name="wasteLogId" value="${w.wasteLogId}">
-                                            <button type="submit" class="btn btn-ghost btn-sm waste-void-btn">Huỷ</button>
-                                        </form>
-                                    </c:if>
-                                </div>
-                            </td>
+<div>
+            <form id="wasteLogFilters" class="table-toolbar" action="${ctx}/barista/waste" method="get">
+                <input type="hidden" name="page" value="1">
+                <div class="form-group table-search">
+                    <label for="wasteLogSearch">Tìm kiếm</label>
+                    <input id="wasteLogSearch" class="form-control" type="search" name="q" value="${fn:escapeXml(wasteLogQuery)}"
+                           placeholder="Tìm nguyên liệu, lý do hoặc người ghi" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label for="wasteTypeFilter">Loại ghi nhận</label>
+                    <select id="wasteTypeFilter" name="wasteType" class="form-control tt-filter">
+                        <option value="">Tất cả</option>
+                        <option value="SPILL" ${wasteLogWasteType == 'SPILL' ? 'selected' : ''}>Đổ/rơi</option>
+                        <option value="EXPIRED" ${wasteLogWasteType == 'EXPIRED' ? 'selected' : ''}>Hết hạn</option>
+                        <option value="REMAKE" ${wasteLogWasteType == 'REMAKE' ? 'selected' : ''}>Làm lại món</option>
+                        <option value="OTHER" ${wasteLogWasteType == 'OTHER' ? 'selected' : ''}>Khác</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="wasteStatusFilter">Trạng thái</label>
+                    <select id="wasteStatusFilter" name="status" class="form-control tt-filter">
+                        <option value="">Tất cả</option>
+                        <option value="ACTIVE" ${wasteLogStatus == 'ACTIVE' ? 'selected' : ''}>Hiệu lực</option>
+                        <option value="VOIDED" ${wasteLogStatus == 'VOIDED' ? 'selected' : ''}>Đã huỷ</option>
+                    </select>
+                </div>
+            </form>
+            <div class="table-scroll">
+                <table class="table waste-table">
+                    <thead>
+                        <tr>
+                            <th style="width:110px">Thời gian</th>
+                            <th>Nguyên liệu</th>
+                            <th style="width:120px">Số lượng</th>
+                            <th style="width:120px">Loại</th>
+                            <th>Lý do</th>
+                            <th style="width:130px">Thành tiền</th>
+                            <th>Người ghi</th>
+                            <th style="width:100px">Trạng thái</th>
+                            <th style="width:150px">Thao tác</th>
                         </tr>
-                    </c:forEach>
-                </tbody>
-            </table>
-        </div>
-    </c:otherwise>
-</c:choose>
+                    </thead>
+                    <tbody>
+                        <c:choose>
+                            <c:when test="${empty logs}">
+                                <tr class="tt-empty"><td colspan="9">Không tìm thấy nhật ký phù hợp.</td></tr>
+                            </c:when>
+                            <c:otherwise>
+                                <c:forEach var="w" items="${logs}">
+                                    <tr class="${w.status == 'VOIDED' ? 'row-muted' : ''}">
+                                        <td>${w.loggedAtDisplay}</td>
+                                        <td>
+                                            <strong>${w.ingredientName}</strong>
+                                            <c:if test="${w.ingredientType == 'PREPPED'}"><span class="badge badge-making">Pha sẵn</span></c:if>
+                                        </td>
+                                        <td><strong>${w.quantity}</strong> ${w.ingredientUnit}</td>
+                                        <td>${w.wasteTypeLabel}</td>
+                                        <td>${w.reason}</td>
+                                        <td><strong>${w.costDisplay}</strong></td>
+                                        <td>${w.loggedByName}</td>
+                                        <td>
+                                            <c:choose>
+                                                <c:when test="${w.status == 'VOIDED'}"><span class="badge badge-cancelled">Đã huỷ</span></c:when>
+                                                <c:otherwise><span class="badge badge-ready">Hiệu lực</span></c:otherwise>
+                                            </c:choose>
+                                        </td>
+                                        <td>
+                                            <div class="waste-actions">
+                                                <c:if test="${w.editable}">
+                                                    <a class="btn btn-ghost btn-sm" href="${ctx}/barista/waste?edit=${w.wasteLogId}#editWaste">Sửa</a>
+                                                </c:if>
+                                                <c:if test="${w.voidable}">
+                                                    <form action="${ctx}/barista/waste" method="post" onsubmit="return confirm('Huỷ bản ghi này? Tồn kho sẽ được hoàn lại qua sổ cái.');">
+                                                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                                        <input type="hidden" name="action" value="void">
+                                                        <input type="hidden" name="wasteLogId" value="${w.wasteLogId}">
+                                                        <button type="submit" class="btn btn-ghost btn-sm waste-void-btn">Huỷ</button>
+                                                    </form>
+                                                </c:if>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </c:forEach>
+                            </c:otherwise>
+                        </c:choose>
+                    </tbody>
+                </table>
+            </div>
+            <div class="table-tools-foot">
+                <span class="tt-summary" aria-live="polite">${wasteLogPage.startRow}-${wasteLogPage.endRow} / ${wasteLogPage.total}</span>
+                <c:if test="${wasteLogPage.totalPages > 1}">
+                    <div class="pagination" aria-label="Phân trang nhật ký hao hụt">
+                        <c:url var="firstWasteLogPageUrl" value="/barista/waste">
+                            <c:param name="q" value="${wasteLogQuery}" /><c:param name="wasteType" value="${wasteLogWasteType}" />
+                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="page" value="1" />
+                        </c:url>
+                        <c:url var="previousWasteLogPageUrl" value="/barista/waste">
+                            <c:param name="q" value="${wasteLogQuery}" /><c:param name="wasteType" value="${wasteLogWasteType}" />
+                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="page" value="${wasteLogPage.page - 1}" />
+                        </c:url>
+                        <a class="page" href="${firstWasteLogPageUrl}" aria-disabled="${not wasteLogPage.hasPrevious}">«</a>
+                        <a class="page" href="${previousWasteLogPageUrl}" aria-disabled="${not wasteLogPage.hasPrevious}">‹</a>
+                        <c:forEach var="pageNumber" items="${wasteLogPage.visiblePages}">
+                            <c:url var="wasteLogPageUrl" value="/barista/waste">
+                                <c:param name="q" value="${wasteLogQuery}" /><c:param name="wasteType" value="${wasteLogWasteType}" />
+                                <c:param name="status" value="${wasteLogStatus}" /><c:param name="page" value="${pageNumber}" />
+                            </c:url>
+                            <a class="page ${pageNumber == wasteLogPage.page ? 'is-active' : ''}" href="${wasteLogPageUrl}" aria-current="${pageNumber == wasteLogPage.page ? 'page' : 'false'}">${pageNumber}</a>
+                        </c:forEach>
+                        <c:url var="nextWasteLogPageUrl" value="/barista/waste">
+                            <c:param name="q" value="${wasteLogQuery}" /><c:param name="wasteType" value="${wasteLogWasteType}" />
+                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="page" value="${wasteLogPage.page + 1}" />
+                        </c:url>
+                        <c:url var="lastWasteLogPageUrl" value="/barista/waste">
+                            <c:param name="q" value="${wasteLogQuery}" /><c:param name="wasteType" value="${wasteLogWasteType}" />
+                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="page" value="${wasteLogPage.totalPages}" />
+                        </c:url>
+                        <a class="page" href="${nextWasteLogPageUrl}" aria-disabled="${not wasteLogPage.hasNext}">›</a>
+                        <a class="page" href="${lastWasteLogPageUrl}" aria-disabled="${not wasteLogPage.hasNext}">»</a>
+                    </div>
+                </c:if>
+            </div>
+</div>
 </div><%-- /is-viewonly --%>
 
 <script>
@@ -358,6 +421,31 @@
     wire(clone);
     var first = clone.querySelector('select[name="ingredientId"]');
     if (first) first.focus();
+  });
+})();
+</script>
+
+<script>
+(function(){
+  var form = document.getElementById('wasteLogFilters');
+  if (!form) return;
+  var search = document.getElementById('wasteLogSearch');
+  var page = form.querySelector('input[name="page"]');
+  var timer;
+
+  function submitFromFirstPage(){
+    if (page) page.value = '1';
+    if (form.requestSubmit) form.requestSubmit();
+    else form.submit();
+  }
+
+  if (search) search.addEventListener('input', function(){
+    window.clearTimeout(timer);
+    timer = window.setTimeout(submitFromFirstPage, 350);
+  });
+
+  Array.prototype.forEach.call(form.querySelectorAll('select'), function(control){
+    control.addEventListener('change', submitFromFirstPage);
   });
 })();
 </script>

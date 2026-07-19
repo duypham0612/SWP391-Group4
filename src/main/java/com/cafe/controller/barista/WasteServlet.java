@@ -8,6 +8,7 @@ import com.cafe.model.User;
 import com.cafe.model.WasteLog;
 import com.cafe.model.WasteLogLine;
 import com.cafe.service.barista.WasteService;
+import com.cafe.service.shared.InventoryService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -32,6 +33,7 @@ public class WasteServlet extends HttpServlet {
         int branchId = InventoryDashboardServlet.branchId(req);
         int userId = currentUserId(req);
         try {
+            applyExpiredPrefill(req);
             forwardPage(req, resp, branchId, userId, req.getParameter("edit"));
         } catch (Exception e) {
             throw new ServletException(e);
@@ -104,14 +106,28 @@ public class WasteServlet extends HttpServlet {
     private void forwardPage(HttpServletRequest req, HttpServletResponse resp, int branchId, int userId, String editId)
             throws SQLException, ServletException, IOException {
         WasteService.WasteScope scope = service.resolveScope(userId, branchId);
-        List<WasteLog> logs = service.getWasteLogs(branchId, scope);
+        String logQuery = textParam(req, "q", 100);
+        String logWasteType = allowedParam(req, "wasteType", "SPILL", "EXPIRED", "REMAKE", "OTHER");
+        String logStatus = allowedParam(req, "status", "ACTIVE", "VOIDED");
+        int logPageSize = pageSize();
+        int requestedLogPage = positiveIntParam(req, "page", 1);
+
+        // Tổng quan giữ nguyên toàn bộ phạm vi; bảng nhật ký thì chỉ lấy đúng trang từ DB.
+        List<WasteLog> scopedLogs = service.getWasteLogs(branchId, scope);
+        InventoryService.WasteLogPage wasteLogPage = service.getWasteLogPage(branchId, scope,
+                logQuery, logWasteType, logStatus, requestedLogPage, logPageSize);
         req.setAttribute("ingredients", service.getIngredients());
         List<com.cafe.model.BranchMenuItem> remakeProducts = service.getRemakeProducts(branchId);
         req.setAttribute("products", remakeProducts);
         req.setAttribute("remakeModifiersJson", service.getRemakeModifiersJson(remakeProducts));
         req.setAttribute("scope", scope);
-        req.setAttribute("logs", logs);
-        req.setAttribute("summary", service.summarize(logs));
+        req.setAttribute("logs", wasteLogPage.getLogs());
+        req.setAttribute("hasWasteLogs", !scopedLogs.isEmpty());
+        req.setAttribute("wasteLogPage", wasteLogPage);
+        req.setAttribute("wasteLogQuery", logQuery);
+        req.setAttribute("wasteLogWasteType", logWasteType);
+        req.setAttribute("wasteLogStatus", logStatus);
+        req.setAttribute("summary", service.summarize(scopedLogs));
         req.setAttribute("pageTitle", "Hao hụt & Làm lại");
         BaristaShift.expose(req, "/barista/waste");   // trực ca: banner + khoá thao tác
 
@@ -157,6 +173,22 @@ public class WasteServlet extends HttpServlet {
     private List<WasteRowForm> legacyRow(HttpServletRequest req) {
         return List.of(new WasteRowForm(req.getParameter("ingredientId"), req.getParameter("quantity"),
                 req.getParameter("wasteType"), "", req.getParameter("reason")));
+    }
+
+    private void applyExpiredPrefill(HttpServletRequest req) {
+        String ingredientId = req.getParameter("ingredientId");
+        String qty = req.getParameter("qty");
+        if (blank(ingredientId) || blank(qty)) return;
+        try {
+            int parsedIngredientId = Integer.parseInt(ingredientId.trim());
+            BigDecimal parsedQty = new BigDecimal(qty.trim());
+            if (parsedIngredientId <= 0 || parsedQty.signum() <= 0) return;
+            req.setAttribute("submittedWasteRows", List.of(new WasteRowForm(
+                    String.valueOf(parsedIngredientId), parsedQty.stripTrailingZeros().toPlainString(),
+                    "EXPIRED", "Hết hạn", "")));
+        } catch (NumberFormatException ignored) {
+            // Prefill URL params are editable by the user; bad values simply fall back to a blank form.
+        }
     }
 
     private List<WasteLogLine> toWasteLines(List<WasteRowForm> forms) {
@@ -232,6 +264,33 @@ public class WasteServlet extends HttpServlet {
 
     private static boolean blank(String value) {
         return value == null || value.trim().isEmpty();
+    }
+
+    private static String textParam(HttpServletRequest req, String name, int maxLength) {
+        String value = req.getParameter(name);
+        if (blank(value)) return "";
+        value = value.trim();
+        return value.length() <= maxLength ? value : value.substring(0, maxLength);
+    }
+
+    private static String allowedParam(HttpServletRequest req, String name, String... allowed) {
+        String value = textParam(req, name, 20).toUpperCase();
+        for (String item : allowed) if (item.equals(value)) return value;
+        return "";
+    }
+
+    private static int positiveIntParam(HttpServletRequest req, String name, int fallback) {
+        try {
+            int value = Integer.parseInt(req.getParameter(name));
+            return value > 0 ? value : fallback;
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    /** Nhật ký luôn hiển thị 5 dòng/trang để dễ theo dõi tại quầy. */
+    private static int pageSize() {
+        return 5;
     }
 
     public static class WasteRowForm {

@@ -6,8 +6,10 @@ import com.cafe.model.BranchMenuItem;
 import com.cafe.model.OrderItem;
 import com.cafe.service.barista.HandoverService;
 import com.cafe.service.barista.KdsService;
+import com.cafe.service.barista.WasteService;
 import com.cafe.service.shared.BranchMenuService;
 import com.cafe.service.shared.InventoryService;
+import com.cafe.service.shared.WasteSummary;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -24,6 +26,7 @@ public class BaristaDashboardServlet extends HttpServlet {
 
     private final KdsService kdsService = new KdsService();
     private final HandoverService handoverService = new HandoverService();
+    private final WasteService wasteService = new WasteService();
     private final InventoryService inventoryService = new InventoryService();
     private final BranchMenuService branchMenuService = new BranchMenuService();
 
@@ -35,6 +38,7 @@ public class BaristaDashboardServlet extends HttpServlet {
             List<OrderItem> queue = kdsService.getQueue(branchId);
             List<OrderItem> readyItems = kdsService.getReadyItems(branchId);
             HandoverService.HandoverKpi kpi = handoverService.getKpi(branchId);
+            WasteSummary wasteSummary = wasteService.getTodayWasteSummary(branchId);
             List<BranchInventory> lowStock = inventoryService.getLowStock(branchId);
             List<BranchMenuItem> menuItems = branchMenuService.getMenuAvailability(branchId);
 
@@ -60,8 +64,9 @@ public class BaristaDashboardServlet extends HttpServlet {
             req.setAttribute("lowStock", lowStock);
             req.setAttribute("lowStockPreview", firstItems(lowStock, 5));
             req.setAttribute("kpi", kpi);
-            req.setAttribute("queueCount", queue.size());
-            req.setAttribute("readyCount", readyItems.size());
+            req.setAttribute("wasteSummary", wasteSummary);
+            req.setAttribute("queueCount", cupCount(queue));
+            req.setAttribute("readyCount", cupCount(readyItems));
             req.setAttribute("lowStockCount", lowStock.size());
             req.setAttribute("eightySixCount", eightySixCount);
             req.setAttribute("oversoldCount", oversoldCount);
@@ -80,5 +85,11 @@ public class BaristaDashboardServlet extends HttpServlet {
         }
         int end = Math.min(source.size(), limit);
         return new ArrayList<>(source.subList(0, end));
+    }
+
+    private static int cupCount(List<OrderItem> items) {
+        int total = 0;
+        if (items != null) for (OrderItem item : items) total += item.getQuantity();
+        return total;
     }
 }

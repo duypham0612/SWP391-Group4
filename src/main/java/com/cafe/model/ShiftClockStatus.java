@@ -1,5 +1,7 @@
 package com.cafe.model;
 
+import com.cafe.common.BusinessDay;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -9,7 +11,6 @@ import java.util.Locale;
 /** Trạng thái chấm công ca hôm nay cho Barista/Cashier. */
 public class ShiftClockStatus {
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
-    private static final DateTimeFormatter DATE_TIME_FMT = DateTimeFormatter.ofPattern("HH:mm dd/MM");
 
     private boolean hasAssignment;
     private boolean canClockIn;
@@ -66,11 +67,11 @@ public class ShiftClockStatus {
     }
 
     public String getCheckInDisplay() {
-        return checkInAt == null ? "-" : checkInAt.format(DATE_TIME_FMT);
+        return BusinessDay.fmtDateTimeVn(checkInAt);
     }
 
     public String getCheckOutDisplay() {
-        return checkOutAt == null ? "-" : checkOutAt.format(DATE_TIME_FMT);
+        return BusinessDay.fmtDateTimeVn(checkOutAt);
     }
 
     public String getWorkHoursDisplay() {

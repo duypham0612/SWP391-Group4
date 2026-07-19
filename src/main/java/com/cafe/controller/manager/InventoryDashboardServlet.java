@@ -3,6 +3,7 @@ package com.cafe.controller.manager;
 import com.cafe.common.BusinessException;
 import com.cafe.common.CsrfUtil;
 import com.cafe.common.SessionUtil;
+import com.cafe.model.BranchInventory;
 import com.cafe.model.User;
 import com.cafe.service.admin.IngredientService;
 import com.cafe.service.shared.InventoryService;
@@ -14,6 +15,7 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.util.List;
 
 /** M5 · InventoryDashboardServlet → /manager/inventory. list | ledger | setThreshold. */
 @WebServlet("/manager/inventory")
@@ -35,8 +37,11 @@ public class InventoryDashboardServlet extends HttpServlet {
                 req.setAttribute("pageTitle", "Sổ cái tồn kho");
                 req.getRequestDispatcher("/WEB-INF/views/manager/inventory-ledger.jsp").forward(req, resp);
             } else {
+                List<BranchInventory> lowStock = inventoryService.getLowStock(branchId);
+                lowStock.removeIf(BranchInventory::isOversold);
                 req.setAttribute("inventory", inventoryService.getBranchInventory(branchId));
-                req.setAttribute("lowStock", inventoryService.getLowStock(branchId));
+                req.setAttribute("lowStock", lowStock);
+                req.setAttribute("oversoldStock", inventoryService.getOversoldStock(branchId));
                 req.setAttribute("pageTitle", "Tồn kho");
                 req.getRequestDispatcher("/WEB-INF/views/manager/inventory-list.jsp").forward(req, resp);
             }

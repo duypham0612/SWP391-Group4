@@ -98,8 +98,10 @@ public class BranchServlet extends HttpServlet {
         if (b.getAddress() == null || b.getAddress().isBlank()) return "Địa chỉ không được để trống.";
         if ((b.getOpenTime() == null) != (b.getCloseTime() == null))
             return "Giờ mở/đóng phải nhập cả hai hoặc để trống cả hai.";
-        if (b.getOpenTime() != null && !b.getCloseTime().isAfter(b.getOpenTime()))
-            return "Giờ đóng cửa phải sau giờ mở cửa.";
+        // Cho phép giờ đóng SỚM hơn giờ mở (quán bán qua nửa đêm, vd mở 17:00 đóng 01:00);
+        // chỉ chặn khi trùng nhau (không xác định được độ dài ca).
+        if (b.getOpenTime() != null && b.getCloseTime().equals(b.getOpenTime()))
+            return "Giờ đóng và giờ mở cửa không được trùng nhau.";
         return null;
     }
 

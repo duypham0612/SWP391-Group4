@@ -30,6 +30,8 @@ public class PrepBatch {
     private String preppedIngredientName;
     private String preppedIngredientUnit;
     private String madeByName;
+    private BigDecimal branchQuantityOnHand = BigDecimal.ZERO;
+    private BigDecimal suggestedWasteQuantity = BigDecimal.ZERO;
 
     public int getPrepBatchId() { return prepBatchId; }
     public void setPrepBatchId(int v) { this.prepBatchId = v; }
@@ -67,6 +69,13 @@ public class PrepBatch {
 
     public String getMadeByName() { return madeByName; }
     public void setMadeByName(String v) { this.madeByName = v; }
+
+    public BigDecimal getBranchQuantityOnHand() { return branchQuantityOnHand; }
+    public void setBranchQuantityOnHand(BigDecimal v) { this.branchQuantityOnHand = v == null ? BigDecimal.ZERO : v; }
+
+    public BigDecimal getSuggestedWasteQuantity() { return suggestedWasteQuantity; }
+    public void setSuggestedWasteQuantity(BigDecimal v) { this.suggestedWasteQuantity = v == null ? BigDecimal.ZERO : v; }
+    public boolean isHasSuggestedWaste() { return suggestedWasteQuantity != null && suggestedWasteQuantity.signum() > 0; }
 
     // ----- Hiển thị -----
     public String getMadeAtDisplay() { return fmt(madeAt); }

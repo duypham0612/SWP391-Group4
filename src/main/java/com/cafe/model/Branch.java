@@ -13,6 +13,7 @@ public class Branch {
     private LocalTime openTime;        // A3.F2 — giờ mở cửa (NULL = chưa đặt)
     private LocalTime closeTime;       // A3.F2 — giờ đóng cửa
     private Integer managerUserId;     // A2.F6/A3.F5 — quản lý phụ trách (NULL = chưa gán)
+    private int peakThresholdCups = 0; // ngưỡng cao điểm (ly chờ+pha); 0 = dùng mặc định toàn hệ
     private String managerName;        // join hiển thị
 
     public int getBranchId() { return branchId; }
@@ -41,6 +42,9 @@ public class Branch {
 
     public Integer getManagerUserId() { return managerUserId; }
     public void setManagerUserId(Integer managerUserId) { this.managerUserId = managerUserId; }
+
+    public int getPeakThresholdCups() { return peakThresholdCups; }
+    public void setPeakThresholdCups(int peakThresholdCups) { this.peakThresholdCups = peakThresholdCups; }
 
     public String getManagerName() { return managerName; }
     public void setManagerName(String managerName) { this.managerName = managerName; }

@@ -7,7 +7,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Theo dõi đơn · ${session.tableNumber}</title>
-<link rel="stylesheet" href="${ctx}/assets/css/cafe-theme.css">
+<link rel="stylesheet" href="${ctx}/assets/css/cafe-theme.css?v=${applicationScope.assetVersion}">
 <style>
   body{background:var(--paper);margin:0}
   .qr-app{max-width:540px;margin:0 auto;padding:0 0 24px}
@@ -41,10 +41,22 @@
                 <c:choose>
                     <c:when test="${empty items}"><p class="muted">Chưa có món nào.</p></c:when>
                     <c:otherwise>
+                        <%-- Nhãn hướng tới KHÁCH (thân thiện, không jargon) và phải KHỚP hàm badge() dưới,
+                             nếu không chữ sẽ nhảy sau 5 giây khi poll lần đầu chạy. --%>
                         <c:forEach var="it" items="${items}">
                             <div class="qr-item">
                                 <span>${it.quantity}× ${it.productName}</span>
-                                <jsp:include page="../layout/_statusBadge.jsp"><jsp:param name="status" value="${it.status}" /></jsp:include>
+                                <c:choose>
+                                    <c:when test="${it.status == 'WAITING'}"><span class="badge badge-waiting">Chờ pha</span></c:when>
+                                    <c:when test="${it.status == 'MAKING'}"><span class="badge badge-making">Đang pha</span></c:when>
+                                    <c:when test="${it.status == 'READY'}"><span class="badge badge-ready">Đã pha xong</span></c:when>
+                                    <c:when test="${it.status == 'PICKED_UP'}"><span class="badge badge-ready">Nhân viên đang mang ra</span></c:when>
+                                    <c:when test="${it.status == 'SERVED'}"><span class="badge badge-served">Đã phục vụ</span></c:when>
+                                    <c:when test="${it.status == 'BLOCKED'}"><span class="badge badge-waiting">Tạm chưa làm được</span></c:when>
+                                    <c:when test="${it.status == 'REMAKE'}"><span class="badge badge-waiting">Đang làm lại</span></c:when>
+                                    <c:when test="${it.status == 'CANCELLED'}"><span class="badge badge-cancelled">Đã huỷ</span></c:when>
+                                    <c:otherwise><span class="badge badge-served">${it.status}</span></c:otherwise>
+                                </c:choose>
                             </div>
                         </c:forEach>
                     </c:otherwise>
@@ -91,7 +103,7 @@
 <script>
 const CTX='${ctx}', SID=${sessionId};
 function badge(st){
-  const m={WAITING:['badge-waiting','Chờ làm'],MAKING:['badge-making','Đang pha'],READY:['badge-ready','Sẵn lấy'],SERVED:['badge-served','Đã phục vụ'],CANCELLED:['badge-cancelled','Đã huỷ']};
+  const m={WAITING:['badge-waiting','Chờ pha'],MAKING:['badge-making','Đang pha'],READY:['badge-ready','Đã pha xong'],PICKED_UP:['badge-ready','Nhân viên đang mang ra'],SERVED:['badge-served','Đã phục vụ'],BLOCKED:['badge-waiting','Tạm chưa làm được'],REMAKE:['badge-waiting','Đang làm lại'],CANCELLED:['badge-cancelled','Đã huỷ']};
   const x=m[st]||['badge-served',st];return '<span class="badge '+x[0]+'">'+x[1]+'</span>';
 }
 function poll(){

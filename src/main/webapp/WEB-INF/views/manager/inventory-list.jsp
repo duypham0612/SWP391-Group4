@@ -11,6 +11,14 @@
     <div class="alert alert-error">${sessionScope.flashError}</div><c:remove var="flashError" scope="session" />
 </c:if>
 
+<c:if test="${not empty oversoldStock}">
+    <div class="alert alert-error">
+        <strong>Tồn âm cần kiểm kê:</strong>
+        <c:forEach var="o" items="${oversoldStock}" varStatus="st">${o.ingredientName} (${o.quantityOnHand} ${o.ingredientUnit})<c:if test="${not st.last}">, </c:if></c:forEach>
+        <a class="btn btn-ghost btn-sm" href="${ctx}/manager/reconciliation?action=new" style="margin-left:10px">Điều chỉnh tồn</a>
+    </div>
+</c:if>
+
 <c:if test="${not empty lowStock}">
     <div class="alert alert-error">
         <strong>Cảnh báo tồn thấp:</strong>

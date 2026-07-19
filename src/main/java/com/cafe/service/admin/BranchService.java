@@ -51,6 +51,17 @@ public class BranchService {
         }
     }
 
+    /** Manager tự cài giờ mở/đóng cửa + ngưỡng cao điểm cho chi nhánh mình (không đụng cột khác). */
+    public void updateHoursAndPeak(int branchId, java.time.LocalTime openTime,
+                                   java.time.LocalTime closeTime, int peakThresholdCups) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try { dao.updateHoursAndPeak(conn, branchId, openTime, closeTime, peakThresholdCups); conn.commit(); }
+            catch (SQLException e) { conn.rollback(); throw e; }
+            finally { conn.setAutoCommit(true); }
+        }
+    }
+
     public void setBranchActive(int id, boolean active) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);

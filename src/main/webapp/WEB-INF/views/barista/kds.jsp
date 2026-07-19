@@ -1,171 +1,97 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
+<c:set var="wideLayout" value="true" scope="request" />
+<c:set var="bodyClass" value="page-kds" scope="request" />
 <jsp:include page="../layout/header.jsp" />
-
-<div class="page-header">
-    <div>
-        <div class="eyebrow">Pha chế</div>
-        <h1>Hàng chờ pha</h1>
-        <p>Pha xong bấm “Xong” — hệ thống tự trừ nguyên liệu. Hết nguyên liệu thì bấm “Không pha được”.</p>
-    </div>
-    <a class="btn btn-ghost" href="${ctx}/barista/pickup">Món chờ giao →</a>
-</div>
+<h1 class="visually-hidden">Quầy pha chế</h1>
 
 <jsp:include page="../layout/_baristaShiftBanner.jsp" />
 
 <div class="kds-toolbar">
-    <div class="seg" id="kdsDensity" role="group" aria-label="Mật độ hiển thị">
-        <button type="button" class="seg__btn" data-dens="0">Thoáng</button>
-        <button type="button" class="seg__btn" data-dens="1">Gọn</button>
+    <div class="kds-filters" id="kdsOwnerFilters" role="group" aria-label="Lọc theo người phụ trách">
+        <button type="button" class="chip-filter is-active" data-filter-group="owner" data-filter-value="all" aria-pressed="true">Tất cả món</button>
+        <button type="button" class="chip-filter" data-filter-group="owner" data-filter-value="mine" aria-pressed="false">Món của tôi</button>
+        <button type="button" class="chip-filter" data-filter-group="owner" data-filter-value="unassigned" aria-pressed="false">Chưa nhận</button>
+    </div>
+    <button type="button" class="chip-filter chip-filter--urgent" id="kdsUrgencyFilter" data-filter-group="urgency" data-filter-value="late" aria-pressed="false">Trễ giờ</button>
+    <details class="kds-more" id="kdsMoreFilters">
+        <summary class="chip-filter">Quầy &amp; loại đơn <span class="kds-filter-badge" id="kdsFilterBadge" hidden></span></summary>
+        <div class="kds-more__panel">
+            <label class="kds-filter-field" for="kdsStationFilter"><span>Quầy</span>
+                <select id="kdsStationFilter" data-filter-select="station">
+                    <option value="all">Tất cả quầy</option>
+                    <option value="COFFEE">Quầy cà phê</option>
+                    <option value="TEA">Quầy trà</option>
+                    <option value="BLENDER">Máy xay</option>
+                </select>
+            </label>
+            <label class="kds-filter-field" for="kdsOrderTypeFilter"><span>Loại đơn</span>
+                <select id="kdsOrderTypeFilter" data-filter-select="orderType">
+                    <option value="all">Tất cả loại đơn</option>
+                    <option value="DINE_IN">Tại bàn</option>
+                    <option value="TAKEAWAY">Mang đi</option>
+                    <option value="DELIVERY">Giao hàng</option>
+                </select>
+            </label>
+            <button type="button" class="btn btn-ghost btn-sm btn-full" id="kdsClearFilters">Xóa bộ lọc</button>
+        </div>
+    </details>
+    <div id="kdsConnection" class="kds-connection" role="status">
+        <span class="kds-refresh__dot"></span><span>Đang kết nối</span>
     </div>
 </div>
 
-<div id="kdsBoard" class="kds-board ${onShift ? '' : 'is-viewonly'}">
+<div id="kdsBoard" class="kds-board" data-user-id="${currentUserId}" data-endpoint="${ctx}/barista/kds" aria-busy="false">
     <jsp:include page="kds_cards.jsp" />
 </div>
+<div id="kdsLiveNotice" class="kds-live-notice" role="status" aria-live="assertive" hidden></div>
 
-<div class="kds-refresh muted">
-    <span class="kds-refresh__dot"></span>
-    Tự cập nhật mỗi <span id="kdsCountdown">5</span> giây
-</div>
-
-<%-- Dialog "Không pha được" — huỷ đúng món + tuỳ chọn đánh dấu hết món (86) --%>
-<div id="cantMakeModal" class="kds-modal" hidden>
+<div id="issueModal" class="kds-modal" hidden>
     <div class="kds-modal__backdrop" data-close></div>
-    <div class="kds-modal__panel" role="dialog" aria-modal="true" aria-labelledby="cantMakeTitle">
-        <h3 id="cantMakeTitle">Không pha được món</h3>
-        <p class="muted kds-modal__name" id="cantMakeName"></p>
-        <form id="cantMakeForm" action="${ctx}/barista/kds" method="post">
-            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-            <input type="hidden" name="action" value="cantMake">
-            <input type="hidden" name="orderItemId" id="cantItemId">
-            <input type="hidden" name="productId" id="cantProductId">
-            <label class="kds-field">
-                <span>Lý do (tuỳ chọn)</span>
-                <input type="text" name="reason" maxlength="120" placeholder="VD: hết sữa tươi" autocomplete="off">
-            </label>
-            <label class="kds-check">
-                <input type="checkbox" name="also86" value="true" id="cantAlso86">
-                <span>Đánh dấu hết món này (86) — khoá khỏi POS &amp; QR khách</span>
-            </label>
-            <label class="kds-field kds-eta" hidden>
-                <span>Dự kiến có lại (tuỳ chọn)</span>
-                <input type="datetime-local" name="backInEta">
-            </label>
-            <div class="kds-modal__actions">
-                <button type="button" class="btn btn-ghost" data-close>Huỷ</button>
-                <button type="submit" class="btn btn-danger">Xác nhận huỷ món</button>
-            </div>
+    <div class="kds-modal__panel" role="dialog" aria-modal="true" aria-labelledby="issueTitle">
+        <h3 id="issueTitle">Báo sự cố</h3><p class="muted kds-modal__name" data-modal-name></p>
+        <p class="kds-modal__hint">Sự cố sẽ được báo cho Thu ngân/Quản lý; món không tự động bị hủy.</p>
+        <form action="${ctx}/barista/kds" method="post">
+            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="reportIssue"><input type="hidden" name="orderItemId" data-item-input>
+            <label class="kds-field"><span>Lý do</span><select name="reason" required>
+                <option value="">Chọn lý do</option><option value="OUT_OF_STOCK">Hết nguyên liệu</option><option value="EQUIPMENT">Máy móc gặp sự cố</option><option value="NOTE_UNSUPPORTED">Không đáp ứng được ghi chú</option><option value="DISCONTINUED">Món đã ngừng bán</option><option value="UNCLEAR_ORDER">Thông tin đơn không rõ</option><option value="OTHER">Lý do khác</option>
+            </select></label>
+            <label class="kds-field js-other-reason" hidden><span>Lý do khác</span><input type="text" name="otherReason" maxlength="255" autocomplete="off"></label>
+            <div class="kds-field js-ingredients" hidden><span>Nguyên liệu đã hết</span><div data-ingredient-slot></div></div>
+            <p class="kds-modal__hint js-blocking-note" hidden>Món sẽ chuyển sang mục <strong>Cần xử lý</strong> và rời khỏi hàng chờ pha.</p>
+            <div class="kds-modal__actions"><button type="button" class="btn btn-ghost" data-close>Đóng</button><button type="submit" class="btn btn-danger">Gửi báo sự cố</button></div>
         </form>
     </div>
 </div>
 
-<script>
-  (function(){
-    var ctx = '${ctx}';
-    var board = document.getElementById('kdsBoard');
-    var countdown = document.getElementById('kdsCountdown');
-    var modal = document.getElementById('cantMakeModal');
-    var cantForm = document.getElementById('cantMakeForm');
-    var also86 = document.getElementById('cantAlso86');
-    var etaWrap = modal ? modal.querySelector('.kds-eta') : null;
-    var n = 5;
-    var knownIds = readIds();
-    var refreshing = false;
-    var suppressUntil = 0;   // tạm ngưng polling ngay sau một thao tác để không đè kết quả
+<div id="remakeModal" class="kds-modal" hidden>
+    <div class="kds-modal__backdrop" data-close></div>
+    <div class="kds-modal__panel" role="dialog" aria-modal="true" aria-labelledby="remakeTitle">
+        <h3 id="remakeTitle">Làm lại món</h3><p class="muted kds-modal__name" data-modal-name></p>
+        <p class="kds-modal__hint">Hệ thống ghi nhận hao hụt, giữ lịch sử lượt pha cũ và đưa món về Chờ pha với ưu tiên cao.</p>
+        <form action="${ctx}/barista/kds" method="post">
+            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="remake"><input type="hidden" name="orderItemId" data-item-input>
+            <label class="kds-field"><span>Lý do</span><select name="reason" required>
+                <option value="">Chọn lý do</option><option value="WRONG_RECIPE">Pha sai công thức</option><option value="SPILLED">Làm đổ hoặc hư món</option><option value="QUALITY">Chất lượng không đạt</option><option value="CUSTOMER_FEEDBACK">Khách phản hồi</option><option value="WRONG_DELIVERY">Giao nhầm</option><option value="CHANGED_REQUEST">Khách thay đổi yêu cầu</option>
+            </select></label>
+            <div class="kds-modal__actions"><button type="button" class="btn btn-ghost" data-close>Đóng</button><button type="submit" class="btn btn-danger">Xác nhận làm lại</button></div>
+        </form>
+    </div>
+</div>
 
-    // Chế độ Thoáng / Gọn (mật độ) — lưu localStorage, áp lên #kdsBoard (bền qua các lần refresh AJAX)
-    (function(){
-      var seg = document.getElementById('kdsDensity');
-      if (!board || !seg) return;
-      var btns = Array.prototype.slice.call(seg.querySelectorAll('.seg__btn[data-dens]'));
-      function apply(){
-        var compact = localStorage.getItem('kdsCompact') === '1';
-        board.classList.toggle('is-compact', compact);
-        btns.forEach(function(b){ b.classList.toggle('is-active', b.getAttribute('data-dens') === (compact ? '1' : '0')); });
-      }
-      btns.forEach(function(b){
-        b.addEventListener('click', function(){ localStorage.setItem('kdsCompact', b.getAttribute('data-dens')); apply(); });
-      });
-      apply();
-    })();
+<div id="unblockModal" class="kds-modal" hidden>
+    <div class="kds-modal__backdrop" data-close></div>
+    <div class="kds-modal__panel" role="dialog" aria-modal="true" aria-labelledby="unblockTitle">
+        <h3 id="unblockTitle">Trả món về chờ pha</h3><p class="muted kds-modal__name" data-modal-name></p>
+        <p class="kds-modal__hint">Nếu nguyên liệu đã có lại, kiểm lại tồn thực tế trước khi trả món về hàng chờ.</p>
+        <form action="${ctx}/barista/kds" method="post">
+            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="unblock"><input type="hidden" name="recount" value="1"><input type="hidden" name="orderItemId" data-item-input>
+            <div class="kds-field js-recount"><span>Kiểm kê nguyên liệu</span><div data-recount-slot></div></div>
+            <div class="kds-modal__actions"><button type="button" class="btn btn-ghost" data-close>Đóng</button><button type="submit" class="btn btn-primary">Xác nhận</button></div>
+        </form>
+    </div>
+</div>
 
-    function readIds(){
-      var ids = {};
-      if (board) board.querySelectorAll('[data-kds-ticket-id]').forEach(function(c){
-        ids[c.getAttribute('data-kds-ticket-id')] = true;
-      });
-      return ids;
-    }
-
-    function markNew(){
-      board.querySelectorAll('[data-kds-ticket-id]').forEach(function(c){
-        if (!knownIds[c.getAttribute('data-kds-ticket-id')]) c.classList.add('kds-new');
-      });
-      knownIds = readIds();
-    }
-
-    async function postForm(form){
-      suppressUntil = Date.now() + 1500;
-      var body = new FormData(form);
-      body.append('ajax', '1');
-      var res = await fetch(form.action, {method:'POST', body: body, credentials:'same-origin'});
-      if (!res.ok) throw new Error('post failed');
-      board.innerHTML = await res.text();
-      markNew();
-    }
-
-    // Mọi form trong bảng gửi qua AJAX → không reload cả trang, giữ nguyên chỗ cuộn
-    if (board) board.addEventListener('submit', function(e){
-      var form = e.target.closest('form');
-      if (!form) return;
-      e.preventDefault();
-      var msg = form.getAttribute('data-confirm');
-      if (msg && !window.confirm(msg)) return;
-      postForm(form).catch(function(){ form.submit(); });   // lỗi mạng → submit thường (fallback)
-    });
-
-    // Mở dialog "Không pha được"
-    function toggleEta(){ if (etaWrap) etaWrap.hidden = !(also86 && also86.checked); }
-    function closeModal(){ if (modal) modal.hidden = true; }
-
-    if (board) board.addEventListener('click', function(e){
-      var btn = e.target.closest('.js-cantmake');
-      if (!btn || !modal) return;
-      cantForm.reset();
-      document.getElementById('cantItemId').value = btn.dataset.itemId;
-      document.getElementById('cantProductId').value = btn.dataset.productId;
-      document.getElementById('cantMakeName').textContent = btn.dataset.name;
-      toggleEta();
-      modal.hidden = false;
-    });
-
-    if (also86) also86.addEventListener('change', toggleEta);
-    if (modal) modal.addEventListener('click', function(e){ if (e.target.hasAttribute('data-close')) closeModal(); });
-    document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeModal(); });
-    if (cantForm) cantForm.addEventListener('submit', function(e){
-      e.preventDefault();
-      postForm(cantForm).then(closeModal).catch(function(){ cantForm.submit(); });
-    });
-
-    async function refresh(){
-      if (!board || refreshing || document.visibilityState === 'hidden' || Date.now() < suppressUntil) return;
-      refreshing = true;
-      try {
-        var res = await fetch(ctx + '/barista/kds?partial=1', {credentials:'same-origin'});
-        if (!res.ok) return;
-        board.innerHTML = await res.text();
-        markNew();
-      } finally { refreshing = false; }
-    }
-
-    setInterval(function(){
-      if (document.visibilityState === 'hidden') return;
-      n -= 1;
-      if (n <= 0) { n = 5; refresh(); }
-      if (countdown) countdown.textContent = n;
-    }, 1000);
-  })();
-</script>
+<script src="${ctx}/assets/js/kds-board.js?v=${applicationScope.assetVersion}" defer></script>
 <jsp:include page="../layout/footer.jsp" />

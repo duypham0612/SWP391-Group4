@@ -1,6 +1,7 @@
 package com.cafe.dao.manager;
 
 import com.cafe.model.Attendance;
+import com.cafe.model.MonthlyAttendanceRow;
 import com.cafe.model.PayrollRow;
 import com.cafe.model.ShiftAssignment;
 
@@ -190,6 +191,36 @@ public class AttendanceDao {
         return out;
     }
 
+    /** Lịch đi làm 1 tháng của CHÍNH nhân viên — gồm cả ngày được xếp ca mà không đi. */
+    public List<MonthlyAttendanceRow> findMonthlyByUser(Connection conn, int userId, int branchId,
+                                                         LocalDate monthStart, LocalDate monthEndExclusive)
+            throws SQLException {
+        List<MonthlyAttendanceRow> out = new ArrayList<>();
+        final String sql =
+            "SELECT sa.WorkDate, st.Name AS TemplateName, st.StartTime, st.EndTime, " +
+            "       a.CheckInAt, a.CheckOutAt, a.Status " +
+            "FROM hr.ShiftAssignment sa " +
+            "JOIN hr.ShiftTemplate st ON st.ShiftTemplateId = sa.ShiftTemplateId " +
+            "OUTER APPLY ( " +
+            "    SELECT TOP 1 att.CheckInAt, att.CheckOutAt, att.Status " +
+            "    FROM hr.Attendance att " +
+            "    WHERE att.ShiftAssignmentId = sa.ShiftAssignmentId " +
+            "    ORDER BY att.AttendanceId DESC " +
+            ") a " +
+            "WHERE sa.UserId=? AND st.BranchId=? AND sa.WorkDate>=? AND sa.WorkDate<? " +
+            "ORDER BY sa.WorkDate DESC, st.StartTime";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            ps.setInt(2, branchId);
+            ps.setDate(3, Date.valueOf(monthStart));
+            ps.setDate(4, Date.valueOf(monthEndExclusive));
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) out.add(mapMonthly(rs));
+            }
+        }
+        return out;
+    }
+
     private Attendance map(ResultSet rs) throws SQLException {
         Attendance a = new Attendance();
         a.setAttendanceId(rs.getInt("AttendanceId"));
@@ -231,5 +262,22 @@ public class AttendanceDao {
         if (et != null) a.setEndTime(et.toLocalTime());
         a.setUserName(rs.getString("UserName"));
         return a;
+    }
+
+    private MonthlyAttendanceRow mapMonthly(ResultSet rs) throws SQLException {
+        MonthlyAttendanceRow r = new MonthlyAttendanceRow();
+        Date d = rs.getDate("WorkDate");
+        if (d != null) r.setWorkDate(d.toLocalDate());
+        r.setTemplateName(rs.getString("TemplateName"));
+        Time st = rs.getTime("StartTime");
+        if (st != null) r.setShiftStart(st.toLocalTime());
+        Time et = rs.getTime("EndTime");
+        if (et != null) r.setShiftEnd(et.toLocalTime());
+        Timestamp ci = rs.getTimestamp("CheckInAt");
+        if (ci != null) r.setCheckInAt(ci.toLocalDateTime());
+        Timestamp co = rs.getTimestamp("CheckOutAt");
+        if (co != null) r.setCheckOutAt(co.toLocalDateTime());
+        r.setStatus(rs.getString("Status"));
+        return r;
     }
 }

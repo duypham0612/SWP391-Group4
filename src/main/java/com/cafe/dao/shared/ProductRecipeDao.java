@@ -70,6 +70,54 @@ public class ProductRecipeDao {
         return out;
     }
 
+    /** Nguyên liệu của món có tồn tại chi nhánh đang cạn (<= 0), dùng khi bỏ chặn món ở KDS. */
+    public List<ProductRecipe> findDepletedByProduct(Connection conn, int branchId, int productId) throws SQLException {
+        final String sql =
+            "SELECT pr.ProductRecipeId, pr.ProductId, pr.IngredientId, pr.Quantity, " +
+            "       i.Name AS IngredientName, i.Unit AS IngredientUnit, i.IngredientType, " +
+            "       ISNULL(bi.QuantityOnHand, 0) AS BranchQuantityOnHand " +
+            "FROM catalog.ProductRecipe pr " +
+            "JOIN catalog.Ingredient i ON pr.IngredientId = i.IngredientId " +
+            "LEFT JOIN inventory.BranchInventory bi ON bi.IngredientId = pr.IngredientId AND bi.BranchId = ? " +
+            "WHERE pr.ProductId = ? AND ISNULL(bi.QuantityOnHand, 0) <= 0 " +
+            "ORDER BY i.Name";
+        List<ProductRecipe> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setInt(2, productId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    ProductRecipe r = new ProductRecipe();
+                    r.setProductRecipeId(rs.getInt("ProductRecipeId"));
+                    r.setProductId(rs.getInt("ProductId"));
+                    r.setIngredientId(rs.getInt("IngredientId"));
+                    r.setQuantity(rs.getBigDecimal("Quantity"));
+                    r.setIngredientName(rs.getString("IngredientName"));
+                    r.setIngredientUnit(rs.getString("IngredientUnit"));
+                    r.setIngredientType(rs.getString("IngredientType"));
+                    r.setBranchQuantityOnHand(rs.getBigDecimal("BranchQuantityOnHand"));
+                    out.add(r);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Tập productId (trong danh sách đầu vào) ĐÃ khai báo công thức — để KDS cảnh báo món chưa có recipe. */
+    public java.util.Set<Integer> findProductIdsWithRecipe(Connection conn, java.util.Collection<Integer> productIds) throws SQLException {
+        java.util.Set<Integer> out = new java.util.HashSet<>();
+        if (productIds == null || productIds.isEmpty()) return out;
+        StringBuilder in = new StringBuilder();
+        for (int i = 0; i < productIds.size(); i++) in.append(i == 0 ? "?" : ",?");
+        final String sql = "SELECT DISTINCT ProductId FROM catalog.ProductRecipe WHERE ProductId IN (" + in + ")";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = 1;
+            for (Integer id : productIds) ps.setInt(idx++, id);
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(rs.getInt(1)); }
+        }
+        return out;
+    }
+
     public void insert(Connection conn, ProductRecipe r) throws SQLException {
         final String sql = "INSERT INTO catalog.ProductRecipe(ProductId, IngredientId, Quantity) VALUES (?,?,?)";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
