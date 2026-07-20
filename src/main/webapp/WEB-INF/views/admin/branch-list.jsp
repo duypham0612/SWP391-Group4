@@ -13,15 +13,18 @@
         <div class="card empty-state"><div class="icon">📭</div><p>Chưa có chi nhánh nào.</p></div>
     </c:when>
     <c:otherwise>
-        <div class="list-toolbar">
-            <input type="search" id="branchSearch" class="form-control list-toolbar__search"
-                   placeholder="Tìm mã, tên, địa chỉ, quản lý..." autocomplete="off" aria-label="Tìm chi nhánh">
+        <div class="table-toolbar">
+            <div class="form-group table-search">
+                <label for="branchSearch">Tìm kiếm</label>
+                <input type="search" id="branchSearch" class="form-control"
+                       placeholder="Tìm mã, tên, địa chỉ, quản lý..." autocomplete="off" aria-label="Tìm chi nhánh">
+            </div>
             <div class="seg" role="group" aria-label="Lọc trạng thái">
                 <button type="button" class="seg__btn is-active" data-filter="all">Tất cả</button>
                 <button type="button" class="seg__btn" data-filter="active">Hoạt động</button>
                 <button type="button" class="seg__btn" data-filter="inactive">Ngừng</button>
             </div>
-            <span class="list-count"><strong id="branchCount">0</strong> chi nhánh</span>
+            <span class="tt-summary"><strong id="branchCount">0</strong> chi nhánh</span>
         </div>
 
         <table class="table">
@@ -57,7 +60,7 @@
             </tbody>
         </table>
 
-        <nav class="pager" id="branchPager" aria-label="Phân trang chi nhánh"></nav>
+        <nav class="pagination" id="branchPager" aria-label="Phân trang chi nhánh"></nav>
 
         <script>
         (function(){
@@ -99,7 +102,7 @@
                 opts = opts || {};
                 var b = document.createElement('button');
                 b.type = 'button';
-                b.className = 'pager__btn' + (opts.active ? ' is-active' : '');
+                b.className = 'page' + (opts.active ? ' is-active' : '');
                 b.textContent = label;
                 if (opts.disabled) { b.disabled = true; }
                 else if (!opts.active) { b.addEventListener('click', function(){ page = target; render(); }); }
@@ -127,7 +130,10 @@
                 var end = start + PER_PAGE;
 
                 rows.forEach(function(row){ row.style.display = 'none'; });
-                matched.slice(start, end).forEach(function(row){ row.style.display = ''; });
+                matched.slice(start, end).forEach(function(row, index){
+                    row.style.display = '';
+                    if (row.cells[0]) row.cells[0].textContent = String(start + index + 1);
+                });
 
                 if (countEl) countEl.textContent = total;
                 if (noRes) noRes.style.display = total === 0 ? '' : 'none';

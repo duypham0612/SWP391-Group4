@@ -90,7 +90,6 @@
                             <td>
                                 <a class="btn btn-ghost btn-sm" href="${ctx}/admin/product?action=edit&id=${p.productId}">Sửa</a>
                                 <a class="btn btn-ghost btn-sm" href="${ctx}/admin/recipe?productId=${p.productId}">Công thức</a>
-                                <a class="btn btn-ghost btn-sm" href="${ctx}/admin/modifier?view=assign&productId=${p.productId}">Modifier</a>
                                 <button type="submit" form="toggleProduct${p.productId}" class="btn btn-ghost btn-sm" onclick="return confirm('Đổi trạng thái sản phẩm này?');">${p.active ? 'Ẩn' : 'Hiện'}</button>
                             </td>
                         </tr>

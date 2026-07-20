@@ -258,13 +258,42 @@ hr{border:none; border-top:1px solid var(--line); margin:var(--s5) 0}
 .btn:disabled,.btn[disabled]{opacity:.5; cursor:not-allowed; transform:none !important; box-shadow:none}
 
 /* ----- Tables ----- */
-.table{width:100%; border-collapse:separate; border-spacing:0; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow-sm)}
-.table th,.table td{padding:13px var(--s4); text-align:left; border-bottom:1px solid var(--line); vertical-align:middle}
-.table th{background:var(--surface-2); font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); font-weight:700}
+.table{
+  width:100%; border-collapse:separate; border-spacing:0; table-layout:auto;
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  overflow:hidden; box-shadow:var(--shadow-sm)
+}
+.table th,.table td{
+  padding:12px var(--s4); text-align:left; border-bottom:1px solid var(--line);
+  vertical-align:middle; line-height:1.35
+}
+.table th{
+  background:var(--surface-2); font-size:11px; text-transform:uppercase;
+  letter-spacing:.06em; color:var(--ink-soft); font-weight:800; white-space:nowrap
+}
+.table td{font-size:14px}
 .table tr:last-child td{border-bottom:none}
 .table tbody tr{transition:background var(--t-fast)}
-.table tbody tr:hover{background:var(--surface-2)}
+.table tbody tr:hover{background:color-mix(in srgb,var(--surface-2) 72%,transparent)}
 .table tbody tr:hover td{color:var(--ink)}
+.table th:first-child,.table td:first-child{
+  text-align:center; width:1%; white-space:nowrap; color:var(--muted); font-weight:700
+}
+.table th:last-child,.table td:last-child{white-space:nowrap}
+.table td:last-child .btn,.table td:last-child form{margin:2px 2px 2px 0}
+.table td:last-child{min-width:132px}
+.table .prod-thumb{margin:0 auto}
+.app-content .table{min-width:720px}
+.app-content > .table,
+.app-content .card > .table,
+.app-content form[data-tabletools] > .table,
+.app-content div[data-tabletools] > .table{
+  display:table
+}
+@media (max-width:900px){
+  .app-content .table{font-size:13px}
+  .table th,.table td{padding:10px 12px}
+}
 
 /* ----- Badges ----- */
 .badge{display:inline-flex; align-items:center; gap:5px; padding:4px 11px; border-radius:var(--radius-pill); font-size:11.5px; font-weight:600; color:#fff; letter-spacing:.01em; line-height:1.4; white-space:nowrap}
@@ -438,6 +467,46 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
   background:linear-gradient(180deg,var(--gold),var(--brand)); transition:height .35s cubic-bezier(.4,0,.2,1),opacity var(--t-fast)}
 .chart-col:hover .chart-bar{opacity:.78}
 .chart-axis{display:flex; justify-content:space-between; margin-top:var(--s2); font-size:12px; color:var(--muted)}
+
+/* ----- Dashboard report tables ----- */
+.dashboard-report-grid{align-items:stretch}
+.report-card{padding:18px 20px; overflow:hidden}
+.report-card h3{margin:0 0 12px; font-size:19px; line-height:1.25}
+.report-table{
+  min-width:0 !important; border-radius:var(--radius-sm); box-shadow:none;
+  table-layout:fixed; border-color:var(--line)
+}
+.report-table th,.report-table td{padding:12px 14px}
+.report-table th{font-size:11px; letter-spacing:.04em}
+.report-table th:first-child,.report-table td:first-child{
+  width:auto; text-align:left; color:var(--ink); font-weight:650; white-space:normal
+}
+.report-table th:nth-child(2),.report-table td:nth-child(2){
+  width:72px; text-align:center; font-variant-numeric:tabular-nums
+}
+.report-table th:last-child,.report-table td:last-child{
+  width:150px; text-align:right; min-width:0; font-variant-numeric:tabular-nums
+}
+.report-table td:last-child strong{font-size:15px}
+.report-table-top th:first-child,.report-table-top td:first-child{
+  width:50px; text-align:center; color:var(--muted); white-space:nowrap
+}
+.report-table-top th:nth-child(2),.report-table-top td:nth-child(2){
+  width:auto; text-align:left; white-space:normal
+}
+.report-table-top th:nth-child(3),.report-table-top td:nth-child(3){
+  width:110px; text-align:center; font-variant-numeric:tabular-nums
+}
+.report-table-top th:last-child,.report-table-top td:last-child{width:170px}
+@media (max-width:980px){
+  .dashboard-report-grid{grid-template-columns:1fr}
+}
+@media (max-width:620px){
+  .report-card{padding:16px}
+  .report-table th,.report-table td{padding:10px 11px}
+  .report-table th:nth-child(2),.report-table td:nth-child(2){width:56px}
+  .report-table th:last-child,.report-table td:last-child{width:118px}
+}
 
 /* ============================ KDS ======================================= */
 .kds-summary{
@@ -1013,7 +1082,7 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
 .table-toolbar .form-group{margin:0}
 .table-search{position:relative; flex:1 1 260px; min-width:220px}
 .table-search::before{
-  content:"🔍"; position:absolute; left:13px; top:50%; transform:translateY(-50%);
+  content:"\1F50D"; position:absolute; left:13px; top:50%; transform:translateY(-50%);
   color:var(--muted); font-size:14px; line-height:1; pointer-events:none;
 }
 .table-search .form-control{padding-left:38px}

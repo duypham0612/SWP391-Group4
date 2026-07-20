@@ -19,15 +19,18 @@
         </div>
     </c:when>
     <c:otherwise>
-        <div class="list-toolbar">
-            <input type="search" id="mgSearch" class="form-control list-toolbar__search"
-                   placeholder="Tìm theo tên nhóm..." autocomplete="off" aria-label="Tìm nhóm tuỳ chọn">
+        <div class="table-toolbar">
+            <div class="form-group table-search">
+                <label for="mgSearch">Tìm kiếm</label>
+                <input type="search" id="mgSearch" class="form-control"
+                       placeholder="Tìm theo tên nhóm..." autocomplete="off" aria-label="Tìm nhóm tuỳ chọn">
+            </div>
             <div class="seg" role="group" aria-label="Lọc loại nhóm">
                 <button type="button" class="seg__btn is-active" data-filter="all">Tất cả</button>
                 <button type="button" class="seg__btn" data-filter="required">Bắt buộc</button>
                 <button type="button" class="seg__btn" data-filter="optional">Tuỳ chọn</button>
             </div>
-            <span class="list-count"><strong id="mgCount">0</strong> nhóm</span>
+            <span class="tt-summary"><strong id="mgCount">0</strong> nhóm</span>
         </div>
 
         <table class="table">
@@ -86,7 +89,7 @@
             </tbody>
         </table>
 
-        <nav class="pager" id="mgPager" aria-label="Phân trang nhóm modifier"></nav>
+        <nav class="pagination" id="mgPager" aria-label="Phân trang nhóm modifier"></nav>
 
         <script>
         (function(){
@@ -123,7 +126,7 @@
                 opts = opts || {};
                 var b = document.createElement('button');
                 b.type = 'button';
-                b.className = 'pager__btn' + (opts.active ? ' is-active' : '');
+                b.className = 'page' + (opts.active ? ' is-active' : '');
                 b.textContent = label;
                 if (opts.disabled) { b.disabled = true; }
                 else if (!opts.active) { b.addEventListener('click', function(){ page = target; render(); }); }
@@ -147,7 +150,10 @@
                 if (page < 1) page = 1;
                 var start = (page - 1) * PER_PAGE;
                 rows.forEach(function(row){ row.style.display = 'none'; });
-                matched.slice(start, start + PER_PAGE).forEach(function(row){ row.style.display = ''; });
+                matched.slice(start, start + PER_PAGE).forEach(function(row, index){
+                    row.style.display = '';
+                    if (row.cells[0]) row.cells[0].textContent = String(start + index + 1);
+                });
                 if (countEl) countEl.textContent = total;
                 if (noRes) noRes.style.display = total === 0 ? '' : 'none';
                 renderPager(pageCount);

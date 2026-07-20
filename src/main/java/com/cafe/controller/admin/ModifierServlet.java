@@ -28,9 +28,18 @@ public class ModifierServlet extends HttpServlet {
     private final IngredientService ingredientService = new IngredientService();
     private final ProductService productService = new ProductService();
 
+    private boolean modifierAdminDisabled() {
+        return true;
+    }
+
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
+        if (modifierAdminDisabled()) {
+            req.getSession().setAttribute("flashOk", "T\u00f9y ch\u1ecdn m\u00f3n \u0111\u00e3 chuy\u1ec3n sang 3 nh\u00f3m c\u1ed1 \u0111\u1ecbnh: Size, \u0110\u01b0\u1eddng, \u0110\u00e1.");
+            resp.sendRedirect(req.getContextPath() + "/admin/product");
+            return;
+        }
         String view = req.getParameter("view");
         try {
             consumeFlash(req);
@@ -49,6 +58,11 @@ public class ModifierServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
+        if (modifierAdminDisabled()) {
+            req.getSession().setAttribute("flashOk", "T\u00f9y ch\u1ecdn m\u00f3n \u0111\u00e3 chuy\u1ec3n sang 3 nh\u00f3m c\u1ed1 \u0111\u1ecbnh: Size, \u0110\u01b0\u1eddng, \u0110\u00e1.");
+            resp.sendRedirect(req.getContextPath() + "/admin/product");
+            return;
+        }
         if (!CsrfUtil.isValid(req)) { resp.sendError(HttpServletResponse.SC_FORBIDDEN, "CSRF"); return; }
         String ctx = req.getContextPath();
         String action = req.getParameter("action");

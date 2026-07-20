@@ -7,8 +7,8 @@
     return String(value || '')
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
-      .replace(/đ/g, 'd')
-      .replace(/Đ/g, 'd')
+      .replace(/\u0111/g, 'd')
+      .replace(/\u0110/g, 'd')
       .toLowerCase()
       .trim();
   }
@@ -95,11 +95,13 @@
     var headerCells = Array.prototype.slice.call(table.tHead ? table.tHead.rows[0].cells : []);
     var markedSearchCols = [];
     var defaultSearchCols = [];
+    var rowNumberCol = -1;
     var currentPage = 1;
 
     populateFilterOptions(filters, rows);
 
     headerCells.forEach(function (th, index) {
+      if (String(th.textContent || '').trim() === '#') rowNumberCol = index;
       if (th.hasAttribute('data-tt-search')) markedSearchCols.push(index);
       if (!th.hasAttribute('data-tt-nosearch')) defaultSearchCols.push(index);
     });
@@ -110,7 +112,7 @@
     emptyRow.className = 'tt-empty';
     emptyRow.hidden = true;
     emptyCell.colSpan = Math.max(1, headerCells.length);
-    emptyCell.textContent = root.getAttribute('data-tt-empty') || 'Không có kết quả';
+    emptyCell.textContent = root.getAttribute('data-tt-empty') || 'Kh\u00f4ng c\u00f3 k\u1ebft qu\u1ea3';
     emptyRow.appendChild(emptyCell);
     tbody.appendChild(emptyRow);
 
@@ -135,20 +137,27 @@
       pager.innerHTML = '';
       if (totalPages <= 1) return;
 
-      pager.appendChild(pageButton('«', 1, currentPage === 1, false));
-      pager.appendChild(pageButton('‹', Math.max(1, currentPage - 1), currentPage === 1, false));
+      pager.appendChild(pageButton('\u00ab', 1, currentPage === 1, false));
+      pager.appendChild(pageButton('\u2039', Math.max(1, currentPage - 1), currentPage === 1, false));
 
       pagerPages(totalPages, currentPage).forEach(function (page) {
         pager.appendChild(pageButton(String(page), page, false, page === currentPage));
       });
 
-      pager.appendChild(pageButton('›', Math.min(totalPages, currentPage + 1), currentPage === totalPages, false));
-      pager.appendChild(pageButton('»', totalPages, currentPage === totalPages, false));
+      pager.appendChild(pageButton('\u203a', Math.min(totalPages, currentPage + 1), currentPage === totalPages, false));
+      pager.appendChild(pageButton('\u00bb', totalPages, currentPage === totalPages, false));
     }
 
     function renderSummary(start, end, total) {
       if (!summary) return;
       summary.textContent = total ? start + '-' + end + ' / ' + total : '0 / 0';
+    }
+
+    function renderRowNumbers(pageRows, startIndex) {
+      if (rowNumberCol < 0) return;
+      pageRows.forEach(function (row, index) {
+        if (row.cells[rowNumberCol]) row.cells[rowNumberCol].textContent = String(startIndex + index + 1);
+      });
     }
 
     function update() {
@@ -170,6 +179,7 @@
         row.hidden = pageRows.indexOf(row) === -1;
       });
 
+      renderRowNumbers(pageRows, startIndex);
       emptyRow.hidden = total !== 0;
       renderPager(totalPages);
       renderSummary(total ? startIndex + 1 : 0, endIndex, total);

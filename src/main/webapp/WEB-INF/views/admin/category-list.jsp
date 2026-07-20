@@ -36,6 +36,7 @@
                 <div class="form-group">
                     <label for="categoryPageSize">Hiển thị</label>
                     <select id="categoryPageSize" class="form-control tt-size" data-tt-size>
+                        <option value="5">5</option>
                         <option value="10">10</option>
                         <option value="20">20</option>
                         <option value="50">50</option>
