@@ -39,7 +39,7 @@ public class StockReceiptServlet extends HttpServlet {
                 req.setAttribute("pageTitle", "Tạo phiếu nhập");
                 req.getRequestDispatcher("/WEB-INF/views/manager/receipt-form.jsp").forward(req, resp);
             } else if ("view".equals(action)) {
-                showReceipt(req, resp, Integer.parseInt(req.getParameter("id")));
+                showReceipt(req, resp, branchId, Integer.parseInt(req.getParameter("id")));
             } else {
                 req.setAttribute("receipts", service.getReceiptList(branchId));
                 req.setAttribute("pageTitle", "Phiếu nhập kho");
@@ -79,7 +79,7 @@ public class StockReceiptServlet extends HttpServlet {
                     BigDecimal qty = dec(req.getParameter("quantity"));
                     BigDecimal cost = dec(req.getParameter("unitCost"));
                     String unit = trim(req.getParameter("unit"));
-                    if (qty.signum() > 0) service.addReceiptLine(rid, Integer.parseInt(req.getParameter("ingredientId")), qty, cost, unit);
+                    service.addReceiptLine(branchId, rid, Integer.parseInt(req.getParameter("ingredientId")), qty, cost, unit);
                     resp.sendRedirect(redirect);
                     return;
                 }
@@ -102,14 +102,14 @@ public class StockReceiptServlet extends HttpServlet {
                             lines.add(d);
                         }
                     }
-                    service.addReceiptLines(rid, lines);
+                    service.addReceiptLines(branchId, rid, lines);
                     resp.sendRedirect(redirect);
                     return;
                 }
                 case "removeLine": {
                     int rid = Integer.parseInt(req.getParameter("receiptId"));
                     redirect = ctx + "/manager/receipt?action=view&id=" + rid;
-                    service.removeReceiptLine(Integer.parseInt(req.getParameter("detailId")));
+                    service.removeReceiptLine(branchId, rid, Integer.parseInt(req.getParameter("detailId")));
                     resp.sendRedirect(redirect);
                     return;
                 }
@@ -123,7 +123,7 @@ public class StockReceiptServlet extends HttpServlet {
                 case "cancel": {
                     int rid = Integer.parseInt(req.getParameter("receiptId"));
                     redirect = ctx + "/manager/receipt?action=view&id=" + rid;
-                    service.cancelReceipt(rid);
+                    service.cancelReceipt(branchId, rid);
                     resp.sendRedirect(redirect);
                     return;
                 }
@@ -133,7 +133,7 @@ public class StockReceiptServlet extends HttpServlet {
                     if (ids != null) for (String s : ids) {
                         try { list.add(Integer.parseInt(s)); } catch (NumberFormatException ignore) {}
                     }
-                    service.cancelManyReceipts(list);
+                    service.cancelManyReceipts(branchId, list);
                     resp.sendRedirect(ctx + "/manager/receipt");
                     return;
                 }
@@ -148,11 +148,11 @@ public class StockReceiptServlet extends HttpServlet {
         } catch (Exception e) { throw new ServletException(e); }
     }
 
-    private void showReceipt(HttpServletRequest req, HttpServletResponse resp, int id) throws Exception {
-        StockReceipt r = service.getReceipt(id);
+    private void showReceipt(HttpServletRequest req, HttpServletResponse resp, int branchId, int id) throws Exception {
+        StockReceipt r = service.getReceipt(branchId, id);
         if (r == null) { resp.sendError(404); return; }
         req.setAttribute("receipt", r);
-        req.setAttribute("details", service.getReceiptDetails(id));
+        req.setAttribute("details", service.getReceiptDetails(branchId, id));
         req.setAttribute("ingredients", ingredientService.getIngredientList());
         req.setAttribute("pageTitle", "Phiếu nhập #" + id);
         req.getRequestDispatcher("/WEB-INF/views/manager/receipt-detail.jsp").forward(req, resp);

@@ -44,10 +44,11 @@ public class ShiftTemplateDao {
         }
     }
 
-    public void delete(Connection conn, int id) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM hr.ShiftTemplate WHERE ShiftTemplateId=?")) {
+    public int delete(Connection conn, int id, int branchId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM hr.ShiftTemplate WHERE ShiftTemplateId=? AND BranchId=?")) {
             ps.setInt(1, id);
-            ps.executeUpdate();
+            ps.setInt(2, branchId);
+            return ps.executeUpdate();
         }
     }
 

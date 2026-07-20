@@ -36,8 +36,9 @@ public class ReconciliationServlet extends HttpServlet {
                 req.getRequestDispatcher("/WEB-INF/views/manager/reconciliation-form.jsp").forward(req, resp);
             } else {
                 req.setAttribute("adjustments", service.getAdjustmentList(branchId));
-                req.setAttribute("pageTitle", "Đối soát tồn");
-                req.getRequestDispatcher("/WEB-INF/views/manager/reconciliation-list.jsp").forward(req, resp);
+                req.setAttribute("pageTitle", "Đối soát tồn & hao hụt");
+                req.setAttribute("combinedInventoryView", Boolean.TRUE);
+                req.getRequestDispatcher("/manager/waste").forward(req, resp);
             }
         } catch (Exception e) { throw new ServletException(e); }
     }

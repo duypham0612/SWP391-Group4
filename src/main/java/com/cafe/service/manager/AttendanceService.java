@@ -2,6 +2,7 @@ package com.cafe.service.manager;
 
 import com.cafe.config.DBConnection;
 import com.cafe.common.BusinessDay;
+import com.cafe.common.BusinessException;
 import com.cafe.common.ShiftHours;
 import com.cafe.dao.manager.AttendanceDao;
 import com.cafe.dao.manager.PayrollDao;
@@ -46,37 +47,42 @@ public class AttendanceService {
      * Chấm công bằng tickbox: với mỗi bản ghi hiển thị (shownIds, không tính REJECTED),
      * tick = APPROVED (ghi người duyệt), bỏ tick = PENDING (xoá người duyệt). Tất cả 1 transaction.
      */
-    public void setApprovalStates(List<Integer> shownIds, Set<Integer> checkedIds, int approverId) throws SQLException {
+    public void setApprovalStates(int branchId, List<Integer> shownIds, Set<Integer> checkedIds, int approverId) throws SQLException {
+        if (approverId <= 0) throw new BusinessException("Không xác định được người duyệt.");
         txVoid(c -> {
             for (Integer id : shownIds) {
-                if (checkedIds.contains(id)) dao.updateApproval(c, id, "APPROVED", approverId);
-                else dao.updateApproval(c, id, "PENDING", null);
+                int changed = checkedIds.contains(id)
+                        ? dao.updateApproval(c, id, branchId, "APPROVED", approverId)
+                        : dao.updateApproval(c, id, branchId, "PENDING", null);
+                if (changed != 1) throw new BusinessException("Bản ghi chấm công không thuộc chi nhánh của bạn.");
             }
         });
     }
 
     /** Mở lại bản ghi đã từ chối → PENDING. */
-    public void reopenAttendance(int id) throws SQLException {
-        txVoid(c -> dao.updateApproval(c, id, "PENDING", null));
+    public void reopenAttendance(int branchId, int id) throws SQLException {
+        txVoid(c -> { if (dao.updateApproval(c, id, branchId, "PENDING", null) != 1) throw new BusinessException("Bản ghi chấm công không thuộc chi nhánh của bạn."); });
     }
 
     public Attendance getAttendance(int id) throws SQLException {
         try (Connection c = DBConnection.getConnection()) { return dao.findById(c, id); }
     }
 
-    public void approveAttendance(int id, int approverId) throws SQLException {
-        txVoid(c -> dao.updateStatus(c, id, "APPROVED", approverId));
+    public void approveAttendance(int branchId, int id, int approverId) throws SQLException {
+        txVoid(c -> { if (dao.updateApproval(c, id, branchId, "APPROVED", approverId) != 1) throw new BusinessException("Bản ghi chấm công không thuộc chi nhánh của bạn."); });
     }
 
-    public void rejectAttendance(int id, int approverId) throws SQLException {
-        txVoid(c -> dao.updateStatus(c, id, "REJECTED", approverId));
+    public void rejectAttendance(int branchId, int id, int approverId) throws SQLException {
+        txVoid(c -> { if (dao.updateApproval(c, id, branchId, "REJECTED", approverId) != 1) throw new BusinessException("Bản ghi chấm công không thuộc chi nhánh của bạn."); });
     }
 
     /** Manager sửa giờ check-in/out tay. */
-    public void updateAttendance(int id, LocalDateTime checkIn, LocalDateTime checkOut) throws SQLException {
+    public void updateAttendance(int branchId, int id, LocalDateTime checkIn, LocalDateTime checkOut) throws SQLException {
+        if (checkIn == null) throw new BusinessException("Giờ vào ca không được để trống.");
+        if (checkOut != null && !checkOut.isAfter(checkIn)) throw new BusinessException("Giờ tan ca phải sau giờ vào ca.");
         Timestamp ci = checkIn == null ? null : Timestamp.valueOf(checkIn);
         Timestamp co = checkOut == null ? null : Timestamp.valueOf(checkOut);
-        txVoid(c -> dao.update(c, id, ci, co));
+        txVoid(c -> { if (dao.update(c, id, branchId, ci, co) != 1) throw new BusinessException("Bản ghi chấm công không thuộc chi nhánh của bạn."); });
     }
 
     /** Số giờ làm của 1 bản ghi chấm công (đọc lại từ DB). */
@@ -173,8 +179,8 @@ public class AttendanceService {
         }
         if (existing.getCheckInAt() != null) return;
 
-        dao.update(c, existing.getAttendanceId(), dao.currentUtc(c), null);
-        dao.updateApproval(c, existing.getAttendanceId(), "PENDING", null);
+        dao.update(c, existing.getAttendanceId(), branchId, dao.currentUtc(c), null);
+        dao.updateApproval(c, existing.getAttendanceId(), branchId, "PENDING", null);
     }
 
     /** Tan ca: chỉ cập nhật bản đang mở, giữ luồng duyệt Manager qua PENDING. */
@@ -194,8 +200,8 @@ public class AttendanceService {
         if (existing == null || existing.getCheckInAt() == null || existing.getCheckOutAt() != null) {
             throw new IllegalStateException("Bạn chưa vào ca.");
         }
-        dao.update(c, existing.getAttendanceId(), Timestamp.valueOf(existing.getCheckInAt()), dao.currentUtc(c));
-        dao.updateApproval(c, existing.getAttendanceId(), "PENDING", null);
+        dao.update(c, existing.getAttendanceId(), branchId, Timestamp.valueOf(existing.getCheckInAt()), dao.currentUtc(c));
+        dao.updateApproval(c, existing.getAttendanceId(), branchId, "PENDING", null);
     }
 
     private ShiftClockStatus buildStatus(Connection c, List<ShiftAssignment> assignments, LocalDate date) throws SQLException {

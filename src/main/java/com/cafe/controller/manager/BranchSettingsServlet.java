@@ -40,9 +40,16 @@ public class BranchSettingsServlet extends HttpServlet {
         int branchId = InventoryDashboardServlet.branchId(req);
         String self = req.getContextPath() + "/manager/branch-settings";
         try {
-            LocalTime open = parseTime(req.getParameter("openTime"));
-            LocalTime close = parseTime(req.getParameter("closeTime"));
-            int peak = parsePeak(req.getParameter("peakThresholdCups"));
+            String openRaw = req.getParameter("openTime");
+            String closeRaw = req.getParameter("closeTime");
+            String peakRaw = req.getParameter("peakThresholdCups");
+            LocalTime open = parseTime(openRaw);
+            LocalTime close = parseTime(closeRaw);
+            Integer peak = parsePeak(peakRaw);
+            if ((openRaw != null && !openRaw.isBlank() && open == null) || (closeRaw != null && !closeRaw.isBlank() && close == null) || peak == null) {
+                req.getSession().setAttribute("flashError", "Giờ hoạt động hoặc ngưỡng cao điểm không đúng định dạng.");
+                resp.sendRedirect(self); return;
+            }
             String error = validate(open, close, peak);
             if (error != null) {
                 req.getSession().setAttribute("flashError", error);
@@ -62,9 +69,9 @@ public class BranchSettingsServlet extends HttpServlet {
     }
 
     /** Ngưỡng cao điểm; rỗng/không hợp lệ → 0 (dùng mặc định toàn hệ). */
-    private int parsePeak(String s) {
-        try { return s == null || s.isBlank() ? 0 : Math.max(0, Integer.parseInt(s.trim())); }
-        catch (NumberFormatException e) { return 0; }
+    private Integer parsePeak(String s) {
+        try { int value = s == null || s.isBlank() ? 0 : Integer.parseInt(s.trim()); return value >= 0 ? value : null; }
+        catch (NumberFormatException e) { return null; }
     }
 
     private String validate(LocalTime open, LocalTime close, int peak) {

@@ -13,7 +13,8 @@
 </div>
 
 <c:if test="${not empty sessionScope.flashError}">
-    <div class="alert alert-error">${sessionScope.flashError}</div>
+    <div class="alert alert-error" id="shiftError">${sessionScope.flashError}</div>
+    <script>window.addEventListener('DOMContentLoaded',function(){alert(document.getElementById('shiftError').textContent.trim());});</script>
     <c:remove var="flashError" scope="session" />
 </c:if>
 
