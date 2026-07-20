@@ -72,6 +72,22 @@ public class ShiftAssignmentDao {
         }
     }
 
+    public boolean templateHasAssignments(Connection conn, int templateId, int branchId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT 1 FROM hr.ShiftAssignment sa JOIN hr.ShiftTemplate st ON st.ShiftTemplateId=sa.ShiftTemplateId " +
+                "WHERE sa.ShiftTemplateId=? AND st.BranchId=?")) {
+            ps.setInt(1, templateId); ps.setInt(2, branchId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next(); }
+        }
+    }
+
+    public boolean hasAttendance(Connection conn, int assignmentId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT 1 FROM hr.Attendance WHERE ShiftAssignmentId=?")) {
+            ps.setInt(1, assignmentId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next(); }
+        }
+    }
+
     public int insert(Connection conn, int templateId, int userId, LocalDate workDate) throws SQLException {
         final String sql = "INSERT INTO hr.ShiftAssignment(ShiftTemplateId, UserId, WorkDate) VALUES (?,?,?)";
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -83,10 +99,13 @@ public class ShiftAssignmentDao {
         }
     }
 
-    public void delete(Connection conn, int id) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM hr.ShiftAssignment WHERE ShiftAssignmentId=?")) {
+    public int delete(Connection conn, int id, int branchId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE sa FROM hr.ShiftAssignment sa JOIN hr.ShiftTemplate st ON st.ShiftTemplateId=sa.ShiftTemplateId " +
+                "WHERE sa.ShiftAssignmentId=? AND st.BranchId=?")) {
             ps.setInt(1, id);
-            ps.executeUpdate();
+            ps.setInt(2, branchId);
+            return ps.executeUpdate();
         }
     }
 

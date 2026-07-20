@@ -6,6 +6,22 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
+    <div><div class="eyebrow">Kho</div><h1>Đối soát tồn &amp; hao hụt</h1><p>Kiểm kê chênh lệch và theo dõi hao hụt trong cùng một màn hình.</p></div>
+    <a class="btn btn-primary" href="${ctx}/manager/reconciliation?action=new">+ Điều chỉnh tồn</a>
+</div>
+
+<section class="card" style="margin-bottom:22px">
+    <h3 style="margin-top:0">Lịch sử đối soát tồn</h3>
+    <c:choose>
+        <c:when test="${empty adjustments}"><div class="empty-state"><div class="icon">∅</div><p>Chưa có lần đối soát nào.</p></div></c:when>
+        <c:otherwise>
+            <div class="table-scroll"><table class="table"><thead><tr><th>#</th><th>Nguyên liệu</th><th>Tồn hệ thống</th><th>Tồn thực tế</th><th>Chênh lệch</th><th>Lý do</th><th>Người thực hiện</th></tr></thead>
+            <tbody><c:forEach var="a" items="${adjustments}"><tr><td>${a.stockAdjustmentId}</td><td>${a.ingredientName}</td><td>${a.systemQty} ${a.displayUnit}</td><td>${a.actualQty} ${a.displayUnit}</td><td><c:if test="${a.diffQty.signum() > 0}">+</c:if>${a.diffQty}</td><td>${a.reason}</td><td>${a.adjustedByName}</td></tr></c:forEach></tbody></table></div>
+        </c:otherwise>
+    </c:choose>
+</section>
+
+<div class="page-header">
     <div>
         <div class="eyebrow">Quản lý chi nhánh</div>
         <h1>Hao hụt &amp; làm lại</h1>

@@ -64,14 +64,14 @@ public class ShiftServlet extends HttpServlet {
                     shiftService.createShiftTemplate(t);
                 }
             } else if ("deleteTemplate".equals(action)) {
-                shiftService.deleteShiftTemplate(Integer.parseInt(req.getParameter("templateId")));
+                shiftService.deleteShiftTemplate(branchId, Integer.parseInt(req.getParameter("templateId")));
             } else if ("assign".equals(action)) {
                 int templateId = Integer.parseInt(req.getParameter("templateId"));
                 int userId = Integer.parseInt(req.getParameter("userId"));
                 LocalDate date = LocalDate.parse(req.getParameter("workDate"));
-                shiftService.assignShift(templateId, userId, date);
+                shiftService.assignShift(branchId, templateId, userId, date);
             } else if ("unassign".equals(action)) {
-                shiftService.unassignShift(Integer.parseInt(req.getParameter("assignmentId")));
+                shiftService.unassignShift(branchId, Integer.parseInt(req.getParameter("assignmentId")));
             }
             resp.sendRedirect(redirect);
         } catch (BusinessException e) {

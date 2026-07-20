@@ -42,23 +42,24 @@ public class AttendanceServlet extends HttpServlet {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
         User u = SessionUtil.currentUser(req);
         int approverId = u != null ? u.getUserId() : 0;
+        int branchId = InventoryDashboardServlet.branchId(req);
         String action = req.getParameter("action");
         String redirect = req.getContextPath() + "/manager/attendance";
         try {
             if ("approveMany".equals(action)) {
                 List<Integer> shown = parseIds(req.getParameterValues("shown"));
                 Set<Integer> checked = new HashSet<>(parseIds(req.getParameterValues("approve")));
-                service.setApprovalStates(shown, checked, approverId);
+                service.setApprovalStates(branchId, shown, checked, approverId);
                 req.getSession().setAttribute("flashOk", "Đã lưu chấm công (tick = duyệt).");
             } else if ("reject".equals(action)) {
-                service.rejectAttendance(Integer.parseInt(req.getParameter("attendanceId")), approverId);
+                service.rejectAttendance(branchId, Integer.parseInt(req.getParameter("attendanceId")), approverId);
             } else if ("reopen".equals(action)) {
-                service.reopenAttendance(Integer.parseInt(req.getParameter("attendanceId")));
+                service.reopenAttendance(branchId, Integer.parseInt(req.getParameter("attendanceId")));
             } else if ("edit".equals(action)) {
                 int id = Integer.parseInt(req.getParameter("attendanceId"));
                 LocalDateTime ci = parse(req.getParameter("checkInAt"));
                 LocalDateTime co = parse(req.getParameter("checkOutAt"));
-                service.updateAttendance(id, ci, co);
+                service.updateAttendance(branchId, id, ci, co);
             }
             resp.sendRedirect(redirect);
         } catch (BusinessException e) {

@@ -35,6 +35,14 @@ public class SupplierDao {
         }
     }
 
+    public boolean existsByName(Connection conn, String name, int excludeId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT 1 FROM inventory.Supplier WHERE LOWER(LTRIM(RTRIM(Name)))=LOWER(LTRIM(RTRIM(?))) AND SupplierId<>?")) {
+            ps.setString(1, name); ps.setInt(2, excludeId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next(); }
+        }
+    }
+
     public int insert(Connection conn, Supplier s) throws SQLException {
         final String sql = "INSERT INTO inventory.Supplier(Name, Phone, Address, IsActive) VALUES (?,?,?,?)";
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {

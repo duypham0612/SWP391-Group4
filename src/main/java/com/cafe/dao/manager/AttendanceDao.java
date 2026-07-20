@@ -93,13 +93,17 @@ public class AttendanceDao {
     }
 
     /** Đổi trạng thái + người duyệt (null khi trả về PENDING). */
-    public void updateApproval(Connection conn, int id, String status, Integer approverId) throws SQLException {
+    public int updateApproval(Connection conn, int id, int branchId, String status, Integer approverId) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE hr.Attendance SET Status=?, ApprovedBy=? WHERE AttendanceId=?")) {
+                "UPDATE a SET Status=?, ApprovedBy=? FROM hr.Attendance a " +
+                "JOIN hr.ShiftAssignment sa ON sa.ShiftAssignmentId=a.ShiftAssignmentId " +
+                "JOIN hr.ShiftTemplate st ON st.ShiftTemplateId=sa.ShiftTemplateId " +
+                "WHERE a.AttendanceId=? AND st.BranchId=?")) {
             ps.setString(1, status);
             if (approverId == null) ps.setNull(2, java.sql.Types.INTEGER); else ps.setInt(2, approverId);
             ps.setInt(3, id);
-            ps.executeUpdate();
+            ps.setInt(4, branchId);
+            return ps.executeUpdate();
         }
     }
 
@@ -122,24 +126,18 @@ public class AttendanceDao {
         }
     }
 
-    public void updateStatus(Connection conn, int id, String status, int approverId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE hr.Attendance SET Status=?, ApprovedBy=? WHERE AttendanceId=?")) {
-            ps.setString(1, status);
-            ps.setInt(2, approverId);
-            ps.setInt(3, id);
-            ps.executeUpdate();
-        }
-    }
-
     /** Sửa giờ check-in/out (Manager chỉnh tay). */
-    public void update(Connection conn, int id, Timestamp checkIn, Timestamp checkOut) throws SQLException {
+    public int update(Connection conn, int id, int branchId, Timestamp checkIn, Timestamp checkOut) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE hr.Attendance SET CheckInAt=?, CheckOutAt=? WHERE AttendanceId=?")) {
+                "UPDATE a SET CheckInAt=?, CheckOutAt=? FROM hr.Attendance a " +
+                "JOIN hr.ShiftAssignment sa ON sa.ShiftAssignmentId=a.ShiftAssignmentId " +
+                "JOIN hr.ShiftTemplate st ON st.ShiftTemplateId=sa.ShiftTemplateId " +
+                "WHERE a.AttendanceId=? AND st.BranchId=?")) {
             ps.setTimestamp(1, checkIn);
             ps.setTimestamp(2, checkOut);
             ps.setInt(3, id);
-            ps.executeUpdate();
+            ps.setInt(4, branchId);
+            return ps.executeUpdate();
         }
     }
 

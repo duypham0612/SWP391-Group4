@@ -20,6 +20,11 @@ public class WasteReportServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
+        if (req.getAttribute("combinedInventoryView") == null) {
+            String query = req.getQueryString();
+            resp.sendRedirect(req.getContextPath() + "/manager/reconciliation" + (query == null || query.isBlank() ? "" : "?" + query));
+            return;
+        }
         int branchId = InventoryDashboardServlet.branchId(req);
         LocalDate todayVn = LocalDate.now(BusinessDay.VN_ZONE);
         WasteReportService.Range range = WasteReportService.resolveRange(
@@ -42,7 +47,7 @@ public class WasteReportServlet extends HttpServlet {
             req.setAttribute("wasteLogQuery", logQuery);
             req.setAttribute("wasteLogWasteType", logWasteType);
             req.setAttribute("wasteLogStatus", logStatus);
-            req.setAttribute("pageTitle", "Hao hụt & làm lại");
+            req.setAttribute("pageTitle", "Đối soát tồn & hao hụt");
             req.getRequestDispatcher("/WEB-INF/views/manager/waste.jsp").forward(req, resp);
         } catch (Exception e) {
             throw new ServletException(e);
