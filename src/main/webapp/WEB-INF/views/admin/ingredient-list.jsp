@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Nguyên liệu</h1><p>catalog.Ingredient · Nguyên liệu thô (mua về) / Nguyên liệu pha sẵn</p></div>
+    <div><h1>Nguyên liệu</h1></div>
     <a class="btn btn-primary" href="${ctx}/admin/ingredient?action=new">+ Thêm nguyên liệu</a>
 </div>
 

@@ -42,7 +42,7 @@ public class BillItemDao {
 
     public List<BillItem> findByBill(Connection conn, int billId) throws SQLException {
         final String sql =
-            "SELECT bi.BillItemId, bi.BillId, bi.OrderItemId, bi.Amount, p.Name AS ProductName, oi.Quantity, oi.Status " +
+            "SELECT bi.BillItemId, bi.BillId, bi.OrderItemId, bi.Amount, p.Name AS ProductName, oi.Quantity, oi.Note, oi.Status " +
             "FROM payment.BillItem bi " +
             "JOIN sales.OrderItem oi ON oi.OrderItemId=bi.OrderItemId " +
             "JOIN catalog.Product  p ON p.ProductId=oi.ProductId " +
@@ -59,6 +59,7 @@ public class BillItemDao {
                     b.setAmount(rs.getBigDecimal("Amount"));
                     b.setProductName(rs.getString("ProductName"));
                     b.setQuantity(rs.getInt("Quantity"));
+                    b.setNote(rs.getString("Note"));
                     b.setStatus(rs.getString("Status"));
                     out.add(b);
                 }

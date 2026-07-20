@@ -5,7 +5,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1><c:choose><c:when test="${editing}">Sửa nhân sự</c:when><c:otherwise>Thêm nhân sự</c:otherwise></c:choose></h1><p>iam.[User]</p></div>
+    <div><h1><c:choose><c:when test="${editing}">Sửa nhân sự</c:when><c:otherwise>Thêm nhân sự</c:otherwise></c:choose></h1></div>
     <a class="btn btn-ghost" href="${ctx}/admin/user">← Quay lại</a>
 </div>
 

@@ -10,11 +10,15 @@ public class Product {
     private BigDecimal basePrice = BigDecimal.ZERO;
     private String imageUrl;
     private boolean active = true;
-    private boolean showOnHome = true;   // hiển thị trên trang Home công khai
-    private int homeSortOrder = 0;        // thứ tự ưu tiên trong danh mục trên Home (nhỏ = trước)
-    private int prepSeconds = 720;        // thời gian pha chuẩn (giây); nền cho SLA theo món (mặc định 12 phút)
+    private boolean showOnHome = true;
+    private int homeSortOrder = 0;
+    private int prepSeconds = 720;
+    private boolean sizeEnabled = true;
+    private BigDecimal sizeSDelta = BigDecimal.ZERO;
+    private BigDecimal sizeMDelta = BigDecimal.ZERO;
+    private BigDecimal sizeLDelta = BigDecimal.ZERO;
 
-    private String categoryName; // join để hiển thị
+    private String categoryName;
 
     public int getProductId() { return productId; }
     public void setProductId(int productId) { this.productId = productId; }
@@ -26,7 +30,7 @@ public class Product {
     public void setName(String name) { this.name = name; }
 
     public BigDecimal getBasePrice() { return basePrice; }
-    public void setBasePrice(BigDecimal basePrice) { this.basePrice = basePrice; }
+    public void setBasePrice(BigDecimal basePrice) { this.basePrice = basePrice == null ? BigDecimal.ZERO : basePrice; }
 
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
@@ -43,8 +47,19 @@ public class Product {
     public int getPrepSeconds() { return prepSeconds; }
     public void setPrepSeconds(int prepSeconds) { this.prepSeconds = prepSeconds; }
 
-    /** Phút (làm tròn) để hiển thị/nhập trên màn admin — EL `div` trả số thực nên tính sẵn ở đây. */
     public int getPrepMinutes() { return prepSeconds / 60; }
+
+    public boolean isSizeEnabled() { return sizeEnabled; }
+    public void setSizeEnabled(boolean sizeEnabled) { this.sizeEnabled = sizeEnabled; }
+
+    public BigDecimal getSizeSDelta() { return sizeSDelta; }
+    public void setSizeSDelta(BigDecimal sizeSDelta) { this.sizeSDelta = sizeSDelta == null ? BigDecimal.ZERO : sizeSDelta; }
+
+    public BigDecimal getSizeMDelta() { return sizeMDelta; }
+    public void setSizeMDelta(BigDecimal sizeMDelta) { this.sizeMDelta = sizeMDelta == null ? BigDecimal.ZERO : sizeMDelta; }
+
+    public BigDecimal getSizeLDelta() { return sizeLDelta; }
+    public void setSizeLDelta(BigDecimal sizeLDelta) { this.sizeLDelta = sizeLDelta == null ? BigDecimal.ZERO : sizeLDelta; }
 
     public String getCategoryName() { return categoryName; }
     public void setCategoryName(String categoryName) { this.categoryName = categoryName; }

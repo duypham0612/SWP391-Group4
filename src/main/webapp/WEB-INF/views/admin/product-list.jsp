@@ -5,7 +5,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Sản phẩm</h1><p>catalog.Product</p></div>
+    <div><h1>Sản phẩm</h1></div>
     <a class="btn btn-primary" href="${ctx}/admin/product?action=new">+ Thêm sản phẩm</a>
 </div>
 

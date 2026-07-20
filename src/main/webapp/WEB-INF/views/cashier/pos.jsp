@@ -5,49 +5,68 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Bán hàng</div><h1>POS — Đặt món</h1><p>Cashier sở hữu order entry · gửi bếp khi bấm "Gửi đơn"</p></div>
+    <div><div class="eyebrow">Bán hàng</div><h1>POS - Đặt món</h1><p>Chọn size, đá, đường rồi gửi món tới quầy pha chế</p></div>
     <a class="btn btn-ghost" href="${ctx}/cashier/table">← Sơ đồ bàn</a>
 </div>
+
+<style>
+  .option-row{display:grid;gap:8px;margin-top:10px}
+  .option-row .lbl{font-size:.78rem;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .seg-options{display:flex;gap:6px;flex-wrap:wrap}
+  .seg-options input{position:absolute;opacity:0;pointer-events:none}
+  .seg-options span{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:0 11px;border:1px solid var(--line);border-radius:999px;background:var(--surface);font-weight:700;font-size:.9rem;cursor:pointer}
+  .seg-options input:checked + span{background:var(--coffee);border-color:var(--coffee);color:#fff}
+  .cart-option{font-size:.85rem;color:var(--muted);margin-top:2px}
+</style>
 
 <div style="display:grid;grid-template-columns:1fr 360px;gap:20px;align-items:start">
     <div>
         <c:if test="${empty menu}">
-            <div class="card empty-state"><div class="icon">∅</div><p>Chưa có món nào bán ở chi nhánh (Admin publish + Manager bật bán, Barista chưa 86).</p></div>
+            <div class="card empty-state"><div class="icon">∅</div><p>Chưa có món nào bán ở chi nhánh.</p></div>
         </c:if>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px">
             <c:forEach var="m" items="${menu}">
                 <c:set var="imgSrc" value="${empty m.imageUrl ? ctx.concat('/assets/img/products/_placeholder.svg') : (m.imageUrl.startsWith('http') ? m.imageUrl : ctx.concat(m.imageUrl))}" />
-                <div class="card pos-product" data-product-id="${m.productId}" data-product-name="${m.name}" data-price="${m.price}">
+                <div class="card pos-product"
+                     data-product-id="${m.productId}" data-product-name="${m.name}" data-price="${m.price}"
+                     data-size-enabled="${m.sizeEnabled}" data-size-s="${m.sizeSDelta}" data-size-m="${m.sizeMDelta}" data-size-l="${m.sizeLDelta}">
                     <img class="pos-product__img" src="${imgSrc}" alt="${m.name}" loading="lazy"
                          onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
-                  <div class="pos-product__body">
-                    <div style="display:flex;justify-content:space-between;align-items:baseline">
-                        <strong>${m.name}</strong>
-                        <span class="muted"><fmt:formatNumber value="${m.price}" maxFractionDigits="0"/> ₫</span>
-                    </div>
-                    <c:forEach var="g" items="${m.groups}">
-                        <div class="pos-group" style="margin-top:8px"
-                             data-group-name="${g.name}" data-required="${g.required}" data-min="${g.minSelect}" data-max="${g.maxSelect}">
-                            <div class="muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.04em">${g.name}</div>
-                            <c:forEach var="o" items="${g.options}">
-                                <c:set var="isDefault" value="${(g.name == 'Size' and o.name == 'Size M') or ((g.name == 'Đá' or g.name == 'Đường') and o.name == 'Bình thường')}" />
-                                <label style="display:flex;gap:6px;align-items:center;font-size:.92rem">
-                                    <input type="${g.maxSelect == 1 ? 'radio' : 'checkbox'}"
-                                           name="grp-${m.productId}-${g.groupId}"
-                                           class="pos-opt" data-option-id="${o.modifierOptionId}"
-                                           data-delta="${o.priceDelta}" data-name="${o.name}"
-                                           data-default="${isDefault}" ${isDefault ? 'checked' : ''}>
-                                    ${o.name}<c:if test="${o.priceDelta > 0}"> <span class="muted">(+<fmt:formatNumber value="${o.priceDelta}" maxFractionDigits="0"/>₫)</span></c:if>
-                                </label>
-                            </c:forEach>
+                    <div class="pos-product__body">
+                        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
+                            <strong>${m.name}</strong>
+                            <span class="muted"><fmt:formatNumber value="${m.price}" maxFractionDigits="0"/> ₫</span>
                         </div>
-                    </c:forEach>
-                    <div class="pos-error" style="display:none;color:var(--st-cancelled);font-size:.86rem;margin-top:8px"></div>
-                    <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
-                        <input type="number" class="form-control pos-qty" value="1" min="1" style="width:70px">
-                        <button type="button" class="btn btn-primary btn-sm" onclick="addToCart(this)">Thêm vào giỏ</button>
+
+                        <c:if test="${m.sizeEnabled}">
+                            <div class="option-row">
+                                <div class="lbl">Size</div>
+                                <div class="seg-options">
+                                    <label><input type="radio" class="pos-size" name="size-${m.productId}" value="S"><span>S<c:if test="${m.sizeSDelta > 0}"> +<fmt:formatNumber value="${m.sizeSDelta}" maxFractionDigits="0"/></c:if></span></label>
+                                    <label><input type="radio" class="pos-size" name="size-${m.productId}" value="M" checked><span>M<c:if test="${m.sizeMDelta > 0}"> +<fmt:formatNumber value="${m.sizeMDelta}" maxFractionDigits="0"/></c:if></span></label>
+                                    <label><input type="radio" class="pos-size" name="size-${m.productId}" value="L"><span>L<c:if test="${m.sizeLDelta > 0}"> +<fmt:formatNumber value="${m.sizeLDelta}" maxFractionDigits="0"/></c:if></span></label>
+                                </div>
+                            </div>
+                        </c:if>
+
+                        <div class="option-row">
+                            <div class="lbl">Đá</div>
+                            <select class="form-control pos-ice">
+                                <option>Không đá</option><option>Ít đá</option><option selected>Bình thường</option><option>Nhiều đá</option>
+                            </select>
+                        </div>
+                        <div class="option-row">
+                            <div class="lbl">Đường</div>
+                            <select class="form-control pos-sugar">
+                                <option>0%</option><option>30%</option><option>50%</option><option>70%</option><option selected>100%</option>
+                            </select>
+                        </div>
+
+                        <div style="display:flex;gap:8px;align-items:center;margin-top:12px">
+                            <input type="number" class="form-control pos-qty" value="1" min="1" style="width:70px">
+                            <button type="button" class="btn btn-primary btn-sm" onclick="addToCart(this)">Thêm vào giỏ</button>
+                        </div>
                     </div>
-                  </div>
                 </div>
             </c:forEach>
         </div>
@@ -58,7 +77,7 @@
         <div class="form-group" style="margin-bottom:10px">
             <label>Bàn / phiên</label>
             <select id="sessionSelect" class="form-control">
-                <option value="">— Đem về (takeaway) —</option>
+                <option value="">- Đem về (takeaway) -</option>
                 <c:forEach var="s" items="${openSessions}">
                     <option value="${s.tableSessionId}" ${sessionId == s.tableSessionId ? 'selected' : ''}>${s.tableNumber} (#${s.tableSessionId})</option>
                 </c:forEach>
@@ -80,7 +99,7 @@
                                 <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
                                     <div>
                                         <strong>${it.quantity}× ${it.productName}</strong>
-                                        <div class="muted" style="font-size:.85rem">#${it.orderItemId}</div>
+                                        <div class="muted" style="font-size:.85rem">${it.note}</div>
                                     </div>
                                     <jsp:include page="../layout/_statusBadge.jsp">
                                         <jsp:param name="status" value="${it.status}" />
@@ -120,60 +139,49 @@ const CTX = '${ctx}';
 let cart = ${empty draftCartJson ? '[]' : draftCartJson};
 
 function fmt(n){ return new Intl.NumberFormat('vi-VN').format(n) + ' ₫'; }
+function money(v){ const n = parseFloat(v); return Number.isFinite(n) ? n : 0; }
+function esc(v){ return String(v || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-function showProductError(card, text){
-  const box = card.querySelector('.pos-error');
-  if(!box) return;
-  box.textContent = text || '';
-  box.style.display = text ? 'block' : 'none';
+function selectedSize(card){
+  if(card.dataset.sizeEnabled !== 'true') return 'M';
+  const picked = card.querySelector('.pos-size:checked');
+  return picked ? picked.value : 'M';
 }
 
-function validateProduct(card){
-  for (const group of card.querySelectorAll('.pos-group')) {
-    const name = group.dataset.groupName || 'Tuỳ chọn';
-    const min = parseInt(group.dataset.min || '0');
-    const max = parseInt(group.dataset.max || '0');
-    const required = group.dataset.required === 'true';
-    const checked = group.querySelectorAll('.pos-opt:checked').length;
-    if ((required || min > 0) && checked < min) {
-      showProductError(card, 'Vui lòng chọn ' + name + '.');
-      return false;
-    }
-    if (max > 0 && checked > max) {
-      showProductError(card, name + ' chỉ được chọn tối đa ' + max + ' tuỳ chọn.');
-      return false;
-    }
-  }
-  showProductError(card, '');
-  return true;
+function sizeDelta(card, size){
+  if(card.dataset.sizeEnabled !== 'true') return 0;
+  if(size === 'S') return money(card.dataset.sizeS);
+  if(size === 'L') return money(card.dataset.sizeL);
+  return money(card.dataset.sizeM);
 }
 
 function resetProduct(card){
-  card.querySelectorAll('.pos-opt').forEach(o => { o.checked = o.dataset.default === 'true'; });
+  const m = card.querySelector('.pos-size[value="M"]'); if(m) m.checked = true;
+  card.querySelector('.pos-ice').value = 'Bình thường';
+  card.querySelector('.pos-sugar').value = '100%';
   card.querySelector('.pos-qty').value = 1;
-  showProductError(card, '');
 }
 
 function addToCart(btn){
   const card = btn.closest('.pos-product');
-  if(!validateProduct(card)) return;
   const productId = parseInt(card.dataset.productId);
   const name = card.dataset.productName;
-  const base = parseFloat(card.dataset.price);
+  const size = selectedSize(card);
+  const iceLevel = card.querySelector('.pos-ice').value;
+  const sugarLevel = card.querySelector('.pos-sugar').value;
+  const base = money(card.dataset.price);
   const qty = Math.max(1, parseInt(card.querySelector('.pos-qty').value) || 1);
-  let delta = 0; const optionIds = []; const optNames = [];
-  card.querySelectorAll('.pos-opt:checked').forEach(o => {
-    delta += parseFloat(o.dataset.delta);
-    optionIds.push(parseInt(o.dataset.optionId));
-    optNames.push(o.dataset.name);
-  });
-  const unit = base + delta;
-  cart.push({productId, name, quantity: qty, unit, optionIds, optNames});
+  const unit = base + sizeDelta(card, size);
+  cart.push({productId, name, quantity: qty, unit, size, iceLevel, sugarLevel});
   resetProduct(card);
   renderCart();
 }
 
 function removeLine(i){ cart.splice(i,1); renderCart(); }
+
+function optionText(l){
+  return 'Size ' + (l.size || 'M') + ', ' + (l.iceLevel || 'Bình thường') + ', đường ' + (l.sugarLevel || '100%');
+}
 
 function renderCart(){
   const box = document.getElementById('cartLines');
@@ -181,14 +189,12 @@ function renderCart(){
   else {
     box.innerHTML = cart.map((l,i) =>
       '<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line)">' +
-        '<div><strong>' + l.quantity + '× ' + l.name + '</strong>' +
-          (l.optNames.length ? '<br><span class="muted" style="font-size:.85rem">' + l.optNames.join(', ') + '</span>' : '') +
-        '</div>' +
-        '<div style="text-align:right;white-space:nowrap">' + fmt(l.unit*l.quantity) +
-          ' <a href="javascript:void(0)" onclick="removeLine(' + i + ')" title="Xoá">×</a></div>' +
+        '<div><strong>' + esc(l.quantity) + '× ' + esc(l.name) + '</strong><div class="cart-option">' + esc(optionText(l)) + '</div></div>' +
+        '<div style="text-align:right;white-space:nowrap">' + fmt((money(l.unit))*l.quantity) +
+          ' <a href="javascript:void(0)" onclick="removeLine(' + i + ')" title="Xóa">×</a></div>' +
       '</div>').join('');
   }
-  const total = cart.reduce((s,l)=> s + l.unit*l.quantity, 0);
+  const total = cart.reduce((s,l)=> s + money(l.unit)*l.quantity, 0);
   document.getElementById('cartTotal').textContent = fmt(total);
   document.getElementById('submitBtn').disabled = cart.length === 0;
 }
@@ -198,16 +204,16 @@ function submitOrder(){
   const payload = {
     sessionId: sessionId ? parseInt(sessionId) : null,
     orderType: sessionId ? 'DINE_IN' : 'TAKEAWAY',
-    items: cart.map(l => ({productId: l.productId, quantity: l.quantity, optionIds: l.optionIds}))
+    items: cart.map(l => ({productId: l.productId, quantity: l.quantity, size: l.size, iceLevel: l.iceLevel, sugarLevel: l.sugarLevel}))
   };
   const msg = document.getElementById('posMsg');
   msg.textContent = 'Đang gửi...';
   fetch(CTX + '/cashier/pos?_csrf=' + encodeURIComponent(CSRF), {
     method: 'POST', headers: {'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify(payload)
   }).then(r => r.json().then(j => ({ok:r.ok, j}))).then(({ok,j}) => {
-    if(ok){ msg.innerHTML = '<span style="color:var(--st-ready)">✓ Đã gửi đơn #' + j.orderId + ' tới bếp.</span>'; cart=[]; renderCart(); }
-    else { msg.innerHTML = '<span style="color:var(--st-cancelled)">Lỗi: ' + (j.error||'không xác định') + '</span>'; }
-  }).catch(e => { msg.innerHTML = '<span style="color:var(--st-cancelled)">Lỗi mạng.</span>'; });
+    if(ok){ msg.innerHTML = '<span style="color:var(--st-ready)">✓ Đã gửi đơn #' + j.orderId + ' tới quầy pha chế.</span>'; cart=[]; renderCart(); }
+    else { msg.innerHTML = '<span style="color:var(--st-cancelled)">Lỗi: ' + esc(j.error || 'không xác định') + '</span>'; }
+  }).catch(() => { msg.innerHTML = '<span style="color:var(--st-cancelled)">Lỗi mạng.</span>'; });
 }
 
 function submitDraftAction(action){
@@ -231,22 +237,6 @@ function discardDraft(){
   }
 }
 
-document.querySelectorAll('.pos-opt[type="checkbox"]').forEach(opt => {
-  opt.addEventListener('change', function(){
-    const group = this.closest('.pos-group');
-    const card = this.closest('.pos-product');
-    const max = parseInt(group.dataset.max || '0');
-    if (max > 0 && group.querySelectorAll('.pos-opt:checked').length > max) {
-      this.checked = false;
-      showProductError(card, (group.dataset.groupName || 'Tuỳ chọn') + ' chỉ được chọn tối đa ' + max + ' tuỳ chọn.');
-    } else {
-      validateProduct(card);
-    }
-  });
-});
-document.querySelectorAll('.pos-opt[type="radio"]').forEach(opt => {
-  opt.addEventListener('change', function(){ validateProduct(this.closest('.pos-product')); });
-});
 renderCart();
 </script>
 

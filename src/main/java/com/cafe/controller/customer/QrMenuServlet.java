@@ -69,6 +69,9 @@ public class QrMenuServlet extends HttpServlet {
                     line.productId = n.get("productId").asInt();
                     line.quantity = n.has("quantity") ? n.get("quantity").asInt() : 1;
                     line.note = n.hasNonNull("note") ? n.get("note").asText() : null;
+                    line.size = n.hasNonNull("size") ? n.get("size").asText() : "M";
+                    line.iceLevel = n.hasNonNull("iceLevel") ? n.get("iceLevel").asText() : "Bình thường";
+                    line.sugarLevel = n.hasNonNull("sugarLevel") ? n.get("sugarLevel").asText() : "100%";
                     JsonNode opts = n.get("optionIds");
                     if (opts != null && opts.isArray()) for (JsonNode o : opts) line.optionIds.add(o.asInt());
                     lines.add(line);

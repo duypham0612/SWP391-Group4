@@ -204,6 +204,10 @@ CREATE TABLE catalog.Product (
     -- Thời gian pha chuẩn từng món (giây). 720 = 12 phút, giữ nguyên hành vi SLA cũ
     -- cho mọi món cho tới khi Admin nhập số thật.
     PrepSeconds   INT NOT NULL DEFAULT 720,
+    SizeEnabled   BIT NOT NULL DEFAULT 1,
+    SizeSDelta    DECIMAL(12,2) NOT NULL DEFAULT 0 CHECK (SizeSDelta >= 0),
+    SizeMDelta    DECIMAL(12,2) NOT NULL DEFAULT 0 CHECK (SizeMDelta >= 0),
+    SizeLDelta    DECIMAL(12,2) NOT NULL DEFAULT 5000 CHECK (SizeLDelta >= 0),
     CONSTRAINT FK_Product_Category FOREIGN KEY (CategoryId) REFERENCES catalog.Category(CategoryId)
 );
 GO

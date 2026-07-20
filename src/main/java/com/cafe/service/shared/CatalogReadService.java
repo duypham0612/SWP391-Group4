@@ -54,21 +54,10 @@ public class CatalogReadService {
                 item.setName(bm.getProductName());
                 item.setImageUrl(bm.getImageUrl());
                 item.setPrice(bm.getLocalPrice() != null ? bm.getLocalPrice() : bm.getBasePrice());
-
-                for (ProductModifierGroup pmg : pmgDao.findByProduct(conn, bm.getProductId())) {
-                    ModifierGroup g = groupDao.findById(conn, pmg.getModifierGroupId());
-                    if (g == null) continue;
-                    PosMenuItem.Group grp = new PosMenuItem.Group();
-                    grp.setGroupId(g.getModifierGroupId());
-                    grp.setName(g.getName());
-                    grp.setRequired(g.isRequired());
-                    grp.setMinSelect(g.getMinSelect());
-                    grp.setMaxSelect(g.getMaxSelect());
-                    for (ModifierOption o : optionDao.findByGroup(conn, g.getModifierGroupId())) {
-                        if (o.isActive()) grp.getOptions().add(o);
-                    }
-                    if (!grp.getOptions().isEmpty()) item.getGroups().add(grp);
-                }
+                item.setSizeEnabled(bm.isSizeEnabled());
+                item.setSizeSDelta(bm.getSizeSDelta());
+                item.setSizeMDelta(bm.getSizeMDelta());
+                item.setSizeLDelta(bm.getSizeLDelta());
                 out.add(item);
             }
             return out;

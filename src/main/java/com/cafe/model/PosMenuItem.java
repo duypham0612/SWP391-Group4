@@ -4,12 +4,16 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Một món trên màn POS: giá hiệu lực + các nhóm modifier áp dụng. */
+/** One item on the POS/QR menu. */
 public class PosMenuItem {
     private int productId;
     private String name;
-    private BigDecimal price;          // localPrice nếu có, ngược lại basePrice
-    private String imageUrl;           // ảnh sản phẩm
+    private BigDecimal price;
+    private String imageUrl;
+    private boolean sizeEnabled = true;
+    private BigDecimal sizeSDelta = BigDecimal.ZERO;
+    private BigDecimal sizeMDelta = BigDecimal.ZERO;
+    private BigDecimal sizeLDelta = BigDecimal.ZERO;
     private List<Group> groups = new ArrayList<>();
 
     public int getProductId() { return productId; }
@@ -24,10 +28,22 @@ public class PosMenuItem {
     public BigDecimal getPrice() { return price; }
     public void setPrice(BigDecimal v) { this.price = v; }
 
+    public boolean isSizeEnabled() { return sizeEnabled; }
+    public void setSizeEnabled(boolean v) { this.sizeEnabled = v; }
+
+    public BigDecimal getSizeSDelta() { return sizeSDelta; }
+    public void setSizeSDelta(BigDecimal v) { this.sizeSDelta = v == null ? BigDecimal.ZERO : v; }
+
+    public BigDecimal getSizeMDelta() { return sizeMDelta; }
+    public void setSizeMDelta(BigDecimal v) { this.sizeMDelta = v == null ? BigDecimal.ZERO : v; }
+
+    public BigDecimal getSizeLDelta() { return sizeLDelta; }
+    public void setSizeLDelta(BigDecimal v) { this.sizeLDelta = v == null ? BigDecimal.ZERO : v; }
+
     public List<Group> getGroups() { return groups; }
     public void setGroups(List<Group> v) { this.groups = v; }
 
-    /** Nhóm modifier + options. */
+    /** Legacy modifier group shape, retained for older admin/recipe code paths. */
     public static class Group {
         private int groupId;
         private String name;

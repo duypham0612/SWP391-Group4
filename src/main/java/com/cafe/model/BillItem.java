@@ -2,17 +2,16 @@ package com.cafe.model;
 
 import java.math.BigDecimal;
 
-/** payment.BillItem — dòng đơn nào nằm trên bill nào (1 OrderItem ⊂ đúng 1 Bill). */
+/** payment.BillItem */
 public class BillItem {
     private int billItemId;
     private int billId;
     private int orderItemId;
     private BigDecimal amount;
-
-    // join hiển thị
     private String productName;
     private int quantity;
-    private String status;             // trạng thái OrderItem
+    private String note;
+    private String status;
 
     public int getBillItemId() { return billItemId; }
     public void setBillItemId(int v) { this.billItemId = v; }
@@ -31,6 +30,9 @@ public class BillItem {
 
     public int getQuantity() { return quantity; }
     public void setQuantity(int v) { this.quantity = v; }
+
+    public String getNote() { return note; }
+    public void setNote(String v) { this.note = v; }
 
     public String getStatus() { return status; }
     public void setStatus(String v) { this.status = v; }

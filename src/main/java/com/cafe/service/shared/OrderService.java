@@ -15,6 +15,7 @@ import com.cafe.dao.shared.OrderItemActionDao;
 import com.cafe.dao.shared.OrderItemModifierDao;
 import com.cafe.dao.shared.ProductModifierGroupDao;
 import com.cafe.dao.shared.ProductRecipeDao;
+import com.cafe.dao.admin.ProductDao;
 import com.cafe.model.BranchMenuItem;
 import com.cafe.model.ModifierGroup;
 import com.cafe.model.ModifierOption;
@@ -23,6 +24,7 @@ import com.cafe.model.OrderItem;
 import com.cafe.model.PickupTicket;
 import com.cafe.model.ProductRecipe;
 import com.cafe.model.ProductModifierGroup;
+import com.cafe.model.Product;
 import com.cafe.model.StockAdjustment;
 
 import java.math.BigDecimal;
@@ -51,6 +53,7 @@ public class OrderService {
     private final BillDao billDao = new BillDao();
     private final BillItemDao billItemDao = new BillItemDao();
     private final ProductRecipeDao productRecipeDao = new ProductRecipeDao();
+    private final ProductDao productDao = new ProductDao();
     private final com.cafe.dao.admin.BranchDao branchDao = new com.cafe.dao.admin.BranchDao();
     private final InventoryService inventoryService = new InventoryService();
 
@@ -60,6 +63,9 @@ public class OrderService {
         public int quantity;
         public String note;
         public List<Integer> optionIds = new ArrayList<>();
+        public String size = "M";
+        public String iceLevel = "Bình thường";
+        public String sugarLevel = "100%";
     }
 
     public static class UnblockResult {
@@ -122,9 +128,13 @@ public class OrderService {
                     }
 
                     List<Integer> optionIds = validateOptions(conn, line.productId, line.optionIds);
+                    Product product = productDao.findById(conn, line.productId);
+                    String size = cleanSize(line.size, product);
+                    String iceLevel = cleanIce(line.iceLevel);
+                    String sugarLevel = cleanSugar(line.sugarLevel);
 
                     // gom priceDelta của các option đã chọn
-                    BigDecimal unit = base;
+                    BigDecimal unit = base.add(sizeDelta(product, size));
                     Map<Integer, BigDecimal> deltaByOption = new HashMap<>();
                     for (Integer optId : optionIds) {
                         ModifierOption opt = optionDao.findById(conn, optId);
@@ -137,7 +147,7 @@ public class OrderService {
                     it.setProductId(line.productId);
                     it.setQuantity(line.quantity);
                     it.setUnitPrice(unit);
-                    it.setNote(line.note);
+                    it.setNote(buildOptionNote(size, iceLevel, sugarLevel, line.note));
                     it.setStatus("WAITING");
                     int itemId = itemDao.insert(conn, it);
 
@@ -173,8 +183,42 @@ public class OrderService {
         return prefix + seq;
     }
 
+    private String cleanSize(String value, Product product) {
+        if (product == null || !product.isSizeEnabled()) return "M";
+        String size = value == null ? "M" : value.trim().toUpperCase(java.util.Locale.ROOT);
+        return ("S".equals(size) || "M".equals(size) || "L".equals(size)) ? size : "M";
+    }
+
+    private BigDecimal sizeDelta(Product product, String size) {
+        if (product == null || !product.isSizeEnabled()) return BigDecimal.ZERO;
+        if ("S".equals(size)) return product.getSizeSDelta();
+        if ("L".equals(size)) return product.getSizeLDelta();
+        return product.getSizeMDelta();
+    }
+
+    private String cleanIce(String value) {
+        if (value == null) return "Bình thường";
+        String v = value.trim();
+        if ("Không đá".equals(v) || "Ít đá".equals(v) || "Bình thường".equals(v) || "Nhiều đá".equals(v)) return v;
+        return "Bình thường";
+    }
+
+    private String cleanSugar(String value) {
+        if (value == null) return "100%";
+        String v = value.trim();
+        if ("0%".equals(v) || "30%".equals(v) || "50%".equals(v) || "70%".equals(v) || "100%".equals(v)) return v;
+        return "100%";
+    }
+
+    private String buildOptionNote(String size, String iceLevel, String sugarLevel, String note) {
+        String options = "Size " + size + ", " + iceLevel + ", đường " + sugarLevel;
+        if (note == null || note.isBlank()) return options;
+        return options + " | " + note.trim();
+    }
+
     private List<Integer> validateOptions(Connection conn, int productId, List<Integer> optionIds) throws SQLException {
         List<Integer> selected = optionIds == null ? List.of() : optionIds;
+        if (selected.isEmpty()) return new ArrayList<>();
         Map<Integer, ModifierGroup> groupsById = new HashMap<>();
         Map<Integer, Integer> optionToGroup = new HashMap<>();
         Map<Integer, Integer> selectedCountByGroup = new HashMap<>();

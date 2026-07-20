@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Chi nhánh</h1><p>org.Branch</p></div>
+    <div><h1>Chi nhánh</h1></div>
     <a class="btn btn-primary" href="${ctx}/admin/branch?action=new">+ Thêm chi nhánh</a>
 </div>
 

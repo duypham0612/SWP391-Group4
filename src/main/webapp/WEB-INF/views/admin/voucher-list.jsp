@@ -5,7 +5,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Voucher</h1><p>payment.Voucher</p></div>
+    <div><h1>Voucher</h1></div>
     <a class="btn btn-primary" href="${ctx}/admin/voucher?action=new">+ Thêm voucher</a>
 </div>
 

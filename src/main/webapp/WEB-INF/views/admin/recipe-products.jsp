@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Công thức / Recipe</h1><p>Công thức món cho sản phẩm · Công thức pha sẵn cho nguyên liệu pha sẵn</p></div>
+    <div><h1>Công thức</h1></div>
 </div>
 
 <h3>Công thức món — chọn sản phẩm</h3>

@@ -14,7 +14,10 @@ public class ProductDao {
 
     private static final String SELECT =
         "SELECT p.ProductId, p.CategoryId, p.Name, p.BasePrice, p.ImageUrl, p.IsActive, " +
-        "p.ShowOnHome, p.HomeSortOrder, p.PrepSeconds, c.Name AS CategoryName " +
+        "p.ShowOnHome, p.HomeSortOrder, p.PrepSeconds, " +
+        "ISNULL(p.SizeEnabled, 1) AS SizeEnabled, ISNULL(p.SizeSDelta, 0) AS SizeSDelta, " +
+        "ISNULL(p.SizeMDelta, 0) AS SizeMDelta, ISNULL(p.SizeLDelta, 0) AS SizeLDelta, " +
+        "c.Name AS CategoryName " +
         "FROM catalog.Product p JOIN catalog.Category c ON p.CategoryId = c.CategoryId ";
 
     public List<Product> findAll(Connection conn) throws SQLException {
@@ -47,7 +50,7 @@ public class ProductDao {
     }
 
     public int insert(Connection conn, Product p) throws SQLException {
-        final String sql = "INSERT INTO catalog.Product(CategoryId, Name, BasePrice, ImageUrl, IsActive, PrepSeconds) VALUES (?,?,?,?,?,?)";
+        final String sql = "INSERT INTO catalog.Product(CategoryId, Name, BasePrice, ImageUrl, IsActive, PrepSeconds, SizeEnabled, SizeSDelta, SizeMDelta, SizeLDelta) VALUES (?,?,?,?,?,?,?,?,?,?)";
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setInt(1, p.getCategoryId());
             ps.setString(2, p.getName());
@@ -55,6 +58,10 @@ public class ProductDao {
             ps.setString(4, p.getImageUrl());
             ps.setBoolean(5, p.isActive());
             ps.setInt(6, p.getPrepSeconds());
+            ps.setBoolean(7, p.isSizeEnabled());
+            ps.setBigDecimal(8, p.getSizeSDelta());
+            ps.setBigDecimal(9, p.getSizeMDelta());
+            ps.setBigDecimal(10, p.getSizeLDelta());
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 return keys.next() ? keys.getInt(1) : 0;
@@ -63,7 +70,7 @@ public class ProductDao {
     }
 
     public void update(Connection conn, Product p) throws SQLException {
-        final String sql = "UPDATE catalog.Product SET CategoryId=?, Name=?, BasePrice=?, ImageUrl=?, IsActive=?, PrepSeconds=? WHERE ProductId=?";
+        final String sql = "UPDATE catalog.Product SET CategoryId=?, Name=?, BasePrice=?, ImageUrl=?, IsActive=?, PrepSeconds=?, SizeEnabled=?, SizeSDelta=?, SizeMDelta=?, SizeLDelta=? WHERE ProductId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, p.getCategoryId());
             ps.setString(2, p.getName());
@@ -71,7 +78,11 @@ public class ProductDao {
             ps.setString(4, p.getImageUrl());
             ps.setBoolean(5, p.isActive());
             ps.setInt(6, p.getPrepSeconds());
-            ps.setInt(7, p.getProductId());
+            ps.setBoolean(7, p.isSizeEnabled());
+            ps.setBigDecimal(8, p.getSizeSDelta());
+            ps.setBigDecimal(9, p.getSizeMDelta());
+            ps.setBigDecimal(10, p.getSizeLDelta());
+            ps.setInt(11, p.getProductId());
             ps.executeUpdate();
         }
     }
@@ -196,6 +207,10 @@ public class ProductDao {
         p.setShowOnHome(rs.getBoolean("ShowOnHome"));
         p.setHomeSortOrder(rs.getInt("HomeSortOrder"));
         p.setPrepSeconds(rs.getInt("PrepSeconds"));
+        p.setSizeEnabled(rs.getBoolean("SizeEnabled"));
+        p.setSizeSDelta(rs.getBigDecimal("SizeSDelta"));
+        p.setSizeMDelta(rs.getBigDecimal("SizeMDelta"));
+        p.setSizeLDelta(rs.getBigDecimal("SizeLDelta"));
         p.setCategoryName(rs.getString("CategoryName"));
         return p;
     }

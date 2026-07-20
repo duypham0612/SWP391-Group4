@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Nhân sự</h1><p>iam.[User]</p></div>
+    <div><h1>Nhân sự</h1></div>
     <a class="btn btn-primary" href="${ctx}/admin/user?action=new">+ Thêm nhân sự</a>
 </div>
 
