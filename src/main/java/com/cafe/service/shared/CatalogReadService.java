@@ -5,25 +5,16 @@ import com.cafe.dao.admin.CategoryDao;
 import com.cafe.dao.admin.HomeSettingDao;
 import com.cafe.dao.admin.ProductDao;
 import com.cafe.dao.shared.BranchMenuDao;
-import com.cafe.dao.shared.ModifierGroupDao;
-import com.cafe.dao.shared.ModifierIngredientImpactDao;
-import com.cafe.dao.shared.ModifierOptionDao;
 import com.cafe.dao.shared.PrepRecipeDao;
-import com.cafe.dao.shared.ProductModifierGroupDao;
 import com.cafe.dao.shared.ProductRecipeDao;
 import com.cafe.model.BranchMenuItem;
 import com.cafe.model.Category;
 import com.cafe.model.HomeSetting;
-import com.cafe.model.ModifierGroup;
-import com.cafe.model.ModifierIngredientImpact;
-import com.cafe.model.ModifierOption;
 import com.cafe.model.PosMenuItem;
 import com.cafe.model.PrepRecipe;
 import com.cafe.model.Product;
-import com.cafe.model.ProductModifierGroup;
 import com.cafe.model.ProductRecipe;
 
-import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -31,22 +22,15 @@ import java.util.List;
 
 /** Đọc menu để dựng màn POS / QR (chỉ món available, chưa 86) + tra cứu công thức (Barista, read-only). */
 public class CatalogReadService {
-    private static final String GROUP_SIZE = "Size";
-    private static final String GROUP_SUGAR = "\u0110\u01b0\u1eddng";
-    private static final String GROUP_ICE = "\u0110\u00e1";
 
     private final BranchMenuDao branchMenuDao = new BranchMenuDao();
-    private final ProductModifierGroupDao pmgDao = new ProductModifierGroupDao();
-    private final ModifierGroupDao groupDao = new ModifierGroupDao();
-    private final ModifierOptionDao optionDao = new ModifierOptionDao();
     private final ProductRecipeDao productRecipeDao = new ProductRecipeDao();
     private final PrepRecipeDao prepRecipeDao = new PrepRecipeDao();
-    private final ModifierIngredientImpactDao impactDao = new ModifierIngredientImpactDao();
     private final ProductDao productDao = new ProductDao();
     private final CategoryDao categoryDao = new CategoryDao();
     private final HomeSettingDao homeSettingDao = new HomeSettingDao();
 
-    /** Menu bán được của chi nhánh: published + available + chưa 86, kèm nhóm modifier. */
+    /** Menu bán được của chi nhánh: published + available + chưa 86. */
     public List<PosMenuItem> getPosMenu(int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             List<PosMenuItem> out = new ArrayList<>();
@@ -57,30 +41,14 @@ public class CatalogReadService {
                 item.setName(bm.getProductName());
                 item.setImageUrl(bm.getImageUrl());
                 item.setPrice(bm.getLocalPrice() != null ? bm.getLocalPrice() : bm.getBasePrice());
-
-                for (ProductModifierGroup pmg : pmgDao.findByProduct(conn, bm.getProductId())) {
-                    ModifierGroup g = groupDao.findById(conn, pmg.getModifierGroupId());
-                    if (g == null) continue;
-                    if (!isCustomerChoiceGroup(g.getName())) continue;
-                    PosMenuItem.Group grp = new PosMenuItem.Group();
-                    grp.setGroupId(g.getModifierGroupId());
-                    grp.setName(g.getName());
-                    grp.setRequired(g.isRequired());
-                    grp.setMinSelect(g.getMinSelect());
-                    grp.setMaxSelect(g.getMaxSelect());
-                    for (ModifierOption o : optionDao.findByGroup(conn, g.getModifierGroupId())) {
-                        if (o.isActive()) grp.getOptions().add(o);
-                    }
-                    if (!grp.getOptions().isEmpty()) item.getGroups().add(grp);
-                }
+                item.setSizeEnabled(bm.isSizeEnabled());
+                item.setSizeSDelta(bm.getSizeSDelta());
+                item.setSizeMDelta(bm.getSizeMDelta());
+                item.setSizeLDelta(bm.getSizeLDelta());
                 out.add(item);
             }
             return out;
         }
-    }
-
-    private boolean isCustomerChoiceGroup(String name) {
-        return GROUP_SIZE.equals(name) || GROUP_SUGAR.equals(name) || GROUP_ICE.equals(name);
     }
 
     // ===== Trang Home công khai: catalog theo danh mục (khách xem, không cần login) =====
@@ -178,37 +146,4 @@ public class CatalogReadService {
         }
     }
 
-    /** Tác động nguyên liệu của các modifier áp cho 1 product (option → ingredient, QtyDelta). */
-    public List<OptionImpactRow> getModifierImpactsForProduct(int productId) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            List<OptionImpactRow> rows = new ArrayList<>();
-            for (ProductModifierGroup pmg : pmgDao.findByProduct(conn, productId)) {
-                ModifierGroup g = groupDao.findById(conn, pmg.getModifierGroupId());
-                if (g == null) continue;
-                for (ModifierOption o : optionDao.findByGroup(conn, g.getModifierGroupId())) {
-                    for (ModifierIngredientImpact imp : impactDao.findByOption(conn, o.getModifierOptionId())) {
-                        OptionImpactRow r = new OptionImpactRow();
-                        r.groupName = g.getName();
-                        r.optionName = o.getName();
-                        r.ingredientName = imp.getIngredientName();
-                        r.ingredientUnit = imp.getIngredientUnit();
-                        r.qtyDelta = imp.getQtyDelta();
-                        rows.add(r);
-                    }
-                }
-            }
-            return rows;
-        }
-    }
-
-    /** Dòng phẳng cho view tra cứu modifier (EL-friendly). */
-    public static class OptionImpactRow {
-        private String groupName, optionName, ingredientName, ingredientUnit;
-        private BigDecimal qtyDelta;
-        public String getGroupName() { return groupName; }
-        public String getOptionName() { return optionName; }
-        public String getIngredientName() { return ingredientName; }
-        public String getIngredientUnit() { return ingredientUnit; }
-        public BigDecimal getQtyDelta() { return qtyDelta; }
-    }
 }

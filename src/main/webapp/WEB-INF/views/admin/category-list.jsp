@@ -6,7 +6,7 @@
 <div class="page-header">
     <div>
         <h1>Danh mục sản phẩm</h1>
-        <p>Quản lý các nhóm món (catalog.Category)</p>
+        <p>Quản lý các nhóm món</p>
     </div>
     <a class="btn btn-primary" href="${ctx}/admin/category?action=new">+ Thêm danh mục</a>
 </div>

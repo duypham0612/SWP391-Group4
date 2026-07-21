@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1><c:choose><c:when test="${voucher.voucherId > 0}">Sửa voucher</c:when><c:otherwise>Thêm voucher</c:otherwise></c:choose></h1><p>payment.Voucher</p></div>
+    <div><h1><c:choose><c:when test="${voucher.voucherId > 0}">Sửa voucher</c:when><c:otherwise>Thêm voucher</c:otherwise></c:choose></h1></div>
     <a class="btn btn-ghost" href="${ctx}/admin/voucher">← Quay lại</a>
 </div>
 
@@ -60,16 +60,42 @@
         <div class="form-group">
             <label for="endDate">Kết thúc</label>
             <input id="endDate" type="datetime-local" name="endDate" class="form-control" value="${voucher.endInput}">
+            <small class="muted">Nếu voucher đang bật, thời điểm kết thúc phải lớn hơn hiện tại và lớn hơn thời điểm bắt đầu.</small>
         </div>
         <div class="form-group">
             <label for="usageLimit">Giới hạn lượt dùng <span class="muted">(trống = không giới hạn)</span></label>
             <input id="usageLimit" type="number" name="usageLimit" class="form-control" min="0" value="${voucher.usageLimit}">
         </div>
         <div class="form-group">
-            <label><input type="checkbox" name="active" value="1" <c:if test="${voucher.active or voucher.voucherId == 0}">checked</c:if>> Đang bật</label>
+            <label><input id="activeInput" type="checkbox" name="active" value="1" <c:if test="${voucher.active or voucher.voucherId == 0}">checked</c:if>> Đang bật</label>
         </div>
         <button type="submit" class="btn btn-primary btn-lg">Lưu</button>
     </form>
 </div>
+
+<script>
+(function(){
+    var start = document.getElementById('startDate');
+    var end = document.getElementById('endDate');
+    var active = document.getElementById('activeInput');
+    if (!start || !end) return;
+    function syncEndMin(){
+        var min = start.value || '';
+        if (active && active.checked && (!min || '${nowInput}' > min)) min = '${nowInput}';
+        end.min = min;
+        if (end.value && start.value && end.value <= start.value) {
+            end.setCustomValidity('Ngày kết thúc phải lớn hơn ngày bắt đầu.');
+        } else if (end.value && active && active.checked && end.value <= '${nowInput}') {
+            end.setCustomValidity('Voucher đang bật phải có ngày kết thúc lớn hơn hiện tại.');
+        } else {
+            end.setCustomValidity('');
+        }
+    }
+    start.addEventListener('change', syncEndMin);
+    end.addEventListener('input', syncEndMin);
+    if (active) active.addEventListener('change', syncEndMin);
+    syncEndMin();
+})();
+</script>
 
 <jsp:include page="../layout/footer.jsp" />

@@ -14,7 +14,7 @@ import java.util.List;
 public class OrderItemDao {
 
     private static final String SELECT =
-        "SELECT oi.OrderItemId, oi.OrderId, oi.ProductId, oi.Quantity, oi.UnitPrice, oi.Note, oi.Status, " +
+        "SELECT oi.OrderItemId, oi.OrderId, oi.ProductId, oi.Quantity, oi.UnitPrice, oi.Size, oi.IceLevel, oi.SugarLevel, oi.Note, oi.Status, " +
         "       oi.StartedAt, oi.DoneAt, oi.ServedAt, oi.BaristaId, oi.PreparedBy, " +
         "       oi.HasIssue, oi.IssueReason, oi.IssueReportedBy, oi.IssueReportedAt, " +
         "       oi.RemakeCount, oi.RemakeInventoryReserved, oi.HandoverLocation, oi.PickedUpBy, oi.PickedUpAt, " +
@@ -36,15 +36,18 @@ public class OrderItemDao {
         "LEFT JOIN iam.[User] cu ON cu.UserId=oi.PreparedBy ";
 
     public int insert(Connection conn, OrderItem it) throws SQLException {
-        final String sql = "INSERT INTO sales.OrderItem(OrderId, ProductId, Quantity, UnitPrice, Note, Status) " +
-                "VALUES (?,?,?,?,?,?)";
+        final String sql = "INSERT INTO sales.OrderItem(OrderId, ProductId, Quantity, UnitPrice, Size, IceLevel, SugarLevel, Note, Status) " +
+                "VALUES (?,?,?,?,?,?,?,?,?)";
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setInt(1, it.getOrderId());
             ps.setInt(2, it.getProductId());
             ps.setInt(3, it.getQuantity());
             ps.setBigDecimal(4, it.getUnitPrice());
-            if (it.getNote() == null) ps.setNull(5, java.sql.Types.NVARCHAR); else ps.setString(5, it.getNote());
-            ps.setString(6, it.getStatus() == null ? "WAITING" : it.getStatus());
+            ps.setString(5, it.getSize());
+            ps.setString(6, it.getIceLevel());
+            ps.setString(7, it.getSugarLevel());
+            if (it.getNote() == null) ps.setNull(8, java.sql.Types.NVARCHAR); else ps.setString(8, it.getNote());
+            ps.setString(9, it.getStatus() == null ? "WAITING" : it.getStatus());
             ps.executeUpdate();
             try (ResultSet k = ps.getGeneratedKeys()) { return k.next() ? k.getInt(1) : 0; }
         }
@@ -566,6 +569,9 @@ public class OrderItemDao {
         it.setProductId(rs.getInt("ProductId"));
         it.setQuantity(rs.getInt("Quantity"));
         it.setUnitPrice(rs.getBigDecimal("UnitPrice"));
+        it.setSize(rs.getString("Size"));
+        it.setIceLevel(rs.getString("IceLevel"));
+        it.setSugarLevel(rs.getString("SugarLevel"));
         it.setNote(rs.getString("Note"));
         it.setStatus(rs.getString("Status"));
         Timestamp sa = rs.getTimestamp("StartedAt");

@@ -11,10 +11,7 @@ import com.cafe.config.DBConnection;
 import com.cafe.dao.shared.BranchMenuDao;
 import com.cafe.dao.shared.BranchInventoryDao;
 import com.cafe.dao.shared.InventoryTransactionDao;
-import com.cafe.dao.shared.ModifierIngredientImpactDao;
-import com.cafe.dao.shared.ModifierOptionDao;
-import com.cafe.dao.shared.OrderItemModifierDao;
-import com.cafe.dao.shared.ProductModifierGroupDao;
+import com.cafe.dao.shared.OrderItemDao;
 import com.cafe.dao.shared.PrepBatchDao;
 import com.cafe.dao.shared.PrepRecipeDao;
 import com.cafe.dao.shared.ProductRecipeDao;
@@ -24,10 +21,8 @@ import com.cafe.dao.shared.WasteLogDao;
 import com.cafe.model.BranchMenuItem;
 import com.cafe.model.BranchInventory;
 import com.cafe.model.InventoryTransaction;
-import com.cafe.model.ModifierIngredientImpact;
-import com.cafe.model.ModifierOption;
+import com.cafe.model.OrderItem;
 import com.cafe.model.PrepRecipe;
-import com.cafe.model.ProductModifierGroup;
 import com.cafe.model.ProductRecipe;
 import com.cafe.model.StockReceiptDetail;
 import com.cafe.model.WasteLog;
@@ -53,13 +48,10 @@ public class InventoryService {
     private final BranchInventoryDao biDao = new BranchInventoryDao();
     private final BranchMenuDao branchMenuDao = new BranchMenuDao();
     private final InventoryTransactionDao txnDao = new InventoryTransactionDao();
+    private final OrderItemDao orderItemDao = new OrderItemDao();
     private final StockReceiptDetailDao detailDao = new StockReceiptDetailDao();
     private final StockAdjustmentDao adjustmentDao = new StockAdjustmentDao();
     private final ProductRecipeDao productRecipeDao = new ProductRecipeDao();
-    private final ModifierIngredientImpactDao impactDao = new ModifierIngredientImpactDao();
-    private final ModifierOptionDao optionDao = new ModifierOptionDao();
-    private final ProductModifierGroupDao pmgDao = new ProductModifierGroupDao();
-    private final OrderItemModifierDao oimDao = new OrderItemModifierDao();
     private final PrepRecipeDao prepRecipeDao = new PrepRecipeDao();
     private final PrepBatchDao prepBatchDao = new PrepBatchDao();
     private final WasteLogDao wasteLogDao = new WasteLogDao();
@@ -85,8 +77,8 @@ public class InventoryService {
     }
 
     /**
-     * ★ Modifier-Aware Auto-Deduction (Contract #1, #2) — trừ tồn khi Barista bấm READY.
-     * Chạy TRONG tx của caller (OrderService.markItemReady). Đọc công thức + modifier đã chọn,
+     * Auto-deduction (Contract #1, #2) — trừ tồn khi Barista bấm READY.
+     * Chạy TRONG tx của caller (OrderService.markItemReady). Đọc công thức món,
      * tính required qua {@link DeductionCalculator}, trừ đúng ingredient công thức tham chiếu
      * (PREPPED trừ tồn PREPPED — KHÔNG trừ RAW lần 2). Publish inventory.deducted.
      */
@@ -96,11 +88,11 @@ public class InventoryService {
         if (recipe.isEmpty()) {
             throw new BusinessException("Món chưa có công thức — không thể hoàn thành vì chưa xác định nguyên liệu cần trừ.");
         }
-        List<ModifierIngredientImpact> impacts = new ArrayList<>();
-        for (Integer optionId : oimDao.findOptionIds(conn, orderItemId)) {
-            impacts.addAll(impactDao.findByOption(conn, optionId));
-        }
-        Map<Integer, BigDecimal> required = DeductionCalculator.computeRequired(recipe, impacts, quantity);
+        OrderItem item = orderItemDao.findById(conn, orderItemId);
+        Map<Integer, BigDecimal> required = DeductionCalculator.computeRequired(recipe, quantity,
+                item == null ? "M" : item.getSize(),
+                item == null ? "Bình thường" : item.getIceLevel(),
+                item == null ? "100%" : item.getSugarLevel());
         if (required.isEmpty()) {
             throw new BusinessException("Công thức món không có định lượng hợp lệ — chưa thể hoàn thành.");
         }
@@ -120,11 +112,11 @@ public class InventoryService {
                                           int quantity, String reason, int userId) throws SQLException {
         List<ProductRecipe> recipe = productRecipeDao.findByProduct(conn, productId);
         if (recipe.isEmpty()) throw new BusinessException("Món chưa có công thức — không thể ghi nhận hao hụt làm lại.");
-        List<ModifierIngredientImpact> impacts = new ArrayList<>();
-        for (Integer optionId : oimDao.findOptionIds(conn, orderItemId)) {
-            impacts.addAll(impactDao.findByOption(conn, optionId));
-        }
-        Map<Integer, BigDecimal> required = DeductionCalculator.computeRequired(recipe, impacts, quantity);
+        OrderItem item = orderItemDao.findById(conn, orderItemId);
+        Map<Integer, BigDecimal> required = DeductionCalculator.computeRequired(recipe, quantity,
+                item == null ? "M" : item.getSize(),
+                item == null ? "Bình thường" : item.getIceLevel(),
+                item == null ? "100%" : item.getSugarLevel());
         if (required.isEmpty()) throw new BusinessException("Công thức không có lượng nguyên liệu hợp lệ.");
         String note = cleanReason("Làm lại dòng món #" + orderItemId + (reason == null ? "" : " - " + reason));
         for (Map.Entry<Integer, BigDecimal> entry : required.entrySet()) {
@@ -351,17 +343,12 @@ public class InventoryService {
         }
     }
 
-    /** Backward-compat: làm lại món KHÔNG kèm modifier (chỉ công thức gốc). */
     public int remakeProduct(int branchId, int productId, int quantity, String reason, int userId) throws SQLException {
-        return remakeProduct(branchId, productId, quantity, java.util.List.of(), reason, userId);
+        return remakeProduct(branchId, productId, quantity, "M", "Bình thường", "100%", reason, userId);
     }
 
-    /**
-     * Làm lại món: sinh các dòng WasteLog REMAKE theo công thức gốc + TÁC ĐỘNG MODIFIER đã chọn
-     * (tái dùng {@link DeductionCalculator} — nhất quán với auto-deduct lúc pha, tránh đếm thiếu
-     * nguyên liệu). {@code optionIds} được lọc về đúng tuỳ chọn của món để không tính nhầm.
-     */
-    public int remakeProduct(int branchId, int productId, int quantity, List<Integer> optionIds,
+    public int remakeProduct(int branchId, int productId, int quantity,
+                             String size, String iceLevel, String sugarLevel,
                              String reason, int userId) throws SQLException {
         if (quantity <= 0) throw new BusinessException("Số lượng món làm lại phải > 0.");
         try (Connection conn = DBConnection.getConnection()) {
@@ -373,24 +360,11 @@ public class InventoryService {
                 List<ProductRecipe> recipe = productRecipeDao.findByProduct(conn, productId);
                 if (recipe.isEmpty()) throw new BusinessException(product.getProductName() + ": Chưa khai báo công thức món.");
 
-                // Gom tác động nguyên liệu của các tuỳ chọn HỢP LỆ của món (bỏ optionId lạ).
-                List<ModifierIngredientImpact> impacts = new ArrayList<>();
-                List<String> optionNames = new ArrayList<>();
-                if (optionIds != null && !optionIds.isEmpty()) {
-                    java.util.Set<Integer> valid = validOptionIdsForProduct(conn, productId);
-                    for (Integer optionId : optionIds) {
-                        if (optionId == null || !valid.contains(optionId)) continue;
-                        impacts.addAll(impactDao.findByOption(conn, optionId));
-                        ModifierOption opt = optionDao.findById(conn, optionId);
-                        if (opt != null) optionNames.add(opt.getName());
-                    }
-                }
-
-                Map<Integer, BigDecimal> required = DeductionCalculator.computeRequired(recipe, impacts, quantity);
+                Map<Integer, BigDecimal> required = DeductionCalculator.computeRequired(recipe, quantity, size, iceLevel, sugarLevel);
                 if (required.isEmpty()) throw new BusinessException(product.getProductName() + ": Công thức không có lượng nguyên liệu hợp lệ.");
 
-                String modNote = optionNames.isEmpty() ? "" : " (" + String.join(", ", optionNames) + ")";
-                String finalReason = cleanReason("Làm lại " + product.getProductName() + modNote + " x" + quantity
+                String optionNote = "Size " + normalizeSize(size) + ", " + normalizeIce(iceLevel) + ", đường " + normalizeSugar(sugarLevel);
+                String finalReason = cleanReason("Làm lại " + product.getProductName() + " (" + optionNote + ") x" + quantity
                         + (reason == null || reason.isBlank() ? "" : " - " + reason.trim()));
                 int count = 0;
                 for (Map.Entry<Integer, BigDecimal> e : required.entrySet()) {
@@ -405,49 +379,20 @@ public class InventoryService {
         }
     }
 
-    /** Tập optionId active hợp lệ của một món (qua ProductModifierGroup → group → option). */
-    private java.util.Set<Integer> validOptionIdsForProduct(Connection conn, int productId) throws SQLException {
-        java.util.Set<Integer> valid = new java.util.HashSet<>();
-        for (ProductModifierGroup pmg : pmgDao.findByProduct(conn, productId)) {
-            for (ModifierOption opt : optionDao.findByGroup(conn, pmg.getModifierGroupId())) {
-                if (opt.isActive()) valid.add(opt.getModifierOptionId());
-            }
-        }
-        return valid;
+    private static String normalizeSize(String size) {
+        if ("S".equalsIgnoreCase(size) || "L".equalsIgnoreCase(size)) return size.toUpperCase(java.util.Locale.ROOT);
+        return "M";
     }
 
-    /**
-     * JSON tuỳ chọn CÓ tác động nguyên liệu theo món cho form làm lại: {productId:[{id,name}]}.
-     * Chỉ liệt kê option ảnh hưởng tồn kho (option không đổi nguyên liệu bỏ qua cho gọn).
-     */
-    public String getRemakeModifiersJson(List<Integer> productIds) throws SQLException {
-        StringBuilder sb = new StringBuilder("{");
-        if (productIds == null || productIds.isEmpty()) return sb.append('}').toString();
-        try (Connection conn = DBConnection.getConnection()) {
-            boolean firstKey = true;
-            for (Integer pid : productIds) {
-                java.util.Set<Integer> seen = new java.util.HashSet<>();
-                List<String> opts = new ArrayList<>();
-                for (ProductModifierGroup pmg : pmgDao.findByProduct(conn, pid)) {
-                    for (ModifierOption opt : optionDao.findByGroup(conn, pmg.getModifierGroupId())) {
-                        if (!opt.isActive() || !seen.add(opt.getModifierOptionId())) continue;
-                        if (impactDao.findByOption(conn, opt.getModifierOptionId()).isEmpty()) continue;
-                        opts.add("{\"id\":" + opt.getModifierOptionId() + ",\"name\":\"" + jsonEsc(opt.getName()) + "\"}");
-                    }
-                }
-                if (opts.isEmpty()) continue;
-                if (!firstKey) sb.append(',');
-                firstKey = false;
-                sb.append('"').append(pid).append("\":[").append(String.join(",", opts)).append(']');
-            }
-        }
-        return sb.append('}').toString();
+    private static String normalizeIce(String iceLevel) {
+        if ("Không đá".equals(iceLevel) || "Ít đá".equals(iceLevel) || "Nhiều đá".equals(iceLevel)) return iceLevel;
+        return "Bình thường";
     }
 
-    private static String jsonEsc(String s) {
-        if (s == null) return "";
-        return s.replace("\\", "\\\\").replace("\"", "\\\"")
-                .replace("<", "\\u003C").replace(">", "\\u003E").replace("&", "\\u0026");
+    private static String normalizeSugar(String sugarLevel) {
+        if ("0%".equals(sugarLevel) || "30%".equals(sugarLevel) || "50%".equals(sugarLevel)
+                || "70%".equals(sugarLevel) || "100%".equals(sugarLevel)) return sugarLevel;
+        return "100%";
     }
 
     /**

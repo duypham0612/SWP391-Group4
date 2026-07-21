@@ -57,6 +57,8 @@ public class BranchMenuService {
     }
 
     public void save(int branchId, int productId, boolean available, BigDecimal localPrice, boolean is86) throws SQLException {
+        if (branchId <= 0 || productId <= 0) throw new BusinessException("Dữ liệu menu không hợp lệ.");
+        if (localPrice != null && localPrice.signum() < 0) throw new BusinessException("Giá bán tại chi nhánh không được âm.");
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
             try { dao.upsert(conn, branchId, productId, available, localPrice, is86); conn.commit(); }

@@ -14,7 +14,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.math.BigDecimal;
 
-/** A3 · ProductServlet → /admin/product. Actions: list/create/update/toggleActive/publishToBranch/publishManyToBranch. */
+/** A3 ProductServlet -> /admin/product. */
 @WebServlet("/admin/product")
 public class ProductServlet extends HttpServlet {
 
@@ -122,10 +122,13 @@ public class ProductServlet extends HttpServlet {
         catch (NumberFormatException e) { p.setBasePrice(BigDecimal.valueOf(-1)); }
         p.setImageUrl(trim(req.getParameter("imageUrl")));
         p.setActive(req.getParameter("active") != null);
-        // Nhập theo phút cho dễ; lưu theo giây. -1 = sentinel để validate bắt lỗi định dạng.
         String prep = req.getParameter("prepMinutes");
         try { p.setPrepSeconds(prep == null || prep.isBlank() ? 720 : Integer.parseInt(prep.trim()) * 60); }
         catch (NumberFormatException e) { p.setPrepSeconds(-1); }
+        p.setSizeEnabled(req.getParameter("sizeEnabled") != null);
+        p.setSizeSDelta(parseMoney(req.getParameter("sizeSDelta")));
+        p.setSizeMDelta(parseMoney(req.getParameter("sizeMDelta")));
+        p.setSizeLDelta(parseMoney(req.getParameter("sizeLDelta")));
         return p;
     }
 
@@ -134,6 +137,9 @@ public class ProductServlet extends HttpServlet {
         if (p.getCategoryId() <= 0) return "Vui lòng chọn danh mục.";
         if (p.getBasePrice() == null || p.getBasePrice().signum() < 0) return "Giá phải là số >= 0.";
         if (p.getPrepSeconds() < 60) return "Thời gian pha chuẩn phải là số phút >= 1.";
+        if (p.getSizeSDelta().signum() < 0 || p.getSizeMDelta().signum() < 0 || p.getSizeLDelta().signum() < 0) {
+            return "Phụ thu size phải là số >= 0.";
+        }
         return null;
     }
 
@@ -146,6 +152,14 @@ public class ProductServlet extends HttpServlet {
     }
 
     private String trim(String s) { return s == null ? null : s.trim(); }
+
+    private BigDecimal parseMoney(String raw) {
+        try {
+            return raw == null || raw.isBlank() ? BigDecimal.ZERO : new BigDecimal(raw.trim());
+        } catch (NumberFormatException e) {
+            return BigDecimal.valueOf(-1);
+        }
+    }
 
     private int parsePositiveInt(String raw) {
         try {

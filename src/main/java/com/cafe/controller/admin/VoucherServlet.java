@@ -13,6 +13,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Set;
 
 /** A5 · VoucherServlet → /admin/voucher. Actions: list/create/update/toggleActive. */
@@ -21,6 +23,7 @@ public class VoucherServlet extends HttpServlet {
 
     private static final Set<String> TYPES = Set.of("PERCENT", "FIXED");
     private static final Set<String> SCOPES = Set.of("CHAIN", "BRANCH");
+    private static final DateTimeFormatter INPUT_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm");
 
     private final VoucherService service = new VoucherService();
     private final BranchService branchService = new BranchService();
@@ -54,7 +57,18 @@ public class VoucherServlet extends HttpServlet {
         String action = req.getParameter("action");
         try {
             if ("toggleActive".equals(action)) {
-                service.toggleActive(Integer.parseInt(req.getParameter("id")));
+                int id = Integer.parseInt(req.getParameter("id"));
+                Voucher existing = service.getVoucher(id);
+                if (existing != null && !existing.isActive()) {
+                    existing.setActive(true);
+                    String error = validate(existing);
+                    if (error != null) {
+                        req.getSession().setAttribute("flashError", error);
+                        resp.sendRedirect(ctx + "/admin/voucher");
+                        return;
+                    }
+                }
+                service.toggleActive(id);
                 resp.sendRedirect(ctx + "/admin/voucher");
                 return;
             }
@@ -72,6 +86,10 @@ public class VoucherServlet extends HttpServlet {
             }
             if (v.getVoucherId() == 0) service.createVoucher(v); else service.updateVoucher(v);
             resp.sendRedirect(ctx + "/admin/voucher");
+        } catch (FormValidationException e) {
+            req.setAttribute("voucher", e.voucher);
+            req.setAttribute("errorMsg", e.getMessage());
+            forwardForm(req, resp, e.voucher.getVoucherId() == 0 ? "Thêm voucher" : "Sửa voucher");
         } catch (Exception e) { throw new ServletException(e); }
     }
 
@@ -86,8 +104,12 @@ public class VoucherServlet extends HttpServlet {
         v.setScope(trim(req.getParameter("scope")));
         String branch = req.getParameter("branchId");
         v.setBranchId(branch == null || branch.isBlank() ? null : Integer.parseInt(branch));
-        v.setStartDate(dateTime(req.getParameter("startDate")));
-        v.setEndDate(dateTime(req.getParameter("endDate")));
+        try {
+            v.setStartDate(dateTime(req.getParameter("startDate")));
+            v.setEndDate(dateTime(req.getParameter("endDate")));
+        } catch (DateTimeParseException e) {
+            throw new FormValidationException(v, "Ngày giờ bắt đầu/kết thúc không đúng định dạng.");
+        }
         String limit = req.getParameter("usageLimit");
         v.setUsageLimit(limit == null || limit.isBlank() ? null : Integer.parseInt(limit));
         v.setActive(req.getParameter("active") != null);
@@ -103,8 +125,10 @@ public class VoucherServlet extends HttpServlet {
         if (v.getScope() == null || !SCOPES.contains(v.getScope())) return "Phạm vi phải là CHAIN hoặc BRANCH.";
         if ("BRANCH".equals(v.getScope()) && v.getBranchId() == null) return "Voucher phạm vi BRANCH phải chọn chi nhánh.";
         if ("CHAIN".equals(v.getScope())) v.setBranchId(null);
-        if (v.getStartDate() != null && v.getEndDate() != null && v.getEndDate().isBefore(v.getStartDate()))
-            return "Ngày kết thúc phải sau ngày bắt đầu.";
+        if (v.getStartDate() != null && v.getEndDate() != null && !v.getEndDate().isAfter(v.getStartDate()))
+            return "Ngày kết thúc phải lớn hơn ngày bắt đầu.";
+        if (v.isActive() && v.getEndDate() != null && !v.getEndDate().isAfter(LocalDateTime.now()))
+            return "Voucher đang bật phải có ngày kết thúc lớn hơn thời điểm hiện tại.";
         return null;
     }
 
@@ -113,6 +137,7 @@ public class VoucherServlet extends HttpServlet {
         try { req.setAttribute("branches", branchService.getBranchListActive()); }
         catch (Exception e) { throw new ServletException(e); }
         req.setAttribute("pageTitle", title);
+        req.setAttribute("nowInput", LocalDateTime.now().format(INPUT_FMT));
         req.getRequestDispatcher("/WEB-INF/views/admin/voucher-form.jsp").forward(req, resp);
     }
 
@@ -121,9 +146,17 @@ public class VoucherServlet extends HttpServlet {
         catch (NumberFormatException e) { return BigDecimal.valueOf(-1); }
     }
     private LocalDateTime dateTime(String s) {
-        try { return s == null || s.isBlank() ? null : LocalDateTime.parse(s.trim()); }
-        catch (Exception e) { return null; }
+        return s == null || s.isBlank() ? null : LocalDateTime.parse(s.trim());
     }
     private String trim(String s) { return s == null ? null : s.trim(); }
     private String up(String s) { return s == null ? null : s.trim().toUpperCase(); }
+
+    private static final class FormValidationException extends RuntimeException {
+        private final Voucher voucher;
+
+        private FormValidationException(Voucher voucher, String message) {
+            super(message);
+            this.voucher = voucher;
+        }
+    }
 }

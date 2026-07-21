@@ -110,15 +110,10 @@ public class WasteService {
         return inventoryService.logWaste(branchId, ingredientId, qty, wasteType, reason, userId);
     }
 
-    public int remakeProduct(int branchId, int productId, int qty, List<Integer> optionIds, String reason, int userId) throws SQLException {
-        return inventoryService.remakeProduct(branchId, productId, qty, optionIds, reason, userId);
-    }
-
-    /** JSON tuỳ chọn (có tác động nguyên liệu) theo món cho form làm lại: {productId:[{id,name}]}. */
-    public String getRemakeModifiersJson(List<BranchMenuItem> products) throws SQLException {
-        List<Integer> ids = new ArrayList<>();
-        if (products != null) for (BranchMenuItem p : products) ids.add(p.getProductId());
-        return inventoryService.getRemakeModifiersJson(ids);
+    public int remakeProduct(int branchId, int productId, int qty,
+                             String size, String iceLevel, String sugarLevel,
+                             String reason, int userId) throws SQLException {
+        return inventoryService.remakeProduct(branchId, productId, qty, size, iceLevel, sugarLevel, reason, userId);
     }
 
     /** Sửa dòng hao hụt nguyên liệu — áp txn cho phần chênh lệch. */

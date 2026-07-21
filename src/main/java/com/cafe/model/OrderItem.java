@@ -5,8 +5,6 @@ import com.cafe.common.Constants;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 /** sales.OrderItem — dòng đơn; Status dùng chung cho KDS + tracking khách. */
 public class OrderItem {
@@ -14,7 +12,10 @@ public class OrderItem {
     private int orderId;
     private int productId;
     private int quantity;
-    private BigDecimal unitPrice;      // giá tại thời điểm đặt (đã gồm modifier)
+    private BigDecimal unitPrice;      // giá tại thời điểm đặt
+    private String size = "M";
+    private String iceLevel = "Bình thường";
+    private String sugarLevel = "100%";
     private String note;
     private String status;             // OrderItemStatus
     private LocalDateTime startedAt;
@@ -43,7 +44,6 @@ public class OrderItem {
     private String preparedByName;
     private String sessionStatus;      // sales.TableSession.Status (OPEN/CLOSED) — nhận biết khách đã thanh toán
     private Integer orderBranchId;
-    private List<OrderItemModifier> modifiers = new ArrayList<>();
     private int waitedSeconds;
     private Integer makingSeconds;
     private Integer serveWaitSeconds;   // giây kể từ lúc pha xong (DoneAt) tới hiện tại — SLA màn chờ giao
@@ -65,6 +65,15 @@ public class OrderItem {
 
     public BigDecimal getUnitPrice() { return unitPrice; }
     public void setUnitPrice(BigDecimal v) { this.unitPrice = v; }
+
+    public String getSize() { return size; }
+    public void setSize(String v) { this.size = v == null || v.isBlank() ? "M" : v; }
+
+    public String getIceLevel() { return iceLevel; }
+    public void setIceLevel(String v) { this.iceLevel = v == null || v.isBlank() ? "Bình thường" : v; }
+
+    public String getSugarLevel() { return sugarLevel; }
+    public void setSugarLevel(String v) { this.sugarLevel = v == null || v.isBlank() ? "100%" : v; }
 
     public String getNote() { return note; }
     public void setNote(String v) { this.note = v; }
@@ -129,9 +138,6 @@ public class OrderItem {
 
     public Integer getOrderBranchId() { return orderBranchId; }
     public void setOrderBranchId(Integer v) { this.orderBranchId = v; }
-
-    public List<OrderItemModifier> getModifiers() { return modifiers; }
-    public void setModifiers(List<OrderItemModifier> v) { this.modifiers = v; }
 
     public int getWaitedSeconds() { return waitedSeconds; }
     public void setWaitedSeconds(int v) { this.waitedSeconds = Math.max(0, v); }

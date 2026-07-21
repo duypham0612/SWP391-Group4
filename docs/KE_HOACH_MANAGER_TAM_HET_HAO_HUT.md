@@ -1,4 +1,4 @@
-# Kế hoạch: đưa "Yêu cầu tạm hết" và "Hao hụt" lên tầng Branch Manager
+﻿# Kế hoạch: đưa "Yêu cầu tạm hết" và "Hao hụt" lên tầng Branch Manager
 
 > Trạng thái: chưa thực hiện · Phạm vi: ~9 file sửa, 7 file tạo (3 là test) · Không đổi schema · Không đụng dữ liệu seed/config
 

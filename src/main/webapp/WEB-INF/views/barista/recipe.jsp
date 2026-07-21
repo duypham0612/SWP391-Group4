@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Pha chế</div><h1>Tra cứu công thức</h1><p>Xem định mức nguyên liệu thô / nguyên liệu pha sẵn &amp; tác động của modifier — chỉ đọc</p></div>
+    <div><div class="eyebrow">Pha chế</div><h1>Tra cứu công thức</h1><p>Xem định mức nguyên liệu thô và nguyên liệu pha sẵn — chỉ đọc</p></div>
 </div>
 
 <div class="card form-card" style="margin-bottom:18px">
@@ -40,20 +40,20 @@
     </form>
 </div>
 
-<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
-    <div id="recipeResults" class="card" style="flex:1;min-width:260px">
+<div class="recipe-layout">
+    <div id="recipeResults" class="card recipe-results-card">
         <h3 style="margin-top:0">Món (${total})</h3>
         <c:choose>
             <c:when test="${empty products}">
                 <div class="empty-state"><div class="icon">∅</div><p>Không có món phù hợp.</p></div>
             </c:when>
             <c:otherwise>
-                <table class="table">
-                    <thead><tr><th>Món</th><th style="width:90px"></th></tr></thead>
+                <table class="table recipe-product-table">
+                    <thead><tr><th>Món</th><th></th></tr></thead>
                     <tbody>
                         <c:forEach var="p" items="${products}">
                             <tr>
-                                <td>${p.name}<br><small style="color:var(--muted)">${p.categoryName}</small></td>
+                                <td><span class="recipe-product-name">${p.name}</span><small>${p.categoryName}</small></td>
                                 <td>
                                     <c:url var="viewUrl" value="/barista/recipe">
                                         <c:param name="productId" value="${p.productId}" />
@@ -127,7 +127,7 @@
         </c:choose>
     </div>
 
-    <div id="recipeDetail" class="card" style="flex:1.4;min-width:320px">
+    <div id="recipeDetail" class="card recipe-detail-card">
         <c:choose>
             <c:when test="${empty selected}">
                 <div class="empty-state"><div class="icon">☕</div><p>Chọn một món để xem công thức.</p></div>
@@ -175,28 +175,6 @@
                         </table>
                     </c:forEach>
                 </c:if>
-
-                <h4>Tác động của Modifier</h4>
-                <c:choose>
-                    <c:when test="${empty impacts}">
-                        <p style="color:var(--muted)">Modifier không ảnh hưởng định mức (hoặc chưa khai báo).</p>
-                    </c:when>
-                    <c:otherwise>
-                        <table class="table">
-                            <thead><tr><th>Nhóm</th><th>Tuỳ chọn</th><th>Nguyên liệu</th><th style="width:130px">Thay đổi</th></tr></thead>
-                            <tbody>
-                                <c:forEach var="im" items="${impacts}">
-                                    <tr>
-                                        <td>${im.groupName}</td>
-                                        <td>${im.optionName}</td>
-                                        <td>${im.ingredientName}</td>
-                                        <td><strong>${im.qtyDelta}</strong> ${im.ingredientUnit}</td>
-                                    </tr>
-                                </c:forEach>
-                            </tbody>
-                        </table>
-                    </c:otherwise>
-                </c:choose>
             </c:otherwise>
         </c:choose>
     </div>

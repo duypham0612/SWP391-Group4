@@ -508,6 +508,84 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
   .report-table th:last-child,.report-table td:last-child{width:118px}
 }
 
+/* ----- Manager overview and menu alignment ----- */
+.manager-dashboard-grid{align-items:stretch}
+.dashboard-table-card{overflow:hidden; padding:18px 20px}
+.dashboard-table-card h3{margin:0 0 12px; font-size:19px}
+.dashboard-mini-table{
+  min-width:0 !important; table-layout:fixed; border-radius:var(--radius-sm);
+  box-shadow:none; border-color:var(--line)
+}
+.dashboard-mini-table th,.dashboard-mini-table td{padding:13px 20px}
+.dashboard-mini-table th:first-child,.dashboard-mini-table td:first-child{
+  width:auto; text-align:left; white-space:normal; color:var(--ink); font-weight:700
+}
+.dashboard-mini-table th:last-child,.dashboard-mini-table td:last-child{
+  min-width:0; width:160px; text-align:left; font-variant-numeric:tabular-nums
+}
+.shift-table th:nth-child(2),.shift-table td:nth-child(2){width:132px; text-align:left}
+.low-stock-table th:nth-child(2),.low-stock-table td:nth-child(2){width:170px; text-align:left; font-variant-numeric:tabular-nums}
+.low-stock-table th:last-child,.low-stock-table td:last-child{width:130px; text-align:left}
+.low-stock-table td:first-child{display:flex; align-items:center; gap:8px}
+.low-stock-table td:first-child .badge{margin-left:0 !important}
+
+.branch-menu-actions{display:flex; justify-content:flex-start; margin-bottom:12px}
+.danger-text{color:var(--st-cancelled)}
+.branch-menu-scroll{border-radius:var(--radius)}
+.branch-menu-table{
+  min-width:980px !important; table-layout:fixed; box-shadow:var(--shadow-sm)
+}
+.branch-menu-table th,.branch-menu-table td{padding:14px 22px}
+.branch-menu-table th:first-child,.branch-menu-table td:first-child{width:58px; text-align:center}
+.branch-menu-table th:nth-child(2),.branch-menu-table td:nth-child(2){width:auto; text-align:left}
+.branch-menu-table th:nth-child(3),.branch-menu-table td:nth-child(3){width:150px; text-align:left; font-variant-numeric:tabular-nums}
+.branch-menu-table th:nth-child(4),.branch-menu-table td:nth-child(4){width:300px}
+.branch-menu-table th:nth-child(5),.branch-menu-table td:nth-child(5){width:150px}
+.branch-menu-table th:last-child,.branch-menu-table td:last-child{width:170px; min-width:0}
+.branch-product{display:flex; align-items:center; gap:14px; min-width:0}
+.branch-product .prod-thumb{width:58px; height:58px; margin:0; border-radius:8px}
+.branch-product-name{display:block; min-width:0; color:var(--ink); font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.branch-price-form{display:flex; align-items:center; gap:8px; margin:0}
+.branch-price-form .form-control{width:164px; height:44px}
+.branch-price-form .btn{height:38px}
+.branch-toggle-form{display:flex; justify-content:flex-start; margin:0}
+.branch-toggle-form .btn{min-width:112px; justify-content:center}
+.branch-toggle-form .badge{pointer-events:none}
+
+/* ----- Barista recipe lookup ----- */
+.recipe-layout{
+  display:grid; grid-template-columns:minmax(320px,.9fr) minmax(460px,1.35fr);
+  gap:18px; align-items:start
+}
+.recipe-results-card,.recipe-detail-card{min-width:0; overflow:hidden}
+.recipe-results-card{padding:18px 20px}
+.recipe-detail-card{padding:24px; min-height:370px}
+.recipe-product-table{
+  min-width:0 !important; table-layout:fixed; border-radius:var(--radius-sm); box-shadow:none
+}
+.recipe-product-table th,.recipe-product-table td{padding:14px 18px}
+.recipe-product-table th:first-child,.recipe-product-table td:first-child{
+  width:auto; text-align:left; white-space:normal; color:var(--ink); font-weight:700
+}
+.recipe-product-table th:last-child,.recipe-product-table td:last-child{
+  width:96px; min-width:0; text-align:center
+}
+.recipe-product-name{display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.recipe-product-table small{display:block; margin-top:2px; color:var(--muted); font-weight:600}
+.recipe-detail-card .empty-state{
+  min-height:280px; display:flex; flex-direction:column; justify-content:center
+}
+@media (max-width:1160px){
+  .manager-dashboard-grid,.recipe-layout{grid-template-columns:1fr}
+  .dashboard-mini-table{min-width:560px !important}
+  .dashboard-table-card{overflow-x:auto}
+}
+@media (max-width:640px){
+  .dashboard-table-card,.recipe-results-card,.recipe-detail-card{padding:16px}
+  .recipe-layout{gap:14px}
+  .recipe-product-table th,.recipe-product-table td{padding:12px}
+}
+
 /* ============================ KDS ======================================= */
 .kds-summary{
   display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:var(--s3);

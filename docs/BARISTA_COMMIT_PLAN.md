@@ -1,4 +1,4 @@
-# BARISTA_COMMIT_PLAN.md — Lộ trình 10 ngày × 4 commit (role Barista, DEV4)
+﻿# BARISTA_COMMIT_PLAN.md — Lộ trình 10 ngày × 4 commit (role Barista, DEV4)
 
 > Mục tiêu: mỗi ngày thêm **4 commit việc THẬT** cho role Barista, giữ nguyên toàn bộ commit cũ.
 > Nhánh làm việc: `minhnhat`. **Không** reset/amend/force — chỉ **thêm** commit.

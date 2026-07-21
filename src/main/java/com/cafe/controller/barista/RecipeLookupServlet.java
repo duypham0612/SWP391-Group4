@@ -14,7 +14,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-/** B6 · RecipeLookupServlet → /barista/recipe. Tra cứu công thức + tác động modifier (read-only). */
+/** B6 · RecipeLookupServlet → /barista/recipe. Tra cứu công thức món và công thức pha sẵn. */
 @WebServlet("/barista/recipe")
 public class RecipeLookupServlet extends HttpServlet {
 
@@ -53,10 +53,6 @@ public class RecipeLookupServlet extends HttpServlet {
                     req.setAttribute("selected", selected);
                     List<ProductRecipe> recipe = catalogReadService.getRecipeForProduct(productId);
                     req.setAttribute("recipe", recipe);
-                    // định mức pha sẵn cho từng nguyên liệu PREPPED trong công thức
-                    List<CatalogReadService.OptionImpactRow> impacts =
-                            catalogReadService.getModifierImpactsForProduct(productId);
-                    req.setAttribute("impacts", impacts);
                     List<PrepSection> preps = new ArrayList<>();
                     for (ProductRecipe r : recipe) {
                         if ("PREPPED".equalsIgnoreCase(r.getIngredientType())) {

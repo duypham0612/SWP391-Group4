@@ -23,7 +23,7 @@
         <thead><tr><th>Món</th><th style="width:70px">SL</th><th style="width:140px">Thành tiền</th></tr></thead>
         <tbody>
             <c:forEach var="bi" items="${bill.items}">
-                <tr><td>${bi.productName}</td><td>${bi.quantity}</td><td><fmt:formatNumber value="${bi.amount}" maxFractionDigits="0"/> ₫</td></tr>
+                <tr><td>${bi.productName}<c:if test="${not empty bi.note}"><div class="muted" style="font-size:.85rem">${bi.note}</div></c:if></td><td>${bi.quantity}</td><td><fmt:formatNumber value="${bi.amount}" maxFractionDigits="0"/> ₫</td></tr>
             </c:forEach>
         </tbody>
     </table>

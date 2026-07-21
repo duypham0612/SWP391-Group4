@@ -152,14 +152,36 @@
                     </c:forEach>
                 </select>
             </div>
-            <div class="form-group" id="remakeModifiersGroup" style="display:none">
-                <label>Tuỳ chọn đã thêm (trừ nguyên liệu kèm)</label>
-                <div id="remakeModifiers" class="remake-modifiers"></div>
-                <small class="muted">Tick những tuỳ chọn của ly gốc (thêm shot, đổi sữa…) để trừ đúng nguyên liệu.</small>
-            </div>
             <div class="form-group">
                 <label>Số lượng</label>
                 <input type="number" name="productQty" class="form-control" min="1" step="1" value="${submittedRemake.quantity}" required>
+            </div>
+            <div class="form-group">
+                <label>Size</label>
+                <select name="productSize" class="form-control">
+                    <option value="S" ${submittedRemake.size == 'S' ? 'selected' : ''}>S</option>
+                    <option value="M" ${submittedRemake.size == 'M' ? 'selected' : ''}>M</option>
+                    <option value="L" ${submittedRemake.size == 'L' ? 'selected' : ''}>L</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Đá</label>
+                <select name="iceLevel" class="form-control">
+                    <option value="Không đá" ${submittedRemake.iceLevel == 'Không đá' ? 'selected' : ''}>Không đá</option>
+                    <option value="Ít đá" ${submittedRemake.iceLevel == 'Ít đá' ? 'selected' : ''}>Ít đá</option>
+                    <option value="Bình thường" ${submittedRemake.iceLevel == 'Bình thường' ? 'selected' : ''}>Bình thường</option>
+                    <option value="Nhiều đá" ${submittedRemake.iceLevel == 'Nhiều đá' ? 'selected' : ''}>Nhiều đá</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Đường</label>
+                <select name="sugarLevel" class="form-control">
+                    <option value="0%" ${submittedRemake.sugarLevel == '0%' ? 'selected' : ''}>0%</option>
+                    <option value="30%" ${submittedRemake.sugarLevel == '30%' ? 'selected' : ''}>30%</option>
+                    <option value="50%" ${submittedRemake.sugarLevel == '50%' ? 'selected' : ''}>50%</option>
+                    <option value="70%" ${submittedRemake.sugarLevel == '70%' ? 'selected' : ''}>70%</option>
+                    <option value="100%" ${submittedRemake.sugarLevel == '100%' ? 'selected' : ''}>100%</option>
+                </select>
             </div>
             <div class="form-group">
                 <label>Lý do</label>
@@ -177,34 +199,6 @@
             </div>
             <button type="submit" class="btn btn-primary btn-full">Ghi làm lại món</button>
         </form>
-        <script>
-          (function(){
-            var MODS = ${empty remakeModifiersJson ? '{}' : remakeModifiersJson};
-            var sel = document.getElementById('remakeProduct');
-            var group = document.getElementById('remakeModifiersGroup');
-            var box = document.getElementById('remakeModifiers');
-            if (!sel || !group || !box) return;
-            function render(){
-              var list = MODS[sel.value] || [];
-              box.innerHTML = '';
-              if (!list.length){ group.style.display = 'none'; return; }
-              group.style.display = '';
-              list.forEach(function(o){
-                var id = 'rmk-opt-' + o.id;
-                var lbl = document.createElement('label');
-                lbl.className = 'remake-modifiers__item';
-                lbl.setAttribute('for', id);
-                var cb = document.createElement('input');
-                cb.type = 'checkbox'; cb.name = 'remakeOptionId'; cb.value = o.id; cb.id = id;
-                lbl.appendChild(cb);
-                lbl.appendChild(document.createTextNode(' ' + o.name));
-                box.appendChild(lbl);
-              });
-            }
-            sel.addEventListener('change', render);
-            render();
-          })();
-        </script>
     </div>
 </section>
 

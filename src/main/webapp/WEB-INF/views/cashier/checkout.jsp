@@ -72,7 +72,7 @@
                             <c:forEach var="bi" items="${b.items}">
                                 <tr>
                                     <c:if test="${b.status == 'UNPAID'}"><td><input type="checkbox" name="billItemId" value="${bi.billItemId}"></td></c:if>
-                                    <td>${bi.productName}</td>
+                                    <td>${bi.productName}<c:if test="${not empty bi.note}"><div class="muted" style="font-size:.85rem">${bi.note}</div></c:if></td>
                                     <td>${bi.quantity}</td>
                                     <td><fmt:formatNumber value="${bi.amount}" maxFractionDigits="0"/> ₫</td>
                                 </tr>

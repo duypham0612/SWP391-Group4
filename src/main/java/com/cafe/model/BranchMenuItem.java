@@ -3,18 +3,22 @@ package com.cafe.model;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/** Dòng menu theo chi nhánh = Product + trạng thái BranchMenu (có thể chưa publish). */
+/** Branch menu row: Product plus branch-level selling state. */
 public class BranchMenuItem {
     private int branchId;
     private int productId;
     private String productName;
     private BigDecimal basePrice;
-    private boolean published;        // đã có dòng catalog.BranchMenu chưa
+    private boolean published;
     private boolean available = true;
-    private BigDecimal localPrice;    // NULL = dùng BasePrice
+    private BigDecimal localPrice;
     private boolean is86;
-    private LocalDateTime backInEta;  // B3.F3 — dự kiến có lại (NULL = chưa rõ)
-    private String imageUrl;          // ảnh sản phẩm (catalog.Product.ImageUrl)
+    private LocalDateTime backInEta;
+    private String imageUrl;
+    private boolean sizeEnabled = true;
+    private BigDecimal sizeSDelta = BigDecimal.ZERO;
+    private BigDecimal sizeMDelta = BigDecimal.ZERO;
+    private BigDecimal sizeLDelta = BigDecimal.ZERO;
 
     public int getBranchId() { return branchId; }
     public void setBranchId(int branchId) { this.branchId = branchId; }
@@ -46,7 +50,18 @@ public class BranchMenuItem {
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
 
-    /** Chuỗi ETA gọn cho JSP (dd/MM HH:mm); rỗng nếu chưa rõ. */
+    public boolean isSizeEnabled() { return sizeEnabled; }
+    public void setSizeEnabled(boolean sizeEnabled) { this.sizeEnabled = sizeEnabled; }
+
+    public BigDecimal getSizeSDelta() { return sizeSDelta; }
+    public void setSizeSDelta(BigDecimal sizeSDelta) { this.sizeSDelta = sizeSDelta == null ? BigDecimal.ZERO : sizeSDelta; }
+
+    public BigDecimal getSizeMDelta() { return sizeMDelta; }
+    public void setSizeMDelta(BigDecimal sizeMDelta) { this.sizeMDelta = sizeMDelta == null ? BigDecimal.ZERO : sizeMDelta; }
+
+    public BigDecimal getSizeLDelta() { return sizeLDelta; }
+    public void setSizeLDelta(BigDecimal sizeLDelta) { this.sizeLDelta = sizeLDelta == null ? BigDecimal.ZERO : sizeLDelta; }
+
     public String getBackInEtaText() {
         return backInEta == null ? "" :
                 backInEta.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM HH:mm"));

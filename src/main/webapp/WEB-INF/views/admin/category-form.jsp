@@ -6,7 +6,6 @@
 <div class="page-header">
     <div>
         <h1><c:choose><c:when test="${category.categoryId > 0}">Sửa danh mục</c:when><c:otherwise>Thêm danh mục</c:otherwise></c:choose></h1>
-        <p>catalog.Category</p>
     </div>
     <a class="btn btn-ghost" href="${ctx}/admin/category">← Quay lại</a>
 </div>

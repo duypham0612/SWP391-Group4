@@ -11,6 +11,8 @@ import com.cafe.model.PayrollRow;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +52,7 @@ public class PayrollService {
             c.setAutoCommit(false);
             try {
                 for (Payroll p : lines) {
+                    if (!isActiveBranchUser(c, p.getUserId(), branchId)) throw new BusinessException("Nhân viên không thuộc chi nhánh của bạn hoặc đã bị khóa.");
                     payrollDao.upsert(c, branchId, p.getUserId(), payMonth, p.getWorkedHours(), p.getHourlyRate(), updatedBy);
                 }
                 c.commit();
@@ -59,10 +62,19 @@ public class PayrollService {
 
     static void validateHourlyRates(List<Payroll> lines) {
         for (Payroll p : lines) {
+            if (p.getWorkedHours() == null || p.getWorkedHours().signum() < 0 || p.getWorkedHours().compareTo(new BigDecimal("744")) > 0)
+                throw new BusinessException("Số giờ làm phải trong khoảng 0 đến 744 giờ/tháng.");
             BigDecimal hourlyRate = p.getHourlyRate();
             if (hourlyRate == null || hourlyRate.compareTo(Constants.MIN_HOURLY_RATE) < 0) {
                 throw new BusinessException("Lương cơ bản phải lớn hơn hoặc bằng 25.000₫/giờ.");
             }
+        }
+    }
+
+    private boolean isActiveBranchUser(Connection c, int userId, int branchId) throws SQLException {
+        try (PreparedStatement ps = c.prepareStatement("SELECT 1 FROM iam.[User] WHERE UserId=? AND BranchId=? AND Status='ACTIVE'")) {
+            ps.setInt(1, userId); ps.setInt(2, branchId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next(); }
         }
     }
 }

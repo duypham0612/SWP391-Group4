@@ -5,7 +5,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1><c:choose><c:when test="${editing}">Sửa nhân sự</c:when><c:otherwise>Thêm nhân sự</c:otherwise></c:choose></h1><p>iam.[User]</p></div>
+    <div><h1><c:choose><c:when test="${editing}">Sửa nhân sự</c:when><c:otherwise>Thêm nhân sự</c:otherwise></c:choose></h1></div>
     <a class="btn btn-ghost" href="${ctx}/admin/user">← Quay lại</a>
 </div>
 
@@ -40,52 +40,28 @@
         </div>
         <div class="form-group">
             <label for="roleId">Vai trò *</label>
-            <c:choose>
-                <c:when test="${editing}">
-                    <input id="roleIdDisplay" type="text" class="form-control" value="${staff.roleName}" disabled>
-                    <input type="hidden" name="roleId" value="${staff.roleId}">
-                </c:when>
-                <c:otherwise>
-                    <select id="roleId" name="roleId" class="form-control" required>
-                        <option value="">-- Chọn vai trò --</option>
-                        <c:forEach var="r" items="${roles}">
-                            <option value="${r.roleId}" <c:if test="${r.roleId == staff.roleId}">selected</c:if>>${r.name} (${r.code})</option>
-                        </c:forEach>
-                    </select>
-                </c:otherwise>
-            </c:choose>
+            <select id="roleId" name="roleId" class="form-control" required>
+                <option value="">-- Chọn vai trò --</option>
+                <c:forEach var="r" items="${roles}">
+                    <option value="${r.roleId}" <c:if test="${r.roleId == staff.roleId}">selected</c:if>>${r.name} (${r.code})</option>
+                </c:forEach>
+            </select>
         </div>
         <div class="form-group">
-            <label for="branchId">Chi nhánh</label>
-            <c:choose>
-                <c:when test="${editing}">
-                    <input id="branchIdDisplay" type="text" class="form-control" value="${staff.branchName}" disabled>
-                    <input type="hidden" name="branchId" value="${staff.branchId}">
-                </c:when>
-                <c:otherwise>
-                    <select id="branchId" name="branchId" class="form-control" required>
-                        <option value="">-- Tùy chọn --</option>
-                        <c:forEach var="b" items="${branches}">
-                            <option value="${b.branchId}" <c:if test="${b.branchId == staff.branchId}">selected</c:if>>${b.code} — ${b.name}</option>
-                        </c:forEach>
-                    </select>
-                </c:otherwise>
-            </c:choose>
+            <label for="branchId">Chi nhánh *</label>
+            <select id="branchId" name="branchId" class="form-control" required>
+                <option value="">-- Chọn chi nhánh --</option>
+                <c:forEach var="b" items="${branches}">
+                    <option value="${b.branchId}" <c:if test="${b.branchId == staff.branchId}">selected</c:if>>${b.code} — ${b.name}</option>
+                </c:forEach>
+            </select>
         </div>
         <div class="form-group">
             <label for="status">Trạng thái</label>
-            <c:choose>
-                <c:when test="${editing}">
-                    <input id="statusDisplay" type="text" class="form-control" value="${staff.status}" disabled>
-                    <input type="hidden" name="status" value="${staff.status}">
-                </c:when>
-                <c:otherwise>
-                    <select id="status" name="status" class="form-control">
-                        <option value="ACTIVE" <c:if test="${staff.status == 'ACTIVE'}">selected</c:if>>ACTIVE</option>
-                        <option value="LOCKED" <c:if test="${staff.status == 'LOCKED'}">selected</c:if>>LOCKED</option>
-                    </select>
-                </c:otherwise>
-            </c:choose>
+            <select id="status" name="status" class="form-control">
+                <option value="ACTIVE" <c:if test="${staff.status == 'ACTIVE'}">selected</c:if>>ACTIVE</option>
+                <option value="LOCKED" <c:if test="${staff.status == 'LOCKED'}">selected</c:if>>LOCKED</option>
+            </select>
         </div>
         <c:if test="${not editing}">
             <div class="form-group">
