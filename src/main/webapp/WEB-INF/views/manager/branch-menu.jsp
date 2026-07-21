@@ -28,15 +28,16 @@
             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
             <input type="hidden" name="action" value="hideMany">
         </form>
-        <div style="margin-bottom:12px">
-            <button type="submit" form="bulkHide" class="btn btn-ghost btn-sm" style="color:var(--st-cancelled)">Ẩn các món đã chọn</button>
+        <div class="branch-menu-actions">
+            <button type="submit" form="bulkHide" class="btn btn-ghost btn-sm danger-text">Ẩn các món đã chọn</button>
         </div>
-        <table class="table">
+        <div class="table-scroll branch-menu-scroll">
+        <table class="table branch-menu-table">
             <thead><tr>
-                <th style="width:40px"><input type="checkbox" onclick="document.querySelectorAll('.menupick').forEach(c=>c.checked=this.checked)"></th>
-                <th>Sản phẩm</th><th style="width:140px">Giá gốc</th>
-                <th style="width:260px">Giá địa phương</th>
-                <th style="width:120px">Bán</th><th style="width:140px">Hết tạm thời</th>
+                <th><input type="checkbox" onclick="document.querySelectorAll('.menupick').forEach(c=>c.checked=this.checked)"></th>
+                <th>Sản phẩm</th><th>Giá gốc</th>
+                <th>Giá địa phương</th>
+                <th>Bán</th><th>Hết tạm thời</th>
             </tr></thead>
             <tbody>
                 <c:forEach var="m" items="${items}">
@@ -50,23 +51,25 @@
                                 <c:otherwise><span class="muted">—</span></c:otherwise>
                             </c:choose>
                         </td>
-                        <td style="display:flex;align-items:center;gap:10px">
+                        <td>
+                            <div class="branch-product">
                             <img class="prod-thumb" src="${imgSrc}" alt="${m.productName}" loading="lazy" onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
-                            <span>${m.productName}</span>
+                                <span class="branch-product-name">${m.productName}</span>
+                            </div>
                         </td>
                         <td><fmt:formatNumber value="${m.basePrice}" maxFractionDigits="0"/> ₫</td>
                         <td>
-                            <form action="${ctx}/manager/menu" method="post" style="display:flex;gap:6px;align-items:center;margin:0">
+                            <form class="branch-price-form" action="${ctx}/manager/menu" method="post">
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                 <input type="hidden" name="action" value="setLocalPrice">
                                 <input type="hidden" name="productId" value="${m.productId}">
-                                <input type="number" name="localPrice" class="form-control" style="width:130px" step="100" min="0"
+                                <input type="number" name="localPrice" class="form-control" step="100" min="0"
                                        value="${m.localPrice}" placeholder="(giá gốc)">
                                 <button type="submit" class="btn btn-ghost btn-sm">Lưu</button>
                             </form>
                         </td>
                         <td>
-                            <form action="${ctx}/manager/menu" method="post" style="margin:0">
+                            <form class="branch-toggle-form" action="${ctx}/manager/menu" method="post">
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                 <input type="hidden" name="action" value="toggleAvailable">
                                 <input type="hidden" name="productId" value="${m.productId}">
@@ -76,7 +79,7 @@
                             </form>
                         </td>
                         <td>
-                            <form action="${ctx}/manager/menu" method="post" style="margin:0">
+                            <form class="branch-toggle-form" action="${ctx}/manager/menu" method="post">
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                 <input type="hidden" name="action" value="toggle86">
                                 <input type="hidden" name="productId" value="${m.productId}">
@@ -89,6 +92,7 @@
                 </c:forEach>
             </tbody>
         </table>
+        </div>
     </c:otherwise>
 </c:choose>
 

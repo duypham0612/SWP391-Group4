@@ -1,4 +1,4 @@
-# FUNCTION_LIST.md — Danh mục chức năng (dựng từ SOURCE CODE)
+﻿# FUNCTION_LIST.md — Danh mục chức năng (dựng từ SOURCE CODE)
 
 > Bảng này được rút trực tiếp từ mã nguồn (`@WebServlet` routes + action dispatch trong controller),
 > **không** dựa vào changelog. Là nguồn mô tả chức năng chính xác để đối chiếu với SRS/SDS.

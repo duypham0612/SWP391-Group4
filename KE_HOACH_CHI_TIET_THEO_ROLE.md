@@ -1,4 +1,4 @@
-# KẾ HOẠCH CHI TIẾT THEO ROLE — Hệ thống Quản lý Chuỗi Cafe
+﻿# KẾ HOẠCH CHI TIẾT THEO ROLE — Hệ thống Quản lý Chuỗi Cafe
 ### Bản đặc tả build cho Claude Code · JSP + Servlet + JSTL + SQL Server (MVC) · **Folder chia theo ROLE**
 
 > File này **mở rộng & chi tiết hóa** `KE_HOACH_TRIEN_KHAI_CLAUDE_CODE.md`. Khác biệt chính: cấu trúc Java **chia theo role** (dễ nhận diện, mỗi dev 1 folder) và **liệt kê đúng tên class/method/route/màn** cho từng role. Khi xung đột, **file này thắng** về chi tiết đặt tên; các nguyên tắc bất biến vẫn theo file gốc.

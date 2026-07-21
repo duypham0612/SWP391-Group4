@@ -1,4 +1,4 @@
-# CLAUDE.md — Ngữ cảnh dự án (đọc mỗi session)
+﻿# CLAUDE.md — Ngữ cảnh dự án (đọc mỗi session)
 
 > Hệ thống Quản lý Chuỗi Cafe (SWP391) · Stack: **JSP + Servlet + JSTL + SQL Server**, kiến trúc **MVC**.
 > Nguồn sự thật: `KE_HOACH_TRIEN_KHAI_CLAUDE_CODE.md` (nguyên tắc) + **`KE_HOACH_CHI_TIET_THEO_ROLE.md` (đặc tả tên class/method/route — THẮNG khi mâu thuẫn về đặt tên)** + `sql/database.sql`.

@@ -6,7 +6,7 @@ import java.math.RoundingMode;
 /**
  * ★ Tính tiền hoá đơn — logic THUẦN (không DB) để unit-test trước (Phase 5, rủi ro cao).
  *
- * Quy ước: giá dòng đơn (OrderItem.UnitPrice) ĐÃ gồm modifier. Bill:
+ * Quy ước: giá dòng đơn (OrderItem.UnitPrice) là giá đã chốt tại thời điểm đặt. Bill:
  *   subtotal  = Σ amount các dòng trên bill
  *   discount  = giảm giá voucher (PERCENT theo % subtotal / FIXED số tiền), kẹp trong [0, subtotal]
  *   net       = subtotal - discount

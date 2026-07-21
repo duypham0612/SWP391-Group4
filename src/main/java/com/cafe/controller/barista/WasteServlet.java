@@ -61,7 +61,8 @@ public class WasteServlet extends HttpServlet {
                 req.setAttribute("submittedRemake", form);
                 int count = service.remakeProduct(branchId, parseInt(form.productId, "Chưa chọn món làm lại."),
                         parseInt(form.quantity, "Số lượng món làm lại không hợp lệ."),
-                        parseOptionIds(req), combineReason(form.reasonPreset, form.reasonDetail), userId);
+                        form.size, form.iceLevel, form.sugarLevel,
+                        combineReason(form.reasonPreset, form.reasonDetail), userId);
                 req.getSession().setAttribute("flashOk", "Đã ghi làm lại món (" + count + " dòng nguyên liệu).");
             } else if ("update".equals(action)) {
                 editId = req.getParameter("wasteLogId");
@@ -119,7 +120,6 @@ public class WasteServlet extends HttpServlet {
         req.setAttribute("ingredients", service.getIngredients());
         List<com.cafe.model.BranchMenuItem> remakeProducts = service.getRemakeProducts(branchId);
         req.setAttribute("products", remakeProducts);
-        req.setAttribute("remakeModifiersJson", service.getRemakeModifiersJson(remakeProducts));
         req.setAttribute("scope", scope);
         req.setAttribute("logs", wasteLogPage.getLogs());
         req.setAttribute("hasWasteLogs", !scopedLogs.isEmpty());
@@ -135,7 +135,7 @@ public class WasteServlet extends HttpServlet {
             req.setAttribute("submittedWasteRows", List.of(new WasteRowForm("", "", "SPILL", "", "")));
         }
         if (req.getAttribute("submittedRemake") == null) {
-            req.setAttribute("submittedRemake", new RemakeForm("", "1", "", ""));
+            req.setAttribute("submittedRemake", new RemakeForm("", "1", "M", "Bình thường", "100%", "", ""));
         }
         if (editId != null && !editId.isBlank()) {
             try {
@@ -211,19 +211,8 @@ public class WasteServlet extends HttpServlet {
 
     private RemakeForm submittedRemake(HttpServletRequest req) {
         return new RemakeForm(req.getParameter("productId"), req.getParameter("productQty"),
+                req.getParameter("productSize"), req.getParameter("iceLevel"), req.getParameter("sugarLevel"),
                 req.getParameter("remakeReasonPreset"), req.getParameter("remakeReasonDetail"));
-    }
-
-    /** Tuỳ chọn modifier đã tick trên form làm lại (checkbox name="remakeOptionId"); bỏ giá trị lỗi. */
-    private List<Integer> parseOptionIds(HttpServletRequest req) {
-        String[] raw = req.getParameterValues("remakeOptionId");
-        if (raw == null) return List.of();
-        List<Integer> ids = new ArrayList<>();
-        for (String s : raw) {
-            if (blank(s)) continue;
-            try { ids.add(Integer.parseInt(s.trim())); } catch (NumberFormatException ignore) { /* bỏ qua */ }
-        }
-        return ids;
     }
 
     private static int parseInt(String value, String message) {
@@ -318,19 +307,45 @@ public class WasteServlet extends HttpServlet {
     public static class RemakeForm {
         private final String productId;
         private final String quantity;
+        private final String size;
+        private final String iceLevel;
+        private final String sugarLevel;
         private final String reasonPreset;
         private final String reasonDetail;
 
-        public RemakeForm(String productId, String quantity, String reasonPreset, String reasonDetail) {
+        public RemakeForm(String productId, String quantity, String size, String iceLevel, String sugarLevel,
+                          String reasonPreset, String reasonDetail) {
             this.productId = productId == null ? "" : productId;
             this.quantity = quantity == null || quantity.isBlank() ? "1" : quantity;
+            this.size = normalizeSize(size);
+            this.iceLevel = normalizeIce(iceLevel);
+            this.sugarLevel = normalizeSugar(sugarLevel);
             this.reasonPreset = reasonPreset == null ? "" : reasonPreset;
             this.reasonDetail = reasonDetail == null ? "" : reasonDetail;
         }
 
         public String getProductId() { return productId; }
         public String getQuantity() { return quantity; }
+        public String getSize() { return size; }
+        public String getIceLevel() { return iceLevel; }
+        public String getSugarLevel() { return sugarLevel; }
         public String getReasonPreset() { return reasonPreset; }
         public String getReasonDetail() { return reasonDetail; }
+
+        private static String normalizeSize(String value) {
+            if ("S".equalsIgnoreCase(value) || "L".equalsIgnoreCase(value)) return value.toUpperCase(java.util.Locale.ROOT);
+            return "M";
+        }
+
+        private static String normalizeIce(String value) {
+            if ("Không đá".equals(value) || "Ít đá".equals(value) || "Nhiều đá".equals(value)) return value;
+            return "Bình thường";
+        }
+
+        private static String normalizeSugar(String value) {
+            if ("0%".equals(value) || "30%".equals(value) || "50%".equals(value)
+                    || "70%".equals(value) || "100%".equals(value)) return value;
+            return "100%";
+        }
     }
 }

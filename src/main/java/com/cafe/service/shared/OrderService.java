@@ -7,23 +7,16 @@ import com.cafe.config.DBConnection;
 import com.cafe.dao.cashier.BillDao;
 import com.cafe.dao.cashier.BillItemDao;
 import com.cafe.dao.shared.BranchMenuDao;
-import com.cafe.dao.shared.ModifierGroupDao;
-import com.cafe.dao.shared.ModifierOptionDao;
 import com.cafe.dao.shared.OrderDao;
 import com.cafe.dao.shared.OrderItemDao;
 import com.cafe.dao.shared.OrderItemActionDao;
-import com.cafe.dao.shared.OrderItemModifierDao;
-import com.cafe.dao.shared.ProductModifierGroupDao;
 import com.cafe.dao.shared.ProductRecipeDao;
 import com.cafe.dao.admin.ProductDao;
 import com.cafe.model.BranchMenuItem;
-import com.cafe.model.ModifierGroup;
-import com.cafe.model.ModifierOption;
 import com.cafe.model.Order;
 import com.cafe.model.OrderItem;
 import com.cafe.model.PickupTicket;
 import com.cafe.model.ProductRecipe;
-import com.cafe.model.ProductModifierGroup;
 import com.cafe.model.Product;
 import com.cafe.model.StockAdjustment;
 
@@ -45,11 +38,7 @@ public class OrderService {
     private final OrderDao orderDao = new OrderDao();
     private final OrderItemDao itemDao = new OrderItemDao();
     private final OrderItemActionDao actionDao = new OrderItemActionDao();
-    private final OrderItemModifierDao oimDao = new OrderItemModifierDao();
     private final BranchMenuDao branchMenuDao = new BranchMenuDao();
-    private final ModifierOptionDao optionDao = new ModifierOptionDao();
-    private final ModifierGroupDao groupDao = new ModifierGroupDao();
-    private final ProductModifierGroupDao pmgDao = new ProductModifierGroupDao();
     private final BillDao billDao = new BillDao();
     private final BillItemDao billItemDao = new BillItemDao();
     private final ProductRecipeDao productRecipeDao = new ProductRecipeDao();
@@ -62,7 +51,6 @@ public class OrderService {
         public int productId;
         public int quantity;
         public String note;
-        public List<Integer> optionIds = new ArrayList<>();
         public String size = "M";
         public String iceLevel = "Bình thường";
         public String sugarLevel = "100%";
@@ -84,8 +72,8 @@ public class OrderService {
     }
 
     /**
-     * Đặt đơn (COUNTER hoặc QR) — tạo Order + OrderItem(WAITING) + OrderItemModifier, publish order.created.
-     * Tất cả trong MỘT transaction. Giá tính server-side (giá menu chi nhánh + Σ priceDelta option).
+     * Đặt đơn (COUNTER hoặc QR) — tạo Order + OrderItem(WAITING), publish order.created.
+     * Tất cả trong MỘT transaction. Giá tính server-side (giá menu chi nhánh + size delta).
      */
     public int placeOrder(int branchId, Integer sessionId, String source, String orderType,
                           Integer createdBy, List<CartLine> lines) throws SQLException {
@@ -127,34 +115,24 @@ public class OrderService {
                         throw new IllegalArgumentException("Món \"" + nm + "\" đang hết (86) — vui lòng bỏ khỏi đơn.");
                     }
 
-                    List<Integer> optionIds = validateOptions(conn, line.productId, line.optionIds);
                     Product product = productDao.findById(conn, line.productId);
                     String size = cleanSize(line.size, product);
                     String iceLevel = cleanIce(line.iceLevel);
                     String sugarLevel = cleanSugar(line.sugarLevel);
 
-                    // gom priceDelta của các option đã chọn
                     BigDecimal unit = base.add(sizeDelta(product, size));
-                    Map<Integer, BigDecimal> deltaByOption = new HashMap<>();
-                    for (Integer optId : optionIds) {
-                        ModifierOption opt = optionDao.findById(conn, optId);
-                        deltaByOption.put(optId, opt.getPriceDelta());
-                        unit = unit.add(opt.getPriceDelta());
-                    }
 
                     OrderItem it = new OrderItem();
                     it.setOrderId(orderId);
                     it.setProductId(line.productId);
                     it.setQuantity(line.quantity);
                     it.setUnitPrice(unit);
+                    it.setSize(size);
+                    it.setIceLevel(iceLevel);
+                    it.setSugarLevel(sugarLevel);
                     it.setNote(buildOptionNote(size, iceLevel, sugarLevel, line.note));
                     it.setStatus("WAITING");
-                    int itemId = itemDao.insert(conn, it);
-
-                    for (Integer optId : optionIds) {
-                        oimDao.insert(conn, itemId, optId,
-                                deltaByOption.getOrDefault(optId, BigDecimal.ZERO));
-                    }
+                    itemDao.insert(conn, it);
                 }
 
                 EventPublisher.publish(conn, EventType.ORDER_CREATED, String.valueOf(orderId), branchId,
@@ -216,48 +194,6 @@ public class OrderService {
         return options + " | " + note.trim();
     }
 
-    private List<Integer> validateOptions(Connection conn, int productId, List<Integer> optionIds) throws SQLException {
-        List<Integer> selected = optionIds == null ? List.of() : optionIds;
-        if (selected.isEmpty()) return new ArrayList<>();
-        Map<Integer, ModifierGroup> groupsById = new HashMap<>();
-        Map<Integer, Integer> optionToGroup = new HashMap<>();
-        Map<Integer, Integer> selectedCountByGroup = new HashMap<>();
-
-        for (ProductModifierGroup pmg : pmgDao.findByProduct(conn, productId)) {
-            ModifierGroup group = groupDao.findById(conn, pmg.getModifierGroupId());
-            if (group == null) continue;
-            groupsById.put(group.getModifierGroupId(), group);
-            for (ModifierOption option : optionDao.findByGroup(conn, group.getModifierGroupId())) {
-                if (option.isActive()) optionToGroup.put(option.getModifierOptionId(), group.getModifierGroupId());
-            }
-        }
-
-        List<Integer> validOptionIds = new ArrayList<>();
-        for (Integer optionId : selected) {
-            if (optionId == null) continue;
-            Integer groupId = optionToGroup.get(optionId);
-            if (groupId == null) {
-                throw new IllegalArgumentException("Tuỳ chọn không hợp lệ cho món này.");
-            }
-            selectedCountByGroup.merge(groupId, 1, Integer::sum);
-            validOptionIds.add(optionId);
-        }
-
-        for (ModifierGroup group : groupsById.values()) {
-            int count = selectedCountByGroup.getOrDefault(group.getModifierGroupId(), 0);
-            if (group.isRequired() && count < group.getMinSelect()) {
-                throw new IllegalArgumentException("Vui lòng chọn " + group.getName() + ".");
-            }
-            if (count < group.getMinSelect()) {
-                throw new IllegalArgumentException("Vui lòng chọn tối thiểu " + group.getMinSelect() + " tuỳ chọn cho " + group.getName() + ".");
-            }
-            if (group.getMaxSelect() > 0 && count > group.getMaxSelect()) {
-                throw new IllegalArgumentException(group.getName() + " chỉ được chọn tối đa " + group.getMaxSelect() + " tuỳ chọn.");
-            }
-        }
-        return validOptionIds;
-    }
-
     // ---------- KDS (Barista) ----------
 
     public List<OrderItem> getKdsQueue(int branchId) throws SQLException {
@@ -267,7 +203,6 @@ public class OrderService {
             for (OrderItem it : items) productIds.add(it.getProductId());
             java.util.Set<Integer> withRecipe = productRecipeDao.findProductIdsWithRecipe(conn, productIds);
             for (OrderItem it : items) {
-                it.setModifiers(oimDao.findByItem(conn, it.getOrderItemId()));
                 it.setRecipeMissing(!withRecipe.contains(it.getProductId()));   // cảnh báo món chưa có công thức
             }
             return items;
@@ -288,7 +223,6 @@ public class OrderService {
             for (OrderItem it : items) productIds.add(it.getProductId());
             java.util.Set<Integer> withRecipe = productRecipeDao.findProductIdsWithRecipe(conn, productIds);
             for (OrderItem it : items) {
-                it.setModifiers(oimDao.findByItem(conn, it.getOrderItemId()));
                 it.setRecipeMissing(!withRecipe.contains(it.getProductId()));
             }
             return items;
@@ -300,7 +234,6 @@ public class OrderService {
             throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             List<OrderItem> items = itemDao.findStaleItems(conn, branchId, businessDayStartUtc);
-            for (OrderItem it : items) it.setModifiers(oimDao.findByItem(conn, it.getOrderItemId()));
             return items;
         }
     }
@@ -308,7 +241,6 @@ public class OrderService {
     public List<OrderItem> getReadyItems(int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             List<OrderItem> items = itemDao.findReady(conn, branchId);
-            for (OrderItem it : items) it.setModifiers(oimDao.findByItem(conn, it.getOrderItemId()));
             return items;
         }
     }
@@ -317,7 +249,6 @@ public class OrderService {
     public List<OrderItem> getRecentlyServed(int branchId, int minutes) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             List<OrderItem> items = itemDao.findRecentlyServed(conn, branchId, minutes);
-            for (OrderItem it : items) it.setModifiers(oimDao.findByItem(conn, it.getOrderItemId()));
             return items;
         }
     }
@@ -325,7 +256,6 @@ public class OrderService {
     public List<OrderItem> getPickedUpItems(int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             List<OrderItem> items = itemDao.findPickedUp(conn, branchId);
-            for (OrderItem it : items) it.setModifiers(oimDao.findByItem(conn, it.getOrderItemId()));
             return items;
         }
     }
@@ -712,7 +642,7 @@ public class OrderService {
 
     /**
      * Dữ liệu màn "Sẵn sàng bàn giao": gom món READY theo đơn + toàn bộ món của các đơn đó (đối chiếu
-     * đủ/đúng) trong MỘT connection (tránh N+1 mở connection theo từng đơn). Modifier nạp 1 lần/món.
+     * đủ/đúng) trong MỘT connection (tránh N+1 mở connection theo từng đơn).
      */
     public List<PickupTicket> getPickupTickets(int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
@@ -725,12 +655,11 @@ public class OrderService {
             }
             List<Integer> orderIds = new ArrayList<>(readyByOrder.keySet());
 
-            // Toàn bộ món của các đơn liên quan (1 query) + modifier (1 lần/món).
+            // Toàn bộ món của các đơn liên quan (1 query).
             List<OrderItem> allItems = itemDao.findByOrders(conn, orderIds);
             Map<Integer, List<OrderItem>> allByOrder = new LinkedHashMap<>();
             Map<Integer, OrderItem> byItemId = new HashMap<>();
             for (OrderItem it : allItems) {
-                it.setModifiers(oimDao.findByItem(conn, it.getOrderItemId()));
                 allByOrder.computeIfAbsent(it.getOrderId(), k -> new ArrayList<>()).add(it);
                 byItemId.put(it.getOrderItemId(), it);
             }
@@ -738,7 +667,6 @@ public class OrderService {
             List<PickupTicket> tickets = new ArrayList<>();
             for (Integer oid : orderIds) {
                 List<OrderItem> readyRows = readyByOrder.get(oid);
-                // Dùng bản đã nạp modifier cho món READY (thay vì query lại).
                 List<OrderItem> readyEnriched = new ArrayList<>();
                 for (OrderItem r : readyRows) {
                     OrderItem enriched = byItemId.get(r.getOrderItemId());
@@ -757,7 +685,6 @@ public class OrderService {
             Order o = orderDao.findById(conn, orderId);
             if (o == null) return null;
             List<OrderItem> items = itemDao.findByOrder(conn, orderId);
-            for (OrderItem it : items) it.setModifiers(oimDao.findByItem(conn, it.getOrderItemId()));
             o.setItems(items);
             return o;
         }
@@ -774,7 +701,6 @@ public class OrderService {
             List<Order> orders = orderDao.findActiveByBranch(conn, branchId);
             for (Order o : orders) {
                 List<OrderItem> items = itemDao.findByOrder(conn, o.getOrderId());
-                for (OrderItem it : items) it.setModifiers(oimDao.findByItem(conn, it.getOrderItemId()));
                 o.setItems(items);
                 // R3 · trạng thái thanh toán tổng đơn (suy từ các bill của phiên bàn)
                 o.setPaymentStatus(o.getTableSessionId() == null ? "PAYING"
@@ -834,7 +760,6 @@ public class OrderService {
             List<Order> orders = orderDao.findBySession(conn, sessionId);
             for (Order o : orders) {
                 List<OrderItem> items = itemDao.findByOrder(conn, o.getOrderId());
-                for (OrderItem it : items) it.setModifiers(oimDao.findByItem(conn, it.getOrderItemId()));
                 o.setItems(items);
             }
             return orders;

@@ -1,4 +1,4 @@
-# Kế hoạch: Báo tạm hết món có kiểm soát (Barista → Manager duyệt)
+﻿# Kế hoạch: Báo tạm hết món có kiểm soát (Barista → Manager duyệt)
 
 > Trạng thái: **chưa làm** (trừ mục 0 đã xong).
 > Phạm vi: 7 file, 2 module (barista + manager). Mức thay đổi: **L2** (thêm bảng DB, thêm route).

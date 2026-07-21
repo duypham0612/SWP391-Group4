@@ -9,6 +9,11 @@
     <a class="btn btn-primary" href="${ctx}/admin/voucher?action=new">+ Thêm voucher</a>
 </div>
 
+<c:if test="${not empty sessionScope.flashError}">
+    <div class="alert alert-error">${sessionScope.flashError}</div>
+    <c:remove var="flashError" scope="session" />
+</c:if>
+
 <c:choose>
     <c:when test="${empty vouchers}">
         <div class="card empty-state"><div class="icon">📭</div><p>Chưa có voucher nào.</p></div>

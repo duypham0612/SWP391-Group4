@@ -1,4 +1,4 @@
-# KẾ HOẠCH FIX SAU AUDIT — 4 ROLE (com.cafe)
+﻿# KẾ HOẠCH FIX SAU AUDIT — 4 ROLE (com.cafe)
 
 > Nguồn: báo cáo audit `DAC_TA_FUNCTION_AUDIT_4_ROLE.md` + quét code thực tế (2026-06-29).
 > Mục tiêu: đưa **BARISTA đạt chuẩn (≥7 màn, ≥2 CRUD)**, bổ sung **Cashier Order Inbox**, sửa **bug thật**, không phá contract C1–C5.

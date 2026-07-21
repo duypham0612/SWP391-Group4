@@ -1,4 +1,4 @@
-# PROGRESS.md — Nhật ký tiến trình dự án
+﻿# PROGRESS.md — Nhật ký tiến trình dự án
 
 > Cập nhật sau mỗi bước/Phase. Ngữ cảnh & quy ước cố định nằm ở `CLAUDE.md`.
 >

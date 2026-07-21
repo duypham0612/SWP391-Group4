@@ -115,15 +115,15 @@
 </div>
 </c:if>
 
-<div class="grid-2">
-    <div class="card">
+<div class="grid-2 manager-dashboard-grid">
+    <div class="card dashboard-table-card">
         <h3 style="margin-top:0">Ca làm hôm nay</h3>
         <c:choose>
             <c:when test="${empty staffOnShift}">
                 <p class="muted">Chưa xếp ca nào cho hôm nay.</p>
             </c:when>
             <c:otherwise>
-                <table class="table">
+                <table class="table dashboard-mini-table shift-table">
                     <thead><tr><th>Nhân viên</th><th>Ca</th><th>Giờ</th></tr></thead>
                     <tbody>
                         <c:forEach var="a" items="${staffOnShift}">
@@ -134,14 +134,14 @@
             </c:otherwise>
         </c:choose>
     </div>
-    <div class="card">
+    <div class="card dashboard-table-card">
         <h3 style="margin-top:0">Cảnh báo tồn thấp</h3>
         <c:choose>
             <c:when test="${empty lowStockAlerts}">
                 <p class="muted">Tồn kho ổn định.</p>
             </c:when>
             <c:otherwise>
-                <table class="table">
+                <table class="table dashboard-mini-table low-stock-table">
                     <thead><tr><th>Nguyên liệu</th><th>Tồn</th><th>Ngưỡng</th></tr></thead>
                     <tbody>
                         <c:forEach var="l" items="${lowStockAlerts}">

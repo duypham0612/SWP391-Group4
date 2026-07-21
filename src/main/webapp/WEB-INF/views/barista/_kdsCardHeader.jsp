@@ -12,9 +12,6 @@
     </c:choose>
 </div>
 
-<c:if test="${not empty cardItem.modifiers}">
-    <div class="kds-mods"><c:forEach var="om" items="${cardItem.modifiers}"><span class="chip"><c:out value="${om.optionName}" /></span></c:forEach></div>
-</c:if>
 <c:if test="${not empty cardItem.note}">
     <div class="kds-note"><span class="kds-note__tag">Ghi chú</span><c:out value="${cardItem.note}" /></div>
 </c:if>

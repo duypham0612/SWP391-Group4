@@ -5,25 +5,16 @@ import com.cafe.dao.admin.CategoryDao;
 import com.cafe.dao.admin.HomeSettingDao;
 import com.cafe.dao.admin.ProductDao;
 import com.cafe.dao.shared.BranchMenuDao;
-import com.cafe.dao.shared.ModifierGroupDao;
-import com.cafe.dao.shared.ModifierIngredientImpactDao;
-import com.cafe.dao.shared.ModifierOptionDao;
 import com.cafe.dao.shared.PrepRecipeDao;
-import com.cafe.dao.shared.ProductModifierGroupDao;
 import com.cafe.dao.shared.ProductRecipeDao;
 import com.cafe.model.BranchMenuItem;
 import com.cafe.model.Category;
 import com.cafe.model.HomeSetting;
-import com.cafe.model.ModifierGroup;
-import com.cafe.model.ModifierIngredientImpact;
-import com.cafe.model.ModifierOption;
 import com.cafe.model.PosMenuItem;
 import com.cafe.model.PrepRecipe;
 import com.cafe.model.Product;
-import com.cafe.model.ProductModifierGroup;
 import com.cafe.model.ProductRecipe;
 
-import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -33,17 +24,13 @@ import java.util.List;
 public class CatalogReadService {
 
     private final BranchMenuDao branchMenuDao = new BranchMenuDao();
-    private final ProductModifierGroupDao pmgDao = new ProductModifierGroupDao();
-    private final ModifierGroupDao groupDao = new ModifierGroupDao();
-    private final ModifierOptionDao optionDao = new ModifierOptionDao();
     private final ProductRecipeDao productRecipeDao = new ProductRecipeDao();
     private final PrepRecipeDao prepRecipeDao = new PrepRecipeDao();
-    private final ModifierIngredientImpactDao impactDao = new ModifierIngredientImpactDao();
     private final ProductDao productDao = new ProductDao();
     private final CategoryDao categoryDao = new CategoryDao();
     private final HomeSettingDao homeSettingDao = new HomeSettingDao();
 
-    /** Menu bán được của chi nhánh: published + available + chưa 86, kèm nhóm modifier. */
+    /** Menu bán được của chi nhánh: published + available + chưa 86. */
     public List<PosMenuItem> getPosMenu(int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             List<PosMenuItem> out = new ArrayList<>();
@@ -159,37 +146,4 @@ public class CatalogReadService {
         }
     }
 
-    /** Tác động nguyên liệu của các modifier áp cho 1 product (option → ingredient, QtyDelta). */
-    public List<OptionImpactRow> getModifierImpactsForProduct(int productId) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            List<OptionImpactRow> rows = new ArrayList<>();
-            for (ProductModifierGroup pmg : pmgDao.findByProduct(conn, productId)) {
-                ModifierGroup g = groupDao.findById(conn, pmg.getModifierGroupId());
-                if (g == null) continue;
-                for (ModifierOption o : optionDao.findByGroup(conn, g.getModifierGroupId())) {
-                    for (ModifierIngredientImpact imp : impactDao.findByOption(conn, o.getModifierOptionId())) {
-                        OptionImpactRow r = new OptionImpactRow();
-                        r.groupName = g.getName();
-                        r.optionName = o.getName();
-                        r.ingredientName = imp.getIngredientName();
-                        r.ingredientUnit = imp.getIngredientUnit();
-                        r.qtyDelta = imp.getQtyDelta();
-                        rows.add(r);
-                    }
-                }
-            }
-            return rows;
-        }
-    }
-
-    /** Dòng phẳng cho view tra cứu modifier (EL-friendly). */
-    public static class OptionImpactRow {
-        private String groupName, optionName, ingredientName, ingredientUnit;
-        private BigDecimal qtyDelta;
-        public String getGroupName() { return groupName; }
-        public String getOptionName() { return optionName; }
-        public String getIngredientName() { return ingredientName; }
-        public String getIngredientUnit() { return ingredientUnit; }
-        public BigDecimal getQtyDelta() { return qtyDelta; }
-    }
 }
