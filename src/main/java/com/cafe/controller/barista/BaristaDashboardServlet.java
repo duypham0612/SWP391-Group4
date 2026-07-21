@@ -6,10 +6,13 @@ import com.cafe.model.BranchMenuItem;
 import com.cafe.model.OrderItem;
 import com.cafe.service.barista.HandoverService;
 import com.cafe.service.barista.KdsService;
+import com.cafe.service.barista.PrepRecommendationService;
 import com.cafe.service.barista.WasteService;
 import com.cafe.service.shared.BranchMenuService;
 import com.cafe.service.shared.InventoryService;
 import com.cafe.service.shared.WasteSummary;
+import com.cafe.service.shared.BaristaAuditService;
+import com.cafe.model.PrepRecommendation;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -29,6 +32,8 @@ public class BaristaDashboardServlet extends HttpServlet {
     private final WasteService wasteService = new WasteService();
     private final InventoryService inventoryService = new InventoryService();
     private final BranchMenuService branchMenuService = new BranchMenuService();
+    private final PrepRecommendationService prepRecommendationService = new PrepRecommendationService();
+    private final BaristaAuditService auditService = new BaristaAuditService();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -71,6 +76,10 @@ public class BaristaDashboardServlet extends HttpServlet {
             req.setAttribute("eightySixCount", eightySixCount);
             req.setAttribute("oversoldCount", oversoldCount);
             req.setAttribute("suggest86Count", branchMenuService.getSuggested86(branchId).size());
+            List<PrepRecommendation> prepRecommendations = prepRecommendationService.getRecommendations(branchId);
+            req.setAttribute("prepRecommendations", prepRecommendations);
+            req.setAttribute("prepNeedCount", prepRecommendations.stream().filter(PrepRecommendation::isNeedPrep).count());
+            req.setAttribute("baristaHistory", auditService.recent(branchId, 12));
             req.setAttribute("alertCount", lowStock.size() + eightySixCount);
             req.setAttribute("pageTitle", "Bảng điều khiển ca");
             req.getRequestDispatcher("/WEB-INF/views/barista/dashboard.jsp").forward(req, resp);

@@ -30,12 +30,15 @@ public class CatalogReadService {
     private final CategoryDao categoryDao = new CategoryDao();
     private final HomeSettingDao homeSettingDao = new HomeSettingDao();
 
-    /** Menu bán được của chi nhánh: published + available + chưa 86. */
+    /** Menu bán được của chi nhánh: published + available + chưa 86 + còn tồn (không hết theo kho). */
     public List<PosMenuItem> getPosMenu(int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
+            // Hết theo kho = tự động ẩn (bản chất 1): tính từ tồn, không phải cờ 86 thủ công.
+            java.util.Set<Integer> depleted = productRecipeDao.findDepletedProductIds(conn, branchId);
             List<PosMenuItem> out = new ArrayList<>();
             for (BranchMenuItem bm : branchMenuDao.listForBranch(conn, branchId)) {
-                if (!bm.isPublished() || !bm.isAvailable() || bm.isIs86()) continue;
+                if (!bm.isPublished() || !bm.isAvailable() || bm.isIs86()
+                        || depleted.contains(bm.getProductId())) continue;
                 PosMenuItem item = new PosMenuItem();
                 item.setProductId(bm.getProductId());
                 item.setName(bm.getProductName());

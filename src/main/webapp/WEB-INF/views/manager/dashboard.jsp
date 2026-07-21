@@ -86,7 +86,7 @@
 <c:if test="${summary.hasOpenMenuBlocks}">
 <div class="card" style="margin-bottom:var(--s5)">
     <h3 style="margin-top:0">Yêu cầu tạm hết đang chờ</h3>
-    <p class="muted">Món đã bị chặn bán ngay khi pha chế báo. Duyệt hoặc mở bán lại để món quay về menu.</p>
+    <p class="muted">Món đã bị chặn bán ngay khi pha chế báo. Xác nhận hoặc mở bán lại để món quay về menu.</p>
     <table class="table">
         <thead>
             <tr><th>Món</th><th>Lý do</th><th>Người báo</th><th>Báo lúc</th><th>Dự kiến có lại</th><th></th></tr>

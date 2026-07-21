@@ -7,6 +7,8 @@ import com.cafe.common.SessionUtil;
 import com.cafe.model.Ingredient;
 import com.cafe.model.User;
 import com.cafe.service.barista.PrepService;
+import com.cafe.service.barista.PrepRecommendationService;
+import com.cafe.service.shared.BaristaAuditService;
 import com.cafe.service.shared.InventoryService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -30,6 +32,8 @@ import java.util.Map;
 public class PrepServlet extends HttpServlet {
 
     private final PrepService service = new PrepService();
+    private final PrepRecommendationService recommendationService = new PrepRecommendationService();
+    private final BaristaAuditService auditService = new BaristaAuditService();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -62,13 +66,13 @@ public class PrepServlet extends HttpServlet {
                 resp.sendRedirect(req.getContextPath() + "/barista/prep");
                 return;
             } else if ("cancelBatch".equals(action)) {
-                service.cancelBatch(branchId, Integer.parseInt(req.getParameter("prepBatchId")), userId);
+                service.cancelBatch(branchId, Integer.parseInt(req.getParameter("prepBatchId")), userId, requiredReason(req));
                 req.getSession().setAttribute("flashOk", "Đã huỷ mẻ — tồn kho hoàn lại qua sổ cái (txn bù).");
             } else if ("updateBatch".equals(action)) {
                 int batchId = Integer.parseInt(req.getParameter("prepBatchId"));
                 BigDecimal qty = new BigDecimal(req.getParameter("quantityProduced").trim());
                 if (qty.signum() > 0) {
-                    service.updateBatch(branchId, batchId, qty, userId);
+                    service.updateBatch(branchId, batchId, qty, userId, requiredReason(req));
                     req.getSession().setAttribute("flashOk", "Đã cập nhật sản lượng — chênh lệch ghi vào sổ cái.");
                 } else {
                     req.getSession().setAttribute("flashError", "Sản lượng phải > 0.");
@@ -166,6 +170,10 @@ public class PrepServlet extends HttpServlet {
 
         req.setAttribute("preppedIngredients", prepped);
         req.setAttribute("checklist", service.getPrepChecklist(branchId));
+        List<com.cafe.model.PrepRecommendation> recommendations = recommendationService.getRecommendations(branchId);
+        req.setAttribute("prepRecommendations", recommendations);
+        req.setAttribute("prepNeedCount", recommendations.stream().filter(com.cafe.model.PrepRecommendation::isNeedPrep).count());
+        req.setAttribute("baristaHistory", auditService.recent(branchId, 80));
         req.setAttribute("expiredBatches", expiredBatches);
         req.setAttribute("expiredBatchCount", expiredBatches.size());
         req.setAttribute("batches", batchPage.getBatches());
@@ -215,6 +223,12 @@ public class PrepServlet extends HttpServlet {
     private static int len(String[] a) { return a == null ? 0 : a.length; }
     private static String value(String[] a, int i) { return a != null && i < a.length && a[i] != null ? a[i] : ""; }
     private static boolean blank(String s) { return s == null || s.isBlank(); }
+
+    private static String requiredReason(HttpServletRequest req) {
+        String reason = textParam(req, "reason", 255);
+        if (reason.isBlank()) throw new BusinessException("Vui lòng nhập lý do sửa hoặc huỷ mẻ.");
+        return reason;
+    }
 
     private static String textParam(HttpServletRequest req, String name, int maxLength) {
         String value = req.getParameter(name);

@@ -90,6 +90,8 @@ public class OrderService {
                     is86ByProduct.put(bm.getProductId(), bm.isIs86());
                     nameByProduct.put(bm.getProductId(), bm.getProductName());
                 }
+                // Hết theo kho (bản chất 1): chặn đặt món có nguyên liệu tồn ≤ 0, độc lập với cờ 86 thủ công.
+                java.util.Set<Integer> depletedProduct = productRecipeDao.findDepletedProductIds(conn, branchId);
 
                 Order o = new Order();
                 o.setBranchId(branchId);
@@ -113,6 +115,11 @@ public class OrderService {
                     if (Boolean.TRUE.equals(is86ByProduct.get(line.productId))) {
                         String nm = nameByProduct.getOrDefault(line.productId, "#" + line.productId);
                         throw new IllegalArgumentException("Món \"" + nm + "\" đang hết (86) — vui lòng bỏ khỏi đơn.");
+                    }
+                    // Hết theo kho: nguyên liệu tồn ≤ 0 → chặn đặt, chờ nhập/pha lại (tự có lại khi tồn > 0).
+                    if (depletedProduct.contains(line.productId)) {
+                        String nm = nameByProduct.getOrDefault(line.productId, "#" + line.productId);
+                        throw new IllegalArgumentException("Món \"" + nm + "\" tạm hết nguyên liệu — vui lòng bỏ khỏi đơn.");
                     }
 
                     Product product = productDao.findById(conn, line.productId);

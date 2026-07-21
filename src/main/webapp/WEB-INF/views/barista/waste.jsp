@@ -30,6 +30,7 @@
 </c:if>
 
 <jsp:include page="../layout/_baristaShiftBanner.jsp" />
+<nav class="seg" aria-label="Điều hướng hao hụt" style="margin-bottom:var(--s4)"><a class="seg__btn is-active" href="#waste-entry">Ghi hao hụt</a><a class="seg__btn" href="#manual-remake">Làm lại ngoài đơn</a><a class="seg__btn" href="#waste-history">Lịch sử</a></nav>
 
 <div class="${onShift ? '' : 'is-viewonly'}">
 <section class="waste-summary">
@@ -69,7 +70,7 @@
 </c:if>
 
 <section class="waste-mode-grid">
-    <div class="card waste-card">
+    <div id="waste-entry" class="card waste-card">
         <div class="waste-card__head">
             <div>
                 <h3>Hao hụt nguyên liệu</h3>
@@ -99,7 +100,7 @@
                             <label>Loại</label>
                             <select name="wasteType" class="form-control waste-type">
                                 <option value="SPILL" ${row.wasteType == 'SPILL' ? 'selected' : ''}>Đổ/rơi</option>
-                                <option value="EXPIRED" ${row.wasteType == 'EXPIRED' ? 'selected' : ''}>Hết hạn</option>
+                                <option value="EXPIRED" ${row.wasteType == 'EXPIRED' ? 'selected' : ''}>Hỏng / hết hạn</option>
                                 <option value="OTHER" ${row.wasteType == 'OTHER' ? 'selected' : ''}>Khác</option>
                             </select>
                         </div>
@@ -111,6 +112,7 @@
                                 <option data-type="SPILL" value="Rơi khi thao tác" ${row.reasonPreset == 'Rơi khi thao tác' ? 'selected' : ''}>Rơi khi thao tác</option>
                                 <option data-type="SPILL" value="Sai định lượng" ${row.reasonPreset == 'Sai định lượng' ? 'selected' : ''}>Sai định lượng</option>
                                 <option data-type="EXPIRED" value="Hết hạn" ${row.reasonPreset == 'Hết hạn' ? 'selected' : ''}>Hết hạn</option>
+                                <option data-type="EXPIRED" value="Nguyên liệu hỏng" ${row.reasonPreset == 'Nguyên liệu hỏng' ? 'selected' : ''}>Nguyên liệu hỏng</option>
                                 <option data-type="EXPIRED" value="Bảo quản lỗi" ${row.reasonPreset == 'Bảo quản lỗi' ? 'selected' : ''}>Bảo quản lỗi</option>
                                 <option data-type="EXPIRED" value="Quá thời gian mở nắp" ${row.reasonPreset == 'Quá thời gian mở nắp' ? 'selected' : ''}>Quá thời gian mở nắp</option>
                                 <option data-type="OTHER" value="Kiểm kê lệch" ${row.reasonPreset == 'Kiểm kê lệch' ? 'selected' : ''}>Kiểm kê lệch</option>
@@ -133,11 +135,11 @@
         </form>
     </div>
 
-    <div class="card waste-card">
+    <div id="manual-remake" class="card waste-card">
         <div class="waste-card__head">
             <div>
-                <h3>Làm lại món</h3>
-                <p>Chọn món và số lượng, hệ thống tự bung công thức thành các dòng nguyên liệu REMAKE.</p>
+                <h3>Làm lại ngoài đơn</h3>
+                <p>Chỉ dùng khi không còn dòng món trên KDS. Với đơn đang phục vụ, hãy bấm “Làm lại món” ngay trên KDS để giữ đúng lịch sử đơn.</p>
             </div>
         </div>
         <form action="${ctx}/barista/waste" method="post" class="waste-remake-form">
@@ -185,7 +187,7 @@
             </div>
             <div class="form-group">
                 <label>Lý do</label>
-                <select name="remakeReasonPreset" class="form-control">
+                <select name="remakeReasonPreset" class="form-control" required>
                     <option value="">-- Gợi ý --</option>
                     <option value="Sai công thức" ${submittedRemake.reasonPreset == 'Sai công thức' ? 'selected' : ''}>Sai công thức</option>
                     <option value="Khách yêu cầu làm lại" ${submittedRemake.reasonPreset == 'Khách yêu cầu làm lại' ? 'selected' : ''}>Khách yêu cầu làm lại</option>
@@ -443,5 +445,19 @@
   });
 })();
 </script>
+<section id="waste-history" class="card" style="margin-top:var(--s4)">
+    <details>
+        <summary><strong>Lịch sử thao tác trong ca</strong> <span class="muted">(${fn:length(baristaHistory)} sự kiện gần nhất)</span></summary>
+        <div class="table-scroll" style="margin-top:12px">
+            <table class="table"><thead><tr><th>Thời gian</th><th>Hành động</th><th>Đối tượng</th><th>Người thực hiện</th><th>Chi tiết</th></tr></thead>
+            <tbody>
+            <c:forEach var="h" items="${baristaHistory}"><c:if test="${h.entityType == 'WASTE_LOG' || h.entityType == 'MANUAL_REMAKE'}">
+                <tr><td>${h.createdAt}</td><td>${h.actionLabel}</td><td>${h.entityLabel} <c:if test="${not empty h.entityId}">#${h.entityId}</c:if></td><td>${h.performedByName}</td>
+                    <td><details><summary>Xem</summary><small>Trước: ${h.beforeJson}<br/>Sau: ${h.afterJson}<c:if test="${not empty h.reason}"><br/>Lý do: ${h.reason}</c:if></small></details></td></tr>
+            </c:if></c:forEach>
+            </tbody></table>
+        </div>
+    </details>
+</section>
 
 <jsp:include page="../layout/footer.jsp" />

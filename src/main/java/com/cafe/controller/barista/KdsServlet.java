@@ -94,7 +94,7 @@ public class KdsServlet extends HttpServlet {
                     if (!service.blockItemForDepletedIngredients(intParam(req, "orderItemId"),
                             ingredientIds(req), issueReason(req), userId, branchId)) flashConflict(req);
                     else req.getSession().setAttribute("flashOk",
-                            "Đã ghi hết nguyên liệu vào sổ kho và chặn món. Xem mục Báo hết món để khoá menu.");
+                            "Đã ghi hết nguyên liệu vào sổ kho — các món dùng nguyên liệu này tự ẩn khỏi POS/QR, tự hiện lại khi có tồn.");
                 } else if (BLOCKING_REASONS.contains(code)) {            // Nhóm B: chặn món
                     if (!service.blockItem(intParam(req, "orderItemId"), issueReason(req), userId, branchId))
                         flashConflict(req);

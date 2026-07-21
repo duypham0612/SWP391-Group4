@@ -9,6 +9,7 @@ import com.cafe.model.WasteLog;
 import com.cafe.model.WasteLogLine;
 import com.cafe.service.barista.WasteService;
 import com.cafe.service.shared.InventoryService;
+import com.cafe.service.shared.BaristaAuditService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -26,6 +27,7 @@ import java.util.List;
 public class WasteServlet extends HttpServlet {
 
     private final WasteService service = new WasteService();
+    private final BaristaAuditService auditService = new BaristaAuditService();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -128,6 +130,7 @@ public class WasteServlet extends HttpServlet {
         req.setAttribute("wasteLogWasteType", logWasteType);
         req.setAttribute("wasteLogStatus", logStatus);
         req.setAttribute("summary", service.summarize(scopedLogs));
+        req.setAttribute("baristaHistory", auditService.recent(branchId, 80));
         req.setAttribute("pageTitle", "Hao hụt & Làm lại");
         BaristaShift.expose(req, "/barista/waste");   // trực ca: banner + khoá thao tác
 

@@ -25,6 +25,29 @@
 </c:if>
 
 <jsp:include page="../layout/_baristaShiftBanner.jsp" />
+<nav class="seg" aria-label="Điều hướng pha sẵn" style="margin-bottom:var(--s4)"><a class="seg__btn is-active" href="#prep-actions">Cần pha &amp; tạo mẻ</a><a class="seg__btn" href="#prep-history">Lịch sử</a></nav>
+
+<div id="prep-actions" class="card" style="margin-bottom:var(--s4)">
+    <div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
+        <div><h3 style="margin:0">Đề xuất pha theo nhu cầu hiện tại</h3>
+            <p class="muted" style="margin:4px 0 0">Tồn tối thiểu + món đang chờ/đang pha − tồn hiện tại.</p></div>
+        <a class="btn btn-ghost btn-sm" href="#prepForm">Tạo mẻ</a>
+    </div>
+    <div class="prep-chips" style="margin-top:12px">
+        <c:forEach var="r" items="${prepRecommendations}">
+            <c:if test="${r.needPrep}">
+                <button type="button" class="prep-chip ${r.canPrep ? '' : 'prep-chip--norecipe'}"
+                        data-prepped-id="${r.ingredientId}" data-recommended="${r.recommendedQuantity}" ${r.canPrep ? '' : 'disabled'}>
+                    <strong>${r.name}</strong>
+                    <span>nên pha ${r.recommendedQuantity} ${r.unit} · tồn ${r.onHand} · đơn mở ${r.openOrderDemand}</span>
+                    <c:if test="${not r.hasRecipe}"><em>⚠ chưa có công thức prep</em></c:if>
+                    <c:if test="${not empty r.rawShortfalls}"><em>⚠ thiếu nguyên liệu thô</em></c:if>
+                </button>
+            </c:if>
+        </c:forEach>
+        <c:if test="${prepNeedCount == 0}"><span class="muted">Chưa có đề xuất pha.</span></c:if>
+    </div>
+</div>
 
 <div class="${onShift ? '' : 'is-viewonly'}">
 <%-- ===== Mẻ pha sẵn quá hạn: cắt theo ExpiresAt, không theo MadeAt ===== --%>
@@ -224,18 +247,20 @@
                             <td>
                                 <c:if test="${b.status == 'ACTIVE'}">
                                     <form action="${ctx}/barista/prep" method="post" class="prep-row-form"
-                                          onsubmit="return confirm('Cập nhật sản lượng mẻ này? Chênh lệch sẽ ghi vào sổ cái tồn kho.');">
+                                          onsubmit="return prepReason(this, 'Lý do cập nhật sản lượng (tuỳ chọn):');">
                                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                         <input type="hidden" name="action" value="updateBatch">
                                         <input type="hidden" name="prepBatchId" value="${b.prepBatchId}">
+                                        <input type="hidden" name="reason" value="">
                                         <input type="number" name="quantityProduced" class="form-control prep-row-qty" min="0.001" step="0.001" value="${b.quantityProduced}" required>
                                         <button type="submit" class="btn btn-ghost btn-sm">Sửa</button>
                                     </form>
                                     <form action="${ctx}/barista/prep" method="post" style="display:inline"
-                                          onsubmit="return confirm('Huỷ mẻ này? Tồn kho sẽ được hoàn lại qua sổ cái.');">
+                                          onsubmit="return prepReason(this, 'Lý do huỷ mẻ (tuỳ chọn):');">
                                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                         <input type="hidden" name="action" value="cancelBatch">
                                         <input type="hidden" name="prepBatchId" value="${b.prepBatchId}">
+                                        <input type="hidden" name="reason" value="">
                                         <button type="submit" class="btn btn-ghost btn-sm prep-cancel-btn">Huỷ</button>
                                     </form>
                                 </c:if>
@@ -268,6 +293,17 @@
 </div>
 </div><%-- /is-viewonly --%>
 
+<script>
+  function prepReason(form, message) {
+    var input = form.querySelector('input[name="reason"]');
+    if (!input) return true;
+    var value = window.prompt(message, input.value || '');
+    if (value === null) return false;
+    input.value = value.trim();
+    if (!input.value) { window.alert('Vui lòng nhập lý do để lưu lịch sử.'); return false; }
+    return true;
+  }
+</script>
 <script>
   (function(){
     var ctx = '${ctx}';
@@ -462,11 +498,13 @@
     document.querySelectorAll('.prep-chip[data-prepped-id]').forEach(function(chip){
       chip.addEventListener('click', function(){
         var id = chip.getAttribute('data-prepped-id');
+        var recommended = chip.getAttribute('data-recommended');
         // dùng dòng trống đầu tiên nếu có, không thì thêm mới
         var empty = null;
         rows.querySelectorAll('.prep-row__select').forEach(function(s){ if (!empty && !s.value) empty = s; });
         var row = empty ? empty.closest('.prep-row') : addRow();
         row.querySelector('.prep-row__select').value = id;
+        if (recommended && row.querySelector('.qty-input')) row.querySelector('.qty-input').value = recommended;
         clearError(row); refreshRow(row); syncSubmit();
         row.querySelector('.qty-input').focus();
         document.getElementById('prepForm').scrollIntoView({behavior:'smooth', block:'center'});
@@ -523,4 +561,18 @@
     });
   })();
 </script>
+<section id="prep-history" class="card" style="margin-top:var(--s4)">
+    <details>
+        <summary><strong>Lịch sử thao tác pha trong ca</strong> <span class="muted">(${fn:length(baristaHistory)} sự kiện gần nhất)</span></summary>
+        <div class="table-scroll" style="margin-top:12px">
+            <table class="table"><thead><tr><th>Thời gian</th><th>Hành động</th><th>Mã mẻ</th><th>Người thực hiện</th><th>Chi tiết</th></tr></thead>
+            <tbody>
+            <c:forEach var="h" items="${baristaHistory}"><c:if test="${h.entityType == 'PREP_BATCH'}">
+                <tr><td>${h.createdAt}</td><td>${h.actionLabel}</td><td>#${h.entityId}</td><td>${h.performedByName}</td>
+                    <td><details><summary>Xem</summary><small>Trước: ${h.beforeJson}<br/>Sau: ${h.afterJson}<c:if test="${not empty h.reason}"><br/>Lý do: ${h.reason}</c:if></small></details></td></tr>
+            </c:if></c:forEach>
+            </tbody></table>
+        </div>
+    </details>
+</section>
 <jsp:include page="../layout/footer.jsp" />

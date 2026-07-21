@@ -18,6 +18,7 @@ import com.cafe.dao.shared.ProductRecipeDao;
 import com.cafe.dao.shared.StockAdjustmentDao;
 import com.cafe.dao.shared.StockReceiptDetailDao;
 import com.cafe.dao.shared.WasteLogDao;
+import com.cafe.dao.shared.BaristaActionLogDao;
 import com.cafe.model.BranchMenuItem;
 import com.cafe.model.BranchInventory;
 import com.cafe.model.InventoryTransaction;
@@ -37,6 +38,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * CỬA DUY NHẤT đổi tồn kho (đặc tả mục 3 + nguyên tắc bất biến).
@@ -55,6 +57,7 @@ public class InventoryService {
     private final PrepRecipeDao prepRecipeDao = new PrepRecipeDao();
     private final PrepBatchDao prepBatchDao = new PrepBatchDao();
     private final WasteLogDao wasteLogDao = new WasteLogDao();
+    private final BaristaActionLogDao baristaActionLogDao = new BaristaActionLogDao();
 
     /** LÕI — chạy trong transaction do caller mở (caller chịu trách nhiệm commit/rollback). */
     public void applyTxn(Connection conn, int branchId, int ingredientId, BigDecimal delta,
@@ -119,8 +122,9 @@ public class InventoryService {
                 item == null ? "100%" : item.getSugarLevel());
         if (required.isEmpty()) throw new BusinessException("Công thức không có lượng nguyên liệu hợp lệ.");
         String note = cleanReason("Làm lại dòng món #" + orderItemId + (reason == null ? "" : " - " + reason));
+        String correlationId = UUID.randomUUID().toString();
         for (Map.Entry<Integer, BigDecimal> entry : required.entrySet()) {
-            logWasteInTx(conn, branchId, entry.getKey(), entry.getValue(), "REMAKE", note, userId);
+            logWasteInTx(conn, branchId, entry.getKey(), entry.getValue(), "REMAKE", note, userId, correlationId);
         }
     }
 
@@ -133,7 +137,7 @@ public class InventoryService {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
             try {
-                int batchId = doCreatePrepBatch(conn, branchId, preppedIngredientId, qtyProduced, expiresAt, userId);
+                int batchId = doCreatePrepBatch(conn, branchId, preppedIngredientId, qtyProduced, expiresAt, userId, UUID.randomUUID().toString());
                 conn.commit();
                 return batchId;
             } catch (SQLException e) { conn.rollback(); throw e; }
@@ -151,11 +155,12 @@ public class InventoryService {
             throw new BusinessException("Chưa chọn nguyên liệu nào để pha.");
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
+            String correlationId = UUID.randomUUID().toString();
             try {
                 for (com.cafe.model.PrepBatchLine ln : lines) {
                     try {
                         doCreatePrepBatch(conn, branchId, ln.getPreppedIngredientId(),
-                                ln.getQtyProduced(), ln.getExpiresAt(), userId);
+                                ln.getQtyProduced(), ln.getExpiresAt(), userId, correlationId);
                     } catch (BusinessException e) {
                         throw withPrepLineContext(ln, e);
                     }
@@ -177,7 +182,8 @@ public class InventoryService {
 
     /** Lõi tạo 1 mẻ — chạy TRONG tx của caller: chặn thiếu công thức, guard tồn RAW, insert + ledger. */
     private int doCreatePrepBatch(Connection conn, int branchId, int preppedIngredientId,
-                                  BigDecimal qtyProduced, java.time.LocalDateTime expiresAt, int userId) throws SQLException {
+                                  BigDecimal qtyProduced, java.time.LocalDateTime expiresAt, int userId,
+                                  String correlationId) throws SQLException {
         List<PrepRecipe> lines = prepRecipeDao.findByPrepped(conn, preppedIngredientId);
         // Chặn thiếu công thức: tránh cộng PREPPED mà không trừ RAW nào (sai Contract #2).
         if (lines.isEmpty())
@@ -202,6 +208,11 @@ public class InventoryService {
         }
         applyTxn(conn, branchId, preppedIngredientId, qtyProduced,
                 TxnType.PREP_IN, "PrepBatch", (long) batchId, userId);
+        baristaActionLogDao.insert(conn, branchId, null, "PREP_BATCH", (long) batchId,
+                "PREP_CREATED", null,
+                "{\"ingredientId\":" + preppedIngredientId + ",\"quantity\":" + qtyProduced +
+                        (expiresAt == null ? "" : ",\"expiresAt\":\"" + expiresAt + "\"") + "}",
+                null, userId, correlationId);
         return batchId;
     }
 
@@ -215,6 +226,10 @@ public class InventoryService {
      * cùng RefTable/RefId nên ledger nets về 0 theo từng type. Đánh dấu Status='CANCELLED'. Own tx.
      */
     public void cancelPrepBatch(int branchId, int prepBatchId, int userId) throws SQLException {
+        cancelPrepBatch(branchId, prepBatchId, userId, null);
+    }
+
+    public void cancelPrepBatch(int branchId, int prepBatchId, int userId, String reason) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
             try {
@@ -235,6 +250,9 @@ public class InventoryService {
                 if (prepBatchDao.updateStatus(conn, prepBatchId, "CANCELLED") != 1) {
                     throw new BusinessException("Mẻ đã được thay đổi bởi thao tác khác. Vui lòng tải lại.");
                 }
+                baristaActionLogDao.insert(conn, branchId, null, "PREP_BATCH", (long) prepBatchId,
+                        "PREP_CANCELLED", "{\"status\":\"ACTIVE\",\"quantity\":" + qtyProduced + "}",
+                        "{\"status\":\"CANCELLED\"}", cleanReason(reason == null || reason.isBlank() ? "Huỷ mẻ pha" : reason), userId, UUID.randomUUID().toString());
                 conn.commit();
             } catch (SQLException e) { conn.rollback(); throw e; }
             catch (RuntimeException e) { conn.rollback(); throw e; }
@@ -247,6 +265,10 @@ public class InventoryService {
      * delta>0: trừ thêm RAW + cộng thêm PREPPED; delta<0: hoàn RAW + rút bớt PREPPED. Own tx.
      */
     public void updatePrepBatch(int branchId, int prepBatchId, BigDecimal newQtyProduced, int userId) throws SQLException {
+        updatePrepBatch(branchId, prepBatchId, newQtyProduced, userId, null);
+    }
+
+    public void updatePrepBatch(int branchId, int prepBatchId, BigDecimal newQtyProduced, int userId, String reason) throws SQLException {
         if (newQtyProduced == null || newQtyProduced.signum() <= 0) throw new IllegalArgumentException("Sản lượng phải > 0");
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
@@ -284,6 +306,10 @@ public class InventoryService {
                     if (prepBatchDao.updateQuantity(conn, prepBatchId, newQtyProduced, b.getQuantityProduced()) != 1) {
                         throw new BusinessException("Mẻ đã được thay đổi bởi thao tác khác. Vui lòng tải lại.");
                     }
+                    baristaActionLogDao.insert(conn, branchId, null, "PREP_BATCH", (long) prepBatchId,
+                            "PREP_QUANTITY_CHANGED",
+                            "{\"quantity\":" + b.getQuantityProduced() + "}",
+                            "{\"quantity\":" + newQtyProduced + "}", cleanReason(reason), userId, UUID.randomUUID().toString());
                 }
                 conn.commit();
             } catch (SQLException e) { conn.rollback(); throw e; }
@@ -312,7 +338,7 @@ public class InventoryService {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
             try {
-                int id = logWasteInTx(conn, branchId, ingredientId, qty, wasteType, reason, userId);
+                int id = logWasteInTx(conn, branchId, ingredientId, qty, wasteType, reason, userId, UUID.randomUUID().toString());
                 conn.commit();
                 return id;
             } catch (SQLException e) { conn.rollback(); throw e; }
@@ -326,13 +352,14 @@ public class InventoryService {
         if (lines == null || lines.isEmpty()) throw new BusinessException("Chưa có dòng hao hụt nào để ghi.");
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
+            String correlationId = UUID.randomUUID().toString();
             try {
                 int count = 0;
                 for (WasteLogLine line : lines) {
                     requireIngredientWasteType(line.getWasteType());
                     requirePositive(line.getQuantity(), "Số lượng phải > 0.");
                     logWasteInTx(conn, branchId, line.getIngredientId(), line.getQuantity(),
-                            normalizeWasteType(line.getWasteType()), cleanReason(line.getReason()), userId);
+                            normalizeWasteType(line.getWasteType()), cleanReason(line.getReason()), userId, correlationId);
                     count++;
                 }
                 conn.commit();
@@ -351,8 +378,10 @@ public class InventoryService {
                              String size, String iceLevel, String sugarLevel,
                              String reason, int userId) throws SQLException {
         if (quantity <= 0) throw new BusinessException("Số lượng món làm lại phải > 0.");
+        if (reason == null || reason.isBlank()) throw new BusinessException("Làm lại ngoài đơn phải có lý do.");
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
+            String correlationId = UUID.randomUUID().toString();
             try {
                 BranchMenuItem product = findPublishedProduct(conn, branchId, productId);
                 if (product == null) throw new BusinessException("Món không thuộc menu chi nhánh này.");
@@ -368,9 +397,13 @@ public class InventoryService {
                         + (reason == null || reason.isBlank() ? "" : " - " + reason.trim()));
                 int count = 0;
                 for (Map.Entry<Integer, BigDecimal> e : required.entrySet()) {
-                    logWasteInTx(conn, branchId, e.getKey(), e.getValue(), "REMAKE", finalReason, userId);
+                    logWasteInTx(conn, branchId, e.getKey(), e.getValue(), "REMAKE", finalReason, userId, correlationId);
                     count++;
                 }
+                baristaActionLogDao.insert(conn, branchId, null, "MANUAL_REMAKE", null,
+                        "REMAKE_MANUAL_CREATED", null,
+                        "{\"productId\":" + productId + ",\"quantity\":" + quantity +
+                                ",\"size\":\"" + normalizeSize(size) + "\"}", finalReason, userId, correlationId);
                 conn.commit();
                 return count;
             } catch (SQLException e) { conn.rollback(); throw e; }
@@ -418,6 +451,10 @@ public class InventoryService {
                         cleanReason(reason), w.getQuantity()) != 1) {
                     throw new BusinessException("Bản ghi hao hụt đã được thay đổi bởi thao tác khác. Vui lòng tải lại.");
                 }
+                baristaActionLogDao.insert(conn, branchId, null, "WASTE_LOG", (long) wasteLogId,
+                        "WASTE_CHANGED", "{\"quantity\":" + w.getQuantity() + ",\"type\":\"" + w.getWasteType() + "\"}",
+                        "{\"quantity\":" + newQty + ",\"type\":\"" + normalizeWasteType(wasteType) + "\"}",
+                        cleanReason(reason), userId, UUID.randomUUID().toString());
                 conn.commit();
             } catch (SQLException e) { conn.rollback(); throw e; }
             catch (RuntimeException e) { conn.rollback(); throw e; }
@@ -444,6 +481,9 @@ public class InventoryService {
                 if (wasteLogDao.updateStatus(conn, wasteLogId, "VOIDED") != 1) {
                     throw new BusinessException("Bản ghi hao hụt đã được thay đổi bởi thao tác khác. Vui lòng tải lại.");
                 }
+                baristaActionLogDao.insert(conn, branchId, null, "WASTE_LOG", (long) wasteLogId,
+                        "WASTE_VOIDED", "{\"status\":\"ACTIVE\",\"quantity\":" + w.getQuantity() + "}",
+                        "{\"status\":\"VOIDED\"}", "Huỷ dòng hao hụt", userId, UUID.randomUUID().toString());
                 conn.commit();
             } catch (SQLException e) { conn.rollback(); throw e; }
             catch (RuntimeException e) { conn.rollback(); throw e; }
@@ -453,9 +493,19 @@ public class InventoryService {
 
     private int logWasteInTx(Connection conn, int branchId, int ingredientId, BigDecimal qty,
                              String wasteType, String reason, int userId) throws SQLException {
+        return logWasteInTx(conn, branchId, ingredientId, qty, wasteType, reason, userId, UUID.randomUUID().toString());
+    }
+
+    private int logWasteInTx(Connection conn, int branchId, int ingredientId, BigDecimal qty,
+                             String wasteType, String reason, int userId, String correlationId) throws SQLException {
         requirePositive(qty, "Số lượng phải > 0.");
         int id = wasteLogDao.insert(conn, branchId, ingredientId, qty, normalizeWasteType(wasteType), cleanReason(reason), userId);
         applyTxn(conn, branchId, ingredientId, qty.negate(), TxnType.WASTE, "WasteLog", (long) id, userId);
+        baristaActionLogDao.insert(conn, branchId, null, "WASTE_LOG", (long) id,
+                "WASTE_CREATED", null,
+                "{\"ingredientId\":" + ingredientId + ",\"quantity\":" + qty +
+                        ",\"type\":\"" + normalizeWasteType(wasteType) + "\"}",
+                cleanReason(reason), userId, correlationId);
         return id;
     }
 

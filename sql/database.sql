@@ -50,6 +50,7 @@ DROP TABLE IF EXISTS payment.CashierShift;
 DROP TABLE IF EXISTS payment.Voucher;
 -- Phải drop TRƯỚC sales.OrderItem: FK_OIAL_Item trỏ sang OrderItem, thiếu dòng này
 -- thì script chạy được trên DB trắng nhưng chết ngay lần chạy lại thứ hai.
+DROP TABLE IF EXISTS ops.BaristaActionLog;
 DROP TABLE IF EXISTS ops.OrderItemActionLog;
 DROP TABLE IF EXISTS sales.OrderItem;
 DROP TABLE IF EXISTS sales.Orders;
@@ -283,7 +284,7 @@ CREATE TABLE catalog.MenuBlockRequest (
     ProductId    INT NOT NULL,
     Reason       VARCHAR(20)   NOT NULL,
     Note         NVARCHAR(255) NULL,
-    BackInEta    DATETIME2     NOT NULL,
+    BackInEta    DATETIME2     NULL,   -- tuỳ chọn: 86 sự cố (máy hỏng...) thường bất định thời gian có lại
     RequestedBy  INT NOT NULL,
     RequestedAt  DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
     ReopenRequestedAt DATETIME2 NULL,
@@ -710,6 +711,33 @@ CREATE TABLE ops.OrderItemActionLog (
     CONSTRAINT FK_OIAL_Branch FOREIGN KEY (BranchId) REFERENCES org.Branch(BranchId),
     CONSTRAINT FK_OIAL_User FOREIGN KEY (PerformedBy) REFERENCES iam.[User](UserId)
 );
+GO
+
+-- Audit append-only cho thao tác vận hành Barista (không thay thế InventoryTransaction
+-- hoặc OrderItemActionLog; lưu ngữ cảnh before/after và lý do của thao tác).
+CREATE TABLE ops.BaristaActionLog (
+    BaristaActionLogId BIGINT IDENTITY PRIMARY KEY,
+    BranchId           INT NOT NULL,
+    ShiftId            INT NULL,
+    EntityType         VARCHAR(32) NOT NULL,
+    EntityId           BIGINT NULL,
+    ActionType         VARCHAR(40) NOT NULL,
+    BeforeJson         NVARCHAR(MAX) NULL,
+    AfterJson          NVARCHAR(MAX) NULL,
+    Reason             NVARCHAR(255) NULL,
+    PerformedBy        INT NULL,
+    CorrelationId      VARCHAR(64) NULL,
+    CreatedAt          DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT FK_BAL_Branch FOREIGN KEY (BranchId) REFERENCES org.Branch(BranchId),
+    CONSTRAINT FK_BAL_Shift  FOREIGN KEY (ShiftId) REFERENCES hr.Attendance(AttendanceId),
+    CONSTRAINT FK_BAL_User   FOREIGN KEY (PerformedBy) REFERENCES iam.[User](UserId),
+    CONSTRAINT CK_BAL_Entity CHECK (EntityType IN ('PREP_BATCH','WASTE_LOG','MENU_86','MANUAL_REMAKE'))
+);
+GO
+
+CREATE INDEX IX_BAL_BranchCreated ON ops.BaristaActionLog(BranchId, CreatedAt DESC, BaristaActionLogId DESC);
+CREATE INDEX IX_BAL_Entity ON ops.BaristaActionLog(EntityType, EntityId, CreatedAt DESC);
+CREATE INDEX IX_BAL_Correlation ON ops.BaristaActionLog(CorrelationId) WHERE CorrelationId IS NOT NULL;
 GO
 
 /* ---------------------------------------------------------------------------

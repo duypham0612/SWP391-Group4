@@ -57,12 +57,20 @@ public class PrepService {
 
     /** Huỷ mẻ — hoàn kho qua txn bù (không hard-delete). */
     public void cancelBatch(int branchId, int prepBatchId, int userId) throws SQLException {
-        inventoryService.cancelPrepBatch(branchId, prepBatchId, userId);
+        cancelBatch(branchId, prepBatchId, userId, null);
+    }
+
+    public void cancelBatch(int branchId, int prepBatchId, int userId, String reason) throws SQLException {
+        inventoryService.cancelPrepBatch(branchId, prepBatchId, userId, reason);
     }
 
     /** Sửa sản lượng mẻ — áp txn cho phần chênh lệch. */
     public void updateBatch(int branchId, int prepBatchId, BigDecimal newQtyProduced, int userId) throws SQLException {
-        inventoryService.updatePrepBatch(branchId, prepBatchId, newQtyProduced, userId);
+        updateBatch(branchId, prepBatchId, newQtyProduced, userId, null);
+    }
+
+    public void updateBatch(int branchId, int prepBatchId, BigDecimal newQtyProduced, int userId, String reason) throws SQLException {
+        inventoryService.updatePrepBatch(branchId, prepBatchId, newQtyProduced, userId, reason);
     }
 
     /**

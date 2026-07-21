@@ -1,13 +1,15 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
+<%@ taglib prefix="fn" uri="jakarta.tags.functions" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Pha chế</div><h1>Báo hết món</h1><p>Tắt món tạm thời — khoá khỏi POS và menu QR của khách</p></div>
+    <div><div class="eyebrow">Pha chế</div><h1>Báo hết món</h1><p>Chỉ dùng cho <strong>sự cố</strong> (máy hỏng, lỗi chất lượng…). Hết nguyên liệu thì kho tự ẩn/hiện món; đồ hỏng thì ghi ở Hao hụt.</p></div>
 </div>
 
 <jsp:include page="../layout/_baristaShiftBanner.jsp" />
+<nav class="seg" aria-label="Điều hướng báo hết món" style="margin-bottom:var(--s4)"><a class="seg__btn is-active" href="#menu-status">Trạng thái hiện tại</a><a class="seg__btn" href="#menu-history">Lịch sử</a></nav>
 
 <c:if test="${not empty sessionScope.flashOk}">
     <div class="alert alert-success">${sessionScope.flashOk}</div><c:remove var="flashOk" scope="session" />
@@ -18,21 +20,20 @@
 
 <c:if test="${not empty suggest86}">
     <div class="alert alert-warn" style="display:block">
-        <strong>Gợi ý báo hết — có nguyên liệu đã cạn:</strong>
+        <strong>Tự hết theo kho — đã ẩn khỏi POS/QR:</strong>
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
             <c:forEach var="s" items="${suggest86}">
-                <button type="button" class="btn btn-sm btn-ghost suggest86-btn"
-                        data-product-id="${s.productId}"
-                        data-note="Hết ${s.ingredientName}" ${onShift ? '' : 'disabled'}>
-                    ${s.productName} · hết ${s.ingredientName}
-                </button>
+                <span class="badge badge-cancelled">${s.productName} · hết ${s.ingredientName}</span>
             </c:forEach>
         </div>
-        <div class="muted" style="font-size:.82em;margin-top:8px">Chỉ là gợi ý — bạn tự quyết định báo hết. Hệ thống không tự khoá món.</div>
+        <div class="muted" style="font-size:.82em;margin-top:8px">
+            Những món này đã <strong>tự động ẩn</strong> vì hết nguyên liệu và sẽ <strong>tự hiện lại</strong> khi có tồn (nhập kho / pha mẻ mới).
+            Không cần báo tay. Nếu do <strong>nguyên liệu hỏng</strong>, hãy <a href="${ctx}/barista/waste">ghi ở Hao hụt &amp; Làm lại</a> để trừ khỏi sổ kho.
+        </div>
     </div>
 </c:if>
 
-<c:choose>
+<div id="menu-status"><c:choose>
     <c:when test="${empty items}">
         <div class="card empty-state"><div class="icon">∅</div><p>Chi nhánh chưa có món nào trên menu.</p></div>
     </c:when>
@@ -107,8 +108,9 @@
                                                 </select>
                                                 <div class="chips quick-note-chips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
                                                 <input name="note" class="form-control note-input" maxlength="255" placeholder="Ghi chú" ${onShift ? '' : 'disabled'}>
+                                                <label class="muted" style="font-size:.82em">Dự kiến có lại (nếu ước lượng được — sự cố bất định có thể bỏ trống)</label>
                                                 <input type="datetime-local" name="backInEta" class="form-control"
-                                                       required min="${etaMin}" max="${etaMax}" ${onShift ? '' : 'disabled'}>
+                                                       min="${etaMin}" max="${etaMax}" ${onShift ? '' : 'disabled'}>
                                                 <button type="submit" class="btn btn-sm btn-primary" ${onShift ? '' : 'disabled'}>Báo tạm hết</button>
                                             </form>
                                         </details>
@@ -172,23 +174,6 @@
                 box.querySelectorAll('.quick-note-chip.is-selected').forEach(function(b){ b.classList.remove('is-selected'); });
               });
               renderChips(box);
-            });
-
-            document.querySelectorAll('.suggest86-btn').forEach(function(btn){
-              btn.addEventListener('click', function(){
-                var box = document.querySelector('.report86[data-product-id="' + btn.getAttribute('data-product-id') + '"]');
-                if (!box) return;
-                box.open = true;
-                box.scrollIntoView({block:'center', behavior:'smooth'});
-                var select = box.querySelector('.reason-select');
-                var note = box.querySelector('.note-input');
-                if (select) select.value = 'INGREDIENT_OUT';
-                renderChips(box);
-                if (note) {
-                  note.value = btn.getAttribute('data-note') || '';
-                  note.focus();
-                }
-              });
             });
 
             var PAGE_SIZE = 10;
@@ -275,8 +260,22 @@
 
             render();
           })();
-        </script>
+</script>
+<section id="menu-history" class="card" style="margin-top:var(--s4)">
+    <details>
+        <summary><strong>Lịch sử báo hết món</strong> <span class="muted">(${fn:length(baristaHistory)} sự kiện gần nhất)</span></summary>
+        <div class="table-scroll" style="margin-top:12px">
+            <table class="table"><thead><tr><th>Thời gian</th><th>Hành động</th><th>Yêu cầu</th><th>Người thực hiện</th><th>Chi tiết</th></tr></thead>
+            <tbody>
+            <c:forEach var="h" items="${baristaHistory}"><c:if test="${h.entityType == 'MENU_86'}">
+                <tr><td>${h.createdAt}</td><td>${h.actionLabel}</td><td>#${h.entityId}</td><td>${h.performedByName}</td>
+                    <td><details><summary>Xem</summary><small>Trước: ${h.beforeJson}<br/>Sau: ${h.afterJson}<c:if test="${not empty h.reason}"><br/>Lý do: ${h.reason}</c:if></small></details></td></tr>
+            </c:if></c:forEach>
+            </tbody></table>
+        </div>
+    </details>
+</section>
     </c:otherwise>
-</c:choose>
+</c:choose></div>
 
 <jsp:include page="../layout/footer.jsp" />

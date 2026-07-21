@@ -50,6 +50,12 @@ public final class Menu86Validator {
         if (reason == null) {
             throw new BusinessException("Vui lòng chọn lý do tạm hết món.");
         }
+        // Chỉ nhận lý do "sự cố" (máy hỏng, lỗi chất lượng, khác). Hết nguyên liệu do kho tự
+        // cập nhật; đồ hỏng ghi ở Hao hụt — hai loại này không còn khoá tay + duyệt nữa.
+        if (!reason.isEvent()) {
+            throw new BusinessException("Lý do này không dùng để báo tạm hết. "
+                    + "Hết nguyên liệu do kho tự cập nhật; đồ hỏng hãy ghi ở Hao hụt & Làm lại.");
+        }
 
         // Chuẩn hoá NFC: bàn phím tiếng Việt macOS gõ ra dạng tổ hợp ("ầ" = 2 code point),
         // Unikey/Windows gõ ra dạng dựng sẵn (1 code point). Không gom về một dạng thì
@@ -69,22 +75,23 @@ public final class Menu86Validator {
                     + Constants.MENU86_NOTE_MAX_CHARS + " ký tự.");
         }
 
-        if (backInEta == null) {
-            throw new BusinessException("Vui lòng chọn thời gian dự kiến có lại.");
-        }
-        if (now == null) {
-            throw new IllegalArgumentException("now must not be null");
-        }
-        if (!backInEta.isAfter(now)) {
-            throw new BusinessException("Thời gian dự kiến có lại phải ở tương lai.");
-        }
-        if (backInEta.isBefore(now.plusMinutes(Constants.MENU86_ETA_MIN_MINUTES))) {
-            throw new BusinessException("Thời gian dự kiến có lại phải cách hiện tại ít nhất "
-                    + Constants.MENU86_ETA_MIN_MINUTES + " phút.");
-        }
-        if (backInEta.isAfter(now.plusDays(Constants.MENU86_ETA_MAX_DAYS))) {
-            throw new BusinessException("Thời gian dự kiến có lại không được quá "
-                    + Constants.MENU86_ETA_MAX_DAYS + " ngày.");
+        // ETA giờ TUỲ CHỌN: sự cố (máy hỏng...) thường bất định thời gian sửa xong. Bỏ trống = null.
+        // Nếu có nhập thì vẫn phải hợp khung (tương lai, tối thiểu MIN, tối đa MAX).
+        if (backInEta != null) {
+            if (now == null) {
+                throw new IllegalArgumentException("now must not be null");
+            }
+            if (!backInEta.isAfter(now)) {
+                throw new BusinessException("Thời gian dự kiến có lại phải ở tương lai.");
+            }
+            if (backInEta.isBefore(now.plusMinutes(Constants.MENU86_ETA_MIN_MINUTES))) {
+                throw new BusinessException("Thời gian dự kiến có lại phải cách hiện tại ít nhất "
+                        + Constants.MENU86_ETA_MIN_MINUTES + " phút.");
+            }
+            if (backInEta.isAfter(now.plusDays(Constants.MENU86_ETA_MAX_DAYS))) {
+                throw new BusinessException("Thời gian dự kiến có lại không được quá "
+                        + Constants.MENU86_ETA_MAX_DAYS + " ngày.");
+            }
         }
 
         return new Validated(reason, cleanNote.isEmpty() ? null : cleanNote, backInEta);

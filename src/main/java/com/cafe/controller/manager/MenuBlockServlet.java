@@ -42,10 +42,7 @@ public class MenuBlockServlet extends HttpServlet {
         try {
             int requestId = Integer.parseInt(req.getParameter("requestId"));
             String reviewNote = req.getParameter("reviewNote");
-            if ("approve".equals(action)) {
-                service.approve86(branchId, requestId, reviewerId, reviewNote);
-                req.getSession().setAttribute("flashOk", "Đã duyệt yêu cầu tạm hết.");
-            } else if ("reject".equals(action)) {
+            if ("reject".equals(action)) {
                 service.reopen86(branchId, requestId, reviewerId, reviewNote, true);
                 req.getSession().setAttribute("flashOk", "Đã từ chối và mở bán lại món.");
             } else if ("reopen".equals(action)) {

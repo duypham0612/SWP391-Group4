@@ -8,6 +8,7 @@ import com.cafe.common.Reason86;
 import com.cafe.common.SessionUtil;
 import com.cafe.model.User;
 import com.cafe.service.shared.BranchMenuService;
+import com.cafe.service.shared.BaristaAuditService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -24,6 +25,7 @@ import java.time.format.DateTimeParseException;
 public class EightySixServlet extends HttpServlet {
 
     private final BranchMenuService service = new BranchMenuService();
+    private final BaristaAuditService auditService = new BaristaAuditService();
     private static final DateTimeFormatter HTML_DT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm");
 
     @Override
@@ -34,7 +36,8 @@ public class EightySixServlet extends HttpServlet {
             req.setAttribute("items", service.getMenuAvailability(branchId));
             req.setAttribute("suggest86", service.getSuggested86(branchId));   // gợi ý 86 (soft): nguyên liệu đã cạn
             req.setAttribute("openRequests", service.getOpenRequestsMap(branchId));
-            req.setAttribute("reasons", Reason86.values());
+            req.setAttribute("baristaHistory", auditService.recent(branchId, 80));
+            req.setAttribute("reasons", Reason86.selectableValues());   // chỉ nhóm "sự cố" — kho tự lo phần hết tồn
             LocalDateTime now = LocalDateTime.now();
             req.setAttribute("etaMin", now.plusMinutes(Constants.MENU86_ETA_MIN_MINUTES).format(HTML_DT));
             req.setAttribute("etaMax", now.plusDays(Constants.MENU86_ETA_MAX_DAYS).format(HTML_DT));
@@ -60,7 +63,7 @@ public class EightySixServlet extends HttpServlet {
                 LocalDateTime eta = parseEta(req.getParameter("backInEta"));
                 service.request86(branchId, productId,
                         req.getParameter("reasonCode"), req.getParameter("note"), eta, userId);
-                req.getSession().setAttribute("flashOk", "Đã báo tạm hết món, chờ quản lý xử lý.");
+                req.getSession().setAttribute("flashOk", "Đã khoá món ngay khỏi POS/QR và gửi lịch sử cho quản lý xác nhận.");
             } else if ("askReopen".equals(action)) {
                 int productId = Integer.parseInt(req.getParameter("productId"));
                 service.requestReopen(branchId, productId, userId);

@@ -81,6 +81,7 @@
                 <li><a class="${curPath == ctx.concat('/manager/receipt') ? 'active' : ''}" href="${ctx}/manager/receipt"><svg class="ic"><use href="#ic-truck"/></svg>Nhập kho</a></li>
                 <li><a class="${curPath == ctx.concat('/manager/supplier') ? 'active' : ''}" href="${ctx}/manager/supplier"><svg class="ic"><use href="#ic-store"/></svg>Nhà cung cấp</a></li>
                 <li><a class="${curPath == ctx.concat('/manager/reconciliation') or curPath == ctx.concat('/manager/waste') ? 'active' : ''}" href="${ctx}/manager/reconciliation"><svg class="ic"><use href="#ic-scale"/></svg>Đối soát &amp; hao hụt</a></li>
+                <li><a class="${curPath == ctx.concat('/manager/barista-history') ? 'active' : ''}" href="${ctx}/manager/barista-history"><svg class="ic"><use href="#ic-clipboard"/></svg>Lịch sử pha chế</a></li>
                 <li class="nav-section">Nhân sự</li>
                 <li><a class="${curPath == ctx.concat('/manager/shift') ? 'active' : ''}" href="${ctx}/manager/shift"><svg class="ic"><use href="#ic-calendar"/></svg>Ca làm</a></li>
                 <li><a class="${curPath == ctx.concat('/manager/attendance') ? 'active' : ''}" href="${ctx}/manager/attendance"><svg class="ic"><use href="#ic-clock"/></svg>Chấm công</a></li>

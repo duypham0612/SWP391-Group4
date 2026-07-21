@@ -50,6 +50,11 @@
         <span class="value">${alertCount}</span>
         <span class="muted">${lowStockCount} tồn thấp<c:if test="${oversoldCount gt 0}"> (${oversoldCount} âm kho)</c:if> · ${eightySixCount} món tạm hết</span>
     </a>
+    <a class="card stat" href="${ctx}/barista/prep" style="${prepNeedCount gt 0 ? 'border-color:var(--st-waiting)' : ''}">
+        <span class="label">Cần pha bán thành phẩm</span>
+        <span class="value">${prepNeedCount}</span>
+        <span class="muted">theo đơn đang mở + ngưỡng tồn</span>
+    </a>
 </div>
 
 <c:if test="${suggest86Count gt 0}">
@@ -120,6 +125,17 @@
                 </table>
             </c:otherwise>
         </c:choose>
+    </div>
+</div>
+
+<div class="card" style="margin-top:var(--s5)">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <div><h3 style="margin:0">Lịch sử thao tác gần đây</h3><p class="muted" style="margin:4px 0 0">Audit trong ca/chi nhánh, không thay thế sổ cái tồn.</p></div>
+        <a class="btn btn-ghost btn-sm" href="${ctx}/barista/waste">Mở nhật ký</a>
+    </div>
+    <div class="table-scroll" style="margin-top:12px">
+        <table class="table"><thead><tr><th>Thời gian</th><th>Hành động</th><th>Đối tượng</th><th>Người thực hiện</th></tr></thead>
+        <tbody><c:forEach var="h" items="${baristaHistory}"><tr><td>${h.createdAt}</td><td>${h.actionLabel}</td><td>${h.entityLabel} <c:if test="${not empty h.entityId}">#${h.entityId}</c:if></td><td>${h.performedByName}</td></tr></c:forEach></tbody></table>
     </div>
 </div>
 

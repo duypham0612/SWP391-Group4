@@ -8,6 +8,7 @@ import com.cafe.config.DBConnection;
 import com.cafe.dao.shared.BranchMenuDao;
 import com.cafe.dao.shared.MenuBlockRequestDao;
 import com.cafe.dao.shared.ProductRecipeDao;
+import com.cafe.dao.shared.BaristaActionLogDao;
 import com.cafe.model.BranchMenuItem;
 import com.cafe.model.MenuBlockRequest;
 import com.cafe.model.Suggest86Row;
@@ -20,12 +21,14 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public class BranchMenuService {
 
     private final BranchMenuDao dao = new BranchMenuDao();
     private final MenuBlockRequestDao menuBlockDao = new MenuBlockRequestDao();
     private final ProductRecipeDao productRecipeDao = new ProductRecipeDao();
+    private final BaristaActionLogDao actionLogDao = new BaristaActionLogDao();
 
     /** B3 · Gợi ý 86 (soft): món còn bán nhưng có nguyên liệu đã cạn (≤0) — để barista cân nhắc báo hết. */
     public List<Suggest86Row> getSuggested86(int branchId) throws SQLException {
@@ -122,15 +125,22 @@ public class BranchMenuService {
                 r.setBackInEta(v.getBackInEta());
                 r.setRequestedBy(userId);
                 int requestId = menuBlockDao.insert(conn, r);
-                if (dao.updateIs86(conn, branchId, productId, true, Timestamp.valueOf(v.getBackInEta())) != 1) {
+                // ETA có thể null (sự cố bất định) — cột BackInEta đã cho NULL.
+                Timestamp etaTs = v.getBackInEta() == null ? null : Timestamp.valueOf(v.getBackInEta());
+                if (dao.updateIs86(conn, branchId, productId, true, etaTs) != 1) {
                     throw new BusinessException("Món này không còn trong menu chi nhánh. Vui lòng tải lại.");
                 }
+                String etaJson = v.getBackInEta() == null ? "null" : "\"" + v.getBackInEta() + "\"";
                 String payload = "{\"productId\":" + productId
-                        + ",\"is86\":true,\"eta\":\"" + v.getBackInEta()
-                        + "\",\"reason\":\"" + v.getReason().name()
+                        + ",\"is86\":true,\"eta\":" + etaJson
+                        + ",\"reason\":\"" + v.getReason().name()
                         + "\",\"by\":" + userId
                         + ",\"requestId\":" + requestId + "}";
                 EventPublisher.publish(conn, EventType.MENU_86_CHANGED, String.valueOf(productId), branchId, payload);
+                actionLogDao.insert(conn, branchId, null, "MENU_86", (long) requestId,
+                        "MENU_86_REPORTED", "{\"is86\":false}",
+                        "{\"is86\":true,\"productId\":" + productId + ",\"eta\":" + etaJson + "}",
+                        v.getNote(), userId, UUID.randomUUID().toString());
                 conn.commit();
             } catch (SQLException e) {
                 conn.rollback();
@@ -156,28 +166,10 @@ public class BranchMenuService {
                 if (open == null) throw new BusinessException("Món này không còn chờ xử lý.");
                 int affected = menuBlockDao.markReopenRequested(conn, open.getRequestId(), branchId);
                 if (affected != 1) throw new BusinessException("Món này không còn chờ xử lý.");
-                conn.commit();
-            } catch (SQLException | RuntimeException e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(true);
-            }
-        }
-    }
-
-    public void approve86(int branchId, int requestId, int reviewerId, String reviewNote) throws SQLException {
-        if (reviewerId <= 0) throw new BusinessException("Không xác định được người duyệt.");
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                MenuBlockRequest open = menuBlockDao.findOpenById(conn, requestId, branchId);
-                if (open == null) throw new BusinessException("Yêu cầu đã được xử lý.");
-                if (!"PENDING".equals(open.getStatus())) {
-                    throw new BusinessException("Yêu cầu này đã được duyệt.");
-                }
-                int affected = menuBlockDao.review(conn, requestId, branchId, "APPROVED", reviewerId, reviewNote, false);
-                if (affected != 1) throw new BusinessException("Yêu cầu đã được xử lý.");
+                actionLogDao.insert(conn, branchId, null, "MENU_86", (long) open.getRequestId(),
+                        "MENU_86_REOPEN_REQUESTED", null,
+                        "{\"productId\":" + productId + ",\"reopenRequested\":true}",
+                        "Barista xin mở bán lại", userId, UUID.randomUUID().toString());
                 conn.commit();
             } catch (SQLException | RuntimeException e) {
                 conn.rollback();
@@ -208,6 +200,11 @@ public class BranchMenuService {
                         + ",\"is86\":false,\"requestId\":" + requestId
                         + ",\"by\":" + reviewerId + "}";
                 EventPublisher.publish(conn, EventType.MENU_86_CHANGED, String.valueOf(open.getProductId()), branchId, payload);
+                actionLogDao.insert(conn, branchId, null, "MENU_86", (long) requestId,
+                        rejected ? "MENU_86_REJECTED" : "MENU_86_REOPENED",
+                        "{\"is86\":true,\"status\":\"" + open.getStatus() + "\"}",
+                        "{\"is86\":false,\"status\":\"" + (rejected ? "REJECTED" : "RESOLVED") + "\"}",
+                        reviewNote, reviewerId, UUID.randomUUID().toString());
                 conn.commit();
             } catch (SQLException | RuntimeException e) {
                 conn.rollback();
