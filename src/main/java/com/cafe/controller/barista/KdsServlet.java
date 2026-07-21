@@ -5,6 +5,7 @@ import com.cafe.common.BusinessException;
 import com.cafe.common.CsrfUtil;
 import com.cafe.common.RecountValidator;
 import com.cafe.common.SessionUtil;
+import com.cafe.model.BrewGroup;
 import com.cafe.model.OrderItem;
 import com.cafe.model.StockAdjustment;
 import com.cafe.model.User;
@@ -21,7 +22,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 
-/** Quầy pha chế ba cột: WAITING → MAKING → READY. */
+/** Quầy pha chế theo nhóm lượt bàn/đơn; mỗi món vẫn có thao tác trạng thái riêng. */
 @WebServlet("/barista/kds")
 public class KdsServlet extends HttpServlet {
 
@@ -146,51 +147,17 @@ public class KdsServlet extends HttpServlet {
         }
     }
 
-    /**
-     * Nạp board ba cột. Thống kê chính đếm theo SỐ LY (khối lượng việc pha thật), kèm số dòng
-     * món và số đơn làm thông tin phụ. Đơn của ngày kinh doanh trước KHÔNG vào hàng chờ mà
-     * nằm ở khu "Đơn treo cần xử lý" — để rác cũ không làm đỏ toàn bộ và lệch số trễ giờ.
-     */
+    /** Nạp nhóm pha FIFO của ngày kinh doanh; món bị chặn và đơn treo vẫn ở drawer riêng. */
     private void loadBoard(HttpServletRequest req, int branchId) throws SQLException {
         com.cafe.model.Branch branch = service.getBranch(branchId);
         java.time.LocalTime openTime = branch == null ? null : branch.getOpenTime();
-        int branchPeakThreshold = branch == null ? 0 : branch.getPeakThresholdCups();
         java.time.LocalDateTime dayStart = com.cafe.common.BusinessDay.startUtc(openTime);
-        Map<String, List<OrderItem>> board = service.getWorkbenchBoard(branchId, dayStart);
-        List<OrderItem> waiting = board.get("waiting");
-        List<OrderItem> inProgress = board.get("inProgress");
-        List<OrderItem> ready = board.get("ready");
-        List<OrderItem> blocked = board.get("blocked");
+        KdsService.WorkbenchSnapshot workbench = service.getWorkbenchSnapshot(branchId, dayStart);
+        List<BrewGroup> groups = workbench.getGroups();
+        List<OrderItem> blocked = workbench.getBlockedItems();
         List<OrderItem> stale = service.getStaleItems(branchId, dayStart);
 
-        int overdue = 0;
-        OrderItem oldest = null;
-        int totalPrepSeconds = 0;
-        java.util.Set<Integer> activeBaristas = new java.util.HashSet<>();
-        for (List<OrderItem> bucket : List.of(waiting, inProgress)) {
-            for (OrderItem item : bucket) {
-                if (item.getSlaTier().equals("late")) overdue += item.getQuantity();
-                if (oldest == null || item.getWaitedSeconds() > oldest.getWaitedSeconds()) oldest = item;
-                totalPrepSeconds += item.getPrepSeconds() * item.getQuantity();
-                if (item.getBaristaId() != null) activeBaristas.add(item.getBaristaId());
-            }
-        }
-
-        // Chế độ cao điểm: đo bằng số ly đang chờ+đang pha so ngưỡng chi nhánh.
-        int queueCups = cups(waiting) + cups(inProgress);
-        boolean peakMode = com.cafe.service.barista.KdsService.isPeak(queueCups, branchPeakThreshold);
-        int estLastSeconds = com.cafe.service.barista.KdsService
-                .estimateLastWaitSeconds(totalPrepSeconds, activeBaristas.size());
-        // Số thứ tự pha cho hàng chờ (chỉ dùng khi cao điểm) — theo đúng thứ tự FIFO đã sắp.
-        int seq = 1;
-        for (OrderItem item : waiting) item.setSeqNo(seq++);
-        req.setAttribute("peakMode", peakMode);
-        req.setAttribute("peakQueueCups", queueCups);
-        req.setAttribute("peakEstLastMin", (estLastSeconds + 59) / 60);
-
-        req.setAttribute("waitingItems", waiting);
-        req.setAttribute("inProgressItems", inProgress);
-        req.setAttribute("readyItems", ready);
+        req.setAttribute("brewGroups", groups);
         req.setAttribute("blockedItems", blocked);
         // Đơn treo gộp theo đơn và giới hạn số dòng: barista không thao tác được trên chúng,
         // đổ hết ra chỉ che mất hàng chờ thật. Phần dư trỏ về Quản lý xử lý.
@@ -200,39 +167,16 @@ public class KdsServlet extends HttpServlet {
         req.setAttribute("staleHiddenOrders", Math.max(0, staleGroups.size() - STALE_GROUP_LIMIT));
         req.setAttribute("staleGroups", staleGroups.size() > STALE_GROUP_LIMIT
                 ? staleGroups.subList(0, STALE_GROUP_LIMIT) : staleGroups);
-        req.setAttribute("waitingCount", cups(waiting));
-        req.setAttribute("makingCount", cups(inProgress));
-        req.setAttribute("readyCount", cups(ready));
+        req.setAttribute("waitingCount", cupsOf(groups, "WAITING"));
+        req.setAttribute("makingCount", cupsOf(groups, "MAKING"));
+        req.setAttribute("readyCount", cupsOf(groups, "READY"));
+        req.setAttribute("tableCount", groups.size());
         req.setAttribute("blockedCount", cups(blocked));
         req.setAttribute("staleCount", cups(stale));
-        req.setAttribute("overdueCount", overdue);
-        // Thông tin phụ: số dòng món và số đơn đang mở của cả board.
-        req.setAttribute("waitingLines", waiting.size());
-        req.setAttribute("makingLines", inProgress.size());
-        req.setAttribute("readyLines", ready.size());
-        // Tính cả đơn bị chặn: khách vẫn đang ngồi đợi nên đơn vẫn đang mở —
-        // bỏ ra thì con số này mâu thuẫn với chính chữ ở khu "Cần xử lý".
-        req.setAttribute("openOrderCount", distinctOrders(waiting, inProgress, ready, blocked));
-
-        // Thanh "Chờ lâu nhất": phút + bàn + tên món cụ thể, không còn chuỗi mơ hồ.
-        req.setAttribute("oldestDisplay", oldest == null ? "—"
-                : OrderItem.formatMinutesLabel(oldest.getWaitedSeconds()));
-        req.setAttribute("oldestLocation", oldest == null ? "" : location(oldest));
-        req.setAttribute("oldestProduct", oldest == null ? "" : oldest.getProductName());
-        req.setAttribute("oldestQty", oldest == null ? 0 : oldest.getQuantity());
-        // Màu thanh "Chờ lâu nhất" khớp đúng màu card của chính món đó (cùng từ vựng tier).
-        req.setAttribute("oldestTier", oldest == null ? "ok" : oldest.getSlaTier());
 
         User current = SessionUtil.currentUser(req);
         req.setAttribute("currentUserId", current == null ? 0 : current.getUserId());
         req.setAttribute("handoverLocations", com.cafe.common.Constants.HANDOVER_LOCATIONS);
-    }
-
-    @SafeVarargs
-    private static int distinctOrders(List<OrderItem>... buckets) {
-        java.util.Set<Integer> ids = new java.util.HashSet<>();
-        for (List<OrderItem> bucket : buckets) for (OrderItem it : bucket) ids.add(it.getOrderId());
-        return ids.size();
     }
 
     private static void flashConflict(HttpServletRequest req) {
@@ -245,9 +189,14 @@ public class KdsServlet extends HttpServlet {
         return total;
     }
 
-    private static String location(OrderItem item) {
-        return item.getTableNumber() == null || item.getTableNumber().isBlank()
-                ? "Đơn #" + item.getOrderId() : item.getTableNumber();   // TableNumber đã gồm chữ "Bàn"
+    private static int cupsOf(List<BrewGroup> groups, String status) {
+        int total = 0;
+        for (BrewGroup group : groups) {
+            if ("WAITING".equals(status)) total += group.getWaitingCups();
+            else if ("MAKING".equals(status)) total += group.getMakingCups();
+            else if ("READY".equals(status)) total += group.getReadyCups();
+        }
+        return total;
     }
 
     /** Lý do khiến món KHÔNG pha được → chặn món. Các lý do còn lại chỉ cần gắn cờ cho Thu ngân. */

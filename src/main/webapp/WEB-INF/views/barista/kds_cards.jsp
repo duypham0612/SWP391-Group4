@@ -11,27 +11,12 @@
     <c:remove var="flashError" scope="session" />
 </c:if>
 
-<%-- Cao điểm: gom cảnh báo về MỘT dòng thay vì tô đỏ từng card. Lúc đông, ly nào cũng "trễ"
-     theo đồng hồ chờ song song — tô đỏ hết thì mất tác dụng phân loại; barista cần biết pha ly
-     nào trước (số thứ tự trên card), quản lý cần biết khách cuối còn đợi bao lâu. --%>
-<c:if test="${peakMode}">
-    <div class="kds-peak" role="status">
-        <strong>Cao điểm</strong>
-        <span>${peakQueueCups} ly đang dồn · khách cuối đợi ~${peakEstLastMin} phút · pha theo số thứ tự trên card</span>
-    </div>
-</c:if>
-
-<%-- Một dải trạng thái gọn để giữ món đầu tiên trong tầm mắt. Số đếm theo số ly. --%>
-<section class="kds-summary kds-summary--${peakMode ? 'ok' : oldestTier}" aria-label="Trạng thái quầy pha chế">
+<%-- Dải trạng thái gọn, đếm theo số ly; không dùng ước tính hay hạn chờ. --%>
+<section class="kds-summary" aria-label="Trạng thái quầy pha chế">
     <div class="kds-stat"><span class="kds-stat__label">Chờ pha</span><strong class="kds-stat__num">${waitingCount}</strong><span class="kds-stat__unit">ly</span></div>
     <div class="kds-stat"><span class="kds-stat__label">Đang pha</span><strong class="kds-stat__num kds-stat__num--making">${makingCount}</strong><span class="kds-stat__unit">ly</span></div>
     <div class="kds-stat"><span class="kds-stat__label">Sẵn sàng</span><strong class="kds-stat__num kds-stat__num--ready">${readyCount}</strong><span class="kds-stat__unit">ly</span></div>
-    <div class="kds-stat"><span class="kds-stat__label">Trễ giờ</span><strong class="kds-stat__num ${overdueCount gt 0 ? 'kds-stat__num--over' : ''}">${overdueCount}</strong><span class="kds-stat__unit">ly</span></div>
-    <div class="kds-stat kds-stat--wide">
-        <span class="kds-stat__label">Chờ lâu nhất</span><strong class="kds-stat__num">${oldestDisplay}</strong>
-        <%-- Có đơn treo thì nói luôn ở đây: "thông thoáng" đứng cạnh banner đỏ 30 ly đọc như hệ thống tự mâu thuẫn. --%>
-        <span class="kds-stat__context"><c:choose><c:when test="${oldestQty gt 0}"><c:out value="${oldestLocation}" /> · ${oldestQty}× <c:out value="${oldestProduct}" /></c:when><c:otherwise>Quầy đang thông thoáng</c:otherwise></c:choose><c:if test="${staleHasItems}"> · ${staleCount} ly tồn từ ngày trước</c:if></span>
-    </div>
+    <div class="kds-stat"><span class="kds-stat__label">Bàn đang chờ</span><strong class="kds-stat__num">${tableCount}</strong><span class="kds-stat__unit">nhóm</span></div>
 </section>
 
 <%-- Ngoại lệ được gom vào một drawer, không đẩy ba lane vận hành xuống dưới. --%>
@@ -57,7 +42,7 @@
             <c:if test="${staleHasItems}">
                 <section class="kds-stale" aria-labelledby="staleTitle">
                     <div class="kds-alert-section__head"><h2 id="staleTitle">Đơn treo từ ngày trước</h2><span>${staleOrderCount} đơn · ${staleCount} ly</span></div>
-                    <p class="kds-stale__hint">Không thuộc ca hiện tại và không tính vào thống kê trễ giờ. Quản lý cần xác nhận huỷ hoặc xử lý riêng.</p>
+                    <p class="kds-stale__hint">Không thuộc ca hiện tại. Quản lý cần xác nhận huỷ hoặc xử lý riêng.</p>
                     <ul class="kds-stale-list">
                         <c:forEach var="g" items="${staleGroups}">
                             <li class="kds-stale-row">
@@ -78,43 +63,35 @@
     </details>
 </c:if>
 
-<div class="kds-lane-tabs" role="tablist" aria-label="Trạng thái món">
-    <button type="button" role="tab" class="kds-lane-tab is-active" id="waitingTab" aria-controls="waitingLane" aria-selected="true" data-lane-tab="waiting">Chờ pha <span>${waitingCount}</span></button>
-    <button type="button" role="tab" class="kds-lane-tab" id="makingTab" aria-controls="makingLane" aria-selected="false" data-lane-tab="making">Đang pha <span>${makingCount}</span></button>
-    <button type="button" role="tab" class="kds-lane-tab" id="readyTab" aria-controls="readyLane" aria-selected="false" data-lane-tab="ready">Sẵn sàng <span>${readyCount}</span></button>
-</div>
-
-<div class="kds-columns kds-columns--three">
-    <section class="kds-col is-active" id="waitingLane" role="tabpanel" aria-labelledby="waitingTab" data-lane="waiting">
-        <div class="kds-col__head"><h2 id="waitingTitle">Chờ pha</h2><span class="kds-col__count">${waitingCount} ly</span></div>
-        <div class="kds-col__body">
-            <c:choose>
-                <c:when test="${empty waitingItems}"><div class="kds-col__empty"><span>✓</span> Không còn món chờ pha</div></c:when>
-                <c:otherwise><c:forEach var="item" items="${waitingItems}"><c:set var="cardItem" value="${item}" scope="request" /><jsp:include page="_kdsWaitingCard.jsp" /></c:forEach></c:otherwise>
-            </c:choose>
-            <div class="kds-filter-empty" hidden>Không có món phù hợp bộ lọc.</div>
-        </div>
-    </section>
-
-    <section class="kds-col kds-col--making" id="makingLane" role="tabpanel" aria-labelledby="makingTab" data-lane="making">
-        <div class="kds-col__head"><h2 id="progressTitle">Đang pha</h2><span class="kds-col__count">${makingCount} ly</span></div>
-        <div class="kds-col__body">
-            <c:choose>
-                <c:when test="${empty inProgressItems}"><div class="kds-col__empty"><span>✓</span> Chưa có món đang pha</div></c:when>
-                <c:otherwise><c:forEach var="item" items="${inProgressItems}"><c:set var="cardItem" value="${item}" scope="request" /><jsp:include page="_kdsProgressCard.jsp" /></c:forEach></c:otherwise>
-            </c:choose>
-            <div class="kds-filter-empty" hidden>Không có món phù hợp bộ lọc.</div>
-        </div>
-    </section>
-
-    <section class="kds-col kds-col--ready" id="readyLane" role="tabpanel" aria-labelledby="readyTab" data-lane="ready">
-        <div class="kds-col__head"><h2 id="readyTitle">Đã pha xong</h2><span class="kds-col__count">${readyCount} ly</span></div>
-        <div class="kds-col__body">
-            <c:choose>
-                <c:when test="${empty readyItems}"><div class="kds-col__empty"><span>✓</span> Chưa có món chờ nhận</div></c:when>
-                <c:otherwise><c:forEach var="item" items="${readyItems}"><c:set var="cardItem" value="${item}" scope="request" /><jsp:include page="_kdsReadyCard.jsp" /></c:forEach></c:otherwise>
-            </c:choose>
-            <div class="kds-filter-empty" hidden>Không có món phù hợp bộ lọc.</div>
-        </div>
-    </section>
+<div class="kds-groups">
+    <c:choose>
+        <c:when test="${empty brewGroups}"><div class="kds-col__empty"><span>✓</span> Không còn nhóm nào chờ pha</div></c:when>
+        <c:otherwise>
+            <c:forEach var="grp" items="${brewGroups}" varStatus="st">
+                <section class="kds-group" data-group-key="${grp.key}">
+                    <header class="kds-group__head">
+                        <span class="kds-group__seq">${st.index + 1}</span>
+                        <strong class="kds-group__where">
+                            <c:choose>
+                                <c:when test="${grp.dineIn and not empty grp.tableNumber}"><c:out value="${grp.tableNumber}" /></c:when>
+                                <c:otherwise><c:if test="${not empty grp.pickupCode}"><span class="kds-code"><c:out value="${grp.pickupCode}" /></span> · </c:if>${grp.orderTypeLabel}</c:otherwise>
+                            </c:choose>
+                        </strong>
+                        <span class="kds-group__count">${grp.cups} ly <small>(${grp.waitingCups} chờ · ${grp.makingCups} pha · ${grp.readyCups} xong)</small></span>
+                    </header>
+                    <div class="kds-group__body">
+                        <c:forEach var="item" items="${grp.items}">
+                            <c:set var="cardItem" value="${item}" scope="request" />
+                            <c:choose>
+                                <c:when test="${item.status eq 'WAITING'}"><jsp:include page="_kdsWaitingCard.jsp" /></c:when>
+                                <c:when test="${item.status eq 'MAKING'}"><jsp:include page="_kdsProgressCard.jsp" /></c:when>
+                                <c:otherwise><jsp:include page="_kdsReadyCard.jsp" /></c:otherwise>
+                            </c:choose>
+                        </c:forEach>
+                    </div>
+                </section>
+            </c:forEach>
+        </c:otherwise>
+    </c:choose>
+    <div class="kds-filter-empty" hidden>Không có nhóm phù hợp bộ lọc.</div>
 </div>

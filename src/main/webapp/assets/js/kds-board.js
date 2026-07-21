@@ -7,18 +7,15 @@
 
   var endpoint = board.dataset.endpoint;
   var FILTER_KEY = 'kdsFiltersV2';
-  var LANE_KEY = 'kdsActiveLane';
   var ALERT_KEY = 'kdsAlertOpen';
-  var DEFAULT_FILTERS = { owner: 'all', urgency: 'all', station: 'all', orderType: 'all' };
+  var DEFAULT_FILTERS = { owner: 'all', station: 'all', orderType: 'all' };
   var BLOCKING_REASONS = ['EQUIPMENT', 'DISCONTINUED'];
   var filters = readFilters();
-  var activeLane = storageGet(LANE_KEY) || 'waiting';
   var refreshing = false;
   var suppressUntil = 0;
   var noticeTimer;
   var modalReturnFocus = null;
   var known = readIds();
-  var tiers = readTiers();
   var signatures = readSignatures();
 
   function storageGet(key) {
@@ -40,7 +37,6 @@
         var parsed = JSON.parse(saved);
         return {
           owner: validChoice(parsed.owner, ['all', 'mine', 'unassigned'], 'all'),
-          urgency: validChoice(parsed.urgency, ['all', 'late'], 'all'),
           station: validChoice(parsed.station, ['all', 'COFFEE', 'TEA', 'BLENDER'], 'all'),
           orderType: validChoice(parsed.orderType, ['all', 'DINE_IN', 'TAKEAWAY', 'DELIVERY'], 'all')
         };
@@ -50,7 +46,6 @@
     var migrated = Object.assign({}, DEFAULT_FILTERS);
     var old = storageGet('kdsFilter');
     if (old === 'mine' || old === 'unassigned') migrated.owner = old;
-    else if (old === 'overdue') migrated.urgency = 'late';
     else if (old && old.indexOf('station:') === 0) migrated.station = validChoice(old.slice(8), ['COFFEE', 'TEA', 'BLENDER'], 'all');
     else if (old && old.indexOf('type:') === 0) migrated.orderType = validChoice(old.slice(5), ['DINE_IN', 'TAKEAWAY', 'DELIVERY'], 'all');
     return migrated;
@@ -68,17 +63,9 @@
     return out;
   }
 
-  function readTiers() {
-    var out = {};
-    board.querySelectorAll('[data-kds-item-id]').forEach(function (card) {
-      out[card.dataset.kdsItemId] = card.dataset.slaTier;
-    });
-    return out;
-  }
-
   function signature(card) {
     var copy = card.cloneNode(true);
-    copy.querySelectorAll('.kds-sla,.kds-clock,.kds-meta-row,.kds-ready-facts').forEach(function (node) {
+    copy.querySelectorAll('.kds-clock,.kds-meta-row,.kds-ready-facts').forEach(function (node) {
       node.remove();
     });
     return copy.textContent.replace(/\s+/g, ' ').trim();
@@ -103,7 +90,6 @@
 
   function markChanges() {
     var added = 0;
-    var urgent = 0;
     var priority = 0;
     var changed = 0;
     var removed = 0;
@@ -118,19 +104,15 @@
       } else if (signatures[id] && signatures[id] !== signature(card)) {
         changed += 1;
       }
-      if (tiers[id] && tiers[id] !== card.dataset.slaTier &&
-          (card.dataset.slaTier === 'warn' || card.dataset.slaTier === 'late')) urgent += 1;
     });
     Object.keys(known).forEach(function (id) { if (!next[id]) removed += 1; });
 
     if (priority) notice('Có ' + priority + ' món làm lại ưu tiên.');
-    else if (urgent) notice('Có ' + urgent + ' món gần hoặc quá thời gian chờ.');
     else if (added) notice('Có ' + added + ' món mới.');
     else if (removed) notice('Một món đã chuyển trạng thái hoặc đơn vừa thay đổi.');
     else if (changed) notice('Ghi chú hoặc thông tin món vừa được cập nhật.');
 
     known = next;
-    tiers = readTiers();
     signatures = readSignatures();
   }
 
@@ -149,11 +131,6 @@
       button.setAttribute('aria-pressed', String(selected));
     });
 
-    var urgency = document.getElementById('kdsUrgencyFilter');
-    var urgentSelected = filters.urgency === 'late';
-    urgency.classList.toggle('is-active', urgentSelected);
-    urgency.setAttribute('aria-pressed', String(urgentSelected));
-
     document.getElementById('kdsStationFilter').value = filters.station;
     document.getElementById('kdsOrderTypeFilter').value = filters.orderType;
 
@@ -169,54 +146,25 @@
     var ownerMatches = filters.owner === 'all' ||
       (filters.owner === 'mine' && card.dataset.owner === board.dataset.userId) ||
       (filters.owner === 'unassigned' && card.dataset.owner === 'unassigned');
-    var urgencyMatches = filters.urgency === 'all' || card.dataset.slaTier === 'late';
     var stationMatches = filters.station === 'all' || card.dataset.station === filters.station;
     var typeMatches = filters.orderType === 'all' || card.dataset.orderType === filters.orderType;
-    return ownerMatches && urgencyMatches && stationMatches && typeMatches;
-  }
-
-  function cups(card) {
-    var value = parseInt(card.dataset.cups, 10);
-    return isNaN(value) ? 0 : value;
-  }
-
-  /* Số đếm phải khớp thứ đang thấy: bật "Món của tôi" mà tab vẫn ghi tổng toàn quầy thì
-     barista đọc "Chờ pha 12" trong khi lane chỉ có 3 card. Đếm theo LY như phía server. */
-  function updateLaneCounts(lane, visibleCups, totalCups, filtered) {
-    var label = filtered && visibleCups !== totalCups
-      ? visibleCups + '/' + totalCups
-      : String(totalCups);
-    var head = lane.querySelector('.kds-col__count');
-    if (head) head.textContent = label + ' ly';
-    var tab = board.querySelector('[data-lane-tab="' + lane.dataset.lane + '"] span');
-    if (tab) tab.textContent = label;
+    return ownerMatches && stationMatches && typeMatches;
   }
 
   function applyFilters() {
-    // Món bị chặn luôn hiện: đó là cảnh báo an toàn, không phải hàng chờ để lọc.
-    board.querySelectorAll('[data-kds-item-id]').forEach(function (card) {
-      card.hidden = card.dataset.owner === 'blocked' ? false : !cardMatches(card);
+    board.querySelectorAll('.kds-groups [data-kds-item-id]').forEach(function (card) {
+      card.hidden = !cardMatches(card);
     });
 
-    var filtered = filters.owner !== 'all' || filters.urgency !== 'all' ||
-      filters.station !== 'all' || filters.orderType !== 'all';
-
-    board.querySelectorAll('[data-lane]').forEach(function (lane) {
-      var cards = Array.prototype.slice.call(lane.querySelectorAll('[data-kds-item-id]'));
-      var visibleCups = 0;
-      var totalCups = 0;
-      var anyVisible = false;
-      cards.forEach(function (card) {
-        totalCups += cups(card);
-        if (!card.hidden) {
-          visibleCups += cups(card);
-          anyVisible = true;
-        }
-      });
-      updateLaneCounts(lane, visibleCups, totalCups, filtered);
-      var filterEmpty = lane.querySelector('.kds-filter-empty');
-      if (filterEmpty) filterEmpty.hidden = cards.length === 0 || anyVisible;
+    var anyVisible = false;
+    board.querySelectorAll('.kds-group').forEach(function (group) {
+      var groupHasVisibleCard = Array.prototype.some.call(
+        group.querySelectorAll('[data-kds-item-id]'), function (card) { return !card.hidden; });
+      group.hidden = !groupHasVisibleCard;
+      if (groupHasVisibleCard) anyVisible = true;
     });
+    var filterEmpty = board.querySelector('.kds-groups > .kds-filter-empty');
+    if (filterEmpty) filterEmpty.hidden = anyVisible || !board.querySelector('.kds-group');
     syncFilterControls();
   }
 
@@ -224,22 +172,6 @@
     filters = Object.assign({}, DEFAULT_FILTERS);
     saveFilters();
     applyFilters();
-  }
-
-  function setActiveLane(lane, focusTab) {
-    if (['waiting', 'making', 'ready'].indexOf(lane) < 0) lane = 'waiting';
-    activeLane = lane;
-    storageSet(LANE_KEY, lane);
-    board.querySelectorAll('[data-lane-tab]').forEach(function (tab) {
-      var selected = tab.dataset.laneTab === lane;
-      tab.classList.toggle('is-active', selected);
-      tab.setAttribute('aria-selected', String(selected));
-      tab.tabIndex = selected ? 0 : -1;
-      if (selected && focusTab) tab.focus();
-    });
-    board.querySelectorAll('[data-lane]').forEach(function (panel) {
-      panel.classList.toggle('is-active', panel.dataset.lane === lane);
-    });
   }
 
   function itemById(id) {
@@ -252,8 +184,6 @@
 
   function focusDescriptor(element) {
     if (!element || !board.contains(element)) return null;
-    var tab = element.closest('[data-lane-tab]');
-    if (tab) return { laneTab: tab.dataset.laneTab };
     var card = element.closest('[data-kds-item-id]');
     if (!card) return null;
     if (element === card) return { itemId: card.dataset.kdsItemId, card: true };
@@ -267,11 +197,8 @@
   }
 
   function captureViewState() {
-    var state = { scroll: {}, handoffs: {}, menus: {}, focus: focusDescriptor(document.activeElement) };
-    board.querySelectorAll('[data-lane]').forEach(function (lane) {
-      var body = lane.querySelector('.kds-col__body');
-      state.scroll[lane.dataset.lane] = body ? body.scrollTop : 0;
-    });
+    var groups = board.querySelector('.kds-groups');
+    var state = { groupScroll: groups ? groups.scrollTop : 0, handoffs: {}, menus: {}, focus: focusDescriptor(document.activeElement) };
     board.querySelectorAll('[data-kds-item-id]').forEach(function (card) {
       var select = card.querySelector('[name="handoverLocation"]');
       if (select && select.value) state.handoffs[card.dataset.kdsItemId] = select.value;
@@ -287,20 +214,17 @@
   function restoreFocus(descriptor) {
     if (!descriptor) return;
     var target = null;
-    if (descriptor.laneTab) target = board.querySelector('[data-lane-tab="' + descriptor.laneTab + '"]');
+    var card = itemById(descriptor.itemId);
+    if (!card || card.hidden) return;
+    if (descriptor.card) target = card;
     else {
-      var card = itemById(descriptor.itemId);
-      if (!card || card.hidden) return;
-      if (descriptor.card) target = card;
-      else {
-        card.querySelectorAll(descriptor.tag || '*').forEach(function (candidate) {
-          if (target) return;
-          var actionInput = candidate.closest('form') && candidate.closest('form').querySelector('[name="action"]');
-          var action = actionInput ? actionInput.value : '';
-          if ((candidate.getAttribute('name') || '') === descriptor.name &&
-              action === descriptor.action && candidate.textContent.trim() === descriptor.text) target = candidate;
-        });
-      }
+      card.querySelectorAll(descriptor.tag || '*').forEach(function (candidate) {
+        if (target) return;
+        var actionInput = candidate.closest('form') && candidate.closest('form').querySelector('[name="action"]');
+        var action = actionInput ? actionInput.value : '';
+        if ((candidate.getAttribute('name') || '') === descriptor.name &&
+            action === descriptor.action && candidate.textContent.trim() === descriptor.text) target = candidate;
+      });
     }
     if (target && !target.disabled) {
       try { target.focus({ preventScroll: true }); } catch (ignore) { target.focus(); }
@@ -322,17 +246,14 @@
     });
     var alerts = document.getElementById('kdsAlertDrawer');
     if (alerts) alerts.open = !!state.alertOpen;
-    board.querySelectorAll('[data-lane]').forEach(function (lane) {
-      var body = lane.querySelector('.kds-col__body');
-      if (body) body.scrollTop = state.scroll[lane.dataset.lane] || 0;
-    });
+    var groups = board.querySelector('.kds-groups');
+    if (groups) groups.scrollTop = state.groupScroll || 0;
     restoreFocus(state.focus);
   }
 
   function replaceBoard(html, state) {
     board.innerHTML = html;
     markChanges();
-    setActiveLane(activeLane, false);
     applyFilters();
     restoreViewState(state);
   }
@@ -479,8 +400,6 @@
 
   document.addEventListener('click', function (event) {
     var owner = event.target.closest('[data-filter-group="owner"]');
-    var urgency = event.target.closest('#kdsUrgencyFilter');
-    var laneTab = event.target.closest('[data-lane-tab]');
     var issue = event.target.closest('.js-issue');
     var remake = event.target.closest('.js-remake');
     var unblock = event.target.closest('.js-unblock');
@@ -490,12 +409,6 @@
       filters.owner = owner.dataset.filterValue;
       saveFilters();
       applyFilters();
-    } else if (urgency) {
-      filters.urgency = filters.urgency === 'late' ? 'all' : 'late';
-      saveFilters();
-      applyFilters();
-    } else if (laneTab) {
-      setActiveLane(laneTab.dataset.laneTab, false);
     } else if (issue) {
       openModal('issueModal', issue);
     } else if (remake) {
@@ -550,12 +463,6 @@
       document.querySelectorAll('.kds-modal:not([hidden])').forEach(function (modal) { closeModal(modal, true); });
       return;
     }
-    var tab = event.target.closest && event.target.closest('[data-lane-tab]');
-    if (!tab || ['ArrowLeft', 'ArrowRight'].indexOf(event.key) < 0) return;
-    event.preventDefault();
-    var order = ['waiting', 'making', 'ready'];
-    var next = order.indexOf(tab.dataset.laneTab) + (event.key === 'ArrowRight' ? 1 : -1);
-    setActiveLane(order[(next + order.length) % order.length], true);
   });
 
   board.addEventListener('toggle', function (event) {
@@ -565,7 +472,6 @@
   try { localStorage.removeItem('kdsCompact'); } catch (ignore) { /* obsolete preference */ }
   saveFilters();
   syncFilterControls();
-  setActiveLane(activeLane, false);
   var initialAlert = document.getElementById('kdsAlertDrawer');
   if (initialAlert) initialAlert.open = storageGet(ALERT_KEY) === '1';
   applyFilters();

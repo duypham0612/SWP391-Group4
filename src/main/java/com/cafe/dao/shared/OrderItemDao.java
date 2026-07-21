@@ -24,7 +24,7 @@ public class OrderItemDao {
         "       CASE WHEN oi.DoneAt IS NULL THEN NULL " +
         "            ELSE DATEDIFF(SECOND, oi.DoneAt, SYSUTCDATETIME()) END AS ServeWaitSeconds, " +
         "       p.Name AS ProductName, p.PrepSeconds, c.Name AS CategoryName, o.BranchId AS OrderBranchId, " +
-        "       o.OrderType, o.CreatedAt AS OrderCreatedAt, o.PickupCode, dt.TableNumber, ts.Status AS SessionStatus, " +
+        "       o.OrderType, o.CreatedAt AS OrderCreatedAt, o.PickupCode, o.TableSessionId, dt.TableNumber, ts.Status AS SessionStatus, " +
         "       bu.FullName AS BaristaName, cu.FullName AS PreparedByName " +
         "FROM sales.OrderItem oi " +
         "JOIN catalog.Product p ON p.ProductId=oi.ProductId " +
@@ -101,7 +101,7 @@ public class OrderItemDao {
         final String sql = SELECT +
             "WHERE o.BranchId=? AND o.Status='ACTIVE' AND oi.Status IN ('WAITING','MAKING','READY','BLOCKED') " +
             (businessDayStartUtc == null ? "" : "AND o.CreatedAt >= ? ") +
-            "ORDER BY CASE WHEN oi.RemakeCount>0 THEN 0 ELSE 1 END, oi.Priority DESC, o.CreatedAt, oi.OrderItemId";
+            "ORDER BY o.CreatedAt, oi.OrderItemId";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, branchId);
             if (businessDayStartUtc != null) ps.setTimestamp(2, Timestamp.valueOf(businessDayStartUtc));
@@ -607,6 +607,8 @@ public class OrderItemDao {
         it.setBaristaName(rs.getString("BaristaName"));
         it.setPreparedByName(rs.getString("PreparedByName"));
         it.setOrderBranchId(rs.getInt("OrderBranchId"));
+        int tableSessionId = rs.getInt("TableSessionId");
+        it.setTableSessionId(rs.wasNull() ? null : tableSessionId);
         it.setTableNumber(rs.getString("TableNumber"));
         it.setPickupCode(rs.getString("PickupCode"));
         it.setSessionStatus(rs.getString("SessionStatus"));

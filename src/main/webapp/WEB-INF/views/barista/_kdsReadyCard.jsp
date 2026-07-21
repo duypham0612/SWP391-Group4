@@ -2,15 +2,10 @@
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%-- READY: barista không còn thao tác pha, chỉ theo dõi bàn giao (thu ngân mới là người nhận).
      Ba mốc bắt buộc hiển thị đủ: người pha, lúc bắt đầu, lúc hoàn thành. --%>
-<article class="card kds-card kds-ready-card${cardItem.staleReady ? ' is-stale' : ''}" tabindex="0" data-kds-item-id="${cardItem.orderItemId}" data-cups="${cardItem.quantity}" data-owner="${cardItem.preparedBy}" data-station="${cardItem.station}" data-order-type="${cardItem.orderType}" data-priority="${cardItem.priority}" data-sla-tier="ready">
+<article class="card kds-card kds-ready-card" tabindex="0" data-kds-item-id="${cardItem.orderItemId}" data-cups="${cardItem.quantity}" data-owner="${cardItem.preparedBy}" data-station="${cardItem.station}" data-order-type="${cardItem.orderType}" data-priority="${cardItem.priority}">
     <div class="kds-card__top">
         <strong class="kds-product"><span class="kds-qty">${cardItem.quantity}×</span> <c:out value="${cardItem.productName}" /></strong>
-        <span class="kds-sla kds-sla--${cardItem.staleReady ? 'warn' : 'ok'}">Chờ nhận ${cardItem.serveWaitDisplay}</span>
     </div>
-
-    <c:if test="${cardItem.staleReady}">
-        <div class="kds-note"><span class="kds-note__tag">⚠ Để lâu</span>Món pha xong đã lâu — kiểm tra chất lượng trước khi giao, hoặc làm lại.</div>
-    </c:if>
 
     <div class="kds-ready-facts">
         <div><span>Pha bởi</span><strong><c:choose><c:when test="${not empty cardItem.preparedByName}"><c:out value="${cardItem.preparedByName}" /></c:when><c:otherwise>—</c:otherwise></c:choose></strong></div>

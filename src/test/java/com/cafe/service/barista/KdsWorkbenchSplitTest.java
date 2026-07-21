@@ -1,6 +1,7 @@
 package com.cafe.service.barista;
 
 import com.cafe.model.OrderItem;
+import com.cafe.model.BrewGroup;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -64,5 +65,31 @@ class KdsWorkbenchSplitTest {
         assertTrue(board.get("inProgress").isEmpty());
         assertTrue(board.get("ready").isEmpty());
         assertTrue(board.get("blocked").isEmpty());
+    }
+
+    @Test
+    void blocked_items_do_not_enter_brew_groups() {
+        OrderItem waiting = item(1, "WAITING");
+        waiting.setOrderType("TAKEAWAY");
+        OrderItem blocked = item(2, "BLOCKED");
+        blocked.setOrderType("TAKEAWAY");
+
+        List<BrewGroup> groups = KdsService.groupWorkbenchItems(List.of(waiting, blocked));
+
+        assertEquals(1, groups.size());
+        assertEquals(List.of(1), ids(groups.get(0).getItems()));
+    }
+
+    @Test
+    void snapshot_partitions_active_groups_and_blocked_items_from_one_source_list() {
+        OrderItem waiting = item(1, "WAITING");
+        waiting.setOrderType("TAKEAWAY");
+        OrderItem blocked = item(2, "BLOCKED");
+        blocked.setOrderType("TAKEAWAY");
+
+        KdsService.WorkbenchSnapshot snapshot = KdsService.snapshotOf(List.of(waiting, blocked));
+
+        assertEquals(List.of(1), ids(snapshot.getGroups().get(0).getItems()));
+        assertEquals(List.of(2), ids(snapshot.getBlockedItems()));
     }
 }

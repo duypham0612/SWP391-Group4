@@ -3,6 +3,7 @@ import com.cafe.service.shared.BranchMenuService;
 import com.cafe.service.shared.OrderService;
 
 import com.cafe.model.KdsTicket;
+import com.cafe.model.BrewGroup;
 import com.cafe.model.OrderItem;
 
 import java.sql.SQLException;
@@ -74,31 +75,64 @@ public class KdsService {
         return b == null ? null : b.getOpenTime();
     }
 
-    /** Chi nhánh (giờ mở cửa + ngưỡng cao điểm) — nạp một lần cho cả board. */
+    /** Chi nhánh — nạp một lần cho cả board. */
     public com.cafe.model.Branch getBranch(int branchId) throws SQLException {
         try (java.sql.Connection conn = com.cafe.config.DBConnection.getConnection()) {
             return new com.cafe.dao.admin.BranchDao().findById(conn, branchId);
         }
     }
 
-    /**
-     * Cao điểm khi số ly đang chờ+đang pha chạm ngưỡng của chi nhánh (0 = dùng mặc định).
-     * Ở cao điểm, mọi card đều "trễ" nếu tính theo đồng hồ chờ song song — nên bảng chuyển
-     * sang xếp thứ tự pha thay vì tô đỏ hàng loạt (số ly đỏ chỉ đo lượng khách, không đo năng lực).
-     */
-    public static boolean isPeak(int queueCups, int branchThresholdCups) {
-        int threshold = branchThresholdCups > 0
-                ? branchThresholdCups : com.cafe.common.Constants.PEAK_THRESHOLD_CUPS;
-        return queueCups >= threshold;
+    /** Nhóm pha đang vận hành (WAITING/MAKING/READY), đã bỏ BLOCKED ra drawer riêng. */
+    public List<BrewGroup> getWorkbenchGroups(int branchId, java.time.LocalDateTime businessDayStartUtc)
+            throws SQLException {
+        return groupWorkbenchItems(orderService.getBaristaWorkbench(branchId, businessDayStartUtc));
+    }
+
+    /** Món BLOCKED riêng cho drawer "Cần xử lý". */
+    public List<OrderItem> getBlockedItems(int branchId, java.time.LocalDateTime businessDayStartUtc)
+            throws SQLException {
+        List<OrderItem> blocked = new ArrayList<>();
+        for (OrderItem item : orderService.getBaristaWorkbench(branchId, businessDayStartUtc)) {
+            if ("BLOCKED".equals(item.getStatus())) blocked.add(item);
+        }
+        return blocked;
     }
 
     /**
-     * Ước tính ly cuối hàng còn phải đợi bao lâu: tổng giây pha của mọi ly đang chờ+đang pha
-     * chia cho số barista đang thực sự pha (tối thiểu 1). Cố ý bỏ qua phần đã pha dở của món
-     * MAKING → ước hơi cao còn hơn hứa hão với khách.
+     * Snapshot nhất quán cho một lần render board: chỉ đọc workbench MỘT lần rồi tách
+     * nhóm vận hành và drawer BLOCKED từ đúng cùng dữ liệu đó.
      */
-    public static int estimateLastWaitSeconds(int totalPrepSeconds, int baristaCount) {
-        return Math.max(0, totalPrepSeconds) / Math.max(1, baristaCount);
+    public WorkbenchSnapshot getWorkbenchSnapshot(int branchId, java.time.LocalDateTime businessDayStartUtc)
+            throws SQLException {
+        return snapshotOf(orderService.getBaristaWorkbench(branchId, businessDayStartUtc));
+    }
+
+    static WorkbenchSnapshot snapshotOf(List<OrderItem> items) {
+        List<OrderItem> active = new ArrayList<>();
+        List<OrderItem> blocked = new ArrayList<>();
+        for (OrderItem item : items) {
+            if ("BLOCKED".equals(item.getStatus())) blocked.add(item);
+            else active.add(item);
+        }
+        return new WorkbenchSnapshot(BrewGroup.from(active), blocked);
+    }
+
+    /** Tách BLOCKED trước khi gom: đây là drawer cảnh báo, không phải khối pha vận hành. */
+    static List<BrewGroup> groupWorkbenchItems(List<OrderItem> items) {
+        return snapshotOf(items).getGroups();
+    }
+
+    public static final class WorkbenchSnapshot {
+        private final List<BrewGroup> groups;
+        private final List<OrderItem> blockedItems;
+
+        private WorkbenchSnapshot(List<BrewGroup> groups, List<OrderItem> blockedItems) {
+            this.groups = groups;
+            this.blockedItems = blockedItems;
+        }
+
+        public List<BrewGroup> getGroups() { return groups; }
+        public List<OrderItem> getBlockedItems() { return blockedItems; }
     }
 
     /** Phân giỏ thuần theo trạng thái — tách khỏi truy vấn DB để test được. */

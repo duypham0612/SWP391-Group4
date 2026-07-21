@@ -14,7 +14,6 @@
         <button type="button" class="chip-filter" data-filter-group="owner" data-filter-value="mine" aria-pressed="false">Món của tôi</button>
         <button type="button" class="chip-filter" data-filter-group="owner" data-filter-value="unassigned" aria-pressed="false">Chưa nhận</button>
     </div>
-    <button type="button" class="chip-filter chip-filter--urgent" id="kdsUrgencyFilter" data-filter-group="urgency" data-filter-value="late" aria-pressed="false">Trễ giờ</button>
     <details class="kds-more" id="kdsMoreFilters">
         <summary class="chip-filter">Quầy &amp; loại đơn <span class="kds-filter-badge" id="kdsFilterBadge" hidden></span></summary>
         <div class="kds-more__panel">

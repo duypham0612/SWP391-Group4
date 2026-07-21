@@ -1,6 +1,6 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
-<article class="card kds-card kds-${peakMode ? 'ok' : cardItem.slaTier}" tabindex="0" data-kds-item-id="${cardItem.orderItemId}" data-cups="${cardItem.quantity}" data-owner="unassigned" data-station="${cardItem.station}" data-order-type="${cardItem.orderType}" data-priority="${cardItem.priority}" data-sla-tier="${cardItem.slaTier}">
+<article class="card kds-card" tabindex="0" data-kds-item-id="${cardItem.orderItemId}" data-cups="${cardItem.quantity}" data-owner="unassigned" data-station="${cardItem.station}" data-order-type="${cardItem.orderType}" data-priority="${cardItem.priority}">
     <jsp:include page="_kdsCardHeader.jsp" />
     <c:if test="${onShift}">
         <div class="kds-item-actions">

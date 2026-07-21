@@ -1,6 +1,6 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
-<article class="card kds-card kds-blocked" tabindex="0" data-kds-item-id="${cardItem.orderItemId}" data-owner="blocked" data-station="${cardItem.station}" data-order-type="${cardItem.orderType}" data-priority="${cardItem.priority}" data-sla-tier="${cardItem.slaTier}">
+<article class="card kds-card kds-blocked" tabindex="0" data-kds-item-id="${cardItem.orderItemId}" data-owner="blocked" data-station="${cardItem.station}" data-order-type="${cardItem.orderType}" data-priority="${cardItem.priority}">
     <jsp:include page="_kdsCardHeader.jsp" />
     <div class="kds-handover"><strong>Đang chờ xử lý</strong> · Thu ngân có thể huỷ món này nếu khách không đổi ý</div>
     <c:if test="${onShift}">

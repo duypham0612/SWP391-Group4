@@ -37,6 +37,7 @@ public class OrderItem {
     // join / hiển thị
     private String productName;
     private String tableNumber;
+    private Integer tableSessionId;    // sales.Orders.TableSessionId — khóa gom nhóm dine-in
     private String pickupCode;         // mã gọi món của đơn (join hiển thị)
     private String orderType;
     private String categoryName;
@@ -121,6 +122,9 @@ public class OrderItem {
     public String getTableNumber() { return tableNumber; }
     public void setTableNumber(String v) { this.tableNumber = v; }
 
+    public Integer getTableSessionId() { return tableSessionId; }
+    public void setTableSessionId(Integer v) { this.tableSessionId = v; }
+
     public String getPickupCode() { return pickupCode; }
     public void setPickupCode(String v) { this.pickupCode = v; }
 
@@ -172,6 +176,12 @@ public class OrderItem {
         if ("TAKEAWAY".equals(orderType)) return "Mang đi";
         if ("DELIVERY".equals(orderType)) return "Giao hàng";
         return "Tại bàn";
+    }
+
+    /** Khóa gom KDS: dine-in gom theo lượt bàn; các loại đơn khác gom theo đơn. */
+    public String getBrewGroupKey() {
+        return "DINE_IN".equals(orderType) && tableSessionId != null
+                ? "T" + tableSessionId : "O" + orderId;
     }
 
     public String getStation() {

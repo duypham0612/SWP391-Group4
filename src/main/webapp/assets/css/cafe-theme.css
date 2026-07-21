@@ -931,7 +931,7 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
 .kds-board > .alert{flex:none; margin:0}
 .kds-peak{flex:none; margin:0; min-height:38px; padding:7px 12px}
 .kds-summary{
-  flex:none; display:grid; grid-template-columns:.82fr .82fr .82fr .82fr 2fr; gap:0;
+  flex:none; display:grid; grid-template-columns:repeat(4,1fr); gap:0;
   min-height:54px; margin:0; padding:6px 8px; border-left-width:3px; border-radius:var(--radius-sm);
 }
 .kds-stat{
@@ -1022,6 +1022,29 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
 }
 .kds-filter-empty[hidden]{display:none}
 
+/* Một khối là một lượt bàn (dine-in) hoặc một đơn mang đi/giao. */
+.kds-groups{
+  flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;
+  display:flex; flex-direction:column; gap:10px; padding-right:3px;
+}
+.kds-group{
+  background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-sm); overflow:hidden;
+}
+.kds-group__head{
+  display:flex; align-items:center; gap:9px; flex-wrap:wrap; padding:10px 12px;
+  background:var(--surface); border-bottom:1px solid var(--line);
+}
+.kds-group__seq{
+  display:grid; place-items:center; flex:none; width:26px; height:26px; border-radius:50%;
+  background:var(--ink); color:#fff; font-size:12px; font-weight:800; font-variant-numeric:tabular-nums;
+}
+.kds-group__where{font-size:15px; color:var(--ink)}
+.kds-group__count{margin-left:auto; color:var(--ink-soft); font-size:13px; font-weight:800; white-space:nowrap}
+.kds-group__count small{font-size:11px; font-weight:600; color:var(--muted)}
+.kds-group__body{display:grid; grid-template-columns:repeat(auto-fill,minmax(275px,1fr)); gap:10px; padding:10px}
+.kds-board .kds-group .kds-card{border-left-color:var(--line); background:var(--cream)}
+.kds-board .kds-group .kds-ready-card{border-left-color:var(--st-ready)}
+
 .kds-board .kds-card{gap:10px; padding:14px; border-radius:var(--radius-sm); box-shadow:var(--shadow-xs)}
 .kds-board .kds-card:hover{box-shadow:var(--shadow-sm)}
 .kds-board .kds-card__top{flex-wrap:wrap; gap:8px}
@@ -1093,7 +1116,7 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
   .kds-filters{max-width:52vw; overflow-x:auto; padding-bottom:2px}
   .kds-toolbar .kds-connection{font-size:0; padding:0 12px}
   .kds-toolbar .kds-connection .kds-refresh__dot{width:9px; height:9px}
-  .kds-summary{grid-template-columns:repeat(4,1fr) 1.65fr}
+  .kds-summary{grid-template-columns:repeat(4,1fr)}
   .kds-stat{padding-inline:8px}
 }
 
@@ -1111,6 +1134,8 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
   .kds-more__panel{left:auto; right:0}
   .kds-board{display:block}
   .kds-board > *{margin-bottom:10px}
+  .kds-groups{overflow:visible; padding-right:0}
+  .kds-group__body{grid-template-columns:1fr}
   .kds-summary{grid-template-columns:repeat(2,1fr); min-height:0}
   .kds-stat{min-height:52px}
   .kds-stat:nth-child(2),.kds-stat:nth-child(4){border-right:0}
