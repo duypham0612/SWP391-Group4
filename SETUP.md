@@ -33,13 +33,25 @@
 
 ## 2. Tạo Database
 
-Mở **SSMS** → mở file `sql/database.sql` → **Execute** (F5).
+Cách khuyên dùng trên Windows là chạy script có sẵn để luôn import bằng UTF-8, tránh dữ liệu tiếng Việt bị lưu thành `CÃ  phÃª...`:
 
-Nếu chạy bằng dòng lệnh, luôn chỉ định UTF-8 để tránh dữ liệu tiếng Việt bị lưu thành `CÃ  phÃª...`:
+```bat
+scripts\run-database-utf8.bat
+```
+
+Nếu SQL Server không dùng `localhost,1433` hoặc mật khẩu `sa` không phải `123`, truyền thêm tham số:
+
+```bat
+scripts\run-database-utf8.bat localhost,1433 MatKhauSaCuaBan
+```
+
+Nếu chạy thủ công bằng dòng lệnh, luôn chỉ định `-f 65001`:
 
 ```bash
 sqlcmd -S localhost,1433 -U sa -P 123 -f 65001 -I -i sql/database.sql -b
 ```
+
+Nếu mở bằng **SSMS**, hãy chắc file được mở/lưu ở **UTF-8** trước khi Execute. Dùng script `.bat` phía trên vẫn là cách ổn định nhất.
 
 Script `database.sql` giờ là **file DUY NHẤT** — chạy 1 phát ra DB demo đầy đủ (schema + toàn bộ seed, đã gộp mọi migration). Gồm 3 phần:
 - **PART A** — Database **`CafeChain`** (8 schema, 37 bảng) + seed gốc.
