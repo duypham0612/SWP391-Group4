@@ -99,7 +99,7 @@
                             <label>Loại</label>
                             <select name="wasteType" class="form-control waste-type">
                                 <option value="SPILL" ${row.wasteType == 'SPILL' ? 'selected' : ''}>Đổ/rơi</option>
-                                <option value="EXPIRED" ${row.wasteType == 'EXPIRED' ? 'selected' : ''}>Hết hạn</option>
+                                <option value="EXPIRED" ${row.wasteType == 'EXPIRED' ? 'selected' : ''}>Hỏng / hết hạn</option>
                                 <option value="OTHER" ${row.wasteType == 'OTHER' ? 'selected' : ''}>Khác</option>
                             </select>
                         </div>
@@ -111,6 +111,7 @@
                                 <option data-type="SPILL" value="Rơi khi thao tác" ${row.reasonPreset == 'Rơi khi thao tác' ? 'selected' : ''}>Rơi khi thao tác</option>
                                 <option data-type="SPILL" value="Sai định lượng" ${row.reasonPreset == 'Sai định lượng' ? 'selected' : ''}>Sai định lượng</option>
                                 <option data-type="EXPIRED" value="Hết hạn" ${row.reasonPreset == 'Hết hạn' ? 'selected' : ''}>Hết hạn</option>
+                                <option data-type="EXPIRED" value="Nguyên liệu hỏng" ${row.reasonPreset == 'Nguyên liệu hỏng' ? 'selected' : ''}>Nguyên liệu hỏng</option>
                                 <option data-type="EXPIRED" value="Bảo quản lỗi" ${row.reasonPreset == 'Bảo quản lỗi' ? 'selected' : ''}>Bảo quản lỗi</option>
                                 <option data-type="EXPIRED" value="Quá thời gian mở nắp" ${row.reasonPreset == 'Quá thời gian mở nắp' ? 'selected' : ''}>Quá thời gian mở nắp</option>
                                 <option data-type="OTHER" value="Kiểm kê lệch" ${row.reasonPreset == 'Kiểm kê lệch' ? 'selected' : ''}>Kiểm kê lệch</option>

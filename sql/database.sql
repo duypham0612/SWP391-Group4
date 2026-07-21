@@ -326,7 +326,7 @@ CREATE TABLE catalog.MenuBlockRequest (
     ProductId    INT NOT NULL,
     Reason       VARCHAR(20)   NOT NULL,
     Note         NVARCHAR(255) NULL,
-    BackInEta    DATETIME2     NOT NULL,
+    BackInEta    DATETIME2     NULL,   -- tuỳ chọn: 86 sự cố (máy hỏng...) thường bất định thời gian có lại
     RequestedBy  INT NOT NULL,
     RequestedAt  DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
     ReopenRequestedAt DATETIME2 NULL,

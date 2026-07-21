@@ -120,12 +120,15 @@ public class BranchMenuService {
                 r.setBackInEta(v.getBackInEta());
                 r.setRequestedBy(userId);
                 int requestId = menuBlockDao.insert(conn, r);
-                if (dao.updateIs86(conn, branchId, productId, true, Timestamp.valueOf(v.getBackInEta())) != 1) {
+                // ETA có thể null (sự cố bất định) — cột BackInEta đã cho NULL.
+                Timestamp etaTs = v.getBackInEta() == null ? null : Timestamp.valueOf(v.getBackInEta());
+                if (dao.updateIs86(conn, branchId, productId, true, etaTs) != 1) {
                     throw new BusinessException("Món này không còn trong menu chi nhánh. Vui lòng tải lại.");
                 }
+                String etaJson = v.getBackInEta() == null ? "null" : "\"" + v.getBackInEta() + "\"";
                 String payload = "{\"productId\":" + productId
-                        + ",\"is86\":true,\"eta\":\"" + v.getBackInEta()
-                        + "\",\"reason\":\"" + v.getReason().name()
+                        + ",\"is86\":true,\"eta\":" + etaJson
+                        + ",\"reason\":\"" + v.getReason().name()
                         + "\",\"by\":" + userId
                         + ",\"requestId\":" + requestId + "}";
                 EventPublisher.publish(conn, EventType.MENU_86_CHANGED, String.valueOf(productId), branchId, payload);
@@ -154,28 +157,6 @@ public class BranchMenuService {
                 if (open == null) throw new BusinessException("Món này không còn chờ xử lý.");
                 int affected = menuBlockDao.markReopenRequested(conn, open.getRequestId(), branchId);
                 if (affected != 1) throw new BusinessException("Món này không còn chờ xử lý.");
-                conn.commit();
-            } catch (SQLException | RuntimeException e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(true);
-            }
-        }
-    }
-
-    public void approve86(int branchId, int requestId, int reviewerId, String reviewNote) throws SQLException {
-        if (reviewerId <= 0) throw new BusinessException("Không xác định được người duyệt.");
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                MenuBlockRequest open = menuBlockDao.findOpenById(conn, requestId, branchId);
-                if (open == null) throw new BusinessException("Yêu cầu đã được xử lý.");
-                if (!"PENDING".equals(open.getStatus())) {
-                    throw new BusinessException("Yêu cầu này đã được duyệt.");
-                }
-                int affected = menuBlockDao.review(conn, requestId, branchId, "APPROVED", reviewerId, reviewNote, false);
-                if (affected != 1) throw new BusinessException("Yêu cầu đã được xử lý.");
                 conn.commit();
             } catch (SQLException | RuntimeException e) {
                 conn.rollback();
