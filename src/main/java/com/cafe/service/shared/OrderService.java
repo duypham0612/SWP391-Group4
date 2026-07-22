@@ -496,10 +496,14 @@ public class OrderService {
         if (clean.isEmpty()) throw new IllegalArgumentException("Vui lòng chọn lý do làm lại.");
         return tx(conn -> {
             OrderItem it = itemDao.findById(conn, orderItemId);
-            if (it == null || itemDao.beginRemake(conn, orderItemId, branchId) == 0) return false;
+            if (it == null) return false;
+            boolean accepted = "READY".equals(it.getStatus())
+                    ? itemDao.beginRemake(conn, orderItemId, branchId) == 1
+                    : itemDao.beginRemakeClaimed(conn, orderItemId, branchId, userId) == 1;
+            if (!accepted) return false;
             inventoryService.reserveRemakeForOrderItem(conn, branchId, orderItemId, it.getProductId(), it.getQuantity(), clean, userId);
             itemDao.finishRemake(conn, orderItemId, branchId);
-            actionDao.insert(conn, orderItemId, branchId, "REMAKE", "READY", "WAITING", clean, userId);
+            actionDao.insert(conn, orderItemId, branchId, "REMAKE", it.getStatus(), "WAITING", clean, userId);
             EventPublisher.publish(conn, EventType.ITEM_REMAKE_REQUESTED, String.valueOf(orderItemId), branchId,
                     "{\"orderId\":" + it.getOrderId() + ",\"orderItemId\":" + orderItemId
                             + ",\"reason\":\"" + clean + "\",\"by\":" + userId + "}");

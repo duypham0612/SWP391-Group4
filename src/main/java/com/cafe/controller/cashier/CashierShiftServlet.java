@@ -2,6 +2,7 @@ package com.cafe.controller.cashier;
 import com.cafe.controller.manager.InventoryDashboardServlet;
 
 import com.cafe.common.CsrfUtil;
+import com.cafe.common.BusinessDay;
 import com.cafe.common.SessionUtil;
 import com.cafe.model.User;
 import com.cafe.service.cashier.CashierDutyService;
@@ -15,7 +16,6 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.time.LocalDate;
 
 /** C1 · CashierShiftServlet → /cashier/shift. open | close | report. */
 @WebServlet("/cashier/shift")
@@ -42,7 +42,7 @@ public class CashierShiftServlet extends HttpServlet {
             req.setAttribute("todayRevenue", service.getTodayRevenue(branchId));      // R1
             req.setAttribute("todayBillCount", service.getTodayBillCount(branchId));  // R1
             if (u != null) {
-                req.setAttribute("clockStatus", attendanceService.getMyShiftStatus(u.getUserId(), branchId, LocalDate.now()));
+                req.setAttribute("clockStatus", attendanceService.getMyShiftStatus(u.getUserId(), branchId, BusinessDay.todayVn()));
             }
             req.setAttribute("pageTitle", "Ca thu ngân");
             req.getRequestDispatcher("/WEB-INF/views/cashier/shift.jsp").forward(req, resp);

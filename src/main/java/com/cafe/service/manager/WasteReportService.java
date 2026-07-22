@@ -57,6 +57,14 @@ public class WasteReportService {
                 query, wasteType, status, page, pageSize);
     }
 
+    public java.util.List<com.cafe.model.WasteReview> openReviews(int branchId) throws SQLException {
+        return inventoryService.getOpenWasteReviews(branchId);
+    }
+
+    public boolean resolveReview(int branchId, long reviewId, int managerId, String note) throws SQLException {
+        return inventoryService.resolveWasteReview(branchId, reviewId, managerId, note);
+    }
+
     /** Ngày rác trên URL không được làm 500. */
     private static LocalDate parseOrNull(String s) {
         try {

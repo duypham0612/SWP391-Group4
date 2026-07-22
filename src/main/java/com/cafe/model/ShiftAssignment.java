@@ -15,6 +15,7 @@ public class ShiftAssignment {
     private LocalTime startTime;
     private LocalTime endTime;
     private String userName;
+    private String roleCode;
 
     public int getShiftAssignmentId() { return shiftAssignmentId; }
     public void setShiftAssignmentId(int v) { this.shiftAssignmentId = v; }
@@ -39,4 +40,6 @@ public class ShiftAssignment {
 
     public String getUserName() { return userName; }
     public void setUserName(String v) { this.userName = v; }
+    public String getRoleCode() { return roleCode; }
+    public void setRoleCode(String v) { this.roleCode = v; }
 }

@@ -1,6 +1,5 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
-<%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <%@ taglib prefix="fn" uri="jakarta.tags.functions" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <jsp:include page="../layout/header.jsp" />
@@ -36,37 +35,19 @@
     <div class="card stat">
         <span class="label">${scope.label}</span>
         <span class="value">${summary.activeCount}</span>
-        <small>dòng hiệu lực · tổng <fmt:formatNumber value="${summary.totalCost}" maxFractionDigits="0"/> ₫</small>
+        <small>dòng ghi nhận hiệu lực</small>
     </div>
     <div class="card stat">
         <span class="label">Hao hụt nguyên liệu</span>
         <span class="value">${summary.ingredientWasteCount}</span>
-        <small><fmt:formatNumber value="${summary.ingredientWasteCost}" maxFractionDigits="0"/> ₫</small>
+        <small>dòng hao hụt</small>
     </div>
     <div class="card stat">
         <span class="label">Làm lại món</span>
         <span class="value">${summary.remakeCount}</span>
-        <small><fmt:formatNumber value="${summary.remakeCost}" maxFractionDigits="0"/> ₫</small>
-    </div>
-    <div class="card stat">
-        <span class="label">Hao nhiều nhất</span>
-        <span class="value waste-top-name">
-            <c:choose>
-                <c:when test="${summary.hasTopIngredient}">${summary.topIngredientName}</c:when>
-                <c:otherwise>-</c:otherwise>
-            </c:choose>
-        </span>
-        <small>
-            <c:choose>
-                <c:when test="${summary.hasTopIngredient}"><fmt:formatNumber value="${summary.topIngredientCost}" maxFractionDigits="0"/> ₫</c:when>
-                <c:otherwise>Chưa đủ dữ liệu giá</c:otherwise>
-            </c:choose>
-        </small>
+        <small>lần làm lại</small>
     </div>
 </section>
-<c:if test="${summary.missingCostCount > 0}">
-    <div class="alert alert-info">Có ${summary.missingCostCount} dòng chưa có đơn giá nhập gần nhất, thành tiền đang để “Chưa có giá”.</div>
-</c:if>
 
 <section class="waste-mode-grid">
     <div class="card waste-card">
@@ -76,8 +57,9 @@
                 <p>Ghi nhanh nhiều nguyên liệu bị đổ, rơi, hết hạn hoặc thất thoát khác.</p>
             </div>
         </div>
-        <form id="ingredientWasteForm" action="${ctx}/barista/waste" method="post" novalidate>
+        <form id="ingredientWasteForm" action="${ctx}/barista/waste" method="post" onsubmit="return confirm('Xác nhận ghi hao hụt? Nếu vượt tồn hệ thống, Quản lý sẽ nhận ngoại lệ để đối soát.');">
             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+            <input type="hidden" name="clientRequestId" class="js-waste-request-id" value="${wasteClientRequestId}">
             <input type="hidden" name="action" value="createIngredientWaste">
             <div id="wasteRows" class="waste-rows">
                 <c:forEach var="row" items="${submittedWasteRows}">
@@ -93,7 +75,7 @@
                         </div>
                         <div class="form-group waste-row__qty">
                             <label>Số lượng</label>
-                            <input type="number" name="quantity" class="form-control" min="0.001" step="0.001" value="${row.quantity}">
+                            <input type="number" name="quantity" class="form-control" min="0.001" max="999999999.999" step="0.001" value="${fn:escapeXml(row.quantity)}">
                         </div>
                         <div class="form-group waste-row__type">
                             <label>Loại</label>
@@ -105,7 +87,7 @@
                         </div>
                         <div class="form-group waste-row__preset">
                             <label>Lý do</label>
-                            <select name="reasonPreset" class="form-control waste-reason-preset">
+                            <select name="reasonPreset" class="form-control waste-reason-preset" required>
                                 <option value="">-- Gợi ý --</option>
                                 <option data-type="SPILL" value="Đổ khi pha" ${row.reasonPreset == 'Đổ khi pha' ? 'selected' : ''}>Đổ khi pha</option>
                                 <option data-type="SPILL" value="Rơi khi thao tác" ${row.reasonPreset == 'Rơi khi thao tác' ? 'selected' : ''}>Rơi khi thao tác</option>
@@ -114,14 +96,13 @@
                                 <option data-type="EXPIRED" value="Nguyên liệu hỏng" ${row.reasonPreset == 'Nguyên liệu hỏng' ? 'selected' : ''}>Nguyên liệu hỏng</option>
                                 <option data-type="EXPIRED" value="Bảo quản lỗi" ${row.reasonPreset == 'Bảo quản lỗi' ? 'selected' : ''}>Bảo quản lỗi</option>
                                 <option data-type="EXPIRED" value="Quá thời gian mở nắp" ${row.reasonPreset == 'Quá thời gian mở nắp' ? 'selected' : ''}>Quá thời gian mở nắp</option>
-                                <option data-type="OTHER" value="Kiểm kê lệch" ${row.reasonPreset == 'Kiểm kê lệch' ? 'selected' : ''}>Kiểm kê lệch</option>
                                 <option data-type="OTHER" value="Mẫu thử/QC" ${row.reasonPreset == 'Mẫu thử/QC' ? 'selected' : ''}>Mẫu thử/QC</option>
                                 <option data-type="OTHER" value="Khác" ${row.reasonPreset == 'Khác' ? 'selected' : ''}>Khác</option>
                             </select>
                         </div>
                         <div class="form-group waste-row__note">
                             <label>Nhập thêm</label>
-                            <input type="text" name="reasonDetail" class="form-control" maxlength="255" value="${row.reasonDetail}">
+                            <input type="text" name="reasonDetail" class="form-control waste-reason-detail" maxlength="255" value="${fn:escapeXml(row.reasonDetail)}">
                         </div>
                         <button type="button" class="waste-row__remove" title="Xoá dòng">×</button>
                     </div>
@@ -137,12 +118,13 @@
     <div class="card waste-card">
         <div class="waste-card__head">
             <div>
-                <h3>Làm lại món</h3>
-                <p>Chọn món và số lượng, hệ thống tự bung công thức thành các dòng nguyên liệu REMAKE.</p>
+                <h3>Làm lại không thuộc đơn</h3>
+                <p>Dùng cho ly thử hoặc sự cố nội bộ. Món thuộc đơn phải làm lại từ KDS để giữ liên kết đơn hàng.</p>
             </div>
         </div>
-        <form action="${ctx}/barista/waste" method="post" class="waste-remake-form">
+        <form action="${ctx}/barista/waste" method="post" class="waste-remake-form" onsubmit="return confirm('Xác nhận ghi làm lại? Món thuộc đơn phải thao tác từ KDS.');">
             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+            <input type="hidden" name="clientRequestId" class="js-waste-request-id" value="${wasteClientRequestId}">
             <input type="hidden" name="action" value="remakeProduct">
             <div class="form-group">
                 <label>Món</label>
@@ -160,22 +142,23 @@
             </div>
             <div class="form-group">
                 <label>Số lượng</label>
-                <input type="number" name="productQty" class="form-control" min="1" step="1" value="${submittedRemake.quantity}" required>
+                <input type="number" name="productQty" class="form-control" min="1" max="100" step="1" value="${fn:escapeXml(submittedRemake.quantity)}" required>
             </div>
             <div class="form-group">
                 <label>Lý do</label>
-                <select name="remakeReasonPreset" class="form-control">
+                <select name="remakeReasonPreset" class="form-control" required>
                     <option value="">-- Gợi ý --</option>
-                    <option value="Sai công thức" ${submittedRemake.reasonPreset == 'Sai công thức' ? 'selected' : ''}>Sai công thức</option>
-                    <option value="Khách yêu cầu làm lại" ${submittedRemake.reasonPreset == 'Khách yêu cầu làm lại' ? 'selected' : ''}>Khách yêu cầu làm lại</option>
-                    <option value="Đổ/rơi sau khi pha" ${submittedRemake.reasonPreset == 'Đổ/rơi sau khi pha' ? 'selected' : ''}>Đổ/rơi sau khi pha</option>
-                    <option value="Lỗi chất lượng" ${submittedRemake.reasonPreset == 'Lỗi chất lượng' ? 'selected' : ''}>Lỗi chất lượng</option>
+                    <option value="WRONG_RECIPE" ${submittedRemake.reasonPreset == 'WRONG_RECIPE' ? 'selected' : ''}>Sai công thức</option>
+                    <option value="CUSTOMER_FEEDBACK" ${submittedRemake.reasonPreset == 'CUSTOMER_FEEDBACK' ? 'selected' : ''}>Khách yêu cầu làm lại</option>
+                    <option value="SPILL" ${submittedRemake.reasonPreset == 'SPILL' ? 'selected' : ''}>Đổ/rơi sau khi pha</option>
+                    <option value="QUALITY" ${submittedRemake.reasonPreset == 'QUALITY' ? 'selected' : ''}>Lỗi chất lượng</option>
                 </select>
             </div>
             <div class="form-group">
                 <label>Nhập thêm</label>
-                <input type="text" name="remakeReasonDetail" class="form-control" maxlength="255" value="${submittedRemake.reasonDetail}">
+                <input type="text" name="remakeReasonDetail" class="form-control" maxlength="255" value="${fn:escapeXml(submittedRemake.reasonDetail)}">
             </div>
+            <label class="remake-modifiers__item"><input type="checkbox" name="manualRemakeConfirmed" value="1" required> Xác nhận ly này không thuộc một món đang có trên KDS</label>
             <button type="submit" class="btn btn-primary btn-full">Ghi làm lại món</button>
         </form>
         <script>
@@ -224,7 +207,7 @@
             <c:set var="editReasonValue" value="${empty requestScope.editReason ? editLog.reason : requestScope.editReason}" />
             <div class="form-group">
                 <label>Số lượng</label>
-                <input type="number" name="quantity" class="form-control" min="0.001" step="0.001" value="${editQty}" required>
+                <input type="number" name="quantity" class="form-control" min="0.001" max="999999999.999" step="0.001" value="${fn:escapeXml(editQty)}" required>
             </div>
             <div class="form-group">
                 <label>Loại</label>
@@ -236,7 +219,7 @@
             </div>
             <div class="form-group waste-edit-form__reason">
                 <label>Lý do</label>
-                <input type="text" name="reason" class="form-control" maxlength="255" value="${editReasonValue}">
+                <input type="text" name="reason" class="form-control" maxlength="255" value="${fn:escapeXml(editReasonValue)}" required>
             </div>
             <div class="waste-edit-form__actions">
                 <button type="submit" class="btn btn-primary">Lưu sửa</button>
@@ -283,7 +266,6 @@
                             <th style="width:120px">Số lượng</th>
                             <th style="width:120px">Loại</th>
                             <th>Lý do</th>
-                            <th style="width:130px">Thành tiền</th>
                             <th>Người ghi</th>
                             <th style="width:100px">Trạng thái</th>
                             <th style="width:150px">Thao tác</th>
@@ -292,7 +274,7 @@
                     <tbody>
                         <c:choose>
                             <c:when test="${empty logs}">
-                                <tr class="tt-empty"><td colspan="9">Không tìm thấy nhật ký phù hợp.</td></tr>
+                                <tr class="tt-empty"><td colspan="8">Không tìm thấy nhật ký phù hợp.</td></tr>
                             </c:when>
                             <c:otherwise>
                                 <c:forEach var="w" items="${logs}">
@@ -304,8 +286,7 @@
                                         </td>
                                         <td><strong>${w.quantity}</strong> ${w.ingredientUnit}</td>
                                         <td>${w.wasteTypeLabel}</td>
-                                        <td>${w.reason}</td>
-                                        <td><strong>${w.costDisplay}</strong></td>
+                                        <td>${fn:escapeXml(w.reason)}<c:if test="${not empty w.wasteEvent}"><small class="muted"><br>${w.wasteEvent.sourceLabel}<c:if test="${not empty w.wasteEvent.productName}"> · ${w.wasteEvent.cupQuantity} × ${w.wasteEvent.productName}</c:if></small></c:if></td>
                                         <td>${w.loggedByName}</td>
                                         <td>
                                             <c:choose>
@@ -315,10 +296,10 @@
                                         </td>
                                         <td>
                                             <div class="waste-actions">
-                                                <c:if test="${w.editable}">
+                                                <c:if test="${w.editable and w.loggedBy == currentUserId}">
                                                     <a class="btn btn-ghost btn-sm" href="${ctx}/barista/waste?edit=${w.wasteLogId}#editWaste">Sửa</a>
                                                 </c:if>
-                                                <c:if test="${w.voidable}">
+                                                <c:if test="${w.voidable and w.loggedBy == currentUserId}">
                                                     <form action="${ctx}/barista/waste" method="post" onsubmit="return confirm('Huỷ bản ghi này? Tồn kho sẽ được hoàn lại qua sổ cái.');">
                                                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                                         <input type="hidden" name="action" value="void">
@@ -381,6 +362,7 @@
   function syncPreset(row){
     var type = row.querySelector('.waste-type');
     var preset = row.querySelector('.waste-reason-preset');
+    var detail = row.querySelector('.waste-reason-detail');
     if (!type || !preset) return;
     var current = preset.value;
     Array.prototype.forEach.call(preset.options, function(opt){
@@ -390,6 +372,11 @@
       opt.disabled = !show;
     });
     if (current && preset.selectedOptions[0] && preset.selectedOptions[0].disabled) preset.value = '';
+    if (detail) {
+      var isOther = preset.value === 'Khác';
+      detail.required = isOther;
+      detail.setAttribute('aria-required', isOther ? 'true' : 'false');
+    }
   }
 
   function wire(row){
@@ -422,6 +409,20 @@
     wire(clone);
     var first = clone.querySelector('select[name="ingredientId"]');
     if (first) first.focus();
+  });
+})();
+</script>
+
+<script>
+(function(){
+  document.querySelectorAll('form[action$="/barista/waste"]').forEach(function(form){
+    form.addEventListener('submit', function(){
+      var requestId = form.querySelector('.js-waste-request-id');
+      if (requestId && !requestId.value) requestId.value = window.crypto && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(36).slice(2);
+      var button = form.querySelector('button[type="submit"]');
+      if (!button || button.disabled) return;
+      button.disabled = true; button.dataset.originalText = button.textContent; button.textContent = 'Đang ghi…';
+    });
   });
 })();
 </script>

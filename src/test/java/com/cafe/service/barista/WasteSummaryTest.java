@@ -74,6 +74,24 @@ class WasteSummaryTest {
         assertMoney(s.getTotalCost(), "7000");
     }
 
+    /** Một lần remake có nhiều nguyên liệu chỉ được tính là một lần/ly trên KPI mới. */
+    @Test
+    void remake_event_is_counted_once_even_when_it_has_many_ingredients() {
+        WasteLog coffee = log("REMAKE", "ACTIVE", "Cà phê", 1, "1", "5000"); coffee.setWasteEventId(91L);
+        WasteLog milk = log("REMAKE", "ACTIVE", "Sữa", 2, "2", "1000"); milk.setWasteEventId(91L);
+        WasteSummary s = WasteSummary.from(List.of(coffee, milk));
+        assertEquals(1, s.getRemakeCount());
+        assertMoney(s.getRemakeCost(), "7000");
+    }
+
+    @Test
+    void snapshot_cost_wins_over_later_estimate() {
+        WasteLog w = log("SPILL", "ACTIVE", "Sữa", 2, "2", "9999");
+        w.setCostBasis("SNAPSHOT"); w.setUnitCostAtLog(new BigDecimal("1000"));
+        WasteSummary s = WasteSummary.from(List.of(w));
+        assertMoney(s.getTotalCost(), "2000");
+    }
+
     /** Dòng thiếu giá (unitCost null) → đếm missingCost, KHÔNG cộng vào totalCost. */
     @Test
     void missing_cost_counted_but_not_summed() {

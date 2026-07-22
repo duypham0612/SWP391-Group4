@@ -91,6 +91,7 @@
                 <li><a class="${curPath == ctx.concat('/manager/menu') ? 'active' : ''}" href="${ctx}/manager/menu"><svg class="ic"><use href="#ic-menu"/></svg>Menu chi nhánh</a></li>
                 <li><a class="${curPath == ctx.concat('/manager/menu-block') ? 'active' : ''}" href="${ctx}/manager/menu-block"><svg class="ic"><use href="#ic-ban"/></svg>Món tạm hết</a></li>
                 <li class="nav-section">Vận hành</li>
+                <li><a class="${curPath == ctx.concat('/manager/handover') ? 'active' : ''}" href="${ctx}/manager/handover"><svg class="ic"><use href="#ic-clipboard"/></svg>Bàn giao dự phòng</a></li>
                 <li><a class="${curPath == ctx.concat('/manager/branch-settings') ? 'active' : ''}" href="${ctx}/manager/branch-settings"><svg class="ic"><use href="#ic-store"/></svg>Cài đặt chi nhánh</a></li>
             </c:when>
             <c:when test="${u.roleCode == 'CASHIER'}">

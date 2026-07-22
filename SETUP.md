@@ -31,14 +31,17 @@
 
 ---
 
-## 2. Tạo Database
+## 2. Tạo hoặc nâng cấp Database
 
-Mở **SSMS** → mở file `sql/database.sql` → **Execute** (F5).
+Chỉ dùng **một file duy nhất** ở mọi lần deploy: `sql/database.sql`.
 
-Script `database.sql` giờ là **file DUY NHẤT** — chạy 1 phát ra DB demo đầy đủ (schema + toàn bộ seed, đã gộp mọi migration). Gồm 3 phần:
-- **PART A** — Database **`CafeChain`** (8 schema, 37 bảng) + seed gốc.
-- **PART B** — Catalog **15 món** (mọi món đủ công thức + modifier) + ảnh thật (Unsplash).
-- **PART C** — Demo lớn: **3 chi nhánh**, **16 tài khoản** (BCrypt thật, mật khẩu `123456`), **~31 ngày lịch sử bán (≈800 hoá đơn)** + story hôm nay đủ mọi role → **đăng nhập được ngay, dashboard/biểu đồ đầy dữ liệu**.
+```bash
+sqlcmd -S <server> -d CafeChain -i sql/database.sql
+```
+
+Script idempotent: chạy nhiều lần vẫn an toàn, chỉ tạo hoặc nâng cấp schema còn thiếu; không reset và không seed dữ liệu trong luồng deploy mặc định.
+
+Để dựng dữ liệu demo trên database mới, đổi `@SeedDemo` ở đầu `database.sql` từ `0` thành `1` trước khi chạy. Không bật cờ này trên database đang sử dụng.
 
 ---
 
@@ -149,7 +152,7 @@ src/main/webapp/
 └── assets/js/  assets/img/
 
 src/main/resources/db.properties   ← cấu hình kết nối DB
-sql/database.sql                   ← schema + toàn bộ seed demo (file SQL DUY NHẤT)
+sql/database.sql                   ← file SQL duy nhất: tạo mới hoặc nâng cấp schema an toàn
 ```
 
 > Tài liệu chi tiết: `CLAUDE.md`, `KE_HOACH_CHI_TIET_THEO_ROLE.md`, `docs/PROGRESS.md`.

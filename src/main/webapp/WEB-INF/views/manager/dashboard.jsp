@@ -63,6 +63,12 @@
     </a>
 </div>
 
+<c:if test="${not empty managerHandoverFallbacks}">
+<a class="alert alert-warn" href="${ctx}/manager/handover" style="display:block;margin-bottom:var(--s5);text-decoration:none">
+    <strong>Có ${managerHandoverFallbacks.size()} bàn giao chưa có ca barista nhận.</strong> Bạn đang là người tiếp nhận dự phòng →
+</a>
+</c:if>
+
 <c:if test="${summary.hasOversold}">
 <div class="card" style="margin-bottom:var(--s5);border-color:var(--st-cancelled)">
     <h3 style="margin-top:0">Tồn âm cần đối soát</h3>

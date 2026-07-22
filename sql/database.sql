@@ -21,12 +21,10 @@
    mọi thay đổi tồn (nhập / trừ khi pha / hao hụt / prep / điều chỉnh);
    inventory.BranchInventory.QuantityOnHand chỉ là số dư cache.
    ----------------------------------------------------------------------------
-   FILE SQL DUY NHẤT (đã gộp mọi migration + seed) — chạy 1 phát là xong:
-     PART A (dưới đây) : schema 8 domain / 37 bảng + seed gốc.
-     PART B            : catalog 15 món (đủ công thức + modifier) + ảnh Unsplash.
-     PART C            : demo lớn — 3 chi nhánh, 16 user (BCrypt, mật khẩu 123456),
-                         ~31 ngày lịch sử bán (≈800 hoá đơn PAID) + story hôm nay,
-                         đủ inventory/HR/sales/payment cho MỌI role.
+   SCRIPT DATABASE DUY NHẤT — chạy ở MỖI lần deploy.
+   - Luồng deploy mặc định không DROP, DELETE hay reset dữ liệu hiện có.
+   - Tạo schema/bảng/cột/constraint/index còn thiếu.
+   - Seed demo mặc định tắt; chỉ bật cờ @SeedDemo khi dựng môi trường dev mới.
    ============================================================================ */
 
 IF DB_ID('CafeChain') IS NULL CREATE DATABASE CafeChain;
@@ -34,61 +32,9 @@ GO
 USE CafeChain;
 GO
 
-/* ---------------------------------------------------------------------------
-   TEARDOWN (để chạy lại script trên DB đang phát triển) — thứ tự con -> cha
-   --------------------------------------------------------------------------- */
-IF OBJECT_ID('org.FK_Branch_Manager','F') IS NOT NULL
-    ALTER TABLE org.Branch DROP CONSTRAINT FK_Branch_Manager;
-GO
-DROP VIEW IF EXISTS sales.vw_KdsQueue;
-DROP VIEW IF EXISTS inventory.vw_LowStock;
-GO
-DROP TABLE IF EXISTS payment.VoucherRedemption;
-DROP TABLE IF EXISTS payment.BillItem;
-DROP TABLE IF EXISTS payment.Bill;
-DROP TABLE IF EXISTS payment.CashierShift;
-DROP TABLE IF EXISTS payment.Voucher;
-DROP TABLE IF EXISTS sales.OrderItemModifier;
--- Phải drop TRƯỚC sales.OrderItem: FK_OIAL_Item trỏ sang OrderItem, thiếu dòng này
--- thì script chạy được trên DB trắng nhưng chết ngay lần chạy lại thứ hai.
-DROP TABLE IF EXISTS ops.OrderItemActionLog;
-DROP TABLE IF EXISTS sales.OrderItem;
-DROP TABLE IF EXISTS sales.Orders;
-DROP TABLE IF EXISTS sales.TableSession;
-DROP TABLE IF EXISTS sales.DiningTable;
-DROP TABLE IF EXISTS inventory.InventoryTransaction;
-DROP TABLE IF EXISTS inventory.StockAdjustment;
-DROP TABLE IF EXISTS inventory.WasteLog;
-DROP TABLE IF EXISTS inventory.PrepBatch;
-DROP TABLE IF EXISTS inventory.StockReceiptDetail;
-DROP TABLE IF EXISTS inventory.StockReceipt;
-DROP TABLE IF EXISTS inventory.BranchInventory;
-DROP TABLE IF EXISTS inventory.Supplier;
--- Trỏ tới org.Branch + iam.User nên phải drop trước hai bảng đó.
-DROP TABLE IF EXISTS hr.ShiftHandover;
-DROP TABLE IF EXISTS hr.Payroll;
-DROP TABLE IF EXISTS hr.Attendance;
-DROP TABLE IF EXISTS hr.ShiftAssignment;
-DROP TABLE IF EXISTS hr.ShiftTemplate;
--- Trỏ tới catalog.Product + org.Branch + iam.User nên phải drop trước ba bảng đó.
-DROP TABLE IF EXISTS catalog.MenuBlockRequest;
-DROP TABLE IF EXISTS catalog.HomeSetting;
-DROP TABLE IF EXISTS catalog.BranchMenu;
-DROP TABLE IF EXISTS catalog.ModifierIngredientImpact;
-DROP TABLE IF EXISTS catalog.ProductModifierGroup;
-DROP TABLE IF EXISTS catalog.ModifierOption;
-DROP TABLE IF EXISTS catalog.ModifierGroup;
-DROP TABLE IF EXISTS catalog.PrepRecipe;
-DROP TABLE IF EXISTS catalog.ProductRecipe;
-DROP TABLE IF EXISTS catalog.Product;
-DROP TABLE IF EXISTS catalog.Category;
-DROP TABLE IF EXISTS catalog.Ingredient;
-DROP TABLE IF EXISTS ops.OutboxEvent;
-DROP TABLE IF EXISTS iam.RefreshToken;
-DROP TABLE IF EXISTS iam.Customer;
-DROP TABLE IF EXISTS iam.[User];
-DROP TABLE IF EXISTS org.Branch;
-DROP TABLE IF EXISTS iam.Role;
+-- Chỉ đổi thành 1 khi chủ động dựng database demo mới. Deploy luôn để 0.
+DECLARE @SeedDemo BIT = 0;
+EXEC sys.sp_set_session_context @key = N'CafeChainSeedDemo', @value = @SeedDemo;
 GO
 
 /* ---------------------------------------------------------------------------
@@ -114,14 +60,19 @@ GO
 /* ===========================================================================
    1. IAM + ORG  (Admin)
    =========================================================================== */
+IF OBJECT_ID(N'iam.Role', N'U') IS NULL
+BEGIN
 CREATE TABLE iam.Role (
     RoleId      INT IDENTITY PRIMARY KEY,
     Code        VARCHAR(30)  NOT NULL UNIQUE,   -- ADMIN / BRANCH_MANAGER / CASHIER / BARISTA
     Name        NVARCHAR(80) NOT NULL
 );
+END
 GO
 
 -- Tạo Branch trước (chưa gắn FK Manager để tránh vòng phụ thuộc với iam.User)
+IF OBJECT_ID(N'org.Branch', N'U') IS NULL
+BEGIN
 CREATE TABLE org.Branch (
     BranchId        INT IDENTITY PRIMARY KEY,
     Code            VARCHAR(20)   NOT NULL UNIQUE,
@@ -137,8 +88,11 @@ CREATE TABLE org.Branch (
     PeakThresholdCups INT         NOT NULL DEFAULT 0,
     CreatedAt       DATETIME2     NOT NULL DEFAULT SYSUTCDATETIME()
 );
+END
 GO
 
+IF OBJECT_ID(N'iam.[User]', N'U') IS NULL
+BEGIN
 CREATE TABLE iam.[User] (
     UserId        INT IDENTITY PRIMARY KEY,
     Username      VARCHAR(60)   NOT NULL UNIQUE,
@@ -154,13 +108,21 @@ CREATE TABLE iam.[User] (
     CONSTRAINT FK_User_Role   FOREIGN KEY (RoleId)   REFERENCES iam.Role(RoleId),
     CONSTRAINT FK_User_Branch FOREIGN KEY (BranchId) REFERENCES org.Branch(BranchId)
 );
+END
 GO
 
 -- Giờ mới gắn FK Branch.Manager -> User
-ALTER TABLE org.Branch
-    ADD CONSTRAINT FK_Branch_Manager FOREIGN KEY (ManagerUserId) REFERENCES iam.[User](UserId);
+IF NOT EXISTS (
+    SELECT 1 FROM sys.foreign_keys
+    WHERE parent_object_id = OBJECT_ID(N'org.Branch')
+      AND name = N'FK_Branch_Manager'
+)
+    ALTER TABLE org.Branch
+        ADD CONSTRAINT FK_Branch_Manager FOREIGN KEY (ManagerUserId) REFERENCES iam.[User](UserId);
 GO
 
+IF OBJECT_ID(N'iam.RefreshToken', N'U') IS NULL
+BEGIN
 CREATE TABLE iam.RefreshToken (
     TokenId     BIGINT IDENTITY PRIMARY KEY,
     UserId      INT          NOT NULL,
@@ -170,28 +132,37 @@ CREATE TABLE iam.RefreshToken (
     CreatedAt   DATETIME2    NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT FK_RefreshToken_User FOREIGN KEY (UserId) REFERENCES iam.[User](UserId)
 );
+END
 GO
 
 -- Khách hàng: tạo nhanh tại quầy (SĐT) hoặc định danh phiên QR. Dine-in nên có thể ẩn danh.
+IF OBJECT_ID(N'iam.Customer', N'U') IS NULL
+BEGIN
 CREATE TABLE iam.Customer (
     CustomerId  INT IDENTITY PRIMARY KEY,
     Phone       VARCHAR(20)   NULL UNIQUE,
     FullName    NVARCHAR(120) NULL,
     CreatedAt   DATETIME2     NOT NULL DEFAULT SYSUTCDATETIME()
 );
+END
 GO
 
 /* ===========================================================================
    2. CATALOG: danh mục, sản phẩm, nguyên liệu, công thức, modifier  (Admin)
    =========================================================================== */
+IF OBJECT_ID(N'catalog.Category', N'U') IS NULL
+BEGIN
 CREATE TABLE catalog.Category (
     CategoryId  INT IDENTITY PRIMARY KEY,
     Name        NVARCHAR(100) NOT NULL,
     SortOrder   INT NOT NULL DEFAULT 0,
     IsActive    BIT NOT NULL DEFAULT 1
 );
+END
 GO
 
+IF OBJECT_ID(N'catalog.Product', N'U') IS NULL
+BEGIN
 CREATE TABLE catalog.Product (
     ProductId     INT IDENTITY PRIMARY KEY,
     CategoryId    INT           NOT NULL,
@@ -206,9 +177,12 @@ CREATE TABLE catalog.Product (
     PrepSeconds   INT NOT NULL DEFAULT 720,
     CONSTRAINT FK_Product_Category FOREIGN KEY (CategoryId) REFERENCES catalog.Category(CategoryId)
 );
+END
 GO
 
 -- Nội dung hero trang Home công khai (singleton: Id luôn = 1) — Admin chỉnh ở /admin/home
+IF OBJECT_ID(N'catalog.HomeSetting', N'U') IS NULL
+BEGIN
 CREATE TABLE catalog.HomeSetting (
     Id           INT NOT NULL PRIMARY KEY CONSTRAINT CK_HomeSetting_Singleton CHECK (Id = 1),
     HeroEyebrow  NVARCHAR(150)  NULL,
@@ -217,17 +191,21 @@ CREATE TABLE catalog.HomeSetting (
     HeroImageUrl VARCHAR(500)   NULL,
     UpdatedAt    DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
 );
+END
 GO
 
-INSERT INTO catalog.HomeSetting (Id, HeroEyebrow, HeroTitle, HeroSubtitle, HeroImageUrl)
-VALUES (1,
-    N'Chuỗi cà phê thủ công',
-    N'Thực đơn của Cà Phê Chain',
-    N'Khám phá menu cà phê, trà và đá xay được pha chế tươi mỗi ngày. Đến quán, quét QR tại bàn để đặt món ngay.',
-    '/assets/img/login-hero.svg');
+IF NOT EXISTS (SELECT 1 FROM catalog.HomeSetting WHERE Id = 1)
+    INSERT INTO catalog.HomeSetting (Id, HeroEyebrow, HeroTitle, HeroSubtitle, HeroImageUrl)
+    VALUES (1,
+        N'Chuỗi cà phê thủ công',
+        N'Thực đơn của Cà Phê Chain',
+        N'Khám phá menu cà phê, trà và đá xay được pha chế tươi mỗi ngày. Đến quán, quét QR tại bàn để đặt món ngay.',
+        '/assets/img/login-hero.svg');
 GO
 
 -- Nguyên liệu / vật tư kho. RAW = mua về; PREPPED = pha sẵn tại quán từ RAW.
+IF OBJECT_ID(N'catalog.Ingredient', N'U') IS NULL
+BEGIN
 CREATE TABLE catalog.Ingredient (
     IngredientId    INT IDENTITY PRIMARY KEY,
     Name            NVARCHAR(120) NOT NULL,
@@ -236,9 +214,12 @@ CREATE TABLE catalog.Ingredient (
                     CONSTRAINT CK_Ingredient_Type CHECK (IngredientType IN ('RAW','PREPPED')),
     IsActive        BIT NOT NULL DEFAULT 1
 );
+END
 GO
 
 -- Công thức món: 1 Product cần N Ingredient (RAW hoặc PREPPED)
+IF OBJECT_ID(N'catalog.ProductRecipe', N'U') IS NULL
+BEGIN
 CREATE TABLE catalog.ProductRecipe (
     ProductRecipeId INT IDENTITY PRIMARY KEY,
     ProductId       INT NOT NULL,
@@ -248,9 +229,12 @@ CREATE TABLE catalog.ProductRecipe (
     CONSTRAINT FK_PR_Ingredient FOREIGN KEY (IngredientId) REFERENCES catalog.Ingredient(IngredientId),
     CONSTRAINT UQ_PR UNIQUE (ProductId, IngredientId)
 );
+END
 GO
 
 -- Công thức pha sẵn: 1 PREPPED được tạo từ N RAW, kèm sản lượng (yield)
+IF OBJECT_ID(N'catalog.PrepRecipe', N'U') IS NULL
+BEGIN
 CREATE TABLE catalog.PrepRecipe (
     PrepRecipeId        INT IDENTITY PRIMARY KEY,
     PreppedIngredientId INT NOT NULL,            -- phải là Ingredient type PREPPED
@@ -261,9 +245,12 @@ CREATE TABLE catalog.PrepRecipe (
     CONSTRAINT FK_PrepR_Raw     FOREIGN KEY (RawIngredientId)     REFERENCES catalog.Ingredient(IngredientId),
     CONSTRAINT UQ_PrepR UNIQUE (PreppedIngredientId, RawIngredientId)
 );
+END
 GO
 
 -- Nhóm modifier (Size, Đường, Sữa, Topping...)
+IF OBJECT_ID(N'catalog.ModifierGroup', N'U') IS NULL
+BEGIN
 CREATE TABLE catalog.ModifierGroup (
     ModifierGroupId INT IDENTITY PRIMARY KEY,
     Name            NVARCHAR(80) NOT NULL,
@@ -271,8 +258,11 @@ CREATE TABLE catalog.ModifierGroup (
     MinSelect       INT NOT NULL DEFAULT 0,
     MaxSelect       INT NOT NULL DEFAULT 1
 );
+END
 GO
 
+IF OBJECT_ID(N'catalog.ModifierOption', N'U') IS NULL
+BEGIN
 CREATE TABLE catalog.ModifierOption (
     ModifierOptionId INT IDENTITY PRIMARY KEY,
     ModifierGroupId  INT NOT NULL,
@@ -281,9 +271,12 @@ CREATE TABLE catalog.ModifierOption (
     IsActive         BIT NOT NULL DEFAULT 1,
     CONSTRAINT FK_MO_Group FOREIGN KEY (ModifierGroupId) REFERENCES catalog.ModifierGroup(ModifierGroupId)
 );
+END
 GO
 
 -- Gắn nhóm modifier nào áp dụng cho product nào
+IF OBJECT_ID(N'catalog.ProductModifierGroup', N'U') IS NULL
+BEGIN
 CREATE TABLE catalog.ProductModifierGroup (
     ProductId       INT NOT NULL,
     ModifierGroupId INT NOT NULL,
@@ -291,9 +284,12 @@ CREATE TABLE catalog.ProductModifierGroup (
     CONSTRAINT FK_PMG_Product FOREIGN KEY (ProductId)       REFERENCES catalog.Product(ProductId),
     CONSTRAINT FK_PMG_Group   FOREIGN KEY (ModifierGroupId) REFERENCES catalog.ModifierGroup(ModifierGroupId)
 );
+END
 GO
 
 -- Ảnh hưởng của 1 option lên định mức nguyên liệu (QtyDelta dương: thêm; âm: bớt/đổi)
+IF OBJECT_ID(N'catalog.ModifierIngredientImpact', N'U') IS NULL
+BEGIN
 CREATE TABLE catalog.ModifierIngredientImpact (
     ImpactId         INT IDENTITY PRIMARY KEY,
     ModifierOptionId INT NOT NULL,
@@ -303,9 +299,12 @@ CREATE TABLE catalog.ModifierIngredientImpact (
     CONSTRAINT FK_MII_Ingredient FOREIGN KEY (IngredientId)     REFERENCES catalog.Ingredient(IngredientId),
     CONSTRAINT UQ_MII UNIQUE (ModifierOptionId, IngredientId)
 );
+END
 GO
 
 -- Menu theo chi nhánh: bật/tắt, giá local, cờ 86 (hết món)
+IF OBJECT_ID(N'catalog.BranchMenu', N'U') IS NULL
+BEGIN
 CREATE TABLE catalog.BranchMenu (
     BranchId    INT NOT NULL,
     ProductId   INT NOT NULL,
@@ -317,9 +316,12 @@ CREATE TABLE catalog.BranchMenu (
     CONSTRAINT FK_BM_Branch  FOREIGN KEY (BranchId)  REFERENCES org.Branch(BranchId),
     CONSTRAINT FK_BM_Product FOREIGN KEY (ProductId) REFERENCES catalog.Product(ProductId)
 );
+END
 GO
 
 -- Lịch sử/yêu cầu báo tạm hết món: Barista báo, Manager duyệt/mở bán lại.
+IF OBJECT_ID(N'catalog.MenuBlockRequest', N'U') IS NULL
+BEGIN
 CREATE TABLE catalog.MenuBlockRequest (
     RequestId    INT IDENTITY PRIMARY KEY,
     BranchId     INT NOT NULL,
@@ -341,13 +343,16 @@ CREATE TABLE catalog.MenuBlockRequest (
     CONSTRAINT FK_MBR_RevBy   FOREIGN KEY (ReviewedBy)  REFERENCES iam.[User](UserId),
     CONSTRAINT CK_MBR_Status  CHECK (Status IN ('PENDING','APPROVED','REJECTED','RESOLVED'))
 );
+END
 GO
 
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'catalog.MenuBlockRequest') AND name = N'UX_MenuBlockRequest_Open')
 CREATE UNIQUE INDEX UX_MenuBlockRequest_Open
     ON catalog.MenuBlockRequest(BranchId, ProductId)
     WHERE ClosedAt IS NULL;
 GO
 
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'catalog.MenuBlockRequest') AND name = N'IX_MenuBlockRequest_Queue')
 CREATE INDEX IX_MenuBlockRequest_Queue
     ON catalog.MenuBlockRequest(BranchId, ClosedAt, BackInEta);
 GO
@@ -355,6 +360,8 @@ GO
 /* ===========================================================================
    3. INVENTORY: kho theo chi nhánh  (Manager nhập/đối soát; Barista trừ/prep/waste)
    =========================================================================== */
+IF OBJECT_ID(N'inventory.Supplier', N'U') IS NULL
+BEGIN
 CREATE TABLE inventory.Supplier (
     SupplierId  INT IDENTITY PRIMARY KEY,
     Name        NVARCHAR(150) NOT NULL,
@@ -362,9 +369,12 @@ CREATE TABLE inventory.Supplier (
     Address     NVARCHAR(255) NULL,
     IsActive    BIT NOT NULL DEFAULT 1
 );
+END
 GO
 
 -- Tồn hiện tại (số dư cache). Nguồn sự thật là InventoryTransaction.
+IF OBJECT_ID(N'inventory.BranchInventory', N'U') IS NULL
+BEGIN
 CREATE TABLE inventory.BranchInventory (
     BranchId       INT NOT NULL,
     IngredientId   INT NOT NULL,
@@ -375,9 +385,12 @@ CREATE TABLE inventory.BranchInventory (
     CONSTRAINT FK_BI_Branch     FOREIGN KEY (BranchId)     REFERENCES org.Branch(BranchId),
     CONSTRAINT FK_BI_Ingredient FOREIGN KEY (IngredientId) REFERENCES catalog.Ingredient(IngredientId)
 );
+END
 GO
 
 -- Phiếu nhập kho (cộng tồn) — Manager
+IF OBJECT_ID(N'inventory.StockReceipt', N'U') IS NULL
+BEGIN
 CREATE TABLE inventory.StockReceipt (
     StockReceiptId INT IDENTITY PRIMARY KEY,
     BranchId       INT NOT NULL,
@@ -392,8 +405,11 @@ CREATE TABLE inventory.StockReceipt (
     CONSTRAINT FK_SR_Supplier FOREIGN KEY (SupplierId) REFERENCES inventory.Supplier(SupplierId),
     CONSTRAINT FK_SR_User     FOREIGN KEY (ReceivedBy) REFERENCES iam.[User](UserId)
 );
+END
 GO
 
+IF OBJECT_ID(N'inventory.StockReceiptDetail', N'U') IS NULL
+BEGIN
 CREATE TABLE inventory.StockReceiptDetail (
     StockReceiptDetailId INT IDENTITY PRIMARY KEY,
     StockReceiptId       INT NOT NULL,
@@ -404,9 +420,12 @@ CREATE TABLE inventory.StockReceiptDetail (
     CONSTRAINT FK_SRD_Receipt    FOREIGN KEY (StockReceiptId) REFERENCES inventory.StockReceipt(StockReceiptId) ON DELETE CASCADE,
     CONSTRAINT FK_SRD_Ingredient FOREIGN KEY (IngredientId)   REFERENCES catalog.Ingredient(IngredientId)
 );
+END
 GO
 
 -- Mẻ pha sẵn (Barista) — trừ RAW, cộng PREPPED
+IF OBJECT_ID(N'inventory.PrepBatch', N'U') IS NULL
+BEGIN
 CREATE TABLE inventory.PrepBatch (
     PrepBatchId         INT IDENTITY PRIMARY KEY,
     BranchId            INT NOT NULL,
@@ -422,9 +441,12 @@ CREATE TABLE inventory.PrepBatch (
     CONSTRAINT FK_PB_Prepped FOREIGN KEY (PreppedIngredientId) REFERENCES catalog.Ingredient(IngredientId),
     CONSTRAINT FK_PB_User    FOREIGN KEY (MadeBy)              REFERENCES iam.[User](UserId)
 );
+END
 GO
 
 -- Hao hụt / làm lại (Barista) — trừ tồn, báo Manager
+IF OBJECT_ID(N'inventory.WasteLog', N'U') IS NULL
+BEGIN
 CREATE TABLE inventory.WasteLog (
     WasteLogId   INT IDENTITY PRIMARY KEY,
     BranchId     INT NOT NULL,
@@ -438,13 +460,20 @@ CREATE TABLE inventory.WasteLog (
     Status       VARCHAR(10) NOT NULL DEFAULT 'ACTIVE'   -- huỷ = ghi txn bù (hoàn kho) + đánh dấu VOIDED (không hard-delete)
                  CONSTRAINT CK_WasteLog_Status CHECK (Status IN ('ACTIVE','VOIDED')),
     VoidedAt     DATETIME2 NULL,
+    WasteEventId  BIGINT NULL,                     -- gắn dòng hao hụt vào event audit (FK_WL_Event thêm sau khi WasteEvent tồn tại)
+    UnitCostAtLog DECIMAL(12,2) NULL,              -- snapshot đơn giá nguyên liệu lúc ghi (không phụ thuộc giá đổi về sau)
+    CostBasis     VARCHAR(20) NULL                 -- căn cứ chi phí của snapshot
+                 CONSTRAINT CK_WL_CostBasis CHECK (CostBasis IS NULL OR CostBasis IN ('SNAPSHOT','UNAVAILABLE','LEGACY_ESTIMATE')),
     CONSTRAINT FK_WL_Branch     FOREIGN KEY (BranchId)     REFERENCES org.Branch(BranchId),
     CONSTRAINT FK_WL_Ingredient FOREIGN KEY (IngredientId) REFERENCES catalog.Ingredient(IngredientId),
     CONSTRAINT FK_WL_User       FOREIGN KEY (LoggedBy)     REFERENCES iam.[User](UserId)
 );
+END
 GO
 
 -- Điều chỉnh tồn sau kiểm kê / đối soát (Manager)
+IF OBJECT_ID(N'inventory.StockAdjustment', N'U') IS NULL
+BEGIN
 CREATE TABLE inventory.StockAdjustment (
     StockAdjustmentId INT IDENTITY PRIMARY KEY,
     BranchId          INT NOT NULL,
@@ -460,9 +489,12 @@ CREATE TABLE inventory.StockAdjustment (
     CONSTRAINT FK_SA_Ingredient FOREIGN KEY (IngredientId) REFERENCES catalog.Ingredient(IngredientId),
     CONSTRAINT FK_SA_User       FOREIGN KEY (AdjustedBy)   REFERENCES iam.[User](UserId)
 );
+END
 GO
 
 -- SỔ CÁI TỒN KHO: mọi thay đổi tồn đi qua đây (nguồn sự thật duy nhất)
+IF OBJECT_ID(N'inventory.InventoryTransaction', N'U') IS NULL
+BEGIN
 CREATE TABLE inventory.InventoryTransaction (
     InventoryTxnId BIGINT IDENTITY PRIMARY KEY,
     BranchId       INT NOT NULL,
@@ -479,11 +511,14 @@ CREATE TABLE inventory.InventoryTransaction (
     CONSTRAINT FK_IT_Ingredient FOREIGN KEY (IngredientId) REFERENCES catalog.Ingredient(IngredientId),
     CONSTRAINT FK_IT_User       FOREIGN KEY (CreatedBy)    REFERENCES iam.[User](UserId)
 );
+END
 GO
 
 /* ===========================================================================
    4. HR: ca làm & chấm công  (Manager)
    =========================================================================== */
+IF OBJECT_ID(N'hr.ShiftTemplate', N'U') IS NULL
+BEGIN
 CREATE TABLE hr.ShiftTemplate (
     ShiftTemplateId INT IDENTITY PRIMARY KEY,
     BranchId        INT NOT NULL,
@@ -492,8 +527,11 @@ CREATE TABLE hr.ShiftTemplate (
     EndTime         TIME NOT NULL,
     CONSTRAINT FK_ST_Branch FOREIGN KEY (BranchId) REFERENCES org.Branch(BranchId)
 );
+END
 GO
 
+IF OBJECT_ID(N'hr.ShiftAssignment', N'U') IS NULL
+BEGIN
 CREATE TABLE hr.ShiftAssignment (
     ShiftAssignmentId INT IDENTITY PRIMARY KEY,
     ShiftTemplateId   INT  NOT NULL,
@@ -503,8 +541,11 @@ CREATE TABLE hr.ShiftAssignment (
     CONSTRAINT FK_SAsg_User  FOREIGN KEY (UserId)          REFERENCES iam.[User](UserId),
     CONSTRAINT UQ_SAsg UNIQUE (ShiftTemplateId, UserId, WorkDate)   -- chặn trùng ca
 );
+END
 GO
 
+IF OBJECT_ID(N'hr.Attendance', N'U') IS NULL
+BEGIN
 CREATE TABLE hr.Attendance (
     AttendanceId      INT IDENTITY PRIMARY KEY,
     ShiftAssignmentId INT NOT NULL,
@@ -513,12 +554,33 @@ CREATE TABLE hr.Attendance (
     Status            VARCHAR(10) NOT NULL DEFAULT 'PENDING'
                       CONSTRAINT CK_Att_Status CHECK (Status IN ('PENDING','APPROVED','REJECTED')),
     ApprovedBy        INT NULL,
+    CONSTRAINT UQ_Att_ShiftAssignment UNIQUE (ShiftAssignmentId),
     CONSTRAINT FK_Att_Assignment FOREIGN KEY (ShiftAssignmentId) REFERENCES hr.ShiftAssignment(ShiftAssignmentId),
     CONSTRAINT FK_Att_Approver   FOREIGN KEY (ApprovedBy)        REFERENCES iam.[User](UserId)
 );
+END
+GO
+
+-- Lưu vết các dòng Attendance trùng bị migration loại bỏ trước khi thêm unique constraint.
+IF OBJECT_ID(N'hr.AttendanceDuplicateArchive', N'U') IS NULL
+BEGIN
+CREATE TABLE hr.AttendanceDuplicateArchive (
+    AttendanceDuplicateArchiveId INT IDENTITY PRIMARY KEY,
+    SourceAttendanceId           INT NOT NULL,
+    ShiftAssignmentId            INT NOT NULL,
+    CheckInAt                    DATETIME2 NULL,
+    CheckOutAt                   DATETIME2 NULL,
+    Status                       VARCHAR(10) NOT NULL,
+    ApprovedBy                   INT NULL,
+    ArchivedAt                   DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    ArchiveReason                NVARCHAR(300) NOT NULL
+);
+END
 GO
 
 -- Bảng lương theo tháng (Manager) — chốt giờ làm + lương/giờ từng NV, upsert (S8)
+IF OBJECT_ID(N'hr.Payroll', N'U') IS NULL
+BEGIN
 CREATE TABLE hr.Payroll (
     PayrollId   INT IDENTITY PRIMARY KEY,
     BranchId    INT NOT NULL,
@@ -533,23 +595,68 @@ CREATE TABLE hr.Payroll (
     CONSTRAINT FK_Pay_Updater FOREIGN KEY (UpdatedBy) REFERENCES iam.[User](UserId),
     CONSTRAINT UQ_Pay UNIQUE (UserId, PayMonth)
 );
+END
 GO
 
 -- Bàn giao ca (Barista) — ghi chú đầu/cuối ca (B7)
+IF OBJECT_ID(N'hr.ShiftHandover', N'U') IS NULL
+BEGIN
 CREATE TABLE hr.ShiftHandover (
     ShiftHandoverId INT IDENTITY PRIMARY KEY,
     BranchId        INT NOT NULL,
     Note            NVARCHAR(1000) NOT NULL,
     CreatedBy       INT NOT NULL,
+    SourceShiftAssignmentId INT NULL,
+    OverallStatus  VARCHAR(20) NOT NULL DEFAULT 'LEGACY'
+                   CONSTRAINT CK_SH_Status CHECK (OverallStatus IN ('LEGACY','WAITING_RECEIPT','IN_PROGRESS','COMPLETED')),
     CreatedAt       DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT FK_SH_Branch FOREIGN KEY (BranchId)  REFERENCES org.Branch(BranchId),
-    CONSTRAINT FK_SH_User   FOREIGN KEY (CreatedBy) REFERENCES iam.[User](UserId)
+    CONSTRAINT FK_SH_User   FOREIGN KEY (CreatedBy) REFERENCES iam.[User](UserId),
+    CONSTRAINT FK_SH_Source FOREIGN KEY (SourceShiftAssignmentId) REFERENCES hr.ShiftAssignment(ShiftAssignmentId)
 );
+END
+GO
+
+-- Người nhận được tạo từ toàn bộ barista của ca kế tiếp; không có ca nhận thì ManagerUserId nhận dự phòng.
+IF OBJECT_ID(N'hr.ShiftHandoverRecipient', N'U') IS NULL
+BEGIN
+CREATE TABLE hr.ShiftHandoverRecipient (
+    ShiftHandoverRecipientId INT IDENTITY PRIMARY KEY,
+    ShiftHandoverId          INT NOT NULL,
+    RecipientUserId          INT NOT NULL,
+    RecipientShiftAssignmentId INT NULL,
+    RecipientType            VARCHAR(20) NOT NULL
+                             CONSTRAINT CK_SHR_Type CHECK (RecipientType IN ('NEXT_SHIFT','MANAGER_FALLBACK')),
+    AcknowledgedAt            DATETIME2 NULL,
+    CONSTRAINT UQ_SHR_Recipient UNIQUE (ShiftHandoverId, RecipientUserId),
+    CONSTRAINT FK_SHR_Handover FOREIGN KEY (ShiftHandoverId) REFERENCES hr.ShiftHandover(ShiftHandoverId),
+    CONSTRAINT FK_SHR_User FOREIGN KEY (RecipientUserId) REFERENCES iam.[User](UserId),
+    CONSTRAINT FK_SHR_Assignment FOREIGN KEY (RecipientShiftAssignmentId) REFERENCES hr.ShiftAssignment(ShiftAssignmentId)
+);
+END
+GO
+
+IF OBJECT_ID(N'hr.ShiftHandoverTask', N'U') IS NULL
+BEGIN
+CREATE TABLE hr.ShiftHandoverTask (
+    ShiftHandoverTaskId INT IDENTITY PRIMARY KEY,
+    ShiftHandoverId     INT NOT NULL,
+    Content             NVARCHAR(500) NOT NULL,
+    Status              VARCHAR(15) NOT NULL DEFAULT 'NEW'
+                        CONSTRAINT CK_SHT_Status CHECK (Status IN ('NEW','IN_PROGRESS','DONE')),
+    UpdatedBy           INT NULL,
+    UpdatedAt           DATETIME2 NULL,
+    CONSTRAINT FK_SHT_Handover FOREIGN KEY (ShiftHandoverId) REFERENCES hr.ShiftHandover(ShiftHandoverId),
+    CONSTRAINT FK_SHT_Updater FOREIGN KEY (UpdatedBy) REFERENCES iam.[User](UserId)
+);
+END
 GO
 
 /* ===========================================================================
    5. SALES: bàn, phiên bàn, đơn  (Cashier sở hữu order entry; Barista cập nhật KDS)
    =========================================================================== */
+IF OBJECT_ID(N'sales.DiningTable', N'U') IS NULL
+BEGIN
 CREATE TABLE sales.DiningTable (
     DiningTableId INT IDENTITY PRIMARY KEY,
     BranchId      INT NOT NULL,
@@ -560,9 +667,12 @@ CREATE TABLE sales.DiningTable (
     CONSTRAINT FK_DT_Branch FOREIGN KEY (BranchId) REFERENCES org.Branch(BranchId),
     CONSTRAINT UQ_DT UNIQUE (BranchId, TableNumber)
 );
+END
 GO
 
 -- Phiên bàn (tab) — XƯƠNG SỐNG. Đơn gắn vào phiên này.
+IF OBJECT_ID(N'sales.TableSession', N'U') IS NULL
+BEGIN
 CREATE TABLE sales.TableSession (
     TableSessionId INT IDENTITY PRIMARY KEY,
     BranchId       INT NOT NULL,
@@ -576,9 +686,12 @@ CREATE TABLE sales.TableSession (
     CONSTRAINT FK_TS_Table  FOREIGN KEY (DiningTableId) REFERENCES sales.DiningTable(DiningTableId),
     CONSTRAINT FK_TS_User   FOREIGN KEY (OpenedBy)      REFERENCES iam.[User](UserId)
 );
+END
 GO
 
 -- Đơn hàng (cả COUNTER lẫn QR — cùng 1 bảng, Cashier sở hữu)
+IF OBJECT_ID(N'sales.Orders', N'U') IS NULL
+BEGIN
 CREATE TABLE sales.Orders (
     OrderId        INT IDENTITY PRIMARY KEY,
     BranchId       INT NOT NULL,
@@ -600,9 +713,12 @@ CREATE TABLE sales.Orders (
     CONSTRAINT FK_Ord_Customer FOREIGN KEY (CustomerId)     REFERENCES iam.Customer(CustomerId),
     CONSTRAINT FK_Ord_User     FOREIGN KEY (CreatedBy)      REFERENCES iam.[User](UserId)
 );
+END
 GO
 
 -- Dòng đơn — STATUS DÙNG CHUNG cho KDS (Barista) và tracking (khách)
+IF OBJECT_ID(N'sales.OrderItem', N'U') IS NULL
+BEGIN
 CREATE TABLE sales.OrderItem (
     OrderItemId INT IDENTITY PRIMARY KEY,
     OrderId     INT NOT NULL,
@@ -634,9 +750,12 @@ CREATE TABLE sales.OrderItem (
     CONSTRAINT FK_OI_IssueBy FOREIGN KEY (IssueReportedBy) REFERENCES iam.[User](UserId),
     CONSTRAINT FK_OI_PickedUpBy FOREIGN KEY (PickedUpBy) REFERENCES iam.[User](UserId)
 );
+END
 GO
 
 -- Modifier khách chọn cho từng dòng đơn (đầu vào cho auto-deduct theo modifier)
+IF OBJECT_ID(N'sales.OrderItemModifier', N'U') IS NULL
+BEGIN
 CREATE TABLE sales.OrderItemModifier (
     OrderItemModifierId INT IDENTITY PRIMARY KEY,
     OrderItemId         INT NOT NULL,
@@ -645,11 +764,105 @@ CREATE TABLE sales.OrderItemModifier (
     CONSTRAINT FK_OIM_Item   FOREIGN KEY (OrderItemId)      REFERENCES sales.OrderItem(OrderItemId) ON DELETE CASCADE,
     CONSTRAINT FK_OIM_Option FOREIGN KEY (ModifierOptionId) REFERENCES catalog.ModifierOption(ModifierOptionId)
 );
+END
+GO
+
+/* ===========================================================================
+   HAO HỤT & LÀM LẠI — event-level audit (thuộc schema inventory nhưng đặt ở đây
+   vì WasteEvent trỏ sales.OrderItem, phải tạo SAU sales.OrderItem).
+   =========================================================================== */
+-- Event gốc cho mỗi lần ghi hao hụt nguyên liệu hoặc làm lại món (nguồn MANUAL/KDS).
+IF OBJECT_ID(N'inventory.WasteEvent', N'U') IS NULL
+BEGIN
+CREATE TABLE inventory.WasteEvent (
+    WasteEventId  BIGINT IDENTITY PRIMARY KEY,
+    BranchId      INT NOT NULL,
+    EventKind     VARCHAR(20) NOT NULL
+                  CONSTRAINT CK_WE_Kind CHECK (EventKind IN ('INGREDIENT_WASTE','REMAKE')),
+    Source        VARCHAR(12) NOT NULL
+                  CONSTRAINT CK_WE_Source CHECK (Source IN ('MANUAL','KDS')),
+    ProductId     INT NULL,
+    OrderItemId   INT NULL,
+    CupQuantity   INT NULL,
+    CauseCode     VARCHAR(24) NOT NULL,
+    CauseDetail   NVARCHAR(255) NULL,
+    ShiftAssignmentId INT NULL,
+    CreatedBy     INT NOT NULL,
+    CreatedAt     DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    ClientRequestId VARCHAR(64) NULL,              -- chống double-submit (idempotency theo chi nhánh)
+    CONSTRAINT CK_WE_Remake CHECK ((EventKind='REMAKE' AND ProductId IS NOT NULL AND CupQuantity IS NOT NULL AND CupQuantity > 0)
+                                OR (EventKind='INGREDIENT_WASTE' AND ProductId IS NULL AND CupQuantity IS NULL)),
+    CONSTRAINT FK_WE_Branch    FOREIGN KEY (BranchId)          REFERENCES org.Branch(BranchId),
+    CONSTRAINT FK_WE_Product   FOREIGN KEY (ProductId)         REFERENCES catalog.Product(ProductId),
+    CONSTRAINT FK_WE_OrderItem FOREIGN KEY (OrderItemId)       REFERENCES sales.OrderItem(OrderItemId),
+    CONSTRAINT FK_WE_Shift     FOREIGN KEY (ShiftAssignmentId) REFERENCES hr.ShiftAssignment(ShiftAssignmentId),
+    CONSTRAINT FK_WE_User      FOREIGN KEY (CreatedBy)         REFERENCES iam.[User](UserId)
+);
+END
+GO
+
+-- FK_WL_Event: giờ WasteEvent đã tồn tại nên gắn khóa ngoại từ WasteLog sang event.
+IF COL_LENGTH(N'inventory.WasteLog', N'WasteEventId') IS NOT NULL
+   AND NOT EXISTS (
+    SELECT 1 FROM sys.foreign_keys
+    WHERE parent_object_id = OBJECT_ID(N'inventory.WasteLog')
+      AND name = N'FK_WL_Event'
+)
+    ALTER TABLE inventory.WasteLog
+        ADD CONSTRAINT FK_WL_Event FOREIGN KEY (WasteEventId) REFERENCES inventory.WasteEvent(WasteEventId);
+GO
+
+-- Nhật ký thao tác trên hao hụt (tạo/sửa/huỷ/duyệt) để truy vết.
+IF OBJECT_ID(N'inventory.WasteAuditLog', N'U') IS NULL
+BEGIN
+CREATE TABLE inventory.WasteAuditLog (
+    WasteAuditLogId BIGINT IDENTITY PRIMARY KEY,
+    WasteLogId    INT NULL,
+    WasteEventId  BIGINT NULL,
+    ActionType    VARCHAR(20) NOT NULL
+                  CONSTRAINT CK_WAL_Action CHECK (ActionType IN ('CREATE','UPDATE','VOID','REVIEW')),
+    BeforeValue   NVARCHAR(1000) NULL,
+    AfterValue    NVARCHAR(1000) NULL,
+    Reason        NVARCHAR(255) NULL,
+    PerformedBy   INT NOT NULL,
+    PerformedAt   DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT FK_WAL_Log   FOREIGN KEY (WasteLogId)   REFERENCES inventory.WasteLog(WasteLogId),
+    CONSTRAINT FK_WAL_Event FOREIGN KEY (WasteEventId) REFERENCES inventory.WasteEvent(WasteEventId),
+    CONSTRAINT FK_WAL_User  FOREIGN KEY (PerformedBy)  REFERENCES iam.[User](UserId)
+);
+END
+GO
+
+-- Hàng đợi đối soát tồn khi hao hụt gây âm kho / cần Manager void.
+IF OBJECT_ID(N'inventory.WasteReview', N'U') IS NULL
+BEGIN
+CREATE TABLE inventory.WasteReview (
+    WasteReviewId BIGINT IDENTITY PRIMARY KEY,
+    WasteEventId  BIGINT NOT NULL,
+    IngredientId  INT NOT NULL,
+    ReviewType    VARCHAR(20) NOT NULL
+                  CONSTRAINT CK_WR_Type CHECK (ReviewType IN ('SOFT_NEGATIVE','HARD_NEGATIVE','LATE_CORRECTION','MANAGER_VOID')),
+    QtyBefore     DECIMAL(12,3) NOT NULL,
+    QtyAfter      DECIMAL(12,3) NOT NULL,
+    Status        VARCHAR(16) NOT NULL DEFAULT 'OPEN'
+                  CONSTRAINT CK_WR_Status CHECK (Status IN ('OPEN','ACKNOWLEDGED','RESOLVED')),
+    Note          NVARCHAR(255) NULL,
+    CreatedAt     DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    ResolvedBy    INT NULL,
+    ResolvedAt    DATETIME2 NULL,
+    ResolutionNote NVARCHAR(255) NULL,
+    CONSTRAINT FK_WR_Event      FOREIGN KEY (WasteEventId) REFERENCES inventory.WasteEvent(WasteEventId),
+    CONSTRAINT FK_WR_Ingredient FOREIGN KEY (IngredientId) REFERENCES catalog.Ingredient(IngredientId),
+    CONSTRAINT FK_WR_User       FOREIGN KEY (ResolvedBy)   REFERENCES iam.[User](UserId)
+);
+END
 GO
 
 /* ===========================================================================
    6. PAYMENT: ca thu ngân, hóa đơn (tách bill), voucher  (Cashier + Admin)
    =========================================================================== */
+IF OBJECT_ID(N'payment.CashierShift', N'U') IS NULL
+BEGIN
 CREATE TABLE payment.CashierShift (
     CashierShiftId INT IDENTITY PRIMARY KEY,
     BranchId       INT NOT NULL,
@@ -661,9 +874,12 @@ CREATE TABLE payment.CashierShift (
     CONSTRAINT FK_CS_Branch  FOREIGN KEY (BranchId)  REFERENCES org.Branch(BranchId),
     CONSTRAINT FK_CS_Cashier FOREIGN KEY (CashierId) REFERENCES iam.[User](UserId)
 );
+END
 GO
 
 -- Voucher toàn hệ thống (chỉ Admin sở hữu — một nguồn duy nhất)
+IF OBJECT_ID(N'payment.Voucher', N'U') IS NULL
+BEGIN
 CREATE TABLE payment.Voucher (
     VoucherId    INT IDENTITY PRIMARY KEY,
     Code         VARCHAR(40) NOT NULL UNIQUE,
@@ -681,9 +897,12 @@ CREATE TABLE payment.Voucher (
     IsActive     BIT NOT NULL DEFAULT 1,
     CONSTRAINT FK_Voucher_Branch FOREIGN KEY (BranchId) REFERENCES org.Branch(BranchId)
 );
+END
 GO
 
 -- Hóa đơn: 1 phiên bàn có thể tách thành nhiều Bill (Dynamic Bill Splitting)
+IF OBJECT_ID(N'payment.Bill', N'U') IS NULL
+BEGIN
 CREATE TABLE payment.Bill (
     BillId         INT IDENTITY PRIMARY KEY,
     BranchId       INT NOT NULL,
@@ -705,9 +924,12 @@ CREATE TABLE payment.Bill (
     CONSTRAINT FK_Bill_Shift   FOREIGN KEY (CashierShiftId) REFERENCES payment.CashierShift(CashierShiftId),
     CONSTRAINT FK_Bill_Voucher FOREIGN KEY (VoucherId)      REFERENCES payment.Voucher(VoucherId)
 );
+END
 GO
 
 -- Dòng đơn nào nằm trên Bill nào (cho phép tách bill)
+IF OBJECT_ID(N'payment.BillItem', N'U') IS NULL
+BEGIN
 CREATE TABLE payment.BillItem (
     BillItemId  INT IDENTITY PRIMARY KEY,
     BillId      INT NOT NULL,
@@ -717,8 +939,11 @@ CREATE TABLE payment.BillItem (
     CONSTRAINT FK_BItem_OItem FOREIGN KEY (OrderItemId) REFERENCES sales.OrderItem(OrderItemId),
     CONSTRAINT UQ_BItem UNIQUE (OrderItemId)     -- 1 dòng đơn chỉ thuộc 1 bill
 );
+END
 GO
 
+IF OBJECT_ID(N'payment.VoucherRedemption', N'U') IS NULL
+BEGIN
 CREATE TABLE payment.VoucherRedemption (
     RedemptionId    INT IDENTITY PRIMARY KEY,
     VoucherId       INT NOT NULL,
@@ -728,11 +953,14 @@ CREATE TABLE payment.VoucherRedemption (
     CONSTRAINT FK_VR_Voucher FOREIGN KEY (VoucherId) REFERENCES payment.Voucher(VoucherId),
     CONSTRAINT FK_VR_Bill    FOREIGN KEY (BillId)    REFERENCES payment.Bill(BillId)
 );
+END
 GO
 
 /* ===========================================================================
    7. OPS: Event Bus / Outbox  (contract #1)
    =========================================================================== */
+IF OBJECT_ID(N'ops.OutboxEvent', N'U') IS NULL
+BEGIN
 CREATE TABLE ops.OutboxEvent (
     EventId     BIGINT IDENTITY PRIMARY KEY,
     EventType   VARCHAR(50) NOT NULL,            -- order.created, order.status_changed,
@@ -744,9 +972,12 @@ CREATE TABLE ops.OutboxEvent (
     ProcessedAt DATETIME2 NULL,
     CONSTRAINT FK_Event_Branch FOREIGN KEY (BranchId) REFERENCES org.Branch(BranchId)
 );
+END
 GO
 
 -- Audit nghiệp vụ theo từng dòng món: nhận pha, hoàn thành, sự cố, trả hàng chờ, làm lại, nhận/giao.
+IF OBJECT_ID(N'ops.OrderItemActionLog', N'U') IS NULL
+BEGIN
 CREATE TABLE ops.OrderItemActionLog (
     OrderItemActionLogId BIGINT IDENTITY PRIMARY KEY,
     OrderItemId INT NOT NULL,
@@ -761,32 +992,74 @@ CREATE TABLE ops.OrderItemActionLog (
     CONSTRAINT FK_OIAL_Branch FOREIGN KEY (BranchId) REFERENCES org.Branch(BranchId),
     CONSTRAINT FK_OIAL_User FOREIGN KEY (PerformedBy) REFERENCES iam.[User](UserId)
 );
+END
+GO
+
+-- Nhật ký phiên bản schema; database.sql là entry point deploy duy nhất.
+IF OBJECT_ID(N'ops.SchemaVersion', N'U') IS NULL
+BEGIN
+CREATE TABLE ops.SchemaVersion (
+    VersionCode VARCHAR(64) NOT NULL PRIMARY KEY,
+    AppliedAt   DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    Description NVARCHAR(255) NOT NULL
+);
+END
 GO
 
 /* ---------------------------------------------------------------------------
    INDEXES (FK & cột truy vấn nóng)
    --------------------------------------------------------------------------- */
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'iam.[User]') AND name = N'IX_User_Branch')
 CREATE INDEX IX_User_Branch        ON iam.[User](BranchId);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'catalog.Product') AND name = N'IX_Product_Category')
 CREATE INDEX IX_Product_Category   ON catalog.Product(CategoryId);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'catalog.BranchMenu') AND name = N'IX_BranchMenu_86')
 CREATE INDEX IX_BranchMenu_86      ON catalog.BranchMenu(BranchId, Is86);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'inventory.InventoryTransaction') AND name = N'IX_Inv_Txn_BranchIng')
 CREATE INDEX IX_Inv_Txn_BranchIng  ON inventory.InventoryTransaction(BranchId, IngredientId);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'inventory.StockReceiptDetail') AND name = N'IX_SRD_Receipt')
 CREATE INDEX IX_SRD_Receipt        ON inventory.StockReceiptDetail(StockReceiptId);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'sales.Orders') AND name = N'IX_Order_Session')
 CREATE INDEX IX_Order_Session      ON sales.Orders(TableSessionId);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'sales.Orders') AND name = N'IX_Order_BranchStatus')
 CREATE INDEX IX_Order_BranchStatus ON sales.Orders(BranchId, Status);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'sales.OrderItem') AND name = N'IX_OrderItem_Status')
 CREATE INDEX IX_OrderItem_Status   ON sales.OrderItem(Status);          -- KDS queue
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'sales.OrderItem') AND name = N'IX_OrderItem_Order')
 CREATE INDEX IX_OrderItem_Order    ON sales.OrderItem(OrderId);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'payment.Bill') AND name = N'IX_Bill_Session')
 CREATE INDEX IX_Bill_Session       ON payment.Bill(TableSessionId);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'payment.Bill') AND name = N'IX_Bill_BranchStatus')
 CREATE INDEX IX_Bill_BranchStatus  ON payment.Bill(BranchId, Status);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'ops.OutboxEvent') AND name = N'IX_Outbox_Unprocessed')
 CREATE INDEX IX_Outbox_Unprocessed ON ops.OutboxEvent(ProcessedAt) WHERE ProcessedAt IS NULL;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'sales.OrderItem') AND name = N'IX_OrderItem_BaristaStatus')
 CREATE INDEX IX_OrderItem_BaristaStatus ON sales.OrderItem(BaristaId, Status);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'ops.OrderItemActionLog') AND name = N'IX_OrderItemAction_Item')
 CREATE INDEX IX_OrderItemAction_Item ON ops.OrderItemActionLog(OrderItemId, CreatedAt DESC);
+-- Hao hụt & làm lại
+IF OBJECT_ID(N'inventory.WasteEvent', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'inventory.WasteEvent') AND name = N'UX_WasteEvent_ClientRequest')
+CREATE UNIQUE INDEX UX_WasteEvent_ClientRequest ON inventory.WasteEvent(BranchId, ClientRequestId) WHERE ClientRequestId IS NOT NULL;
+IF OBJECT_ID(N'inventory.WasteEvent', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'inventory.WasteEvent') AND name = N'IX_WasteEvent_OrderItem')
+CREATE INDEX IX_WasteEvent_OrderItem ON inventory.WasteEvent(OrderItemId, CreatedAt DESC) WHERE OrderItemId IS NOT NULL;
+IF OBJECT_ID(N'inventory.WasteLog', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'inventory.WasteLog') AND name = N'IX_WasteLog_BranchLogged')
+CREATE INDEX IX_WasteLog_BranchLogged ON inventory.WasteLog(BranchId, LoggedAt DESC);
+IF COL_LENGTH(N'inventory.WasteLog', N'WasteEventId') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'inventory.WasteLog') AND name = N'IX_WasteLog_Event')
+CREATE INDEX IX_WasteLog_Event ON inventory.WasteLog(WasteEventId) WHERE WasteEventId IS NOT NULL;
+IF OBJECT_ID(N'inventory.WasteReview', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'inventory.WasteReview') AND name = N'IX_WasteReview_Open')
+CREATE INDEX IX_WasteReview_Open ON inventory.WasteReview(Status, CreatedAt DESC) INCLUDE(WasteEventId, IngredientId, ReviewType);
 GO
 
 /* ---------------------------------------------------------------------------
    VIEWS tiện ích
    --------------------------------------------------------------------------- */
 GO
-CREATE VIEW inventory.vw_LowStock AS
+CREATE OR ALTER VIEW inventory.vw_LowStock AS
     SELECT bi.BranchId, b.Name AS BranchName, bi.IngredientId, i.Name AS IngredientName,
            bi.QuantityOnHand, bi.MinThreshold
     FROM inventory.BranchInventory bi
@@ -794,7 +1067,7 @@ CREATE VIEW inventory.vw_LowStock AS
     JOIN catalog.Ingredient i ON i.IngredientId = bi.IngredientId
     WHERE bi.QuantityOnHand <= bi.MinThreshold;
 GO
-CREATE VIEW sales.vw_KdsQueue AS
+CREATE OR ALTER VIEW sales.vw_KdsQueue AS
     SELECT oi.OrderItemId, o.BranchId, o.OrderId, ts.DiningTableId,
            p.Name AS ProductName, oi.Quantity, oi.Status, oi.Note, o.CreatedAt
     FROM sales.OrderItem oi
@@ -805,8 +1078,164 @@ CREATE VIEW sales.vw_KdsQueue AS
 GO
 
 /* ===========================================================================
+   DEPLOY UPGRADES — chạy an toàn trên database đã tồn tại
+   =========================================================================== */
+
+-- 20260722: Attendance chỉ được có một bản ghi trên mỗi ca.
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.key_constraints
+    WHERE parent_object_id = OBJECT_ID(N'hr.Attendance')
+      AND name = N'UQ_Att_ShiftAssignment'
+)
+BEGIN
+    ;WITH ranked AS (
+        SELECT a.*, ROW_NUMBER() OVER (
+            PARTITION BY a.ShiftAssignmentId
+            ORDER BY a.AttendanceId DESC
+        ) AS row_number
+        FROM hr.Attendance a
+    )
+    INSERT INTO hr.AttendanceDuplicateArchive (
+        SourceAttendanceId, ShiftAssignmentId, CheckInAt, CheckOutAt,
+        Status, ApprovedBy, ArchiveReason
+    )
+    SELECT r.AttendanceId, r.ShiftAssignmentId, r.CheckInAt, r.CheckOutAt,
+           r.Status, r.ApprovedBy,
+           N'Giữ bản ghi Attendance mới nhất trước khi thêm unique constraint theo ca.'
+    FROM ranked r
+    WHERE r.row_number > 1
+      AND NOT EXISTS (
+          SELECT 1 FROM hr.AttendanceDuplicateArchive archived
+          WHERE archived.SourceAttendanceId = r.AttendanceId
+      );
+
+    ;WITH ranked AS (
+        SELECT a.AttendanceId, ROW_NUMBER() OVER (
+            PARTITION BY a.ShiftAssignmentId
+            ORDER BY a.AttendanceId DESC
+        ) AS row_number
+        FROM hr.Attendance a
+    )
+    DELETE FROM ranked WHERE row_number > 1;
+
+    ALTER TABLE hr.Attendance
+        ADD CONSTRAINT UQ_Att_ShiftAssignment UNIQUE (ShiftAssignmentId);
+END;
+
+IF NOT EXISTS (SELECT 1 FROM ops.SchemaVersion WHERE VersionCode = '20260722_attendance_integrity')
+    INSERT INTO ops.SchemaVersion (VersionCode, Description)
+    VALUES ('20260722_attendance_integrity', N'Bảo đảm một bản ghi chấm công cho mỗi ca.');
+
+COMMIT TRANSACTION;
+GO
+
+-- 20260722: Workflow bàn giao ca và người nhận bàn giao.
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+
+IF COL_LENGTH(N'hr.ShiftHandover', N'SourceShiftAssignmentId') IS NULL
+    ALTER TABLE hr.ShiftHandover ADD SourceShiftAssignmentId INT NULL;
+
+IF COL_LENGTH(N'hr.ShiftHandover', N'OverallStatus') IS NULL
+    ALTER TABLE hr.ShiftHandover
+        ADD OverallStatus VARCHAR(20) NOT NULL
+            CONSTRAINT DF_SH_OverallStatus DEFAULT 'LEGACY' WITH VALUES;
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.check_constraints
+    WHERE parent_object_id = OBJECT_ID(N'hr.ShiftHandover')
+      AND name = N'CK_SH_Status'
+)
+    ALTER TABLE hr.ShiftHandover WITH CHECK
+        ADD CONSTRAINT CK_SH_Status
+        CHECK (OverallStatus IN ('LEGACY','WAITING_RECEIPT','IN_PROGRESS','COMPLETED'));
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.foreign_keys
+    WHERE parent_object_id = OBJECT_ID(N'hr.ShiftHandover')
+      AND name = N'FK_SH_Source'
+)
+    ALTER TABLE hr.ShiftHandover WITH CHECK
+        ADD CONSTRAINT FK_SH_Source
+        FOREIGN KEY (SourceShiftAssignmentId) REFERENCES hr.ShiftAssignment(ShiftAssignmentId);
+
+IF NOT EXISTS (SELECT 1 FROM ops.SchemaVersion WHERE VersionCode = '20260722_shift_handover_workflow')
+    INSERT INTO ops.SchemaVersion (VersionCode, Description)
+    VALUES ('20260722_shift_handover_workflow', N'Bổ sung nguồn ca, trạng thái và người nhận bàn giao.');
+
+COMMIT TRANSACTION;
+GO
+
+-- 20260722: Audit hao hụt/remake cấp event và đối soát tồn kho.
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+
+IF EXISTS (
+    SELECT 1
+    FROM sys.columns
+    WHERE object_id = OBJECT_ID(N'inventory.WasteLog')
+      AND name = N'WasteEventId'
+      AND TYPE_NAME(system_type_id) <> N'bigint'
+)
+    THROW 51001, N'inventory.WasteLog.WasteEventId phải có kiểu BIGINT trước khi tạo khóa ngoại.', 1;
+
+IF COL_LENGTH(N'inventory.WasteLog', N'WasteEventId') IS NULL
+    ALTER TABLE inventory.WasteLog ADD WasteEventId BIGINT NULL;
+
+IF COL_LENGTH(N'inventory.WasteLog', N'UnitCostAtLog') IS NULL
+    ALTER TABLE inventory.WasteLog ADD UnitCostAtLog DECIMAL(12,2) NULL;
+
+IF COL_LENGTH(N'inventory.WasteLog', N'CostBasis') IS NULL
+    ALTER TABLE inventory.WasteLog ADD CostBasis VARCHAR(20) NULL;
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.check_constraints
+    WHERE parent_object_id = OBJECT_ID(N'inventory.WasteLog')
+      AND name = N'CK_WL_CostBasis'
+)
+    ALTER TABLE inventory.WasteLog WITH CHECK
+        ADD CONSTRAINT CK_WL_CostBasis
+        CHECK (CostBasis IS NULL OR CostBasis IN ('SNAPSHOT','UNAVAILABLE','LEGACY_ESTIMATE'));
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.foreign_keys
+    WHERE parent_object_id = OBJECT_ID(N'inventory.WasteLog')
+      AND name = N'FK_WL_Event'
+)
+    ALTER TABLE inventory.WasteLog WITH CHECK
+        ADD CONSTRAINT FK_WL_Event
+        FOREIGN KEY (WasteEventId) REFERENCES inventory.WasteEvent(WasteEventId);
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'inventory.WasteLog') AND name = N'IX_WasteLog_Event')
+    CREATE INDEX IX_WasteLog_Event
+        ON inventory.WasteLog(WasteEventId)
+        WHERE WasteEventId IS NOT NULL;
+
+IF NOT EXISTS (SELECT 1 FROM ops.SchemaVersion WHERE VersionCode = '20260722_waste_event_controls')
+    INSERT INTO ops.SchemaVersion (VersionCode, Description)
+    VALUES ('20260722_waste_event_controls', N'Bổ sung event, audit và đối soát hao hụt/remake.');
+
+COMMIT TRANSACTION;
+GO
+
+/* ===========================================================================
    8. SEED DATA (dữ liệu mẫu để chạy thử)
    =========================================================================== */
+-- Chỉ seed khi chủ động bật @SeedDemo ở đầu file và database chưa có role nào.
+-- Phần seed nằm cuối script, nên SET NOEXEC không ảnh hưởng DDL hay deploy upgrade.
+IF CONVERT(BIT, SESSION_CONTEXT(N'CafeChainSeedDemo')) <> 1
+   OR EXISTS (SELECT 1 FROM iam.Role)
+BEGIN
+    PRINT N'Bỏ qua seed demo (deploy an toàn, không thay đổi dữ liệu hiện có).';
+    SET NOEXEC ON;
+END
+GO
+
 INSERT INTO iam.Role(Code, Name) VALUES
     ('ADMIN', N'Quản trị hệ thống'),
     ('BRANCH_MANAGER', N'Quản lý chi nhánh'),
@@ -1115,7 +1544,8 @@ DECLARE @rCashier INT = (SELECT RoleId FROM iam.Role WHERE Code='CASHIER');
 DECLARE @rBarista INT = (SELECT RoleId FROM iam.Role WHERE Code='BARISTA');
 
 DECLARE @now DATETIME2 = SYSUTCDATETIME();
-DECLARE @today DATE = CAST(@now AS DATE);
+-- @now vẫn là UTC để seed timestamp; lịch làm phải theo ngày Việt Nam.
+DECLARE @today DATE = CAST((@now AT TIME ZONE 'UTC') AT TIME ZONE 'SE Asia Standard Time' AS DATE);
 
 /* ===========================================================================
    C0) USER — mật khẩu thật cho seed gốc + thêm nhân sự CN01

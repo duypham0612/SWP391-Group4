@@ -1,6 +1,7 @@
 package com.cafe.service.cashier;
 
 import com.cafe.config.DBConnection;
+import com.cafe.common.BusinessDay;
 import com.cafe.dao.cashier.CashierShiftDao;
 import com.cafe.dao.manager.AttendanceDao;
 import com.cafe.model.Attendance;
@@ -11,7 +12,6 @@ import com.cafe.service.manager.AttendanceService;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.time.LocalDate;
 import java.util.List;
 
 /** Nguồn sự thật trạng thái trực ca thu ngân: chấm công + két tiền. */
@@ -82,7 +82,7 @@ public class CashierDutyService {
     }
 
     private boolean isClockedIn(Connection c, int userId, int branchId) throws SQLException {
-        List<ShiftAssignment> assignments = attendanceDao.findTodayAssignments(c, userId, branchId, LocalDate.now());
+        List<ShiftAssignment> assignments = attendanceDao.findTodayAssignments(c, userId, branchId, BusinessDay.todayVn());
         for (ShiftAssignment assignment : assignments) {
             Attendance attendance = attendanceDao.findByAssignment(c, assignment.getShiftAssignmentId());
             if (attendance != null && attendance.getCheckInAt() != null && attendance.getCheckOutAt() == null) {

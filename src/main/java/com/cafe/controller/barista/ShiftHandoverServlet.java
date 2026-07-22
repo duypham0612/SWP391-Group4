@@ -12,86 +12,56 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
-/** B7 · ShiftHandoverServlet -> /barista/handover. Ghi chú bàn giao ca + số liệu pha hôm nay của cả quán. */
+/** Bàn giao ca: gửi đầu việc tới ca sau, nhận bàn giao và theo dõi việc tồn. */
 @WebServlet("/barista/handover")
 public class ShiftHandoverServlet extends HttpServlet {
-
     private static final String SELF = "/barista/handover";
     private final HandoverService service = new HandoverService();
 
-    @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
-            throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
+    @Override protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        int branchId = InventoryDashboardServlet.branchId(req); User user = SessionUtil.currentUser(req);
         try {
-            // Thanh tan ca ở cuối màn: clockPostUrl trỏ sang /barista/shift vì MyShiftServlet
-            // mới là nơi xử lý chấm công. Màn này không tự nhận clockIn/clockOut.
             BaristaShift.expose(req, MyShiftServlet.PATH);
-            req.setAttribute("handovers", service.getHandovers(branchId));
+            int userId = user == null ? 0 : user.getUserId();
+            req.setAttribute("handovers", service.getHandovers(branchId, userId));
+            req.setAttribute("pendingHandoverCount", service.countUnacknowledgedForUser(branchId, userId));
+            if (BaristaShift.onShift(req)) {
+                try { req.setAttribute("receiverPreview", service.previewReceiver(branchId, userId)); }
+                catch (IllegalStateException e) { req.setAttribute("receiverPreviewError", e.getMessage()); }
+            }
             req.setAttribute("kpi", service.getKpi(branchId));
             req.setAttribute("expiredPrepBatchCount", service.countExpiredActivePrepBatches(branchId));
-            String brewQuery = textParam(req, "q", 100);
-            String brewStatus = allowedParam(req, "status", "READY", "PICKED_UP", "SERVED");
-            String brewOrderType = allowedParam(req, "orderType", "DINE_IN", "TAKEAWAY", "DELIVERY");
-            int brewPageSize = pageSizeParam(req);
-            int requestedBrewPage = positiveIntParam(req, "page", 1);
-            HandoverService.BrewHistoryPage brewHistoryPage = service.getBrewHistoryPage(branchId, brewQuery,
-                    brewStatus, brewOrderType, requestedBrewPage, brewPageSize);
-            req.setAttribute("brewHistory", brewHistoryPage.getItems());
-            req.setAttribute("brewHistoryPage", brewHistoryPage);
-            req.setAttribute("brewHistoryQuery", brewQuery);
-            req.setAttribute("brewHistoryStatus", brewStatus);
-            req.setAttribute("brewHistoryOrderType", brewOrderType);
             req.setAttribute("pageTitle", "Bàn giao ca");
             req.getRequestDispatcher("/WEB-INF/views/barista/handover.jsp").forward(req, resp);
         } catch (Exception e) { throw new ServletException(e); }
     }
 
-    @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp)
-            throws ServletException, IOException {
+    @Override protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
-        int branchId = InventoryDashboardServlet.branchId(req);
-        User u = SessionUtil.currentUser(req);
-        int userId = u != null ? u.getUserId() : 0;
+        int branchId = InventoryDashboardServlet.branchId(req); User user = SessionUtil.currentUser(req); int userId = user == null ? 0 : user.getUserId();
+        String action = req.getParameter("action");
         try {
-            if ("create".equals(req.getParameter("action"))) {
-                String note = req.getParameter("note");
-                if (note != null && !note.isBlank()) {
-                    service.createHandover(branchId, note.trim(), userId);
-                } else {
-                    req.getSession().setAttribute("flashError", "Nội dung bàn giao không được rỗng.");
-                }
+            if ("create".equals(action) || "createAndClockOut".equals(action)) {
+                if (!BaristaShift.onShift(req)) throw new IllegalStateException("Bạn đang ngoài ca — cần vào ca trước khi lập bàn giao.");
+                List<String> tasks = Arrays.asList(req.getParameterValues("task") == null ? new String[0] : req.getParameterValues("task"));
+                if ("createAndClockOut".equals(action)) service.createHandoverAndClockOut(branchId, userId, req.getParameter("note"), tasks);
+                else service.createHandover(branchId, userId, req.getParameter("note"), tasks);
+                req.getSession().setAttribute("flashOk", "Đã gửi bàn giao" + ("createAndClockOut".equals(action) ? " và tan ca." : "."));
+            } else if ("acknowledge".equals(action)) {
+                if (!BaristaShift.onShift(req)) throw new IllegalStateException("Bạn cần vào ca trước khi nhận bàn giao.");
+                service.acknowledge(branchId, parsePositive(req, "handoverId"), userId);
+                req.getSession().setAttribute("flashOk", "Đã xác nhận nhận bàn giao.");
+            } else if ("updateTask".equals(action)) {
+                if (!BaristaShift.onShift(req)) throw new IllegalStateException("Bạn cần đang trong ca để cập nhật việc bàn giao.");
+                service.updateTaskStatus(branchId, parsePositive(req, "handoverId"), parsePositive(req, "taskId"), req.getParameter("status"), userId);
+                req.getSession().setAttribute("flashOk", "Đã cập nhật việc bàn giao.");
             }
-            resp.sendRedirect(req.getContextPath() + SELF);
-        } catch (Exception e) { throw new ServletException(e); }
+        } catch (IllegalArgumentException | IllegalStateException e) { req.getSession().setAttribute("flashError", e.getMessage()); }
+        catch (Exception e) { throw new ServletException(e); }
+        resp.sendRedirect(req.getContextPath() + SELF);
     }
-
-    private static String textParam(HttpServletRequest req, String name, int maxLength) {
-        String value = req.getParameter(name);
-        if (value == null) return "";
-        value = value.trim();
-        return value.length() <= maxLength ? value : value.substring(0, maxLength);
-    }
-
-    private static String allowedParam(HttpServletRequest req, String name, String... allowed) {
-        String value = textParam(req, name, 20);
-        for (String item : allowed) if (item.equals(value)) return value;
-        return "";
-    }
-
-    private static int positiveIntParam(HttpServletRequest req, String name, int fallback) {
-        try {
-            int value = Integer.parseInt(req.getParameter(name));
-            return value > 0 ? value : fallback;
-        } catch (NumberFormatException e) {
-            return fallback;
-        }
-    }
-
-    private static int pageSizeParam(HttpServletRequest req) {
-        int value = positiveIntParam(req, "pageSize", 10);
-        return value == 20 || value == 50 ? value : 10;
-    }
+    private static int parsePositive(HttpServletRequest req, String name) { try { int value = Integer.parseInt(req.getParameter(name)); if (value > 0) return value; } catch (NumberFormatException ignored) {} throw new IllegalArgumentException("Dữ liệu bàn giao không hợp lệ."); }
 }

@@ -1216,6 +1216,48 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
 }
 .pickup-recent__name{font-size:var(--fs-sm); color:var(--ink-soft)}
 
+/* ============================ Recipe lookup ============================= */
+.recipe-filter{max-width:none}
+.recipe-filter__form{display:flex; gap:var(--s3); align-items:flex-end; flex-wrap:wrap}
+.recipe-filter__form .form-group{margin:0}
+.recipe-filter__search{flex:1 1 260px; min-width:220px}
+.recipe-filter__search small{margin-top:6px; color:var(--muted); font-size:12px}
+.recipe-filter__select{flex:0 1 190px; min-width:170px}
+.recipe-filter__branch{display:flex; align-items:center; gap:8px; min-height:42px; margin-bottom:0; white-space:nowrap; font-size:13px; font-weight:650; color:var(--ink-soft)}
+.recipe-filter__branch input{width:17px; height:17px; accent-color:var(--coffee)}
+.recipe-filter__form.is-live-searching #q{border-color:var(--gold); box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 16%,transparent)}
+.recipe-layout{display:grid; grid-template-columns:minmax(300px,.85fr) minmax(390px,1.25fr); gap:var(--s5); align-items:start}
+.recipe-results-card,.recipe-detail-card{min-width:0}
+.recipe-card__head,.recipe-detail-card__head{display:flex; align-items:flex-start; justify-content:space-between; gap:var(--s3); margin-bottom:var(--s4)}
+.recipe-card__head h2,.recipe-detail-card__head h2{margin:2px 0 0; font:700 23px/1.2 'Playfair Display',serif; color:var(--espresso)}
+.recipe-count{display:inline-flex; align-items:center; min-height:28px; padding:3px 10px; border:1px solid var(--line); border-radius:var(--radius-pill); background:var(--surface-2); color:var(--muted); font-size:12px; font-weight:700; white-space:nowrap}
+.recipe-results-table td:first-child{min-width:180px}
+.recipe-results-table small{color:var(--muted)}
+.recipe-product-link{display:block; margin:-8px -10px; padding:8px 10px; border-radius:var(--radius-xs); color:inherit; text-decoration:none}
+.recipe-product-link:hover{background:var(--surface-2)}
+.recipe-product-link:focus-visible{outline:3px solid color-mix(in srgb,var(--gold) 55%,transparent); outline-offset:2px}
+.recipe-product-link[aria-current="true"]{background:color-mix(in srgb,var(--latte) 38%,transparent)}
+.recipe-product-name{font-weight:750; color:var(--ink)}
+.recipe-detail-card{position:sticky; top:var(--s4)}
+.recipe-detail-card__head{display:block; padding-bottom:var(--s4); border-bottom:1px solid var(--line)}
+.recipe-detail-card__head p{margin:7px 0 0; color:var(--muted); font-size:13px}
+.recipe-section{padding-top:var(--s4); margin-top:var(--s4); border-top:1px solid var(--line)}
+.recipe-detail-card__head + .recipe-section{padding-top:0; margin-top:0; border-top:0}
+.recipe-section h3{margin:0; font:700 16px/1.25 'Be Vietnam Pro',sans-serif; color:var(--ink)}
+.recipe-section__hint{margin:6px 0 var(--s3); color:var(--muted); font-size:12.5px}
+.recipe-muted{margin:var(--s3) 0 0; color:var(--muted)}
+.recipe-table-wrap{overflow-x:auto; border-radius:var(--radius-sm)}
+.recipe-table-wrap .table{min-width:520px}
+.recipe-qty,.recipe-impact-delta{white-space:nowrap; font-variant-numeric:tabular-nums}
+.recipe-impact-delta strong{color:var(--espresso)}
+.recipe-badge-prepped{background:var(--latte)}
+.recipe-badge-raw{background:var(--coffee)}
+.recipe-prep-card{margin-top:var(--s3); padding:var(--s3); border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface-2)}
+.recipe-prep-card__head{display:flex; justify-content:space-between; align-items:baseline; gap:var(--s3); margin-bottom:var(--s3)}
+.recipe-prep-card__head strong{color:var(--espresso)}
+.recipe-prep-card__unit{font-size:12px; color:var(--muted); white-space:nowrap}
+.recipe-results-card[aria-busy],.recipe-detail-card[aria-busy]{pointer-events:none}
+
 /* ============================ Animations ================================ */
 @keyframes fadeIn{from{opacity:0} to{opacity:1}}
 @keyframes fadeInUp{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:translateY(0)}}
@@ -1241,6 +1283,8 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
   .table th{position:static}
   .user-meta{display:none}
   .topbar{padding:var(--s3) var(--s4)}
+  .recipe-layout{grid-template-columns:1fr}
+  .recipe-detail-card{position:static}
 }
 @media (max-width:520px){
   .page-header{flex-direction:column; align-items:flex-start}
@@ -1249,6 +1293,12 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
   .shift-clock-facts{grid-template-columns:1fr}
   .shift-clock-actions{justify-content:stretch}
   .shift-clock-actions form,.shift-clock-actions .btn{width:100%}
+  .recipe-filter__form{gap:var(--s2)}
+  .recipe-filter__search,.recipe-filter__select{flex-basis:100%; min-width:0}
+  .recipe-filter__branch{width:100%; min-height:34px}
+  #clearFilters{flex:1}
+  .recipe-card__head h2,.recipe-detail-card__head h2{font-size:21px}
+  .recipe-prep-card__head{align-items:flex-start; flex-direction:column; gap:3px}
 }
 
 /* ===== Barista trực ca: banner ngoài ca + khoá thao tác view-only ===== */

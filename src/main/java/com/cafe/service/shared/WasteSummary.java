@@ -6,6 +6,8 @@ import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Tổng hợp hao hụt/làm lại từ một danh sách WasteLog — hàm thuần, không đụng DB.
@@ -27,11 +29,16 @@ public final class WasteSummary {
     public static WasteSummary from(List<WasteLog> logs) {
         WasteSummary s = new WasteSummary();
         Map<String, BigDecimal> byIngredient = new LinkedHashMap<>();
+        Set<Long> remakeEvents = new HashSet<>();
         if (logs == null) return s;
         for (WasteLog log : logs) {
             if (log == null || !log.isActive()) continue;
             s.activeCount++;
-            if (log.isRemake()) s.remakeCount++; else s.ingredientWasteCount++;
+            if (log.isRemake()) {
+                // Event mới đại diện cho một lần/ly remake; dữ liệu legacy không có event giữ cách đếm cũ.
+                Long eventId = log.getWasteEventId();
+                if (eventId == null || remakeEvents.add(eventId)) s.remakeCount++;
+            } else s.ingredientWasteCount++;
 
             BigDecimal cost = log.getLineCost();
             if (cost == null) {
