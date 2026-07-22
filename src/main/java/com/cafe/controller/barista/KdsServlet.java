@@ -25,9 +25,6 @@ import java.util.Map;
 @WebServlet("/barista/kds")
 public class KdsServlet extends HttpServlet {
 
-    /** Số đơn treo hiển thị tối đa trong drawer cảnh báo — phần dư trỏ về màn Quản lý. */
-    private static final int STALE_GROUP_LIMIT = 6;
-
     private final KdsService service = new KdsService();
 
     @Override
@@ -161,7 +158,6 @@ public class KdsServlet extends HttpServlet {
         List<OrderItem> inProgress = board.get("inProgress");
         List<OrderItem> ready = board.get("ready");
         List<OrderItem> blocked = board.get("blocked");
-        List<OrderItem> stale = service.getStaleItems(branchId, dayStart);
 
         int overdue = 0;
         OrderItem oldest = null;
@@ -192,19 +188,13 @@ public class KdsServlet extends HttpServlet {
         req.setAttribute("inProgressItems", inProgress);
         req.setAttribute("readyItems", ready);
         req.setAttribute("blockedItems", blocked);
-        // Đơn treo gộp theo đơn và giới hạn số dòng: barista không thao tác được trên chúng,
-        // đổ hết ra chỉ che mất hàng chờ thật. Phần dư trỏ về Quản lý xử lý.
-        List<StaleOrderGroup> staleGroups = StaleOrderGroup.from(stale);
-        req.setAttribute("staleOrderCount", staleGroups.size());
-        req.setAttribute("staleHasItems", !staleGroups.isEmpty());
-        req.setAttribute("staleHiddenOrders", Math.max(0, staleGroups.size() - STALE_GROUP_LIMIT));
-        req.setAttribute("staleGroups", staleGroups.size() > STALE_GROUP_LIMIT
-                ? staleGroups.subList(0, STALE_GROUP_LIMIT) : staleGroups);
+        // Gom theo bàn cho layout master–detail; bàn khẩn cấp nhất lên đầu. Món chặn nằm trong
+        // chi tiết từng bàn (mục "Cần xử lý"), không còn đổ chung vào drawer cảnh báo.
+        req.setAttribute("tableGroups", TableGroup.from(waiting, inProgress, ready, blocked));
         req.setAttribute("waitingCount", cups(waiting));
         req.setAttribute("makingCount", cups(inProgress));
         req.setAttribute("readyCount", cups(ready));
         req.setAttribute("blockedCount", cups(blocked));
-        req.setAttribute("staleCount", cups(stale));
         req.setAttribute("overdueCount", overdue);
         // Thông tin phụ: số dòng món và số đơn đang mở của cả board.
         req.setAttribute("waitingLines", waiting.size());
