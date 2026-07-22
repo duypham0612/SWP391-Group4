@@ -31,7 +31,13 @@ public class QrMenuServlet extends HttpServlet {
         try {
             TableSession session = qrService.identifyTable(qrCode);
             if (session == null) {
+                HttpSession old = req.getSession(false);
+                if (old != null) {
+                    old.removeAttribute("qrSessionId");
+                    old.removeAttribute("qrBranchId");
+                }
                 resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+                req.setAttribute("invalidReason", "Không tìm thấy bàn đang hoạt động cho mã QR này.");
                 req.getRequestDispatcher("/WEB-INF/views/customer/invalid.jsp").forward(req, resp);
                 return;
             }
@@ -65,6 +71,7 @@ public class QrMenuServlet extends HttpServlet {
             JsonNode items = body.get("items");
             if (items != null && items.isArray()) {
                 for (JsonNode n : items) {
+                    if (!n.has("productId") || !n.get("productId").canConvertToInt()) continue;
                     OrderService.CartLine line = new OrderService.CartLine();
                     line.productId = n.get("productId").asInt();
                     line.quantity = n.has("quantity") ? n.get("quantity").asInt() : 1;
@@ -81,6 +88,9 @@ public class QrMenuServlet extends HttpServlet {
         } catch (IllegalArgumentException e) {                 // 86/đơn rỗng… → lỗi client, báo thân thiện
             resp.setStatus(400);
             resp.getWriter().write("{\"error\":\"" + (e.getMessage() == null ? "Lỗi" : e.getMessage().replace("\"","'")) + "\"}");
+        } catch (IllegalStateException e) {
+            resp.setStatus(410);
+            resp.getWriter().write("{\"error\":\"" + e.getMessage().replace("\"", "'") + "\"}");
         } catch (Exception e) {
             resp.setStatus(500);
             resp.getWriter().write("{\"error\":\"" + (e.getMessage() == null ? "Lỗi" : e.getMessage().replace("\"","'")) + "\"}");

@@ -171,6 +171,7 @@ public class BillingService {
                     TableSession s = sessionDao.findById(c, bill.getTableSessionId());
                     if (s != null && "OPEN".equals(s.getStatus())) {
                         sessionDao.updateStatus(c, s.getTableSessionId(), "CLOSED", true);
+                        tableDao.releaseMergedChildren(c, s.getDiningTableId());
                         tableDao.updateStatus(c, s.getDiningTableId(), "EMPTY");
                     }
                 }

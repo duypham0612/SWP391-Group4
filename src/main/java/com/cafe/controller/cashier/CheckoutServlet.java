@@ -4,7 +4,6 @@ import com.cafe.controller.manager.InventoryDashboardServlet;
 import com.cafe.common.CsrfUtil;
 import com.cafe.common.SessionUtil;
 import com.cafe.common.Constants;
-import com.cafe.common.VietQrUtil;
 import com.cafe.model.Bill;
 import com.cafe.model.CashierShift;
 import com.cafe.model.TableSession;
@@ -21,9 +20,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /** C5 · CheckoutServlet → /cashier/checkout. ★ showBill | applyVoucher | splitBill | mergeBill | pay. */
 @WebServlet("/cashier/checkout")
@@ -55,7 +52,6 @@ public class CheckoutServlet extends HttpServlet {
                 List<Bill> bills = billingService.buildSessionBill(sessionId, branchId, shiftId);
                 req.setAttribute("session", tableSession);
                 req.setAttribute("bills", bills);
-                req.setAttribute("qrPayloads", buildQrPayloads(bills));
                 req.setAttribute("sessionId", sessionId);
             } else {
                 // chưa chọn phiên: liệt kê các phiên đang mở để chọn
@@ -123,18 +119,6 @@ public class CheckoutServlet extends HttpServlet {
         List<Integer> out = new ArrayList<>();
         if (vals != null) for (String v : vals) if (v != null && !v.isBlank()) out.add(Integer.parseInt(v.trim()));
         return out;
-    }
-
-    private Map<Integer, String> buildQrPayloads(List<Bill> bills) {
-        Map<Integer, String> payloads = new LinkedHashMap<>();
-        if (bills == null) return payloads;
-        for (Bill bill : bills) {
-            if ("UNPAID".equals(bill.getStatus())) {
-                payloads.put(bill.getBillId(),
-                        VietQrUtil.buildPayload(bill.getTotalAmount(), "CAFE BILL " + bill.getBillId()));
-            }
-        }
-        return payloads;
     }
 
     private String validatePayable(int billId, int branchId) throws Exception {

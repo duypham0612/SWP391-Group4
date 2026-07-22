@@ -37,8 +37,9 @@ public class QrOrderService {
         DiningTable t;
         try (Connection c = DBConnection.getConnection()) {
             t = tableDao.findByQrCode(c, qrCode);
+            if (t != null && t.isMerged()) t = tableDao.findById(c, t.getMergedIntoTableId());
         }
-        if (t == null) return null;
+        if (t == null || !t.isVisible() || "CLEANING".equals(t.getStatus())) return null;
         int sessionId = tableSessionService.openSession(t.getBranchId(), t.getDiningTableId(), null);
         return getSession(sessionId);
     }
@@ -53,6 +54,7 @@ public class QrOrderService {
 
     /** Đặt món QR — uỷ thác OrderService.placeOrder(source=QR), publish order.created. */
     public int placeCustomerOrder(int branchId, int sessionId, List<OrderService.CartLine> lines) throws SQLException {
+        requireOpenSession(sessionId, branchId);
         return orderService.placeOrder(branchId, sessionId, "QR", "DINE_IN", null, lines);
     }
 
@@ -70,16 +72,32 @@ public class QrOrderService {
     }
 
     /** R5 · Khách huỷ đơn — uỷ thác OrderService.voidOrder (cùng guard: chỉ huỷ khi chưa pha). */
-    public boolean cancelOrder(int orderId) throws SQLException {
+    public boolean cancelOrder(int sessionId, int orderId) throws SQLException {
+        TableSession session = getSession(sessionId);
+        if (session == null) return false;
+        Order order = orderService.getOrder(orderId);
+        if (order == null || order.getTableSessionId() == null
+                || order.getTableSessionId() != sessionId || !"QR".equals(order.getSource())) return false;
         return orderService.voidOrder(orderId, null);
     }
 
-    public void callStaff(int sessionId, int branchId) throws SQLException {
-        publish(EventType.SERVICE_CALL, sessionId, branchId);
+    public void callStaff(int sessionId) throws SQLException {
+        TableSession session = requireOpenSession(sessionId, null);
+        publish(EventType.SERVICE_CALL, sessionId, session.getBranchId());
     }
 
-    public void requestBill(int sessionId, int branchId) throws SQLException {
-        publish(EventType.BILL_REQUESTED, sessionId, branchId);
+    public void requestBill(int sessionId) throws SQLException {
+        TableSession session = requireOpenSession(sessionId, null);
+        publish(EventType.BILL_REQUESTED, sessionId, session.getBranchId());
+    }
+
+    private TableSession requireOpenSession(int sessionId, Integer expectedBranchId) throws SQLException {
+        TableSession session = getSession(sessionId);
+        if (session == null || !"OPEN".equals(session.getStatus())
+                || expectedBranchId != null && session.getBranchId() != expectedBranchId) {
+            throw new IllegalStateException("Phiên QR không còn hợp lệ. Vui lòng quét lại mã tại bàn.");
+        }
+        return session;
     }
 
     private void publish(EventType type, int sessionId, int branchId) throws SQLException {

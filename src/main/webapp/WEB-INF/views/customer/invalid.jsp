@@ -13,7 +13,8 @@
     <div class="card" style="background:var(--cream);border-radius:var(--radius);box-shadow:var(--shadow);padding:28px">
         <div style="font-size:2.4rem">☕</div>
         <h1 style="font-family:'Playfair Display',serif">Mã QR không hợp lệ</h1>
-        <p class="muted">Không tìm thấy bàn ứng với mã này. Vui lòng quét lại mã QR dán tại bàn hoặc nhờ nhân viên hỗ trợ.</p>
+        <p class="muted">${empty invalidReason ? 'Không tìm thấy bàn ứng với mã này.' : invalidReason}
+            Vui lòng quét lại mã QR dán tại bàn hoặc nhờ nhân viên hỗ trợ.</p>
     </div>
 </div>
 </body>

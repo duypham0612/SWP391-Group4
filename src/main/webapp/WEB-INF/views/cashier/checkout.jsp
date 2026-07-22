@@ -3,7 +3,6 @@
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <jsp:include page="../layout/header.jsp" />
-<script src="${ctx}/assets/js/qrcode.min.js"></script>
 
 <div class="page-header">
     <div><div class="eyebrow">Bán hàng</div><h1>Thanh toán</h1>
@@ -127,11 +126,13 @@
                                     <option value="TRANSFER">Chuyển khoản</option>
                                     <option value="QR_BANK">QR ngân hàng</option>
                                 </select></div>
-                            <div class="qr-pay-panel" id="qr-panel-${b.billId}" data-payload="<c:out value='${qrPayloads[b.billId]}'/>" style="display:none">
-                                <div class="qr-code" id="qr-code-${b.billId}"></div>
+                            <div class="qr-pay-panel" id="qr-panel-${b.billId}" style="display:none">
+                                <img src="${ctx}/assets/img/mb-bank-qr.jpg"
+                                     alt="QR MB Bank của ${vietQrAccountName}"
+                                     style="display:block;width:240px;max-width:100%;height:auto;border-radius:12px">
                                 <div class="muted" style="font-size:.85rem;margin-top:6px">
                                     ${vietQrAccountName} · ${vietQrAccountNo}<br>
-                                    Nội dung: CAFE BILL ${b.billId}
+                                    Số tiền: <fmt:formatNumber value="${b.totalAmount}" maxFractionDigits="0"/> ₫ · Nội dung: CAFE BILL ${b.billId}
                                 </div>
                             </div>
                             <button type="submit" class="btn btn-primary pay-submit">Thu tiền</button>
@@ -169,22 +170,10 @@ document.querySelectorAll('.pay-form').forEach(form => {
   const method = form.querySelector('.pay-method');
   const submit = form.querySelector('.pay-submit');
   const panel = form.querySelector('.qr-pay-panel');
-  const codeBox = panel ? panel.querySelector('.qr-code') : null;
-  let rendered = false;
   function syncPaymentUi(){
     const isQr = method.value === 'QR_BANK';
     if (panel) panel.style.display = isQr ? 'block' : 'none';
     if (submit) submit.textContent = isQr ? 'Đã nhận tiền' : 'Thu tiền';
-    if (isQr && panel && codeBox && !rendered) {
-      const payload = panel.dataset.payload || '';
-      codeBox.innerHTML = '';
-      if (window.QRCode && payload) {
-        new QRCode(codeBox, {text: payload, width: 180, height: 180, correctLevel: QRCode.CorrectLevel.M});
-      } else {
-        codeBox.textContent = payload || 'Không tạo được QR.';
-      }
-      rendered = true;
-    }
   }
   method.addEventListener('change', syncPaymentUi);
   syncPaymentUi();

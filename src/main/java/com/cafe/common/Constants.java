@@ -48,8 +48,8 @@ public final class Constants {
     // Payroll
     public static final BigDecimal MIN_HOURLY_RATE = new BigDecimal("25000");
 
-    // Demo VietQR account for offline QR rendering.
+    // MB Bank account used for QR bank payments.
     public static final String VIETQR_BANK_BIN = "970422";
-    public static final String VIETQR_ACCOUNT_NO = "1234567890";
-    public static final String VIETQR_ACCOUNT_NAME = "CAFE CHAIN";
+    public static final String VIETQR_ACCOUNT_NO = "2004040414444";
+    public static final String VIETQR_ACCOUNT_NAME = "NGUYEN QUANG ANH";
 }

@@ -1,5 +1,15 @@
 {
     "java.configuration.updateBuildConfiguration": "automatic",
+    "java.configuration.runtimes": [
+        {
+            "name": "JavaSE-21",
+            "path": "C:\\Program Files\\Java\\jdk-21.0.11",
+            "default": true
+        }
+    ],
+    "java.debug.settings.hotCodeReplace": "auto",
+    "maven.executable.path": "C:\\apache-maven-3.9.16\\bin\\mvn.cmd",
+    "maven.terminal.useJavaHome": true,
     "files.encoding": "utf8",
     "files.autoGuessEncoding": false
 }

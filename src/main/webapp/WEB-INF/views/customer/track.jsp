@@ -65,10 +65,10 @@
         </div>
 
         <c:if test="${not empty cancellableOrders}">
-            <div class="qr-card">
+            <div class="qr-card" id="cancelPanel">
                 <p class="muted" style="margin:0 0 8px">Đơn chưa pha — có thể huỷ:</p>
                 <c:forEach var="o" items="${cancellableOrders}">
-                    <form action="${ctx}/qr/track" method="post" style="margin-bottom:8px"
+                    <form action="${ctx}/qr/track" method="post" style="margin-bottom:8px" data-cancel-order="${o.orderId}"
                           onsubmit="return confirm('Huỷ đơn #${o.orderId}?');">
                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                         <input type="hidden" name="action" value="cancel">
@@ -102,15 +102,29 @@
 
 <script>
 const CTX='${ctx}', SID=${sessionId};
+function esc(v){return String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function badge(st){
   const m={WAITING:['badge-waiting','Chờ pha'],MAKING:['badge-making','Đang pha'],READY:['badge-ready','Đã pha xong'],PICKED_UP:['badge-ready','Nhân viên đang mang ra'],SERVED:['badge-served','Đã phục vụ'],BLOCKED:['badge-waiting','Tạm chưa làm được'],REMAKE:['badge-waiting','Đang làm lại'],CANCELLED:['badge-cancelled','Đã huỷ']};
   const x=m[st]||['badge-served',st];return '<span class="badge '+x[0]+'">'+x[1]+'</span>';
 }
 function poll(){
-  fetch(CTX+'/qr/track?action=status&s='+SID).then(r=>r.json()).then(items=>{
+  fetch(CTX+'/qr/track?action=status&s='+SID).then(r=>{
+    if(!r.ok)throw new Error('invalid-session');
+    return r.json();
+  }).then(data=>{
+    const items=Array.isArray(data)?data:(data.items||[]);
     const box=document.getElementById('trackList');
-    if(!items.length){box.innerHTML='<p class="muted">Chưa có món nào.</p>';return;}
-    box.innerHTML=items.map(it=>'<div class="qr-item"><span>'+it.qty+'× '+it.name+'</span>'+badge(it.status)+'</div>').join('');
+    if(!items.length)box.innerHTML='<p class="muted">Chưa có món nào.</p>';
+    else box.innerHTML=items.map(it=>'<div class="qr-item"><span>'+esc(it.qty)+'× '+esc(it.name)+'</span>'+badge(it.status)+'</div>').join('');
+    const allowed=new Set((data.cancellableOrderIds||[]).map(String));
+    let visible=0;
+    document.querySelectorAll('[data-cancel-order]').forEach(form=>{
+      const show=allowed.has(form.dataset.cancelOrder);
+      form.style.display=show?'':'none';
+      if(show)visible++;
+    });
+    const panel=document.getElementById('cancelPanel');
+    if(panel)panel.style.display=visible?'':'none';
   }).catch(()=>{});
 }
 setInterval(poll,5000);

@@ -513,9 +513,14 @@ CREATE TABLE sales.DiningTable (
     BranchId      INT NOT NULL,
     TableNumber   NVARCHAR(20) NOT NULL,
     QrCode        VARCHAR(80)  NULL UNIQUE,      -- mã QR dán tại bàn
+    Capacity      INT NOT NULL DEFAULT 4 CHECK (Capacity BETWEEN 1 AND 30),
+    IsVisible     BIT NOT NULL DEFAULT 1,        -- Thu ngân ẩn bàn ngừng sử dụng, không xoá dữ liệu
+    MergedIntoTableId INT NULL,                  -- bàn nguồn ghép vật lý vào bàn đích
     Status        VARCHAR(10)  NOT NULL DEFAULT 'EMPTY'
                   CONSTRAINT CK_Table_Status CHECK (Status IN ('EMPTY','OCCUPIED','CLEANING')),
     CONSTRAINT FK_DT_Branch FOREIGN KEY (BranchId) REFERENCES org.Branch(BranchId),
+    CONSTRAINT FK_DT_MergedInto FOREIGN KEY (MergedIntoTableId) REFERENCES sales.DiningTable(DiningTableId),
+    CONSTRAINT CK_DT_NotSelfMerged CHECK (MergedIntoTableId IS NULL OR MergedIntoTableId <> DiningTableId),
     CONSTRAINT UQ_DT UNIQUE (BranchId, TableNumber)
 );
 GO
@@ -749,6 +754,7 @@ CREATE INDEX IX_BranchMenu_86      ON catalog.BranchMenu(BranchId, Is86);
 CREATE INDEX IX_Inv_Txn_BranchIng  ON inventory.InventoryTransaction(BranchId, IngredientId);
 CREATE INDEX IX_SRD_Receipt        ON inventory.StockReceiptDetail(StockReceiptId);
 CREATE INDEX IX_Order_Session      ON sales.Orders(TableSessionId);
+CREATE INDEX IX_DiningTable_Merged ON sales.DiningTable(MergedIntoTableId);
 CREATE INDEX IX_Order_BranchStatus ON sales.Orders(BranchId, Status);
 CREATE INDEX IX_OrderItem_Status   ON sales.OrderItem(Status);          -- KDS queue
 CREATE INDEX IX_OrderItem_Order    ON sales.OrderItem(OrderId);

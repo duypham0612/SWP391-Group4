@@ -12,6 +12,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.sql.SQLException;
 
 /** C3 · TableServlet → /cashier/table. Sơ đồ bàn + phiên bàn. */
 @WebServlet("/cashier/table")
@@ -24,7 +25,9 @@ public class TableServlet extends HttpServlet {
             throws ServletException, IOException {
         int branchId = InventoryDashboardServlet.branchId(req);
         try {
-            req.setAttribute("tables", service.getFloorMap(branchId));
+            boolean showHidden = "1".equals(req.getParameter("showHidden"));
+            req.setAttribute("showHidden", showHidden);
+            req.setAttribute("tables", service.getFloorMap(branchId, showHidden));
             req.setAttribute("pageTitle", "Sơ đồ bàn");
             req.getRequestDispatcher("/WEB-INF/views/cashier/table-map.jsp").forward(req, resp);
         } catch (Exception e) { throw new ServletException(e); }
@@ -49,11 +52,35 @@ public class TableServlet extends HttpServlet {
                 service.closeSession(Integer.parseInt(req.getParameter("sessionId")));
             } else if ("setStatus".equals(action)) {
                 service.setTableStatus(Integer.parseInt(req.getParameter("tableId")), req.getParameter("status"));
-            } else if ("merge".equals(action)) {
-                service.mergeSessions(Integer.parseInt(req.getParameter("srcSessionId")),
-                        Integer.parseInt(req.getParameter("dstSessionId")));
+            } else if ("saveTable".equals(action)) {
+                String id = req.getParameter("tableId");
+                Integer tableId = id == null || id.isBlank() ? null : Integer.parseInt(id);
+                int capacity = Integer.parseInt(req.getParameter("capacity"));
+                service.saveTable(tableId, branchId, req.getParameter("tableNumber"), capacity);
+                req.getSession().setAttribute("flashOk", tableId == null ? "Đã thêm bàn mới." : "Đã cập nhật bàn.");
+            } else if ("setVisibility".equals(action)) {
+                service.setTableVisibility(Integer.parseInt(req.getParameter("tableId")), branchId,
+                        Boolean.parseBoolean(req.getParameter("visible")));
+                req.getSession().setAttribute("flashOk", "Đã cập nhật hiển thị bàn.");
+            } else if ("mergeTables".equals(action)) {
+                service.mergeTables(branchId, Integer.parseInt(req.getParameter("sourceTableId")),
+                        Integer.parseInt(req.getParameter("destinationTableId")), userId);
+                req.getSession().setAttribute("flashOk", "Đã ghép bàn và gom đơn vào bàn đích.");
+            } else if ("unmergeTable".equals(action)) {
+                service.unmergeTable(branchId, Integer.parseInt(req.getParameter("tableId")));
+                req.getSession().setAttribute("flashOk", "Đã tách bàn khỏi nhóm ghép.");
             }
-            resp.sendRedirect(ctx + "/cashier/table");
+            resp.sendRedirect(ctx + "/cashier/table?showHidden=1");
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            req.getSession().setAttribute("flashError", e.getMessage());
+            resp.sendRedirect(ctx + "/cashier/table?showHidden=1");
+        } catch (SQLException e) {
+            if (e.getErrorCode() == 2601 || e.getErrorCode() == 2627) {
+                req.getSession().setAttribute("flashError", "Tên bàn đã tồn tại trong chi nhánh.");
+                resp.sendRedirect(ctx + "/cashier/table?showHidden=1");
+            } else {
+                throw new ServletException(e);
+            }
         } catch (Exception e) { throw new ServletException(e); }
     }
 }

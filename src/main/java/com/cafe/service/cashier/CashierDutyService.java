@@ -1,5 +1,6 @@
 package com.cafe.service.cashier;
 
+import com.cafe.common.CashierShiftClosingValidator;
 import com.cafe.config.DBConnection;
 import com.cafe.dao.cashier.CashierShiftDao;
 import com.cafe.dao.manager.AttendanceDao;
@@ -69,6 +70,9 @@ public class CashierDutyService {
                 if (open == null || open.getCashierShiftId() != shiftId) {
                     throw new IllegalStateException("Không tìm thấy ca két đang mở của bạn.");
                 }
+                cashierShiftDao.fillReport(c, open);
+                CashierShiftClosingValidator.requireExact(
+                        closingCash, open.getOpeningCash(), open.getTotalCollected());
                 cashierShiftDao.close(c, shiftId, closingCash);
                 attendanceService.clockOut(c, userId, branchId);
                 c.commit();

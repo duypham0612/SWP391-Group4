@@ -65,8 +65,12 @@
                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                 <input type="hidden" name="action" value="closeDuty">
                 <input type="hidden" name="shiftId" value="${current.cashierShiftId}">
-                <div class="form-group" style="margin:0;width:220px"><label>Quỹ cuối ca (đếm tay)</label>
-                    <input type="number" name="closingCash" class="form-control" min="0" step="1000" value="0"></div>
+                <div class="form-group" style="margin:0;width:280px"><label>Quỹ cuối ca (đếm tay)</label>
+                    <input type="number" name="closingCash" class="form-control" min="0" step="1" required value="0">
+                    <small class="muted">Phải bằng quỹ đầu ca + doanh thu ca:
+                        <strong><fmt:formatNumber value="${current.openingCash + current.totalCollected}" maxFractionDigits="0"/> ₫</strong>
+                    </small>
+                </div>
                 <button type="submit" class="btn btn-primary" onclick="return confirm('Kết ca và tan ca?');">Kết ca</button>
                 <a class="btn btn-ghost" href="${ctx}/cashier/checkout">Tới thanh toán</a>
             </form>
@@ -109,6 +113,8 @@
         <div class="card form-card">
             <h3 style="margin-top:0">Ca đang mở #${current.cashierShiftId}</h3>
             <p>Mở lúc ${current.openedAt} · Quỹ đầu ca <strong><fmt:formatNumber value="${current.openingCash}" maxFractionDigits="0"/> ₫</strong></p>
+            <p>Doanh thu ca <strong><fmt:formatNumber value="${current.totalCollected}" maxFractionDigits="0"/> ₫</strong>
+                · Quỹ phải bàn giao <strong><fmt:formatNumber value="${current.openingCash + current.totalCollected}" maxFractionDigits="0"/> ₫</strong></p>
             <div style="display:flex;gap:10px">
                 <a class="btn btn-primary" href="${ctx}/cashier/checkout">Tới thanh toán →</a>
             </div>

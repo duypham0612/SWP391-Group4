@@ -1,5 +1,6 @@
 package com.cafe.service.cashier;
 
+import com.cafe.common.CashierShiftClosingValidator;
 import com.cafe.config.DBConnection;
 import com.cafe.dao.cashier.BillDao;
 import com.cafe.dao.cashier.CashierShiftDao;
@@ -33,14 +34,28 @@ public class CashierShiftService {
     public void closeShift(int shiftId, BigDecimal closingCash) throws SQLException {
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
-            try { dao.close(c, shiftId, closingCash); c.commit(); }
-            catch (SQLException e) { c.rollback(); throw e; }
+            try {
+                CashierShift shift = dao.findById(c, shiftId);
+                if (shift == null || !shift.isOpen()) {
+                    throw new IllegalStateException("Không tìm thấy ca két đang mở.");
+                }
+                dao.fillReport(c, shift);
+                CashierShiftClosingValidator.requireExact(
+                        closingCash, shift.getOpeningCash(), shift.getTotalCollected());
+                dao.close(c, shiftId, closingCash);
+                c.commit();
+            }
+            catch (SQLException | RuntimeException e) { c.rollback(); throw e; }
             finally { c.setAutoCommit(true); }
         }
     }
 
     public CashierShift getCurrentShift(int cashierId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) { return dao.findOpenByCashier(c, cashierId); }
+        try (Connection c = DBConnection.getConnection()) {
+            CashierShift shift = dao.findOpenByCashier(c, cashierId);
+            if (shift != null) dao.fillReport(c, shift);
+            return shift;
+        }
     }
 
     public CashierShift getShiftReport(int shiftId) throws SQLException {

@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Run Cafe Shop (Tomcat)",
+            "request": "attach",
+            "hostName": "127.0.0.1",
+            "port": 5005,
+            "timeout": 30000,
+            "preLaunchTask": "Cafe: Start Tomcat (Debug)",
+            "postDebugTask": "Cafe: Stop Tomcat"
+        }
+    ]
+}
