@@ -13,27 +13,43 @@ import java.util.List;
  */
 public enum Reason86 {
 
-    INGREDIENT_OUT("Hết nguyên liệu",
+    // ── LEGACY (không còn cho barista chọn tay) — giữ để hiển thị lịch sử cũ. ──
+    // "Hết nguyên liệu" và "Hỏng" nay đi theo bản chất KHO: hết tồn thì món tự ẩn,
+    // đồ hỏng thì ghi Hao hụt (tồn tụt → tự ẩn). Không khoá tay + duyệt như sự cố.
+    INGREDIENT_OUT("Hết nguyên liệu", false,
             List.of("Hết sữa tươi", "Hết si-rô", "Hết topping", "Hết ly/nắp", "Hết đá")),
 
-    SPOILED("Hỏng / quá hạn",
+    SPOILED("Hỏng / quá hạn", false,
             List.of("Sữa chua/hỏng", "Trái cây hỏng", "Quá hạn dùng", "Bảo quản sai nhiệt độ")),
 
-    EQUIPMENT("Máy móc hỏng",
+    // ── SỰ CỐ (barista khoá tay, quản lý gác mở lại) — con số kho không phản ánh được. ──
+    EQUIPMENT("Máy móc hỏng", true,
             List.of("Máy pha lỗi", "Máy xay lỗi", "Máy đá lỗi", "Tủ mát lỗi", "Mất điện")),
 
-    QUALITY("Lỗi chất lượng",
+    QUALITY("Lỗi chất lượng", true,
             List.of("Vị không đạt", "Pha bị lỗi mẻ", "Sai công thức")),
 
     /** Không có chip — buộc barista ghi rõ bằng tay. */
-    OTHER("Khác", List.of());
+    OTHER("Khác", true, List.of());
 
     private final String label;
+    /** True nếu là "sự cố" barista được báo tay. Legacy (kho tự lo) = false. */
+    private final boolean event;
     private final List<String> quickNotes;
 
-    Reason86(String label, List<String> quickNotes) {
+    Reason86(String label, boolean event, List<String> quickNotes) {
         this.label = label;
+        this.event = event;
         this.quickNotes = quickNotes;
+    }
+
+    public boolean isEvent() { return event; }
+
+    /** Danh sách lý do barista được chọn trên form báo tạm hết (chỉ nhóm "sự cố"). */
+    public static List<Reason86> selectableValues() {
+        List<Reason86> out = new java.util.ArrayList<>();
+        for (Reason86 r : values()) if (r.event) out.add(r);
+        return out;
     }
 
     /** Chữ hiện trên màn hình (không để mã enum lọt ra JSP). */

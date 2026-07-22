@@ -5,6 +5,9 @@
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <jsp:include page="../layout/header.jsp" />
 
+<c:if test="${not empty sessionScope.flashOk}"><div class="alert alert-success">${sessionScope.flashOk}</div><c:remove var="flashOk" scope="session" /></c:if>
+<c:if test="${not empty sessionScope.flashError}"><div class="alert alert-error">${sessionScope.flashError}</div><c:remove var="flashError" scope="session" /></c:if>
+
 <div class="page-header">
     <div>
         <div class="eyebrow">Quản lý chi nhánh</div>
@@ -89,6 +92,15 @@
 
 <p class="muted">Bốn số trên tính cho toàn bộ khoảng ngày ${range.label}, không chịu ảnh hưởng của bộ lọc và phân trang bên dưới.</p>
 
+<section class="card waste-review-card">
+    <div class="waste-card__head"><div><h3>Ngoại lệ cần đối soát</h3><p>Tồn âm sau hao hụt vẫn được ghi để quầy không bị gián đoạn; Quản lý xác nhận và đối soát bằng màn tồn kho khi cần.</p></div><strong>${fn:length(openReviews)} mở</strong></div>
+    <c:choose><c:when test="${empty openReviews}"><p class="muted">Không có ngoại lệ đang chờ xử lý.</p></c:when><c:otherwise>
+        <div class="table-scroll"><table class="table"><thead><tr><th>Loại</th><th>Nguyên liệu</th><th>Tồn trước → sau</th><th>Ghi chú</th><th></th></tr></thead><tbody>
+        <c:forEach var="r" items="${openReviews}"><tr><td>${r.reviewType}</td><td>${r.ingredientName}</td><td>${r.qtyBefore} → ${r.qtyAfter}</td><td>${r.note}</td><td><form action="${ctx}/manager/waste" method="post"><input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="resolveReview"><input type="hidden" name="reviewId" value="${r.wasteReviewId}"><input class="form-control" name="note" maxlength="255" placeholder="Ghi chú xử lý" required><button class="btn btn-primary btn-sm" type="submit">Xác nhận</button></form></td></tr></c:forEach>
+        </tbody></table></div>
+    </c:otherwise></c:choose>
+</section>
+
 <c:if test="${summary.missingCostCount > 0}">
     <div class="alert alert-info">Có ${summary.missingCostCount} dòng chưa có đơn giá nhập gần nhất, thành tiền đang để “Chưa có giá”.</div>
 </c:if>
@@ -152,8 +164,8 @@
                             </td>
                             <td><strong>${w.quantity}</strong> ${w.ingredientUnit}</td>
                             <td>${w.wasteTypeLabel}</td>
-                            <td>${w.reason}</td>
-                            <td><strong>${w.costDisplay}</strong></td>
+                            <td>${w.reason}<c:if test="${not empty w.wasteEvent}"><small class="muted"><br>${w.wasteEvent.sourceLabel}<c:if test="${not empty w.wasteEvent.productName}"> · ${w.wasteEvent.cupQuantity} × ${w.wasteEvent.productName}</c:if></small></c:if></td>
+                            <td><strong>${w.costDisplay}</strong><small class="muted"><br>${w.costBasisLabel}</small></td>
                             <td>${w.loggedByName}</td>
                             <td>
                                 <c:choose>

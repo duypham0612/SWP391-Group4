@@ -46,8 +46,8 @@ public class WasteService {
         this.branchMenuDao = new BranchMenuDao();
     }
 
-    public List<Ingredient> getIngredients() throws SQLException {
-        return ingredientService.getIngredientList();
+    public List<Ingredient> getIngredients(int branchId) throws SQLException {
+        return inventoryService.getActiveWasteIngredients(branchId);
     }
 
     public List<BranchMenuItem> getRemakeProducts(int branchId) throws SQLException {
@@ -91,10 +91,13 @@ public class WasteService {
         return summarize(getWasteLogs(branchId, WasteScope.today()));
     }
 
-    public WasteLog getEditableWasteLog(int branchId, int wasteLogId) throws SQLException {
+    public WasteLog getEditableWasteLog(int branchId, int wasteLogId, int userId) throws SQLException {
         WasteLog log = inventoryService.getWasteLog(branchId, wasteLogId);
         if (log == null) return null;
         if (!log.isEditable()) throw new BusinessException("Dòng làm lại món không sửa lẻ; hãy huỷ rồi ghi lại nếu cần.");
+        if (log.getLoggedBy() != userId) throw new BusinessException("Bạn chỉ được sửa bản ghi do chính mình tạo.");
+        if (log.getLoggedAt() == null || log.getLoggedAt().isBefore(java.time.LocalDateTime.now(java.time.ZoneOffset.UTC).minusMinutes(15)))
+            throw new BusinessException("Bản ghi đã quá 15 phút, hãy gửi Quản lý đối soát.");
         return log;
     }
 
@@ -105,6 +108,9 @@ public class WasteService {
     public int logIngredientWasteLines(int branchId, List<WasteLogLine> lines, int userId) throws SQLException {
         return inventoryService.logWasteLines(branchId, lines, userId);
     }
+    public int logIngredientWasteLines(int branchId, List<WasteLogLine> lines, int userId, String requestId) throws SQLException {
+        return inventoryService.logWasteLines(branchId, lines, userId, requestId);
+    }
 
     public int logWaste(int branchId, int ingredientId, BigDecimal qty, String wasteType, String reason, int userId) throws SQLException {
         return inventoryService.logWaste(branchId, ingredientId, qty, wasteType, reason, userId);
@@ -112,6 +118,13 @@ public class WasteService {
 
     public int remakeProduct(int branchId, int productId, int qty, List<Integer> optionIds, String reason, int userId) throws SQLException {
         return inventoryService.remakeProduct(branchId, productId, qty, optionIds, reason, userId);
+    }
+    public int remakeProduct(int branchId, int productId, int qty, List<Integer> optionIds, String reason, int userId, String requestId) throws SQLException {
+        return inventoryService.remakeProduct(branchId, productId, qty, optionIds, reason, userId, requestId);
+    }
+    public int remakeProduct(int branchId, int productId, int qty, List<Integer> optionIds, String reason,
+                             String causeCode, int userId, String requestId) throws SQLException {
+        return inventoryService.remakeProduct(branchId, productId, qty, optionIds, reason, causeCode, userId, requestId);
     }
 
     /** JSON tuỳ chọn (có tác động nguyên liệu) theo món cho form làm lại: {productId:[{id,name}]}. */

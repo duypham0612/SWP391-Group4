@@ -1,6 +1,5 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
-<%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <jsp:include page="../layout/header.jsp" />
 
@@ -15,6 +14,12 @@
     </div>
 </div>
 
+<c:if test="${pendingHandoverCount > 0}">
+    <a class="alert alert-warn" href="${ctx}/barista/handover" style="display:block;margin-bottom:16px;text-decoration:none">
+        <strong>${pendingHandoverCount} bàn giao ca đang chờ bạn xác nhận.</strong> Đọc và tiếp nhận các việc trước khi xử lý →
+    </a>
+</c:if>
+
 <div class="card-grid">
     <a class="card stat" href="${ctx}/barista/kds">
         <span class="label">Đang chờ pha</span>
@@ -26,21 +31,17 @@
         <span class="value">${readyCount}</span>
         <span class="muted">món · chờ mang ra</span>
     </a>
-    <div class="card stat">
-        <span class="label">Tốc độ pha cả ca hôm nay</span>
-        <span class="value">${kpi.avgLeadDisplay}</span>
-        <span class="muted">${kpi.cupCount} món đã xong · số của cả ca, không chấm điểm cá nhân</span>
-    </div>
-    <a class="card stat" href="${ctx}/barista/waste" style="${wasteSummary.totalCost gt 0 ? 'border-color:var(--st-waiting)' : ''}">
+    <a class="card stat" href="${ctx}/barista/waste" style="${wasteSummary.activeCount gt 0 ? 'border-color:var(--st-waiting)' : ''}">
         <span class="label">Hao hụt hôm nay</span>
-        <span class="value"><fmt:formatNumber value="${wasteSummary.totalCost}" maxFractionDigits="0"/> ₫</span>
+        <span class="value">${wasteSummary.remakeCount}</span>
         <span class="muted">
+            lần làm lại
             <c:choose>
                 <c:when test="${wasteSummary.hasTopIngredient}">
-                    Top: ${wasteSummary.topIngredientName} · ${wasteSummary.remakeCount} làm lại
+                    · ${wasteSummary.ingredientWasteCount} lần bỏ nguyên liệu · Top: ${wasteSummary.topIngredientName}
                 </c:when>
                 <c:otherwise>
-                    Chưa ghi nhận hao hụt · ${wasteSummary.remakeCount} làm lại
+                    · ${wasteSummary.ingredientWasteCount} lần bỏ nguyên liệu
                 </c:otherwise>
             </c:choose>
         </span>
@@ -65,7 +66,7 @@
                 <h3 style="margin-top:0">Top món chờ lâu nhất</h3>
                 <p class="muted" style="margin:0">Ưu tiên theo thứ tự hàng chờ pha.</p>
             </div>
-            <a class="btn btn-ghost btn-sm" href="${ctx}/barista/kds">Bump</a>
+            <a class="btn btn-ghost btn-sm" href="${ctx}/barista/kds">Mở KDS</a>
         </div>
         <c:choose>
             <c:when test="${empty topWaitingItems}">
@@ -94,7 +95,6 @@
                 <h3 style="margin-top:0">Nguyên liệu sắp hết</h3>
                 <p class="muted" style="margin:0">Theo ngưỡng tồn của chi nhánh.</p>
             </div>
-            <a class="btn btn-ghost btn-sm" href="#low-stock">Tồn thấp</a>
         </div>
         <c:choose>
             <c:when test="${empty lowStockPreview}">
@@ -120,18 +120,6 @@
                 </table>
             </c:otherwise>
         </c:choose>
-    </div>
-</div>
-
-<div class="card" style="margin-top:24px">
-    <h3 style="margin-top:0">Trạng thái món</h3>
-    <p class="muted" style="margin-top:0">Trạng thái dùng chung cho Quầy pha chế, Thu ngân và tracking QR khách.</p>
-    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:6px">
-        <jsp:include page="../layout/_statusBadge.jsp"><jsp:param name="status" value="WAITING" /></jsp:include>
-        <jsp:include page="../layout/_statusBadge.jsp"><jsp:param name="status" value="MAKING" /></jsp:include>
-        <jsp:include page="../layout/_statusBadge.jsp"><jsp:param name="status" value="READY" /></jsp:include>
-        <jsp:include page="../layout/_statusBadge.jsp"><jsp:param name="status" value="SERVED" /></jsp:include>
-        <jsp:include page="../layout/_statusBadge.jsp"><jsp:param name="status" value="CANCELLED" /></jsp:include>
     </div>
 </div>
 

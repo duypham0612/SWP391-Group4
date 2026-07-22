@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.Instant;
 import java.time.ZoneOffset;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -57,5 +58,13 @@ class BusinessDayTest {
         LocalDateTime now = LocalDateTime.of(2026, 7, 18, 14, 30);
         assertEquals(LocalDateTime.of(2026, 7, 18, 0, 0),
                 BusinessDay.startUtc(LocalTime.of(7, 0), now));
+    }
+
+    @Test
+    void utc_evening_is_next_calendar_day_in_vietnam() {
+        assertEquals(java.time.LocalDate.of(2026, 7, 23),
+                BusinessDay.vnDate(Instant.parse("2026-07-22T17:00:00Z")));
+        assertEquals(java.time.LocalDate.of(2026, 7, 23),
+                BusinessDay.vnDate(Instant.parse("2026-07-22T23:59:59Z")));
     }
 }

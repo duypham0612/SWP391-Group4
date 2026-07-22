@@ -34,7 +34,7 @@ public class EightySixServlet extends HttpServlet {
             req.setAttribute("items", service.getMenuAvailability(branchId));
             req.setAttribute("suggest86", service.getSuggested86(branchId));   // gợi ý 86 (soft): nguyên liệu đã cạn
             req.setAttribute("openRequests", service.getOpenRequestsMap(branchId));
-            req.setAttribute("reasons", Reason86.values());
+            req.setAttribute("reasons", Reason86.selectableValues());   // chỉ nhóm "sự cố" — kho tự lo phần hết tồn
             LocalDateTime now = LocalDateTime.now();
             req.setAttribute("etaMin", now.plusMinutes(Constants.MENU86_ETA_MIN_MINUTES).format(HTML_DT));
             req.setAttribute("etaMax", now.plusDays(Constants.MENU86_ETA_MAX_DAYS).format(HTML_DT));

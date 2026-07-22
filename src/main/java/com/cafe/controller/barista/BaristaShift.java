@@ -1,6 +1,7 @@
 package com.cafe.controller.barista;
 
 import com.cafe.common.SessionUtil;
+import com.cafe.common.BusinessDay;
 import com.cafe.controller.manager.InventoryDashboardServlet;
 import com.cafe.model.ShiftClockStatus;
 import com.cafe.model.User;
@@ -10,7 +11,6 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 import java.sql.SQLException;
-import java.time.LocalDate;
 
 /**
  * Trực ca cho barista dùng chung mọi màn (KDS · Prep · Pickup · Waste).
@@ -88,6 +88,6 @@ public final class BaristaShift {
         User u = SessionUtil.currentUser(req);
         if (u == null) return null;
         int branchId = InventoryDashboardServlet.branchId(req);
-        return attendance.getMyShiftStatus(u.getUserId(), branchId, LocalDate.now());
+        return attendance.getMyShiftStatus(u.getUserId(), branchId, BusinessDay.todayVn());
     }
 }

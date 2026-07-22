@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Pha chế</div><h1>Báo hết món</h1><p>Tắt món tạm thời — khoá khỏi POS và menu QR của khách</p></div>
+    <div><div class="eyebrow">Pha chế</div><h1>Báo hết món</h1><p>Chỉ dùng cho <strong>sự cố</strong> (máy hỏng, lỗi chất lượng…). Hết nguyên liệu thì kho tự ẩn/hiện món; đồ hỏng thì ghi ở Hao hụt.</p></div>
 </div>
 
 <jsp:include page="../layout/_baristaShiftBanner.jsp" />
@@ -18,17 +18,16 @@
 
 <c:if test="${not empty suggest86}">
     <div class="alert alert-warn" style="display:block">
-        <strong>Gợi ý báo hết — có nguyên liệu đã cạn:</strong>
+        <strong>Tự hết theo kho — đã ẩn khỏi POS/QR:</strong>
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
             <c:forEach var="s" items="${suggest86}">
-                <button type="button" class="btn btn-sm btn-ghost suggest86-btn"
-                        data-product-id="${s.productId}"
-                        data-note="Hết ${s.ingredientName}" ${onShift ? '' : 'disabled'}>
-                    ${s.productName} · hết ${s.ingredientName}
-                </button>
+                <span class="badge badge-cancelled">${s.productName} · hết ${s.ingredientName}</span>
             </c:forEach>
         </div>
-        <div class="muted" style="font-size:.82em;margin-top:8px">Chỉ là gợi ý — bạn tự quyết định báo hết. Hệ thống không tự khoá món.</div>
+        <div class="muted" style="font-size:.82em;margin-top:8px">
+            Những món này đã <strong>tự động ẩn</strong> vì hết nguyên liệu và sẽ <strong>tự hiện lại</strong> khi có tồn (nhập kho / pha mẻ mới).
+            Không cần báo tay. Nếu do <strong>nguyên liệu hỏng</strong>, hãy <a href="${ctx}/barista/waste">ghi ở Hao hụt &amp; Làm lại</a> để trừ khỏi sổ kho.
+        </div>
     </div>
 </c:if>
 
@@ -107,8 +106,9 @@
                                                 </select>
                                                 <div class="chips quick-note-chips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
                                                 <input name="note" class="form-control note-input" maxlength="255" placeholder="Ghi chú" ${onShift ? '' : 'disabled'}>
+                                                <label class="muted" style="font-size:.82em">Dự kiến có lại (nếu ước lượng được — sự cố bất định có thể bỏ trống)</label>
                                                 <input type="datetime-local" name="backInEta" class="form-control"
-                                                       required min="${etaMin}" max="${etaMax}" ${onShift ? '' : 'disabled'}>
+                                                       min="${etaMin}" max="${etaMax}" ${onShift ? '' : 'disabled'}>
                                                 <button type="submit" class="btn btn-sm btn-primary" ${onShift ? '' : 'disabled'}>Báo tạm hết</button>
                                             </form>
                                         </details>
@@ -172,23 +172,6 @@
                 box.querySelectorAll('.quick-note-chip.is-selected').forEach(function(b){ b.classList.remove('is-selected'); });
               });
               renderChips(box);
-            });
-
-            document.querySelectorAll('.suggest86-btn').forEach(function(btn){
-              btn.addEventListener('click', function(){
-                var box = document.querySelector('.report86[data-product-id="' + btn.getAttribute('data-product-id') + '"]');
-                if (!box) return;
-                box.open = true;
-                box.scrollIntoView({block:'center', behavior:'smooth'});
-                var select = box.querySelector('.reason-select');
-                var note = box.querySelector('.note-input');
-                if (select) select.value = 'INGREDIENT_OUT';
-                renderChips(box);
-                if (note) {
-                  note.value = btn.getAttribute('data-note') || '';
-                  note.focus();
-                }
-              });
             });
 
             var PAGE_SIZE = 10;

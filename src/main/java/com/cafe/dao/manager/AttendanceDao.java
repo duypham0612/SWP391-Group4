@@ -52,10 +52,22 @@ public class AttendanceDao {
         return out;
     }
 
-    /** Bản chấm công mới nhất của một assignment, kể cả đã đóng. */
+    /** Bản chấm công của một assignment. UQ_Att_ShiftAssignment bảo đảm tối đa một dòng. */
     public Attendance findByAssignment(Connection conn, int assignmentId) throws SQLException {
-        final String sql = SELECT.replaceFirst("SELECT ", "SELECT TOP 1 ") +
-            "WHERE a.ShiftAssignmentId=? ORDER BY a.AttendanceId DESC";
+        final String sql = SELECT + "WHERE a.ShiftAssignmentId=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, assignmentId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? map(rs) : null; }
+        }
+    }
+
+    /**
+     * Khoá dòng (hoặc key-range khi chưa có dòng) đến hết transaction để hai tab không cùng tạo Attendance.
+     * Cần unique index UQ_Att_ShiftAssignment để SQL Server khóa đúng key-range.
+     */
+    public Attendance findByAssignmentForUpdate(Connection conn, int assignmentId) throws SQLException {
+        final String sql = SELECT.replace("FROM hr.Attendance a ", "FROM hr.Attendance a WITH (UPDLOCK, HOLDLOCK) ") +
+            "WHERE a.ShiftAssignmentId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, assignmentId);
             try (ResultSet rs = ps.executeQuery()) { return rs.next() ? map(rs) : null; }

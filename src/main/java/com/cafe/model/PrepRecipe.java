@@ -29,6 +29,11 @@ public class PrepRecipe {
     public BigDecimal getYieldQty() { return yieldQty; }
     public void setYieldQty(BigDecimal yieldQty) { this.yieldQty = yieldQty; }
 
+    /** Hiển thị gọn cho pha chế: 1000.000 → 1000, 250.500 → 250.5. */
+    public String getYieldDisplay() {
+        return yieldQty == null ? "" : yieldQty.stripTrailingZeros().toPlainString();
+    }
+
     public String getRawIngredientName() { return rawIngredientName; }
     public void setRawIngredientName(String rawIngredientName) { this.rawIngredientName = rawIngredientName; }
 

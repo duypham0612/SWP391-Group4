@@ -3,6 +3,7 @@ package com.cafe.common;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -26,6 +27,17 @@ public final class BusinessDay {
     public static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private BusinessDay() { }
+
+    /** Ngày lịch hiện tại của hệ thống, luôn theo múi giờ Việt Nam. */
+    public static LocalDate todayVn() {
+        return vnDate(Instant.now());
+    }
+
+    /** Quy đổi một instant sang ngày lịch Việt Nam; tách ra để test các mốc sát nửa đêm. */
+    public static LocalDate vnDate(Instant instant) {
+        if (instant == null) return null;
+        return instant.atZone(VN_ZONE).toLocalDate();
+    }
 
     /** Chỉ giờ — card KDS, nơi mốc luôn nằm trong ngày kinh doanh hiện tại. */
     private static final DateTimeFormatter TIME_VN = DateTimeFormatter.ofPattern("HH:mm");

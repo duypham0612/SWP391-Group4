@@ -800,7 +800,10 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
   color:var(--muted); font-size:11px;
 }
 
-.kds-alert-drawer{position:relative; flex:none; z-index:45}
+/* Mở ra thì ĐẨY board xuống (in-flow), không nổi đè lên board như popover: đơn treo bị giới hạn
+   vài dòng (phần dư trỏ về màn Quản lý) nên chiếm chỗ dọc là chấp nhận được, và tránh cảm giác
+   "panel lỗi" khi lớp phủ che mất hàng chờ đang thao tác. */
+.kds-alert-drawer{flex:none}
 .kds-alert-drawer > summary{
   display:flex; align-items:center; gap:var(--s2); min-height:42px; padding:6px 10px;
   list-style:none; cursor:pointer; border:1px solid color-mix(in srgb,var(--st-cancelled) 32%,var(--line));
@@ -817,9 +820,9 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
 /* auto-fit chứ KHÔNG phải repeat(2,...): drawer thường chỉ có một section (chặn HOẶC treo),
    cột thứ hai cố định sẽ bỏ trống nửa panel và ép section còn lại vào nửa trái. */
 .kds-alert-drawer__body{
-  position:absolute; left:0; right:0; top:calc(100% + 6px); max-height:min(62vh,620px); overflow:auto;
+  margin-top:6px; max-height:min(46vh,440px); overflow:auto;
   display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:var(--s3); padding:var(--s3);
-  border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); box-shadow:var(--shadow-lg);
+  border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); box-shadow:var(--shadow-sm);
 }
 .kds-blocked-zone,.kds-stale{min-width:0; margin:0; padding:var(--s3); border-radius:var(--radius-sm)}
 .kds-stale{border:1px solid var(--line); background:var(--surface-2)}
@@ -874,6 +877,149 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
   border:1px dashed var(--line-strong); border-radius:var(--radius-sm); color:var(--muted); font-size:13px;
 }
 .kds-filter-empty[hidden]{display:none}
+
+/* ----- Master–detail theo bàn ----- */
+/* Danh sách bàn (trái) + chi tiết một bàn (phải). Render tất cả panel, chỉ .is-active hiển thị —
+   cùng cơ chế "render all + toggle" của lane cũ nên polling swap nguyên khối vẫn chạy. */
+.kds-tables{flex:1; min-height:0; display:grid; grid-template-columns:300px 1fr; gap:10px; align-items:stretch}
+.kds-tables-empty{
+  flex:1; display:grid; place-items:center; gap:8px; padding:var(--s5); text-align:center;
+  color:var(--muted); font-size:14px; border:1px dashed var(--line-strong); border-radius:var(--radius-sm);
+}
+
+.kds-table-side{min-height:0; display:flex; flex-direction:column}
+.kds-side-head{
+  flex:none; display:flex; align-items:center; justify-content:space-between; gap:var(--s2);
+  padding:6px 10px; margin-bottom:6px; border-radius:var(--radius-sm); background:var(--surface-2);
+  border:1px solid var(--line); font-size:12px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.04em;
+}
+.kds-side-head strong{
+  min-width:24px; height:22px; padding:0 8px; display:inline-flex; align-items:center; justify-content:center;
+  border-radius:var(--radius-pill); background:var(--ink); color:var(--surface); font-size:12px; font-variant-numeric:tabular-nums;
+}
+.kds-table-list{
+  flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;
+  display:flex; flex-direction:column; gap:6px; padding-right:3px;
+}
+.kds-table-tab{
+  display:flex; flex-direction:column; gap:5px; text-align:left; cursor:pointer;
+  padding:10px 12px; border:1px solid var(--line); border-left-width:4px; border-radius:var(--radius-sm);
+  background:var(--surface); color:var(--ink-soft); font:inherit;
+}
+.kds-table-tab[hidden]{display:none}
+.kds-table-tab:hover{border-color:var(--brand)}
+.kds-table-tab:focus-visible{outline:none; box-shadow:var(--ring)}
+.kds-table-tab--ok{border-left-color:var(--line-strong)}
+.kds-table-tab--warn{border-left-color:var(--st-waiting)}
+.kds-table-tab--late{border-left-color:var(--st-cancelled)}
+.kds-table-tab.is-active{background:var(--ink); border-color:var(--ink); color:var(--surface); box-shadow:var(--shadow-sm)}
+/* Bàn đã xong (chỉ còn chờ giao): làm mờ + viền trung tính; khi được chọn thì rõ lại để đọc chi tiết. */
+.kds-table-tab.is-done{opacity:.5; border-left-color:var(--line)}
+.kds-table-tab.is-done.is-active{opacity:1}
+.kds-table-tab__name{font-size:15px; font-weight:800; color:inherit; overflow-wrap:anywhere}
+.kds-table-tab__ordn{
+  margin-left:4px; padding:1px 7px; border-radius:var(--radius-pill); background:var(--surface-2);
+  border:1px solid var(--line); color:var(--muted); font-size:10.5px; font-weight:800; white-space:nowrap;
+}
+.kds-table-tab.is-active .kds-table-tab__ordn{background:color-mix(in srgb,var(--surface) 20%,transparent); border-color:transparent; color:inherit}
+.kds-table-tab__meta{display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:11.5px}
+.kds-table-tab__open{font-weight:800; font-variant-numeric:tabular-nums}
+.kds-table-tab__isdone{font-weight:800; color:var(--st-ready)}
+.kds-table-tab.is-active .kds-table-tab__isdone{color:color-mix(in srgb,var(--st-ready) 40%,var(--surface))}
+.kds-table-tab__flag{padding:2px 7px; border-radius:var(--radius-pill); background:var(--st-cancelled); color:#fff; font-weight:800; font-size:10.5px}
+.kds-table-tab__dots{display:flex; gap:4px; flex-wrap:wrap}
+.kds-dot{
+  display:inline-grid; place-items:center; min-width:20px; height:20px; padding:0 6px;
+  border-radius:var(--radius-pill); color:#fff; font-size:11px; font-weight:800; font-variant-numeric:tabular-nums;
+}
+.kds-dot--waiting{background:var(--st-waiting)}
+.kds-dot--making{background:var(--st-making)}
+.kds-dot--ready{background:var(--st-ready)}
+
+.kds-table-detail{min-height:0; display:flex; flex-direction:column; overflow:hidden}
+.kds-table-panel{display:none}
+.kds-table-panel.is-active{
+  flex:1; min-height:0; display:flex; flex-direction:column; gap:12px;
+  overflow-y:auto; overscroll-behavior:contain; padding-right:3px;
+}
+.kds-table-panel__head{
+  position:sticky; top:0; z-index:1; flex:none; display:flex; align-items:baseline; gap:var(--s2);
+  flex-wrap:wrap; padding:2px 2px 8px; background:var(--surface); border-bottom:1px solid var(--line);
+}
+.kds-table-panel__name{margin:0; font:800 18px/1.2 'Be Vietnam Pro',sans-serif; color:var(--ink)}
+.kds-table-panel__sub{color:var(--muted); font-size:12.5px}
+/* Phân biệt CHƯA PHA / ĐANG PHA / ĐÃ PHA bằng TIÊU ĐỀ có màu, KHÔNG tô nền/viền cả khối —
+   nền màu của mục sẽ đâm với màu SLA của từng card (card trễ nền hồng, card xong viền xanh…).
+   Chỉ dùng --sec-color cho chấm + chữ + pill đếm + gạch chân tiêu đề; card giữ nguyên màu của nó. */
+.kds-table-section{--sec-color:var(--line-strong); min-width:0}
+.kds-table-section[hidden]{display:none}
+.kds-table-section--waiting{--sec-color:var(--st-waiting)}
+.kds-table-section--making{--sec-color:var(--st-making)}
+.kds-table-section--ready{--sec-color:var(--st-ready)}
+.kds-table-section--blocked{--sec-color:var(--st-cancelled)}
+.kds-table-section__head{
+  display:flex; align-items:center; gap:8px; margin-bottom:10px; padding-bottom:6px;
+  border-bottom:2px solid color-mix(in srgb,var(--sec-color) 32%,var(--line));
+}
+.kds-table-section__head h3{
+  margin:0; display:flex; align-items:center; gap:8px;
+  font:800 13px/1.2 'Be Vietnam Pro',sans-serif; text-transform:uppercase; letter-spacing:.02em;
+  color:color-mix(in srgb,var(--sec-color) 72%,var(--ink));
+}
+.kds-table-section__head h3::before{
+  content:''; width:12px; height:12px; border-radius:50%; flex:none; background:var(--sec-color);
+}
+.kds-sec-count{
+  margin-left:auto; min-width:24px; height:24px; padding:0 9px; display:inline-flex; align-items:center; justify-content:center;
+  border-radius:var(--radius-pill); background:var(--sec-color); color:#fff;
+  font-size:12px; font-weight:800; font-variant-numeric:tabular-nums;
+}
+/* min(300px,100%): khi cột chi tiết hẹp hơn 300px thì khối co lại theo, không tràn ngang trang. */
+.kds-table-section__body{display:grid; grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr)); gap:10px; align-items:start}
+
+/* ----- Gộp theo món (batch) + dòng gọn (brow) ----- */
+.kds-batch{border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface); overflow:visible}
+.kds-batch[hidden]{display:none}
+.kds-batch__head{display:flex; align-items:baseline; gap:7px; padding:7px 10px; background:var(--surface-2); border-bottom:1px solid var(--line); border-radius:var(--radius-sm) var(--radius-sm) 0 0}
+.kds-batch__qty{font-weight:800; font-size:16px; font-variant-numeric:tabular-nums; color:var(--ink)}
+.kds-batch__name{font-weight:800; font-size:15px; color:var(--ink); overflow-wrap:anywhere}
+.kds-batch__n{margin-left:auto; padding:1px 7px; border-radius:var(--radius-pill); background:var(--surface); border:1px solid var(--line); font-size:10.5px; font-weight:800; color:var(--muted); white-space:nowrap}
+
+.kds-brow{
+  --sec:var(--line-strong);
+  display:flex; flex-direction:column; gap:5px; padding:8px 10px;
+  border-top:1px solid var(--line); border-left:3px solid var(--sec);
+}
+.kds-batch .kds-brow:first-of-type{border-top:none}
+.kds-brow[hidden]{display:none}
+.kds-brow--warn{--sec:var(--st-waiting)}
+.kds-brow--late,.kds-brow--blocked{--sec:var(--st-cancelled)}
+.kds-brow--ready{--sec:var(--st-ready)}
+.kds-brow__line{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.kds-brow__qty{font-weight:800; font-variant-numeric:tabular-nums; color:var(--ink)}
+.kds-brow__where{flex:1; min-width:0; font-size:12.5px; color:var(--ink-soft); overflow-wrap:anywhere}
+.kds-brow__sla{flex:none; padding:3px 9px; border-radius:var(--radius-pill); font-size:11.5px; font-weight:800; white-space:nowrap; font-variant-numeric:tabular-nums}
+.kds-brow__tags{display:flex; flex-wrap:wrap; gap:4px}
+.kds-brow__tag{padding:2px 7px; border-radius:var(--radius-xs); background:var(--surface-2); border:1px solid var(--line); font-size:11px; color:var(--ink-soft)}
+.kds-brow__tag--pri{background:var(--kds-warn-bg); border-color:transparent; color:var(--kds-warn-ink); font-weight:800}
+.kds-brow__tag--note{background:var(--kds-info-bg); border-color:transparent; color:color-mix(in srgb,var(--st-making) 72%,var(--ink))}
+.kds-brow__tag--issue{background:var(--kds-danger-bg); border-color:transparent; color:var(--st-cancelled); font-weight:700}
+.kds-brow__act{display:flex; align-items:center; gap:6px; flex-wrap:wrap}
+.kds-brow__ready{display:flex; align-items:center; gap:6px}
+.kds-brow__sel{min-height:38px; padding:6px 8px; border:1px solid var(--line); border-radius:var(--radius-xs); font-size:12.5px; background:var(--surface); color:var(--ink)}
+.kds-brow__by{font-size:12px; color:var(--muted)}
+.kds-brow .btn-sm{min-height:38px}
+.kds-brow .kds-card-menu{width:auto; position:relative}
+.kds-brow .kds-card-menu > summary{min-height:38px; padding:0 12px; border:1px solid var(--line); border-radius:var(--radius-xs); color:var(--ink-soft)}
+.kds-brow .kds-card-menu > summary::after{content:''; margin:0}
+.kds-brow .kds-card-menu__panel{position:absolute; right:0; z-index:20; margin-top:4px; min-width:170px; padding:6px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-sm); box-shadow:var(--shadow-lg)}
+
+@media (max-width:900px){
+  .kds-tables{grid-template-columns:1fr; grid-template-rows:auto 1fr}
+  .kds-table-side{min-height:auto}
+  .kds-table-list{flex-direction:row; overflow-x:auto; overflow-y:hidden; padding:0 0 4px}
+  .kds-table-tab{min-width:180px; flex:none}
+}
 
 .kds-board .kds-card{gap:10px; padding:14px; border-radius:var(--radius-sm); box-shadow:var(--shadow-xs)}
 .kds-board .kds-card:hover{box-shadow:var(--shadow-sm)}
@@ -1216,6 +1362,48 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
 }
 .pickup-recent__name{font-size:var(--fs-sm); color:var(--ink-soft)}
 
+/* ============================ Recipe lookup ============================= */
+.recipe-filter{max-width:none}
+.recipe-filter__form{display:flex; gap:var(--s3); align-items:flex-end; flex-wrap:wrap}
+.recipe-filter__form .form-group{margin:0}
+.recipe-filter__search{flex:1 1 260px; min-width:220px}
+.recipe-filter__search small{margin-top:6px; color:var(--muted); font-size:12px}
+.recipe-filter__select{flex:0 1 190px; min-width:170px}
+.recipe-filter__branch{display:flex; align-items:center; gap:8px; min-height:42px; margin-bottom:0; white-space:nowrap; font-size:13px; font-weight:650; color:var(--ink-soft)}
+.recipe-filter__branch input{width:17px; height:17px; accent-color:var(--coffee)}
+.recipe-filter__form.is-live-searching #q{border-color:var(--gold); box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 16%,transparent)}
+.recipe-layout{display:grid; grid-template-columns:minmax(300px,.85fr) minmax(390px,1.25fr); gap:var(--s5); align-items:start}
+.recipe-results-card,.recipe-detail-card{min-width:0}
+.recipe-card__head,.recipe-detail-card__head{display:flex; align-items:flex-start; justify-content:space-between; gap:var(--s3); margin-bottom:var(--s4)}
+.recipe-card__head h2,.recipe-detail-card__head h2{margin:2px 0 0; font:700 23px/1.2 'Playfair Display',serif; color:var(--espresso)}
+.recipe-count{display:inline-flex; align-items:center; min-height:28px; padding:3px 10px; border:1px solid var(--line); border-radius:var(--radius-pill); background:var(--surface-2); color:var(--muted); font-size:12px; font-weight:700; white-space:nowrap}
+.recipe-results-table td:first-child{min-width:180px}
+.recipe-results-table small{color:var(--muted)}
+.recipe-product-link{display:block; margin:-8px -10px; padding:8px 10px; border-radius:var(--radius-xs); color:inherit; text-decoration:none}
+.recipe-product-link:hover{background:var(--surface-2)}
+.recipe-product-link:focus-visible{outline:3px solid color-mix(in srgb,var(--gold) 55%,transparent); outline-offset:2px}
+.recipe-product-link[aria-current="true"]{background:color-mix(in srgb,var(--latte) 38%,transparent)}
+.recipe-product-name{font-weight:750; color:var(--ink)}
+.recipe-detail-card{position:sticky; top:var(--s4)}
+.recipe-detail-card__head{display:block; padding-bottom:var(--s4); border-bottom:1px solid var(--line)}
+.recipe-detail-card__head p{margin:7px 0 0; color:var(--muted); font-size:13px}
+.recipe-section{padding-top:var(--s4); margin-top:var(--s4); border-top:1px solid var(--line)}
+.recipe-detail-card__head + .recipe-section{padding-top:0; margin-top:0; border-top:0}
+.recipe-section h3{margin:0; font:700 16px/1.25 'Be Vietnam Pro',sans-serif; color:var(--ink)}
+.recipe-section__hint{margin:6px 0 var(--s3); color:var(--muted); font-size:12.5px}
+.recipe-muted{margin:var(--s3) 0 0; color:var(--muted)}
+.recipe-table-wrap{overflow-x:auto; border-radius:var(--radius-sm)}
+.recipe-table-wrap .table{min-width:520px}
+.recipe-qty,.recipe-impact-delta{white-space:nowrap; font-variant-numeric:tabular-nums}
+.recipe-impact-delta strong{color:var(--espresso)}
+.recipe-badge-prepped{background:var(--latte)}
+.recipe-badge-raw{background:var(--coffee)}
+.recipe-prep-card{margin-top:var(--s3); padding:var(--s3); border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface-2)}
+.recipe-prep-card__head{display:flex; justify-content:space-between; align-items:baseline; gap:var(--s3); margin-bottom:var(--s3)}
+.recipe-prep-card__head strong{color:var(--espresso)}
+.recipe-prep-card__unit{font-size:12px; color:var(--muted); white-space:nowrap}
+.recipe-results-card[aria-busy],.recipe-detail-card[aria-busy]{pointer-events:none}
+
 /* ============================ Animations ================================ */
 @keyframes fadeIn{from{opacity:0} to{opacity:1}}
 @keyframes fadeInUp{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:translateY(0)}}
@@ -1241,6 +1429,8 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
   .table th{position:static}
   .user-meta{display:none}
   .topbar{padding:var(--s3) var(--s4)}
+  .recipe-layout{grid-template-columns:1fr}
+  .recipe-detail-card{position:static}
 }
 @media (max-width:520px){
   .page-header{flex-direction:column; align-items:flex-start}
@@ -1249,6 +1439,12 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
   .shift-clock-facts{grid-template-columns:1fr}
   .shift-clock-actions{justify-content:stretch}
   .shift-clock-actions form,.shift-clock-actions .btn{width:100%}
+  .recipe-filter__form{gap:var(--s2)}
+  .recipe-filter__search,.recipe-filter__select{flex-basis:100%; min-width:0}
+  .recipe-filter__branch{width:100%; min-height:34px}
+  #clearFilters{flex:1}
+  .recipe-card__head h2,.recipe-detail-card__head h2{font-size:21px}
+  .recipe-prep-card__head{align-items:flex-start; flex-direction:column; gap:3px}
 }
 
 /* ===== Barista trực ca: banner ngoài ca + khoá thao tác view-only ===== */

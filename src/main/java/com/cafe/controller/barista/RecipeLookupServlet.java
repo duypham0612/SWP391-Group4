@@ -49,24 +49,34 @@ public class RecipeLookupServlet extends HttpServlet {
             if (pid != null && !pid.isBlank()) {
                 Integer productId = parseFilter(pid);
                 if (productId != null) {
-                    Product selected = catalogReadService.getRecipeProduct(productId);
-                    req.setAttribute("selected", selected);
-                    List<ProductRecipe> recipe = catalogReadService.getRecipeForProduct(productId);
-                    req.setAttribute("recipe", recipe);
-                    // định mức pha sẵn cho từng nguyên liệu PREPPED trong công thức
-                    List<CatalogReadService.OptionImpactRow> impacts =
-                            catalogReadService.getModifierImpactsForProduct(productId);
-                    req.setAttribute("impacts", impacts);
-                    List<PrepSection> preps = new ArrayList<>();
-                    for (ProductRecipe r : recipe) {
-                        if ("PREPPED".equalsIgnoreCase(r.getIngredientType())) {
-                            PrepSection ps = new PrepSection();
-                            ps.name = r.getIngredientName();
-                            ps.lines = catalogReadService.getPrepRecipe(r.getIngredientId());
-                            if (!ps.lines.isEmpty()) preps.add(ps);
+                    Product selected = catalogReadService.getRecipeProductForLookup(
+                            productId, q, categoryId, recipeState, branchId);
+                    if (selected == null) {
+                        // Không tiết lộ món ngoài phạm vi CN / bộ lọc qua productId đoán được.
+                        req.setAttribute("recipeLookupNotice",
+                                "Món được chọn không còn thuộc phạm vi tra cứu hiện tại.");
+                    } else {
+                        req.setAttribute("selected", selected);
+                        List<ProductRecipe> recipe = catalogReadService.getRecipeForProduct(productId);
+                        req.setAttribute("recipe", recipe);
+                        // Định mức pha sẵn cho từng nguyên liệu PREPPED trong công thức.
+                        List<CatalogReadService.OptionImpactRow> impacts =
+                                catalogReadService.getModifierImpactsForProduct(productId);
+                        req.setAttribute("impacts", impacts);
+                        List<PrepSection> preps = new ArrayList<>();
+                        for (ProductRecipe r : recipe) {
+                            if ("PREPPED".equalsIgnoreCase(r.getIngredientType())) {
+                                PrepSection ps = new PrepSection();
+                                ps.name = r.getIngredientName();
+                                ps.unit = r.getIngredientUnit();
+                                ps.lines = catalogReadService.getPrepRecipe(r.getIngredientId());
+                                if (!ps.lines.isEmpty()) preps.add(ps);
+                            }
                         }
+                        req.setAttribute("preps", preps);
                     }
-                    req.setAttribute("preps", preps);
+                } else {
+                    req.setAttribute("recipeLookupNotice", "Mã món không hợp lệ.");
                 }
             }
 
@@ -110,8 +120,10 @@ public class RecipeLookupServlet extends HttpServlet {
     /** Nhóm định mức pha sẵn của 1 nguyên liệu PREPPED (cho view). */
     public static class PrepSection {
         public String name;
+        public String unit;
         public List<com.cafe.model.PrepRecipe> lines;
         public String getName() { return name; }
+        public String getUnit() { return unit; }
         public List<com.cafe.model.PrepRecipe> getLines() { return lines; }
     }
 }

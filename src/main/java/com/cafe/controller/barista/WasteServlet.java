@@ -19,13 +19,29 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 /** B5 · WasteServlet → /barista/waste. Ghi hao hụt/làm lại (qua ledger). */
 @WebServlet("/barista/waste")
 public class WasteServlet extends HttpServlet {
 
     private final WasteService service = new WasteService();
+    private static final int MAX_WASTE_ROWS = 20;
+    private static final Map<String, Set<String>> PRESETS_BY_TYPE = Map.of(
+            "SPILL", Set.of("Đổ khi pha", "Rơi khi thao tác", "Sai định lượng"),
+            "EXPIRED", Set.of("Hết hạn", "Nguyên liệu hỏng", "Bảo quản lỗi", "Quá thời gian mở nắp"),
+            "OTHER", Set.of("Mẫu thử/QC", "Khác"));
+    private static final Map<String, String> INGREDIENT_CAUSES = Map.of(
+            "Đổ khi pha", "SPILL", "Rơi khi thao tác", "SPILL", "Sai định lượng", "WRONG_RECIPE",
+            "Hết hạn", "EXPIRED", "Nguyên liệu hỏng", "EXPIRED", "Bảo quản lỗi", "STORAGE",
+            "Quá thời gian mở nắp", "STORAGE", "Mẫu thử/QC", "QC_SAMPLE", "Khác", "OTHER");
+    private static final Map<String, String> REMAKE_REASONS = Map.of(
+            "WRONG_RECIPE", "Sai công thức", "CUSTOMER_FEEDBACK", "Khách yêu cầu làm lại",
+            "SPILL", "Đổ/rơi sau khi pha", "QUALITY", "Lỗi chất lượng");
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -54,15 +70,25 @@ public class WasteServlet extends HttpServlet {
             if ("createIngredientWaste".equals(action) || "create".equals(action)) {
                 List<WasteRowForm> submitted = "create".equals(action) ? legacyRow(req) : submittedWasteRows(req);
                 req.setAttribute("submittedWasteRows", submitted);
-                int count = service.logIngredientWasteLines(branchId, toWasteLines(submitted), userId);
-                req.getSession().setAttribute("flashOk", "Đã ghi " + count + " dòng hao hụt.");
+                String clientRequestId = requestId(req);
+                req.setAttribute("wasteClientRequestId", clientRequestId);
+                int count = service.logIngredientWasteLines(branchId, toWasteLines(submitted, !"create".equals(action)), userId, clientRequestId);
+                req.getSession().setAttribute("flashOk", count == 0 ? "Yêu cầu này đã được ghi trước đó." : "Đã ghi " + count + " dòng hao hụt.");
             } else if ("remakeProduct".equals(action)) {
+                if (!"1".equals(req.getParameter("manualRemakeConfirmed"))) {
+                    throw new BusinessException("Món thuộc đơn phải làm lại từ KDS để không ghi trùng tồn kho.");
+                }
                 RemakeForm form = submittedRemake(req);
                 req.setAttribute("submittedRemake", form);
+                String causeCode = requireRemakeCause(form.reasonPreset);
+                String remakeReason = combineReason(REMAKE_REASONS.get(causeCode), form.reasonDetail);
+                if (blank(remakeReason)) throw new BusinessException("Vui lòng chọn lý do làm lại.");
+                String clientRequestId = requestId(req);
+                req.setAttribute("wasteClientRequestId", clientRequestId);
                 int count = service.remakeProduct(branchId, parseInt(form.productId, "Chưa chọn món làm lại."),
                         parseInt(form.quantity, "Số lượng món làm lại không hợp lệ."),
-                        parseOptionIds(req), combineReason(form.reasonPreset, form.reasonDetail), userId);
-                req.getSession().setAttribute("flashOk", "Đã ghi làm lại món (" + count + " dòng nguyên liệu).");
+                        parseOptionIds(req), remakeReason, causeCode, userId, clientRequestId);
+                req.getSession().setAttribute("flashOk", count == 0 ? "Yêu cầu này đã được ghi trước đó." : "Đã ghi làm lại món (" + count + " dòng nguyên liệu).");
             } else if ("update".equals(action)) {
                 editId = req.getParameter("wasteLogId");
                 req.setAttribute("editQuantity", req.getParameter("quantity"));
@@ -116,7 +142,7 @@ public class WasteServlet extends HttpServlet {
         List<WasteLog> scopedLogs = service.getWasteLogs(branchId, scope);
         InventoryService.WasteLogPage wasteLogPage = service.getWasteLogPage(branchId, scope,
                 logQuery, logWasteType, logStatus, requestedLogPage, logPageSize);
-        req.setAttribute("ingredients", service.getIngredients());
+        req.setAttribute("ingredients", service.getIngredients(branchId));
         List<com.cafe.model.BranchMenuItem> remakeProducts = service.getRemakeProducts(branchId);
         req.setAttribute("products", remakeProducts);
         req.setAttribute("remakeModifiersJson", service.getRemakeModifiersJson(remakeProducts));
@@ -129,6 +155,7 @@ public class WasteServlet extends HttpServlet {
         req.setAttribute("wasteLogStatus", logStatus);
         req.setAttribute("summary", service.summarize(scopedLogs));
         req.setAttribute("pageTitle", "Hao hụt & Làm lại");
+        req.setAttribute("currentUserId", userId);
         BaristaShift.expose(req, "/barista/waste");   // trực ca: banner + khoá thao tác
 
         if (req.getAttribute("submittedWasteRows") == null) {
@@ -137,9 +164,12 @@ public class WasteServlet extends HttpServlet {
         if (req.getAttribute("submittedRemake") == null) {
             req.setAttribute("submittedRemake", new RemakeForm("", "1", "", ""));
         }
+        if (req.getAttribute("wasteClientRequestId") == null) {
+            req.setAttribute("wasteClientRequestId", UUID.randomUUID().toString());
+        }
         if (editId != null && !editId.isBlank()) {
             try {
-                WasteLog editLog = service.getEditableWasteLog(branchId, Integer.parseInt(editId));
+                WasteLog editLog = service.getEditableWasteLog(branchId, Integer.parseInt(editId), userId);
                 if (editLog == null) req.setAttribute("flashError", "Bản ghi cần sửa không tồn tại.");
                 else req.setAttribute("editLog", editLog);
             } catch (BusinessException e) {
@@ -162,7 +192,12 @@ public class WasteServlet extends HttpServlet {
         String[] types = req.getParameterValues("wasteType");
         String[] presets = req.getParameterValues("reasonPreset");
         String[] details = req.getParameterValues("reasonDetail");
-        int len = maxLen(ids, qtys, types, presets, details);
+        if (ids == null || qtys == null || types == null || presets == null || details == null
+                || ids.length != qtys.length || ids.length != types.length || ids.length != presets.length || ids.length != details.length) {
+            throw new BusinessException("Dữ liệu các dòng hao hụt không đầy đủ. Vui lòng tải lại màn hình và thử lại.");
+        }
+        int len = ids.length;
+        if (len > MAX_WASTE_ROWS) throw new BusinessException("Mỗi lần chỉ được ghi tối đa " + MAX_WASTE_ROWS + " dòng hao hụt.");
         List<WasteRowForm> rows = new ArrayList<>();
         for (int i = 0; i < len; i++) {
             rows.add(new WasteRowForm(value(ids, i), value(qtys, i), value(types, i), value(presets, i), value(details, i)));
@@ -191,8 +226,8 @@ public class WasteServlet extends HttpServlet {
         }
     }
 
-    private List<WasteLogLine> toWasteLines(List<WasteRowForm> forms) {
-        List<WasteLogLine> lines = new ArrayList<>();
+    private List<WasteLogLine> toWasteLines(List<WasteRowForm> forms, boolean requirePreset) {
+        Map<WasteLineKey, WasteLogLine> grouped = new LinkedHashMap<>();
         int lineNo = 1;
         for (WasteRowForm form : forms) {
             boolean started = !blank(form.ingredientId) || !blank(form.quantity)
@@ -202,9 +237,16 @@ public class WasteServlet extends HttpServlet {
             int ingredientId = parseInt(form.ingredientId, "Dòng " + lineNo + ": Nguyên liệu không hợp lệ.");
             BigDecimal qty = parseQty(form.quantity, "Dòng " + lineNo + ": Số lượng phải > 0.");
             String type = blank(form.wasteType) ? "OTHER" : form.wasteType.trim();
-            lines.add(new WasteLogLine(ingredientId, qty, type, combineReason(form.reasonPreset, form.reasonDetail)));
+            String cause = requireIngredientCause(type, form.reasonPreset, form.reasonDetail, lineNo, requirePreset);
+            String reason = combineReason(form.reasonPreset, form.reasonDetail);
+            if (blank(reason)) throw new BusinessException("Dòng " + lineNo + ": Vui lòng chọn hoặc nhập lý do.");
+            WasteLineKey key = new WasteLineKey(ingredientId, type.toUpperCase(), cause, reason);
+            WasteLogLine existing = grouped.get(key);
+            if (existing == null) grouped.put(key, new WasteLogLine(ingredientId, qty, type, reason, cause));
+            else existing.setQuantity(existing.getQuantity().add(qty));
             lineNo++;
         }
+        List<WasteLogLine> lines = new ArrayList<>(grouped.values());
         if (lines.isEmpty()) throw new BusinessException("Chưa có dòng hao hụt nào để ghi.");
         return lines;
     }
@@ -214,14 +256,14 @@ public class WasteServlet extends HttpServlet {
                 req.getParameter("remakeReasonPreset"), req.getParameter("remakeReasonDetail"));
     }
 
-    /** Tuỳ chọn modifier đã tick trên form làm lại (checkbox name="remakeOptionId"); bỏ giá trị lỗi. */
+    /** Tuỳ chọn modifier đã tick trên form làm lại; service vẫn kiểm tra lại thuộc món và tự loại trùng. */
     private List<Integer> parseOptionIds(HttpServletRequest req) {
         String[] raw = req.getParameterValues("remakeOptionId");
         if (raw == null) return List.of();
         List<Integer> ids = new ArrayList<>();
         for (String s : raw) {
             if (blank(s)) continue;
-            try { ids.add(Integer.parseInt(s.trim())); } catch (NumberFormatException ignore) { /* bỏ qua */ }
+            try { ids.add(Integer.parseInt(s.trim())); } catch (NumberFormatException ignore) { throw new BusinessException("Tuỳ chọn món làm lại không hợp lệ."); }
         }
         return ids;
     }
@@ -248,18 +290,41 @@ public class WasteServlet extends HttpServlet {
         String d = blank(detail) ? "" : detail.trim();
         if (p.isEmpty()) return d;
         if (d.isEmpty()) return p;
-        String value = p + " - " + d;
-        return value.length() <= 255 ? value : value.substring(0, 255);
+        return p + " - " + d;
+    }
+
+    private static String requestId(HttpServletRequest req) {
+        String raw = req.getParameter("clientRequestId");
+        if (raw == null) throw new BusinessException("Thiếu mã chống gửi trùng. Vui lòng tải lại màn hình và thử lại.");
+        raw = raw.trim();
+        if (!raw.matches("[A-Za-z0-9-]{8,60}")) {
+            throw new BusinessException("Mã gửi không hợp lệ. Vui lòng tải lại màn hình và thử lại.");
+        }
+        return raw;
+    }
+
+    static String requireIngredientCause(String wasteType, String preset, String detail, int lineNo, boolean requirePreset) {
+        String type = wasteType == null ? "" : wasteType.trim().toUpperCase();
+        if (!PRESETS_BY_TYPE.containsKey(type)) throw new BusinessException("Dòng " + lineNo + ": Loại hao hụt không hợp lệ.");
+        String chosen = preset == null ? "" : preset.trim();
+        if (chosen.isEmpty() && !requirePreset) return "OTHER".equals(type) ? "OTHER" : type;
+        if (!PRESETS_BY_TYPE.get(type).contains(chosen)) {
+            throw new BusinessException("Dòng " + lineNo + ": Lý do không phù hợp với loại hao hụt đã chọn.");
+        }
+        if ("Khác".equals(chosen) && blank(detail)) {
+            throw new BusinessException("Dòng " + lineNo + ": Chọn Khác thì phải nhập diễn giải.");
+        }
+        return INGREDIENT_CAUSES.get(chosen);
+    }
+
+    static String requireRemakeCause(String causeCode) {
+        String code = causeCode == null ? "" : causeCode.trim().toUpperCase();
+        if (!REMAKE_REASONS.containsKey(code)) throw new BusinessException("Lý do làm lại không hợp lệ.");
+        return code;
     }
 
     private static String value(String[] arr, int idx) {
         return arr != null && idx < arr.length && arr[idx] != null ? arr[idx] : "";
-    }
-
-    private static int maxLen(String[]... arrays) {
-        int max = 0;
-        for (String[] arr : arrays) if (arr != null && arr.length > max) max = arr.length;
-        return max;
     }
 
     private static boolean blank(String value) {
@@ -292,6 +357,8 @@ public class WasteServlet extends HttpServlet {
     private static int pageSize() {
         return 5;
     }
+
+    private record WasteLineKey(int ingredientId, String wasteType, String causeCode, String reason) { }
 
     public static class WasteRowForm {
         private final String ingredientId;

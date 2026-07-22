@@ -429,6 +429,15 @@ public class OrderItemDao {
         }
     }
 
+    /** MAKING → REMAKE chỉ barista đang giữ món được báo pha lỗi/làm lại. */
+    public int beginRemakeClaimed(Connection conn, int orderItemId, int branchId, int baristaId) throws SQLException {
+        final String sql = "UPDATE oi SET oi.Status='REMAKE' FROM sales.OrderItem oi "
+                + "JOIN sales.Orders o ON o.OrderId=oi.OrderId WHERE oi.OrderItemId=? AND o.BranchId=? AND oi.Status='MAKING' AND oi.BaristaId=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, orderItemId); ps.setInt(2, branchId); ps.setInt(3, baristaId); return ps.executeUpdate();
+        }
+    }
+
     public void finishRemake(Connection conn, int orderItemId, int branchId) throws SQLException {
         final String sql = "UPDATE oi SET oi.Status='WAITING',oi.Priority=(SELECT ISNULL(MAX(x.Priority),0)+1 "
                 + "FROM sales.OrderItem x JOIN sales.Orders xo ON xo.OrderId=x.OrderId WHERE xo.BranchId=?),"

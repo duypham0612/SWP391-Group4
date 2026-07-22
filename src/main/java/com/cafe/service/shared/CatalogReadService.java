@@ -46,9 +46,12 @@ public class CatalogReadService {
     /** Menu bán được của chi nhánh: published + available + chưa 86, kèm nhóm modifier. */
     public List<PosMenuItem> getPosMenu(int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
+            // Hết theo kho = tự động ẩn (bản chất 1): tính từ tồn, không phải cờ 86 thủ công.
+            java.util.Set<Integer> depleted = productRecipeDao.findDepletedProductIds(conn, branchId);
             List<PosMenuItem> out = new ArrayList<>();
             for (BranchMenuItem bm : branchMenuDao.listForBranch(conn, branchId)) {
-                if (!bm.isPublished() || !bm.isAvailable() || bm.isIs86()) continue;
+                if (!bm.isPublished() || !bm.isAvailable() || bm.isIs86()
+                        || depleted.contains(bm.getProductId())) continue;
                 PosMenuItem item = new PosMenuItem();
                 item.setProductId(bm.getProductId());
                 item.setName(bm.getProductName());
@@ -131,6 +134,15 @@ public class CatalogReadService {
         }
     }
 
+    /** Chi tiết món trong đúng phạm vi tìm kiếm công thức của Barista. */
+    public Product getRecipeProductForLookup(int productId, String q, Integer categoryId,
+                                             String recipeState, Integer branchId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            return productDao.findForRecipeLookupById(
+                    conn, productId, q, categoryId, recipeState, branchId);
+        }
+    }
+
     public List<Category> getRecipeFilterCategories() throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             return categoryDao.findActive(conn);
@@ -178,6 +190,8 @@ public class CatalogReadService {
                 ModifierGroup g = groupDao.findById(conn, pmg.getModifierGroupId());
                 if (g == null) continue;
                 for (ModifierOption o : optionDao.findByGroup(conn, g.getModifierGroupId())) {
+                    // Barista chỉ cần định mức của lựa chọn còn có thể bán trên POS.
+                    if (!o.isActive()) continue;
                     for (ModifierIngredientImpact imp : impactDao.findByOption(conn, o.getModifierOptionId())) {
                         OptionImpactRow r = new OptionImpactRow();
                         r.groupName = g.getName();

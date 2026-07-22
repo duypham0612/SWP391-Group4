@@ -27,6 +27,17 @@ public class BranchInventoryDao {
         return out;
     }
 
+    /** Danh sách chọn cho barista: chỉ nguyên liệu đang hoạt động và đã cấu hình tại chi nhánh. */
+    public List<BranchInventory> findActiveByBranch(Connection conn, int branchId) throws SQLException {
+        final String sql =
+            "SELECT bi.BranchId, bi.IngredientId, bi.QuantityOnHand, bi.MinThreshold, i.Name AS IngredientName, i.Unit AS IngredientUnit, i.IngredientType " +
+            "FROM inventory.BranchInventory bi JOIN catalog.Ingredient i ON bi.IngredientId=i.IngredientId " +
+            "WHERE bi.BranchId=? AND i.IsActive=1 ORDER BY i.IngredientType,i.Name";
+        List<BranchInventory> out=new ArrayList<>();
+        try(PreparedStatement ps=conn.prepareStatement(sql)){ps.setInt(1,branchId);try(ResultSet rs=ps.executeQuery()){while(rs.next())out.add(map(rs));}}
+        return out;
+    }
+
     public List<BranchInventory> findLowStock(Connection conn, int branchId) throws SQLException {
         final String sql =
             "SELECT bi.BranchId, bi.IngredientId, bi.QuantityOnHand, bi.MinThreshold, " +
@@ -66,6 +77,18 @@ public class BranchInventoryDao {
                 if (rs.next()) return new BigDecimal[]{ rs.getBigDecimal(1), rs.getBigDecimal(2) };
                 return null;
             }
+        }
+    }
+
+    /** Chỉ cho Barista ghi hao hụt vào nguyên liệu active đã được cấu hình tồn tại đúng chi nhánh. */
+    public boolean isActiveConfiguredIngredient(Connection conn, int branchId, int ingredientId) throws SQLException {
+        final String sql = "SELECT 1 FROM inventory.BranchInventory bi "
+                + "JOIN catalog.Ingredient i ON i.IngredientId=bi.IngredientId "
+                + "WHERE bi.BranchId=? AND bi.IngredientId=? AND i.IsActive=1";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setInt(2, ingredientId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next(); }
         }
     }
 

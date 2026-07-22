@@ -44,6 +44,29 @@ public class ProductRecipeDao {
         return out;
     }
 
+    /**
+     * Tập ID sản phẩm của chi nhánh đang HẾT THEO KHO: có ít nhất một nguyên liệu công thức
+     * tồn ≤ 0. Đây là tín hiệu THUẦN kho (không lọc theo cờ Is86/IsAvailable) — dùng để tính
+     * availability tự động cho POS/QR: món tự ẩn khi tồn cạn, tự hiện khi tồn có lại.
+     */
+    public java.util.Set<Integer> findDepletedProductIds(Connection conn, int branchId) throws SQLException {
+        final String sql =
+            "SELECT DISTINCT pr.ProductId " +
+            "FROM catalog.ProductRecipe pr " +
+            "JOIN catalog.BranchMenu bm        ON bm.ProductId = pr.ProductId AND bm.BranchId = ? " +
+            "JOIN inventory.BranchInventory bi ON bi.IngredientId = pr.IngredientId AND bi.BranchId = ? " +
+            "WHERE bi.QuantityOnHand <= 0";
+        java.util.Set<Integer> out = new java.util.HashSet<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setInt(2, branchId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) out.add(rs.getInt("ProductId"));
+            }
+        }
+        return out;
+    }
+
     public List<ProductRecipe> findByProduct(Connection conn, int productId) throws SQLException {
         final String sql =
             "SELECT pr.ProductRecipeId, pr.ProductId, pr.IngredientId, pr.Quantity, " +

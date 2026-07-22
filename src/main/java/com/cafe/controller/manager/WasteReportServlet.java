@@ -3,6 +3,9 @@ package com.cafe.controller.manager;
 import com.cafe.common.BusinessDay;
 import com.cafe.service.manager.WasteReportService;
 import com.cafe.service.shared.InventoryService;
+import com.cafe.common.CsrfUtil;
+import com.cafe.common.SessionUtil;
+import com.cafe.model.User;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -42,11 +45,27 @@ public class WasteReportServlet extends HttpServlet {
             req.setAttribute("wasteLogQuery", logQuery);
             req.setAttribute("wasteLogWasteType", logWasteType);
             req.setAttribute("wasteLogStatus", logStatus);
+            req.setAttribute("openReviews", service.openReviews(branchId));
             req.setAttribute("pageTitle", "Hao hụt & làm lại");
             req.getRequestDispatcher("/WEB-INF/views/manager/waste.jsp").forward(req, resp);
         } catch (Exception e) {
             throw new ServletException(e);
         }
+    }
+
+    @Override
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
+        if (!"resolveReview".equals(req.getParameter("action"))) { resp.sendError(400); return; }
+        User user = SessionUtil.currentUser(req);
+        try {
+            long id = Long.parseLong(req.getParameter("reviewId"));
+            boolean ok = service.resolveReview(InventoryDashboardServlet.branchId(req), id,
+                    user == null ? 0 : user.getUserId(), req.getParameter("note"));
+            req.getSession().setAttribute(ok ? "flashOk" : "flashError", ok ? "Đã xác nhận ngoại lệ." : "Ngoại lệ đã được xử lý.");
+            resp.sendRedirect(req.getContextPath() + "/manager/waste");
+        } catch (NumberFormatException e) { resp.sendError(400); }
+        catch (Exception e) { throw new ServletException(e); }
     }
 
     private static String textParam(HttpServletRequest req, String name, int maxLength) {

@@ -34,7 +34,9 @@ public class MenuBlockRequestDao {
             ps.setInt(2, r.getProductId());
             ps.setString(3, r.getReason());
             if (r.getNote() == null) ps.setNull(4, Types.NVARCHAR); else ps.setString(4, r.getNote());
-            ps.setTimestamp(5, Timestamp.valueOf(r.getBackInEta()));
+            // ETA tuỳ chọn: sự cố bất định thời gian sửa xong → cho null.
+            if (r.getBackInEta() == null) ps.setNull(5, Types.TIMESTAMP);
+            else ps.setTimestamp(5, Timestamp.valueOf(r.getBackInEta()));
             ps.setInt(6, r.getRequestedBy());
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {

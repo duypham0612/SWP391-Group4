@@ -32,6 +32,10 @@ public class WasteLog {
     private String ingredientType;
     private String loggedByName;
     private BigDecimal unitCost;
+    private Long wasteEventId;
+    private BigDecimal unitCostAtLog;
+    private String costBasis = "LEGACY_ESTIMATE";
+    private WasteEvent wasteEvent;
 
     public int getWasteLogId() { return wasteLogId; }
     public void setWasteLogId(int v) { this.wasteLogId = v; }
@@ -78,12 +82,20 @@ public class WasteLog {
 
     public BigDecimal getUnitCost() { return unitCost; }
     public void setUnitCost(BigDecimal unitCost) { this.unitCost = unitCost; }
+    public Long getWasteEventId() { return wasteEventId; }
+    public void setWasteEventId(Long v) { wasteEventId = v; }
+    public BigDecimal getUnitCostAtLog() { return unitCostAtLog; }
+    public void setUnitCostAtLog(BigDecimal v) { unitCostAtLog = v; }
+    public String getCostBasis() { return costBasis; }
+    public void setCostBasis(String v) { costBasis = v == null ? "LEGACY_ESTIMATE" : v; }
+    public WasteEvent getWasteEvent() { return wasteEvent; }
+    public void setWasteEvent(WasteEvent v) { wasteEvent = v; }
 
-    public boolean isCostAvailable() { return unitCost != null && quantity != null; }
+    public boolean isCostAvailable() { return effectiveUnitCost() != null && quantity != null; }
 
     public BigDecimal getLineCost() {
         if (!isCostAvailable()) return null;
-        return quantity.multiply(unitCost);
+        return quantity.multiply(effectiveUnitCost());
     }
 
     public String getCostDisplay() {
@@ -92,6 +104,13 @@ public class WasteLog {
         NumberFormat fmt = NumberFormat.getNumberInstance(VI_LOCALE);
         return fmt.format(cost.setScale(0, RoundingMode.HALF_UP)) + " đ";
     }
+
+    public String getCostBasisLabel() {
+        if ("SNAPSHOT".equals(costBasis)) return "Đã chốt";
+        if ("UNAVAILABLE".equals(costBasis)) return "Chưa có giá";
+        return "Ước tính dữ liệu cũ";
+    }
+    private BigDecimal effectiveUnitCost() { return "SNAPSHOT".equals(costBasis) ? unitCostAtLog : unitCost; }
 
     public String getLoggedAtDisplay() {
         if (loggedAt == null) return "";
@@ -106,6 +125,9 @@ public class WasteLog {
     }
 
     public boolean isRemake() { return "REMAKE".equals(wasteType); }
-    public boolean isEditable() { return isActive() && !isRemake(); }
-    public boolean isVoidable() { return isActive() && !isRemake(); }
+    public boolean isCorrectionWindowOpen() {
+        return loggedAt != null && !loggedAt.isBefore(LocalDateTime.now(ZoneOffset.UTC).minusMinutes(15));
+    }
+    public boolean isEditable() { return isActive() && !isRemake() && isCorrectionWindowOpen(); }
+    public boolean isVoidable() { return isActive() && !isRemake() && isCorrectionWindowOpen(); }
 }
