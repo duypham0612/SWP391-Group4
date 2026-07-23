@@ -53,7 +53,7 @@
                 <c:forEach var="pl" items="${prepLines}">
                     <tr>
                         <td>${pl.rawIngredientName}</td>
-                        <td>${pl.quantity} ${pl.rawIngredientUnit}</td>
+                        <td>${pl.quantityDisplay} ${pl.rawIngredientUnit}</td>
                         <td>${pl.yieldQty} ${prepped.unit}</td>
                         <td>
                             <form action="${ctx}/admin/recipe" method="post" style="display:inline" onsubmit="return confirm('Xoá dòng này?');">
