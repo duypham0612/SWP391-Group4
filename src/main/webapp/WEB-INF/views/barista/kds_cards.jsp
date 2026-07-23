@@ -44,6 +44,9 @@
         <div class="kds-tables" id="kdsTables">
             <div class="kds-table-side">
             <div class="kds-side-head"><span>Bàn cần pha</span><strong>${tableGroups.size()}</strong></div>
+            <div class="kds-table-search">
+                <input type="search" id="kdsTableSearch" class="kds-table-search__input" placeholder="Tìm bàn…" autocomplete="off" aria-label="Tìm nhanh bàn">
+            </div>
             <nav class="kds-table-list" role="tablist" aria-label="Danh sách bàn" aria-orientation="vertical">
                 <c:forEach var="tg" items="${tableGroups}" varStatus="st">
                     <button type="button" role="tab" class="kds-table-tab kds-table-tab--${tg.badgeTier} ${st.first ? 'is-active' : ''} ${tg.done ? 'is-done' : ''}"
