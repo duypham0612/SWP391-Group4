@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1><c:choose><c:when test="${product.productId > 0}">Sửa sản phẩm</c:when><c:otherwise>Thêm sản phẩm</c:otherwise></c:choose></h1><p>catalog.Product</p></div>
+    <div><h1><c:choose><c:when test="${product.productId > 0}">Sửa sản phẩm</c:when><c:otherwise>Thêm sản phẩm</c:otherwise></c:choose></h1><p>Cập nhật món, giá bán, size và hình ảnh.</p></div>
     <a class="btn btn-ghost" href="${ctx}/admin/product">← Quay lại</a>
 </div>
 
@@ -33,6 +33,24 @@
             <label for="basePrice">Giá gốc (₫) *</label>
             <input id="basePrice" type="number" name="basePrice" class="form-control" min="0" step="1000" value="${product.basePrice}" required>
         </div>
+        <section style="border:1px solid var(--line);border-radius:var(--radius-sm);margin:0 0 18px;padding:16px">
+            <h3 style="margin-top:0">Size</h3>
+            <p class="muted" style="margin-top:-6px">Giá gốc áp dụng cho Size S. Size M/L chỉ cộng thêm số tiền bên dưới. Đường và đá được tạo tự động, không tính phí.</p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
+                <div class="form-group" style="margin:0">
+                    <label for="sizeSDelta">Size S</label>
+                    <input id="sizeSDelta" class="form-control" value="+0" disabled>
+                </div>
+                <div class="form-group" style="margin:0">
+                    <label for="sizeMDelta">Size M cộng thêm (₫)</label>
+                    <input id="sizeMDelta" type="number" name="sizeMDelta" class="form-control" min="0" step="1000" value="${sizeConfig.sizeMDelta}">
+                </div>
+                <div class="form-group" style="margin:0">
+                    <label for="sizeLDelta">Size L cộng thêm (₫)</label>
+                    <input id="sizeLDelta" type="number" name="sizeLDelta" class="form-control" min="0" step="1000" value="${sizeConfig.sizeLDelta}">
+                </div>
+            </div>
+        </section>
         <div class="form-group">
             <label for="prepMinutes">Thời gian pha chuẩn (phút) *</label>
             <input id="prepMinutes" type="number" name="prepMinutes" class="form-control" min="1" step="1"

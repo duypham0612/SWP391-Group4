@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Tuỳ chọn (Modifier)</h1><p>Nhóm tuỳ chọn → option → định mức nguyên liệu</p></div>
+    <div><h1>Size / Đường / Đá</h1><p>Cấu hình 3 nhóm lựa chọn đồ uống và định mức nguyên liệu</p></div>
     <a class="btn btn-primary" href="${ctx}/admin/modifier?view=group">+ Thêm nhóm</a>
 </div>
 
@@ -14,7 +14,7 @@
 <c:choose>
     <c:when test="${empty groups}">
         <div class="card empty-state"><div class="icon">🎚️</div>
-            <p>Chưa có nhóm tuỳ chọn nào (vd Size, Sữa, Đường, Topping).</p>
+            <p>Chưa có nhóm lựa chọn nào. Chỉ dùng 3 nhóm: Size, Đường, Đá.</p>
             <a class="btn btn-primary" href="${ctx}/admin/modifier?view=group">+ Tạo nhóm đầu tiên</a>
         </div>
     </c:when>
@@ -89,7 +89,7 @@
             </tbody>
         </table>
 
-        <nav class="pagination" id="mgPager" aria-label="Phân trang nhóm modifier"></nav>
+        <nav class="pagination" id="mgPager" aria-label="Phân trang nhóm lựa chọn"></nav>
 
         <script>
         (function(){

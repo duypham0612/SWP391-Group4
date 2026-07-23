@@ -37,6 +37,7 @@
             <button type="button" class="btn btn-ghost btn-sm btn-full" id="kdsClearFilters">Xóa bộ lọc</button>
         </div>
     </details>
+    <button type="button" class="btn btn-ghost btn-sm" id="kdsRefresh" title="Tải lại danh sách món">↻ Làm mới</button>
     <div id="kdsConnection" class="kds-connection" role="status">
         <span class="kds-refresh__dot"></span><span>Đang kết nối</span>
     </div>

@@ -19,6 +19,12 @@
 
 <jsp:include page="../layout/_shiftClockCard.jsp" />
 
+<c:if test="${pendingHandoverCount > 0}">
+    <a class="alert alert-warn" href="${ctx}/barista/handover" style="display:block;margin-top:var(--s4);text-decoration:none">
+        <strong>Có ${pendingHandoverCount} bàn giao ca bạn chưa xác nhận.</strong> Mở để tiếp nhận và xử lý các việc còn lại →
+    </a>
+</c:if>
+
 <c:if test="${not empty monthSummary}">
     <div class="page-header" style="margin-top:var(--s6)">
         <div><h2 style="margin:0">Giờ làm tháng ${month}</h2><p>Lịch đi làm và giờ công đã ghi nhận</p></div>

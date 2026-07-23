@@ -4,9 +4,6 @@ import com.cafe.common.CsrfUtil;
 import com.cafe.model.Branch;
 import com.cafe.service.admin.BranchService;
 import com.cafe.service.admin.UserService;
-
-import java.time.LocalTime;
-import java.time.format.DateTimeParseException;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -14,8 +11,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
 
-/** A2 · BranchServlet → /admin/branch. Actions: list/create/update/toggleActive. */
+/** Admin branch management. */
 @WebServlet("/admin/branch")
 public class BranchServlet extends HttpServlet {
 
@@ -29,15 +28,15 @@ public class BranchServlet extends HttpServlet {
         try {
             if ("new".equals(action)) {
                 req.setAttribute("branch", new Branch());
-                forwardForm(req, resp, "Thêm chi nhánh");
+                forwardForm(req, resp, "Them chi nhanh");
             } else if ("edit".equals(action)) {
                 Branch b = service.getBranch(Integer.parseInt(req.getParameter("id")));
                 if (b == null) { resp.sendError(HttpServletResponse.SC_NOT_FOUND); return; }
                 req.setAttribute("branch", b);
-                forwardForm(req, resp, "Sửa chi nhánh");
+                forwardForm(req, resp, "Sua chi nhanh");
             } else {
                 req.setAttribute("branches", service.getBranchList());
-                req.setAttribute("pageTitle", "Chi nhánh");
+                req.setAttribute("pageTitle", "Chi nhanh");
                 req.getRequestDispatcher("/WEB-INF/views/admin/branch-list.jsp").forward(req, resp);
             }
         } catch (Exception e) { throw new ServletException(e); }
@@ -64,7 +63,7 @@ public class BranchServlet extends HttpServlet {
                 }
                 req.setAttribute("branch", b);
                 req.setAttribute("errorMsg", error);
-                forwardForm(req, resp, b.getBranchId() == 0 ? "Thêm chi nhánh" : "Sửa chi nhánh");
+                forwardForm(req, resp, b.getBranchId() == 0 ? "Them chi nhanh" : "Sua chi nhanh");
                 return;
             }
             if (b.getBranchId() == 0) service.createBranch(b); else service.updateBranch(b);
@@ -82,24 +81,25 @@ public class BranchServlet extends HttpServlet {
         b.setActive(req.getParameter("active") != null);
         b.setOpenTime(parseTime(req.getParameter("openTime")));
         b.setCloseTime(parseTime(req.getParameter("closeTime")));
-        String mgr = req.getParameter("managerUserId");
-        b.setManagerUserId(mgr == null || mgr.isBlank() ? null : Integer.parseInt(mgr));
+        int managerUserId = parsePositiveInt(req.getParameter("managerUserId"));
+        b.setManagerUserId(managerUserId <= 0 ? null : managerUserId);
         return b;
     }
 
-    /** input type=time ("HH:mm") → LocalTime; rỗng = null. */
     private LocalTime parseTime(String s) {
         if (s == null || s.isBlank()) return null;
         try { return LocalTime.parse(s); } catch (DateTimeParseException e) { return null; }
     }
 
-    private String validate(Branch b) {
-        if (b.getName() == null || b.getName().isBlank()) return "Tên chi nhánh không được để trống.";
-        if (b.getAddress() == null || b.getAddress().isBlank()) return "Địa chỉ không được để trống.";
+    private String validate(Branch b) throws Exception {
+        if (b.getName() == null || b.getName().isBlank()) return "Ten chi nhanh khong duoc de trong.";
+        if (b.getAddress() == null || b.getAddress().isBlank()) return "Dia chi khong duoc de trong.";
         if ((b.getOpenTime() == null) != (b.getCloseTime() == null))
-            return "Giờ mở/đóng phải nhập cả hai hoặc để trống cả hai.";
+            return "Gio mo/dong phai nhap ca hai hoac de trong ca hai.";
         if (b.getOpenTime() != null && !b.getOpenTime().isBefore(b.getCloseTime()))
-            return "Giờ mở cửa phải trước giờ đóng cửa trong cùng ngày.";
+            return "Gio mo cua phai truoc gio dong cua trong cung ngay.";
+        if (b.getManagerUserId() != null && userService.getManagers().stream().noneMatch(u -> u.getUserId() == b.getManagerUserId()))
+            return "Quan ly phu trach khong hop le.";
         return null;
     }
 
@@ -112,4 +112,14 @@ public class BranchServlet extends HttpServlet {
     }
 
     private String trim(String s) { return s == null ? null : s.trim(); }
+
+    private int parsePositiveInt(String raw) {
+        try {
+            if (raw == null || raw.isBlank()) return 0;
+            int value = Integer.parseInt(raw.trim());
+            return value > 0 ? value : 0;
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
 }

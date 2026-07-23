@@ -18,10 +18,11 @@ public class ShiftAssignmentDao {
     /** Join template + user; lọc theo chi nhánh của template. */
     private static final String SELECT =
         "SELECT sa.ShiftAssignmentId, sa.ShiftTemplateId, sa.UserId, sa.WorkDate, " +
-        "       st.Name AS TemplateName, st.StartTime, st.EndTime, u.FullName AS UserName " +
+        "       st.Name AS TemplateName, st.StartTime, st.EndTime, u.FullName AS UserName, r.Code AS RoleCode " +
         "FROM hr.ShiftAssignment sa " +
         "JOIN hr.ShiftTemplate st ON st.ShiftTemplateId = sa.ShiftTemplateId " +
-        "JOIN iam.[User] u        ON u.UserId = sa.UserId ";
+        "JOIN iam.[User] u        ON u.UserId = sa.UserId " +
+        "JOIN iam.Role r          ON r.RoleId = u.RoleId ";
 
     /** Lịch tuần: tất cả phân công của chi nhánh trong [weekStart, weekStart+7). */
     public List<ShiftAssignment> findByBranchAndWeek(Connection conn, int branchId, LocalDate weekStart) throws SQLException {
@@ -33,6 +34,20 @@ public class ShiftAssignmentDao {
             ps.setInt(1, branchId);
             ps.setDate(2, Date.valueOf(weekStart));
             ps.setDate(3, Date.valueOf(weekStart.plusDays(7)));
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
+        }
+        return out;
+    }
+
+    /** Các phân công trong khoảng ngày, dùng để tìm ca tiếp theo cho bàn giao. */
+    public List<ShiftAssignment> findByBranchRange(Connection conn, int branchId, LocalDate from, LocalDate untilExclusive) throws SQLException {
+        List<ShiftAssignment> out = new ArrayList<>();
+        final String sql = SELECT +
+            "WHERE st.BranchId=? AND sa.WorkDate >= ? AND sa.WorkDate < ? ORDER BY sa.WorkDate, st.StartTime";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setDate(2, Date.valueOf(from));
+            ps.setDate(3, Date.valueOf(untilExclusive));
             try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
         }
         return out;
@@ -103,6 +118,7 @@ public class ShiftAssignmentDao {
         if (st != null) a.setStartTime(st.toLocalTime());
         if (et != null) a.setEndTime(et.toLocalTime());
         a.setUserName(rs.getString("UserName"));
+        a.setRoleCode(rs.getString("RoleCode"));
         return a;
     }
 }

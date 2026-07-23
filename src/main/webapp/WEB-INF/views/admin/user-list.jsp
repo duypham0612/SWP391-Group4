@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Nhân sự</h1><p>iam.[User]</p></div>
+    <div><h1>Nhân sự</h1><p>Quản lý tài khoản, vai trò và chi nhánh làm việc.</p></div>
     <a class="btn btn-primary" href="${ctx}/admin/user?action=new">+ Thêm nhân sự</a>
 </div>
 
@@ -49,10 +49,15 @@
             <div class="card empty-state"><div class="icon">📭</div><p>Chưa có nhân sự nào.</p></div>
         </c:when>
         <c:otherwise>
-            <table class="table">
+            <table class="table admin-user-table">
                 <thead><tr>
-                    <th style="width:60px">#</th><th>Tên đăng nhập</th><th>Họ tên</th><th>Vai trò</th>
-                    <th>Chi nhánh</th><th style="width:110px">Trạng thái</th><th style="width:90px">Thao tác</th>
+                    <th style="width:52px">#</th>
+                    <th style="width:150px">Tên đăng nhập</th>
+                    <th>Họ tên</th>
+                    <th style="width:180px">Vai trò</th>
+                    <th style="width:220px">Chi nhánh</th>
+                    <th style="width:120px">Trạng thái</th>
+                    <th style="width:150px">Thao tác</th>
                 </tr></thead>
                 <tbody>
                     <c:forEach var="s" items="${staffList}" varStatus="st">
@@ -66,9 +71,10 @@
                             <td>
                                 <c:choose>
                                     <c:when test="${s.roleCode == 'ADMIN'}">
-                                        <span class="muted" title="Tài khoản Admin hệ thống — không thể sửa/khoá">🔒 Admin hệ thống</span>
+                                        <span class="badge badge-served" title="Tài khoản Admin hệ thống không thể sửa hoặc khoá">Admin</span>
                                     </c:when>
                                     <c:otherwise>
+                                        <div class="row-actions">
                                         <a class="btn btn-ghost btn-sm" href="${ctx}/admin/user?action=edit&id=${s.userId}">Sửa</a>
                                         <form action="${ctx}/admin/user" method="post" style="display:inline"
                                               onsubmit="return confirm('Đổi trạng thái tài khoản này?');">
@@ -80,6 +86,7 @@
                                                 <c:choose><c:when test="${s.status == 'ACTIVE'}">Khoá</c:when><c:otherwise>Mở khoá</c:otherwise></c:choose>
                                             </button>
                                         </form>
+                                        </div>
                                     </c:otherwise>
                                 </c:choose>
                             </td>

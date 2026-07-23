@@ -49,15 +49,6 @@
                         </td>
                         <td>
                             <div style="display:grid;gap:8px">
-                                <c:if test="${r.status == 'PENDING'}">
-                                    <form action="${ctx}/manager/menu-block" method="post" style="display:flex;gap:6px;align-items:center;margin:0">
-                                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                                        <input type="hidden" name="requestId" value="${r.requestId}">
-                                        <input type="hidden" name="action" value="approve">
-                                        <input name="reviewNote" class="form-control" maxlength="255" placeholder="Ghi chú duyệt">
-                                        <button type="submit" class="btn btn-sm btn-ghost">Duyệt</button>
-                                    </form>
-                                </c:if>
                                 <div style="display:flex;gap:6px;flex-wrap:wrap">
                                     <form action="${ctx}/manager/menu-block" method="post" style="margin:0">
                                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">

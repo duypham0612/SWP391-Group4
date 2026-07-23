@@ -52,7 +52,7 @@
             </c:choose>
         </span>
     </a>
-    <a class="card stat" href="${ctx}/manager/waste">
+    <a class="card stat" href="${ctx}/manager/reconciliation">
         <span class="label">Hao hụt hôm nay</span>
         <span class="value"><fmt:formatNumber value="${summary.todayWaste.totalCost}" maxFractionDigits="0"/> ₫</span>
         <span class="muted">${summary.todayWaste.activeCount} dòng · ${summary.todayWaste.remakeCount} làm lại</span>
@@ -62,6 +62,12 @@
         <span class="value">→</span>
     </a>
 </div>
+
+<c:if test="${not empty managerHandoverFallbacks}">
+<a class="alert alert-warn" href="${ctx}/manager/handover" style="display:block;margin-bottom:var(--s5);text-decoration:none">
+    <strong>Có ${managerHandoverFallbacks.size()} bàn giao chưa có ca barista nhận.</strong> Bạn đang là người tiếp nhận dự phòng →
+</a>
+</c:if>
 
 <c:if test="${summary.hasOversold}">
 <div class="card" style="margin-bottom:var(--s5);border-color:var(--st-cancelled)">

@@ -11,11 +11,7 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 
-/**
- * Quản trị trang Home công khai → /admin/home (chỉ ADMIN).
- * Cho phép chọn món hiển thị + thứ tự ưu tiên trên Home và sửa nội dung hero.
- * Actions (POST): saveProduct / toggleHome / saveContent.
- */
+/** Admin editor for public Home content. */
 @WebServlet("/admin/home")
 public class HomeAdminServlet extends HttpServlet {
 
@@ -52,14 +48,13 @@ public class HomeAdminServlet extends HttpServlet {
                     req.getSession().setAttribute("flashError", error);
                 } else {
                     service.saveContent(s);
-                    req.getSession().setAttribute("flashOk", "Đã lưu nội dung trang Home.");
+                    req.getSession().setAttribute("flashOk", "Da luu noi dung trang Home.");
                 }
             }
             resp.sendRedirect(ctx + "/admin/home");
         } catch (Exception e) { throw new ServletException(e); }
     }
 
-    /** Lưu hiển thị + thứ tự Home cho toàn bộ món trong 1 lần ("Lưu tất cả"). */
     private void saveHomeProducts(HttpServletRequest req) throws java.sql.SQLException {
         String[] pids = req.getParameterValues("pid");
         if (pids == null || pids.length == 0) return;
@@ -79,14 +74,18 @@ public class HomeAdminServlet extends HttpServlet {
         int[] ids = new int[n];
         boolean[] shows = new boolean[n];
         int[] orders = new int[n];
-        for (int i = 0; i < n; i++) { ids[i] = idList.get(i); shows[i] = showList.get(i); orders[i] = orderList.get(i); }
+        for (int i = 0; i < n; i++) {
+            ids[i] = idList.get(i);
+            shows[i] = showList.get(i);
+            orders[i] = orderList.get(i);
+        }
         service.saveProductHomeBatch(ids, shows, orders);
-        req.getSession().setAttribute("flashOk", "Đã lưu hiển thị & thứ tự các món trên Home.");
+        req.getSession().setAttribute("flashOk", "Da luu hien thi va thu tu cac mon tren Home.");
     }
 
     private String validateContent(HomeSetting s) {
         if (s.getHeroTitle() == null || s.getHeroTitle().isBlank())
-            return "Tiêu đề trang Home không được để trống.";
+            return "Tieu de trang Home khong duoc de trong.";
         return null;
     }
 

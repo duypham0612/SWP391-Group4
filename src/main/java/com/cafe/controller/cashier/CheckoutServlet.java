@@ -144,6 +144,8 @@ public class CheckoutServlet extends HttpServlet {
         if (bill.getItems() == null || bill.getItems().isEmpty()) return "Hoá đơn chưa có món, không thể thanh toán.";
         BigDecimal total = bill.getTotalAmount() == null ? BigDecimal.ZERO : bill.getTotalAmount();
         if (total.compareTo(BigDecimal.ZERO) <= 0) return "Tổng tiền hoá đơn phải lớn hơn 0.";
+        String voucherError = billingService.validateBillVoucher(billId, branchId);
+        if (voucherError != null) return voucherError;
         return null;
     }
 }

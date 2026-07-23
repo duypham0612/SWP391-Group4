@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Nhân sự</div><h1>Ca làm</h1><p>hr.ShiftTemplate · ShiftAssignment — chống xếp trùng giờ</p></div>
+    <div><div class="eyebrow">Nhân sự</div><h1>Lịch làm việc</h1><p>Tạo khung giờ làm và phân ca cho nhân viên, có kiểm tra trùng lịch.</p></div>
     <div style="display:flex;gap:8px;align-items:center">
         <a class="btn btn-ghost btn-sm" href="${ctx}/manager/shift?week=${prevWeek}">← Tuần trước</a>
         <strong>Tuần ${weekStart}</strong>

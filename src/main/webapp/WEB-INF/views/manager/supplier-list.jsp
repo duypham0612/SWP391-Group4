@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Kho</div><h1>Nhà cung cấp</h1><p>inventory.Supplier</p></div>
+    <div><div class="eyebrow">Kho</div><h1>Nhà cung cấp</h1><p>Quản lý thông tin liên hệ của các đơn vị cung ứng nguyên liệu.</p></div>
     <a class="btn btn-primary" href="${ctx}/manager/supplier?action=new">+ Thêm nhà cung cấp</a>
 </div>
 

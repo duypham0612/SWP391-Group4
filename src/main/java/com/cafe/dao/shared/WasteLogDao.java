@@ -1,6 +1,7 @@
 package com.cafe.dao.shared;
 
 import com.cafe.model.WasteLog;
+import com.cafe.model.WasteEvent;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -17,8 +18,14 @@ public class WasteLogDao {
 
     public int insert(Connection conn, int branchId, int ingredientId, BigDecimal qty,
                       String wasteType, String reason, int loggedBy) throws SQLException {
-        final String sql = "INSERT INTO inventory.WasteLog(BranchId, IngredientId, Quantity, WasteType, Reason, LoggedBy) " +
-                "VALUES (?,?,?,?,?,?)";
+        return insert(conn, branchId, ingredientId, qty, wasteType, reason, loggedBy, null, null, "LEGACY_ESTIMATE");
+    }
+
+    public int insert(Connection conn, int branchId, int ingredientId, BigDecimal qty,
+                      String wasteType, String reason, int loggedBy, Long eventId,
+                      BigDecimal unitCostAtLog, String costBasis) throws SQLException {
+        final String sql = "INSERT INTO inventory.WasteLog(BranchId, IngredientId, Quantity, WasteType, Reason, LoggedBy,WasteEventId,UnitCostAtLog,CostBasis) " +
+                "VALUES (?,?,?,?,?,?,?,?,?)";
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setInt(1, branchId);
             ps.setInt(2, ingredientId);
@@ -26,17 +33,23 @@ public class WasteLogDao {
             ps.setString(4, wasteType);
             if (reason == null) ps.setNull(5, java.sql.Types.NVARCHAR); else ps.setString(5, reason);
             ps.setInt(6, loggedBy);
+            if (eventId == null) ps.setNull(7, java.sql.Types.BIGINT); else ps.setLong(7, eventId);
+            if (unitCostAtLog == null) ps.setNull(8, java.sql.Types.DECIMAL); else ps.setBigDecimal(8, unitCostAtLog);
+            ps.setString(9, costBasis == null ? "UNAVAILABLE" : costBasis);
             ps.executeUpdate();
             try (ResultSet k = ps.getGeneratedKeys()) { return k.next() ? k.getInt(1) : 0; }
         }
     }
 
     private static final String SELECT =
-        "SELECT wl.WasteLogId, wl.BranchId, wl.IngredientId, wl.Quantity, wl.WasteType, wl.Reason, wl.LoggedBy, wl.LoggedAt, wl.Status, wl.VoidedAt, " +
+        "SELECT wl.WasteLogId, wl.BranchId, wl.IngredientId, wl.Quantity, wl.WasteType, wl.Reason, wl.LoggedBy, wl.LoggedAt, wl.Status, wl.VoidedAt,wl.WasteEventId,wl.UnitCostAtLog,wl.CostBasis, " +
+        "       we.EventKind,we.Source,we.ProductId,we.OrderItemId,we.CupQuantity,we.CauseCode,we.CauseDetail,wp.Name AS ProductName, " +
         "       i.Name AS IngName, i.Unit AS IngUnit, i.IngredientType, u.FullName AS LoggedByName " +
         "FROM inventory.WasteLog wl " +
         "JOIN catalog.Ingredient i ON i.IngredientId=wl.IngredientId " +
-        "JOIN iam.[User] u ON u.UserId=wl.LoggedBy ";
+        "JOIN iam.[User] u ON u.UserId=wl.LoggedBy " +
+        "LEFT JOIN inventory.WasteEvent we ON we.WasteEventId=wl.WasteEventId " +
+        "LEFT JOIN catalog.Product wp ON wp.ProductId=we.ProductId ";
 
     public List<WasteLog> findByBranch(Connection conn, int branchId) throws SQLException {
         List<WasteLog> out = new ArrayList<>();
@@ -179,6 +192,18 @@ public class WasteLogDao {
         w.setIngredientUnit(rs.getString("IngUnit"));
         w.setIngredientType(rs.getString("IngredientType"));
         w.setLoggedByName(rs.getString("LoggedByName"));
+        long eventId = rs.getLong("WasteEventId"); if (!rs.wasNull()) w.setWasteEventId(eventId);
+        w.setUnitCostAtLog(rs.getBigDecimal("UnitCostAtLog"));
+        w.setCostBasis(rs.getString("CostBasis"));
+        long eventKey = rs.getLong("WasteEventId");
+        if (!rs.wasNull()) {
+            WasteEvent event = new WasteEvent(); event.setWasteEventId(eventKey); event.setEventKind(rs.getString("EventKind"));
+            event.setSource(rs.getString("Source")); event.setProductId(nullableInt(rs, "ProductId")); event.setOrderItemId(nullableInt(rs, "OrderItemId"));
+            event.setCupQuantity(nullableInt(rs, "CupQuantity")); event.setCauseCode(rs.getString("CauseCode")); event.setCauseDetail(rs.getString("CauseDetail")); event.setProductName(rs.getString("ProductName"));
+            w.setWasteEvent(event);
+        }
         return w;
     }
+
+    private static Integer nullableInt(ResultSet rs, String name) throws SQLException { int value=rs.getInt(name); return rs.wasNull() ? null : value; }
 }

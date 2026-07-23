@@ -49,9 +49,12 @@ public class CatalogReadService {
     /** Menu bán được của chi nhánh: published + available + chưa 86, kèm nhóm modifier. */
     public List<PosMenuItem> getPosMenu(int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
+            // Hết theo kho = tự động ẩn (bản chất 1): tính từ tồn, không phải cờ 86 thủ công.
+            java.util.Set<Integer> depleted = productRecipeDao.findDepletedProductIds(conn, branchId);
             List<PosMenuItem> out = new ArrayList<>();
             for (BranchMenuItem bm : branchMenuDao.listForBranch(conn, branchId)) {
-                if (!bm.isPublished() || !bm.isAvailable() || bm.isIs86()) continue;
+                if (!bm.isPublished() || !bm.isAvailable() || bm.isIs86()
+                        || depleted.contains(bm.getProductId())) continue;
                 PosMenuItem item = new PosMenuItem();
                 item.setProductId(bm.getProductId());
                 item.setName(bm.getProductName());
@@ -60,8 +63,7 @@ public class CatalogReadService {
 
                 for (ProductModifierGroup pmg : pmgDao.findByProduct(conn, bm.getProductId())) {
                     ModifierGroup g = groupDao.findById(conn, pmg.getModifierGroupId());
-                    if (g == null) continue;
-                    if (!isCustomerChoiceGroup(g.getName())) continue;
+                    if (g == null || !isChoiceGroup(g.getName())) continue;
                     PosMenuItem.Group grp = new PosMenuItem.Group();
                     grp.setGroupId(g.getModifierGroupId());
                     grp.setName(g.getName());
@@ -77,10 +79,6 @@ public class CatalogReadService {
             }
             return out;
         }
-    }
-
-    private boolean isCustomerChoiceGroup(String name) {
-        return GROUP_SIZE.equals(name) || GROUP_SUGAR.equals(name) || GROUP_ICE.equals(name);
     }
 
     // ===== Trang Home công khai: catalog theo danh mục (khách xem, không cần login) =====
@@ -139,6 +137,15 @@ public class CatalogReadService {
         }
     }
 
+    /** Chi tiết món trong đúng phạm vi tìm kiếm công thức của Barista. */
+    public Product getRecipeProductForLookup(int productId, String q, Integer categoryId,
+                                             String recipeState, Integer branchId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            return productDao.findForRecipeLookupById(
+                    conn, productId, q, categoryId, recipeState, branchId);
+        }
+    }
+
     public List<Category> getRecipeFilterCategories() throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             return categoryDao.findActive(conn);
@@ -184,8 +191,10 @@ public class CatalogReadService {
             List<OptionImpactRow> rows = new ArrayList<>();
             for (ProductModifierGroup pmg : pmgDao.findByProduct(conn, productId)) {
                 ModifierGroup g = groupDao.findById(conn, pmg.getModifierGroupId());
-                if (g == null) continue;
+                if (g == null || !isChoiceGroup(g.getName())) continue;
                 for (ModifierOption o : optionDao.findByGroup(conn, g.getModifierGroupId())) {
+                    // Barista chỉ cần định mức của lựa chọn còn có thể bán trên POS.
+                    if (!o.isActive()) continue;
                     for (ModifierIngredientImpact imp : impactDao.findByOption(conn, o.getModifierOptionId())) {
                         OptionImpactRow r = new OptionImpactRow();
                         r.groupName = g.getName();
@@ -210,5 +219,9 @@ public class CatalogReadService {
         public String getIngredientName() { return ingredientName; }
         public String getIngredientUnit() { return ingredientUnit; }
         public BigDecimal getQtyDelta() { return qtyDelta; }
+    }
+
+    private static boolean isChoiceGroup(String name) {
+        return GROUP_SIZE.equals(name) || GROUP_SUGAR.equals(name) || GROUP_ICE.equals(name);
     }
 }

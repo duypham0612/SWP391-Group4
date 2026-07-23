@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Kho</div><h1>Tồn kho chi nhánh</h1><p>inventory.BranchInventory · số dư từ sổ cái</p></div>
+    <div><div class="eyebrow">Kho</div><h1>Tồn kho chi nhánh</h1><p>Theo dõi số lượng hiện có và các nguyên liệu sắp chạm ngưỡng cảnh báo.</p></div>
 </div>
 
 <c:if test="${not empty sessionScope.flashError}">

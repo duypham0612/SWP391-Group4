@@ -129,6 +129,12 @@ public class BillingService {
         return null;
     }
 
+    public String validateBillVoucher(int billId, int branchId) throws SQLException {
+        Bill bill = getBill(billId);
+        if (bill == null || bill.getVoucherId() == null) return null;
+        return voucherService.validateVoucherById(bill.getVoucherId(), branchId, bill.getSubtotal());
+    }
+
     public void removeVoucher(int billId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
@@ -149,6 +155,11 @@ public class BillingService {
             try {
                 Bill bill = billDao.findById(c, billId);
                 if (bill == null) { c.rollback(); return false; }
+                if (bill.getVoucherId() != null) {
+                    Voucher voucher = voucherDao.findById(c, bill.getVoucherId());
+                    String voucherError = VoucherService.validateVoucherRecord(voucher, bill.getBranchId(), bill.getSubtotal());
+                    if (voucherError != null) { c.rollback(); return false; }
+                }
                 if (billItemDao.countByBill(c, billId) == 0
                         || bill.getTotalAmount() == null
                         || bill.getTotalAmount().compareTo(BigDecimal.ZERO) <= 0) {

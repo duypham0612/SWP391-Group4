@@ -19,6 +19,7 @@
                 <summary>Thao tác khác</summary>
                 <div class="kds-card-menu__panel kds-subactions">
                 <button type="button" class="btn btn-ghost btn-sm js-issue" data-item-id="${cardItem.orderItemId}" data-product-id="${cardItem.productId}" data-name="${cardItem.quantity} × <c:out value='${cardItem.productName}' />">Báo sự cố</button>
+                <button type="button" class="btn btn-ghost btn-sm js-remake" data-item-id="${cardItem.orderItemId}" data-name="${cardItem.quantity} × <c:out value='${cardItem.productName}' />" ${cardItem.recipeMissing ? 'disabled' : ''}>Pha lỗi / làm lại</button>
                 <form action="${ctx}/barista/kds" method="post" data-confirm="Trả món về hàng chờ để barista khác có thể nhận?">
                     <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="returnQueue"><input type="hidden" name="orderItemId" value="${cardItem.orderItemId}">
                     <button type="submit" class="btn btn-ghost btn-sm">Trả lại hàng chờ</button>

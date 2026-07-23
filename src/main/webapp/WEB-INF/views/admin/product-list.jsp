@@ -5,7 +5,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Sản phẩm</h1><p>catalog.Product</p></div>
+    <div><h1>Sản phẩm</h1><p>Quản lý món bán, giá, size và thời gian pha.</p></div>
     <a class="btn btn-primary" href="${ctx}/admin/product?action=new">+ Thêm sản phẩm</a>
 </div>
 
@@ -21,7 +21,7 @@
         <div class="card empty-state"><div class="icon">📭</div><p>Chưa có sản phẩm nào.</p></div>
     </c:when>
     <c:otherwise>
-        <form id="publishManyForm" action="${ctx}/admin/product" method="post" data-tabletools>
+        <form id="publishManyForm" action="${ctx}/admin/product" method="post" data-tabletools data-tt-page-size="10">
             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
             <input type="hidden" name="action" value="publishManyToBranch">
 
@@ -59,21 +59,19 @@
                         <option value="false">Ẩn</option>
                     </select>
                 </div>
-                <div class="form-group">
-                    <label for="productPageSize">Hiển thị</label>
-                    <select id="productPageSize" class="form-control tt-size" data-tt-size>
-                        <option value="10">10</option>
-                        <option value="20">20</option>
-                        <option value="50">50</option>
-                    </select>
-                </div>
             </div>
 
-            <table class="table">
+            <table class="table admin-product-table">
                 <thead><tr>
-                    <th style="width:44px" data-tt-nosearch><input id="checkAllProducts" type="checkbox" aria-label="Chọn tất cả sản phẩm"></th>
-                    <th style="width:60px" data-tt-nosearch>#</th><th style="width:64px" data-tt-nosearch>Ảnh</th><th data-tt-search>Tên</th><th data-tt-search>Danh mục</th>
-                    <th style="width:140px" data-tt-nosearch>Giá gốc</th><th style="width:110px" data-tt-nosearch>Trạng thái</th><th style="width:100px" data-tt-nosearch>Pha chuẩn</th><th style="width:170px" data-tt-nosearch>Thao tác</th>
+                    <th style="width:42px" data-tt-nosearch><input id="checkAllProducts" type="checkbox" aria-label="Chọn tất cả sản phẩm"></th>
+                    <th style="width:56px" data-tt-nosearch>#</th>
+                    <th style="width:70px" data-tt-nosearch>Ảnh</th>
+                    <th data-tt-search>Tên</th>
+                    <th style="width:180px" data-tt-search>Danh mục</th>
+                    <th style="width:130px" data-tt-nosearch>Giá gốc</th>
+                    <th style="width:120px" data-tt-nosearch>Trạng thái</th>
+                    <th style="width:105px" data-tt-nosearch>Pha chuẩn</th>
+                    <th style="width:260px" data-tt-nosearch>Thao tác</th>
                 </tr></thead>
                 <tbody>
                     <c:forEach var="p" items="${products}">
@@ -88,9 +86,11 @@
                             <td data-tt-val="${p.active}"><c:choose><c:when test="${p.active}"><span class="badge badge-ready">Hiển thị</span></c:when><c:otherwise><span class="badge badge-cancelled">Ẩn</span></c:otherwise></c:choose></td>
                             <td>${p.prepMinutes} phút</td>
                             <td>
+                                <div class="row-actions">
                                 <a class="btn btn-ghost btn-sm" href="${ctx}/admin/product?action=edit&id=${p.productId}">Sửa</a>
                                 <a class="btn btn-ghost btn-sm" href="${ctx}/admin/recipe?productId=${p.productId}">Công thức</a>
                                 <button type="submit" form="toggleProduct${p.productId}" class="btn btn-ghost btn-sm" onclick="return confirm('Đổi trạng thái sản phẩm này?');">${p.active ? 'Ẩn' : 'Hiện'}</button>
+                                </div>
                             </td>
                         </tr>
                     </c:forEach>

@@ -154,16 +154,23 @@ public class AttendanceService {
 
     /** Vào ca: yêu cầu đã được xếp ca hôm nay, idempotent nếu đã có bản đang mở. */
     public void clockIn(int userId, int branchId) throws SQLException {
-        txVoid(c -> clockIn(c, userId, branchId));
+        try {
+            txVoid(c -> clockIn(c, userId, branchId));
+        } catch (SQLException e) {
+            // Nếu một request song song vừa tạo Attendance, đọc lại ở transaction mới.
+            // Khi bản ghi đó đang mở thì clockIn(Connection) trả về thành công như thao tác lặp.
+            if (!isDuplicateKey(e)) throw e;
+            txVoid(c -> clockIn(c, userId, branchId));
+        }
     }
 
     /** Lõi vào ca chạy trong transaction của caller. */
     public void clockIn(Connection c, int userId, int branchId) throws SQLException {
-        List<ShiftAssignment> assignments = dao.findTodayAssignments(c, userId, branchId, LocalDate.now());
+        List<ShiftAssignment> assignments = dao.findTodayAssignments(c, userId, branchId, currentVnDate());
         if (assignments.isEmpty()) throw new IllegalStateException("Hôm nay bạn chưa được xếp ca.");
 
         ShiftAssignment target = chooseForClockIn(c, assignments);
-        Attendance existing = dao.findByAssignment(c, target.getShiftAssignmentId());
+        Attendance existing = dao.findByAssignmentForUpdate(c, target.getShiftAssignmentId());
         if (existing == null) {
             dao.insert(c, target.getShiftAssignmentId(), dao.currentUtc(c), null, "PENDING");
             return;
@@ -184,7 +191,7 @@ public class AttendanceService {
 
     /** Lõi tan ca chạy trong transaction của caller. */
     public void clockOut(Connection c, int userId, int branchId) throws SQLException {
-        List<ShiftAssignment> assignments = dao.findTodayAssignments(c, userId, branchId, LocalDate.now());
+        List<ShiftAssignment> assignments = dao.findTodayAssignments(c, userId, branchId, currentVnDate());
         if (assignments.isEmpty()) throw new IllegalStateException("Hôm nay bạn chưa được xếp ca.");
 
         ShiftAssignment target = chooseOpenAssignment(c, assignments);
@@ -277,6 +284,19 @@ public class AttendanceService {
 
     private double hoursBetween(LocalDateTime start, LocalDateTime end) {
         return ShiftHours.worked(start, end);
+    }
+
+    /** Một nguồn ngày dùng chung cho mọi thao tác chấm công, độc lập timezone của server. */
+    static LocalDate currentVnDate() {
+        return BusinessDay.todayVn();
+    }
+
+    private static boolean isDuplicateKey(SQLException error) {
+        for (SQLException current = error; current != null; current = current.getNextException()) {
+            // SQL Server: 2601 = duplicate unique index, 2627 = duplicate constraint/PK.
+            if (current.getErrorCode() == 2601 || current.getErrorCode() == 2627) return true;
+        }
+        return false;
     }
 
     private interface V{ void run(Connection c) throws SQLException; }

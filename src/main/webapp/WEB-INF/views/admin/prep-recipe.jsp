@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Công thức pha sẵn: ${prepped.name}</h1><p>catalog.PrepRecipe · tạo nguyên liệu pha sẵn từ nguyên liệu thô (Contract #2)</p></div>
+    <div><h1>Công thức pha sẵn: ${prepped.name}</h1><p>Tạo mẻ pha sẵn từ nguyên liệu thô.</p></div>
     <a class="btn btn-ghost" href="${ctx}/admin/recipe">← Quay lại</a>
 </div>
 

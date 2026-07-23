@@ -141,6 +141,26 @@ public class ProductDao {
         }
     }
 
+    /**
+     * Đọc chi tiết một món chỉ khi món đó vẫn thuộc đúng tập kết quả mà Barista
+     * đang tra cứu. Không dùng {@link #findById(Connection, int)} ở màn Barista
+     * vì lời gọi trực tiếp productId có thể bỏ qua phạm vi chi nhánh / bộ lọc.
+     */
+    public Product findForRecipeLookupById(Connection conn, int productId, String q,
+                                           Integer categoryId, String recipeState,
+                                           Integer branchId) throws SQLException {
+        StringBuilder sql = new StringBuilder(
+                SELECT + "WHERE p.ProductId = ? AND p.IsActive = 1");
+        appendRecipeWhere(sql, q, categoryId, recipeState, branchId);
+        try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
+            ps.setInt(1, productId);
+            bindRecipeFilters(ps, 2, q, categoryId, recipeState, branchId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? map(rs) : null;
+            }
+        }
+    }
+
     /** Cập nhật trạng thái hiển thị + thứ tự trên Home cho 1 sản phẩm. */
     public void updateHomeDisplay(Connection conn, int id, boolean showOnHome, int homeSortOrder) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
@@ -170,7 +190,13 @@ public class ProductDao {
 
     private int bindRecipeFilters(PreparedStatement ps, String q, Integer categoryId,
                                   String recipeState, Integer branchId) throws SQLException {
-        int i = 1;
+        return bindRecipeFilters(ps, 1, q, categoryId, recipeState, branchId);
+    }
+
+    private int bindRecipeFilters(PreparedStatement ps, int startIndex, String q,
+                                  Integer categoryId, String recipeState,
+                                  Integer branchId) throws SQLException {
+        int i = startIndex;
         if (q != null && !q.isBlank()) ps.setString(i++, "%" + escapeLike(q.trim()) + "%");
         if (categoryId != null) ps.setInt(i++, categoryId);
         if (branchId != null) ps.setInt(i++, branchId);

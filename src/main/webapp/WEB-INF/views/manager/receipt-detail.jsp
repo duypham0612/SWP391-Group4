@@ -15,7 +15,7 @@
                 <c:otherwise><span class="badge badge-cancelled">Đã huỷ</span></c:otherwise>
             </c:choose>
         </h1>
-        <p><c:if test="${not empty receipt.supplierName}">NCC: ${receipt.supplierName} · </c:if>Người nhập: ${receipt.receivedByName}</p>
+        <p><c:if test="${not empty receipt.supplierName}">Nhà cung cấp: ${receipt.supplierName} · </c:if>Người nhập: ${receipt.receivedByName}</p>
     </div>
     <a class="btn btn-ghost" href="${ctx}/manager/receipt">← Danh sách phiếu</a>
 </div>

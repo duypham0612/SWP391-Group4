@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Nguyên liệu</h1><p>catalog.Ingredient · Nguyên liệu thô (mua về) / Nguyên liệu pha sẵn</p></div>
+    <div><h1>Nguyên liệu</h1><p>Quản lý nguyên liệu thô và nguyên liệu pha sẵn.</p></div>
     <a class="btn btn-primary" href="${ctx}/admin/ingredient?action=new">+ Thêm nguyên liệu</a>
 </div>
 
@@ -13,7 +13,7 @@
         <div class="card empty-state"><div class="icon">📭</div><p>Chưa có nguyên liệu nào.</p></div>
     </c:when>
     <c:otherwise>
-        <div data-tabletools>
+        <div data-tabletools data-tt-page-size="10">
             <div class="table-toolbar">
                 <div class="form-group table-search">
                     <label for="ingredientSearch">Tìm kiếm</label>
@@ -33,14 +33,6 @@
                         <option value="">Tất cả</option>
                         <option value="true">Hiển thị</option>
                         <option value="false">Ẩn</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="ingredientPageSize">Hiển thị</label>
-                    <select id="ingredientPageSize" class="form-control tt-size" data-tt-size>
-                        <option value="10">10</option>
-                        <option value="20">20</option>
-                        <option value="50">50</option>
                     </select>
                 </div>
             </div>

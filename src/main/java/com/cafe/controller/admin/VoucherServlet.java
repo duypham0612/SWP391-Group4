@@ -15,7 +15,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Set;
 
-/** A5 · VoucherServlet → /admin/voucher. Actions: list/create/update/toggleActive. */
+/** Admin voucher management. */
 @WebServlet("/admin/voucher")
 public class VoucherServlet extends HttpServlet {
 
@@ -32,12 +32,12 @@ public class VoucherServlet extends HttpServlet {
         try {
             if ("new".equals(action)) {
                 req.setAttribute("voucher", new Voucher());
-                forwardForm(req, resp, "Thêm voucher");
+                forwardForm(req, resp, "Them voucher");
             } else if ("edit".equals(action)) {
                 Voucher v = service.getVoucher(Integer.parseInt(req.getParameter("id")));
                 if (v == null) { resp.sendError(HttpServletResponse.SC_NOT_FOUND); return; }
                 req.setAttribute("voucher", v);
-                forwardForm(req, resp, "Sửa voucher");
+                forwardForm(req, resp, "Sua voucher");
             } else {
                 req.setAttribute("vouchers", service.getVoucherList());
                 req.setAttribute("pageTitle", "Voucher");
@@ -59,7 +59,7 @@ public class VoucherServlet extends HttpServlet {
                 return;
             }
             Voucher v = bind(req);
-            if (v.getVoucherId() != 0) {                      // sửa: mã voucher KHÔNG đổi được
+            if (v.getVoucherId() != 0) {
                 Voucher existing = service.getVoucher(v.getVoucherId());
                 if (existing != null) v.setCode(existing.getCode());
             }
@@ -67,7 +67,7 @@ public class VoucherServlet extends HttpServlet {
             if (error != null) {
                 req.setAttribute("voucher", v);
                 req.setAttribute("errorMsg", error);
-                forwardForm(req, resp, v.getVoucherId() == 0 ? "Thêm voucher" : "Sửa voucher");
+                forwardForm(req, resp, v.getVoucherId() == 0 ? "Them voucher" : "Sua voucher");
                 return;
             }
             if (v.getVoucherId() == 0) service.createVoucher(v); else service.updateVoucher(v);
@@ -84,27 +84,27 @@ public class VoucherServlet extends HttpServlet {
         v.setDiscountValue(decimal(req.getParameter("discountValue")));
         v.setMinOrderAmount(decimal(req.getParameter("minOrderAmount")));
         v.setScope(trim(req.getParameter("scope")));
-        String branch = req.getParameter("branchId");
-        v.setBranchId(branch == null || branch.isBlank() ? null : Integer.parseInt(branch));
+        int branchId = parsePositiveInt(req.getParameter("branchId"));
+        v.setBranchId(branchId <= 0 ? null : branchId);
         v.setStartDate(dateTime(req.getParameter("startDate")));
         v.setEndDate(dateTime(req.getParameter("endDate")));
-        String limit = req.getParameter("usageLimit");
-        v.setUsageLimit(limit == null || limit.isBlank() ? null : Integer.parseInt(limit));
+        v.setUsageLimit(parseOptionalNonNegativeInt(req.getParameter("usageLimit")));
         v.setActive(req.getParameter("active") != null);
         return v;
     }
 
     private String validate(Voucher v) {
-        if (v.getCode() == null || v.getCode().isBlank()) return "Mã voucher không được để trống.";
-        if (v.getDiscountType() == null || !TYPES.contains(v.getDiscountType())) return "Loại giảm phải là PERCENT hoặc FIXED.";
-        if (v.getDiscountValue() == null || v.getDiscountValue().signum() < 0) return "Giá trị giảm phải >= 0.";
+        if (v.getCode() == null || v.getCode().isBlank()) return "Ma voucher khong duoc de trong.";
+        if (v.getDiscountType() == null || !TYPES.contains(v.getDiscountType())) return "Loai giam phai la PERCENT hoac FIXED.";
+        if (v.getDiscountValue() == null || v.getDiscountValue().signum() < 0) return "Gia tri giam phai >= 0.";
         if ("PERCENT".equals(v.getDiscountType()) && v.getDiscountValue().compareTo(BigDecimal.valueOf(100)) > 0)
-            return "Giảm theo % không vượt quá 100.";
-        if (v.getScope() == null || !SCOPES.contains(v.getScope())) return "Phạm vi phải là CHAIN hoặc BRANCH.";
-        if ("BRANCH".equals(v.getScope()) && v.getBranchId() == null) return "Voucher phạm vi BRANCH phải chọn chi nhánh.";
+            return "Giam theo phan tram khong duoc vuot qua 100.";
+        if (v.getScope() == null || !SCOPES.contains(v.getScope())) return "Pham vi phai la CHAIN hoac BRANCH.";
+        if ("BRANCH".equals(v.getScope()) && v.getBranchId() == null) return "Voucher pham vi BRANCH phai chon chi nhanh.";
         if ("CHAIN".equals(v.getScope())) v.setBranchId(null);
+        if (v.getUsageLimit() != null && v.getUsageLimit() < 0) return "Gioi han su dung phai >= 0.";
         if (v.getStartDate() != null && v.getEndDate() != null && v.getEndDate().isBefore(v.getStartDate()))
-            return "Ngày kết thúc phải sau ngày bắt đầu.";
+            return "Ngay ket thuc phai sau ngay bat dau.";
         return null;
     }
 
@@ -120,10 +120,32 @@ public class VoucherServlet extends HttpServlet {
         try { return s == null || s.isBlank() ? BigDecimal.ZERO : new BigDecimal(s.trim()); }
         catch (NumberFormatException e) { return BigDecimal.valueOf(-1); }
     }
+
     private LocalDateTime dateTime(String s) {
         try { return s == null || s.isBlank() ? null : LocalDateTime.parse(s.trim()); }
         catch (Exception e) { return null; }
     }
+
     private String trim(String s) { return s == null ? null : s.trim(); }
     private String up(String s) { return s == null ? null : s.trim().toUpperCase(); }
+
+    private int parsePositiveInt(String raw) {
+        try {
+            if (raw == null || raw.isBlank()) return 0;
+            int value = Integer.parseInt(raw.trim());
+            return value > 0 ? value : 0;
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private Integer parseOptionalNonNegativeInt(String raw) {
+        try {
+            if (raw == null || raw.isBlank()) return null;
+            int value = Integer.parseInt(raw.trim());
+            return value >= 0 ? value : -1;
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
 }

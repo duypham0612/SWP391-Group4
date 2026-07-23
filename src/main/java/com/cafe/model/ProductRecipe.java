@@ -24,6 +24,9 @@ public class ProductRecipe {
     public int getIngredientId() { return ingredientId; }
     public void setIngredientId(int ingredientId) { this.ingredientId = ingredientId; }
 
+    /** Cho JSP — bỏ .000 thừa. */
+    public String getQuantityDisplay() { return com.cafe.common.QuantityFormat.plain(quantity); }
+
     public BigDecimal getQuantity() { return quantity; }
     public void setQuantity(BigDecimal quantity) { this.quantity = quantity; }
 

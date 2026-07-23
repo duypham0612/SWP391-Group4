@@ -10,9 +10,7 @@ import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * A5 · VoucherService (đặc tả mục 3+4) — 1 NGUỒN duy nhất validate voucher.
- */
+/** Shared voucher management and validation. */
 public class VoucherService {
 
     private final VoucherDao dao = new VoucherDao();
@@ -52,7 +50,6 @@ public class VoucherService {
         }
     }
 
-    /** Đảo trạng thái active (đọc + flip trong 1 tx) — bật/tắt 2 chiều. */
     public void toggleActive(int id) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
@@ -74,23 +71,28 @@ public class VoucherService {
         }
     }
 
-    /**
-     * Validate voucher (1 nguồn duy nhất — Phase 5 Cashier gọi). Trả về thông điệp lỗi, null nếu hợp lệ.
-     * (Tính toán số tiền giảm để Phase 5 dùng; ở Phase 2 chỉ cần đặt đúng tên & logic cơ bản.)
-     */
     public String validateVoucher(String code, int branchId, BigDecimal orderAmount) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            Voucher v = dao.findByCode(conn, code);
-            if (v == null || !v.isActive()) return "Voucher không tồn tại hoặc đã tắt.";
-            if ("BRANCH".equals(v.getScope()) && (v.getBranchId() == null || v.getBranchId() != branchId))
-                return "Voucher không áp dụng cho chi nhánh này.";
-            LocalDateTime now = LocalDateTime.now();
-            if (v.getStartDate() != null && now.isBefore(v.getStartDate())) return "Voucher chưa tới ngày áp dụng.";
-            if (v.getEndDate() != null && now.isAfter(v.getEndDate())) return "Voucher đã hết hạn.";
-            if (v.getUsageLimit() != null && v.getUsedCount() >= v.getUsageLimit()) return "Voucher đã hết lượt sử dụng.";
-            if (orderAmount != null && orderAmount.compareTo(v.getMinOrderAmount()) < 0)
-                return "Đơn chưa đạt giá trị tối thiểu để dùng voucher.";
-            return null; // hợp lệ
+            return validateVoucherRecord(dao.findByCode(conn, code), branchId, orderAmount);
         }
+    }
+
+    public String validateVoucherById(int voucherId, int branchId, BigDecimal orderAmount) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            return validateVoucherRecord(dao.findById(conn, voucherId), branchId, orderAmount);
+        }
+    }
+
+    public static String validateVoucherRecord(Voucher v, int branchId, BigDecimal orderAmount) {
+        if (v == null || !v.isActive()) return "Voucher khong ton tai hoac da tat.";
+        if ("BRANCH".equals(v.getScope()) && (v.getBranchId() == null || v.getBranchId() != branchId))
+            return "Voucher khong ap dung cho chi nhanh nay.";
+        LocalDateTime now = LocalDateTime.now();
+        if (v.getStartDate() != null && now.isBefore(v.getStartDate())) return "Voucher chua toi ngay ap dung.";
+        if (v.getEndDate() != null && now.isAfter(v.getEndDate())) return "Voucher da het han.";
+        if (v.getUsageLimit() != null && v.getUsedCount() >= v.getUsageLimit()) return "Voucher da het luot su dung.";
+        if (orderAmount != null && v.getMinOrderAmount() != null && orderAmount.compareTo(v.getMinOrderAmount()) < 0)
+            return "Don chua dat gia tri toi thieu de dung voucher.";
+        return null;
     }
 }

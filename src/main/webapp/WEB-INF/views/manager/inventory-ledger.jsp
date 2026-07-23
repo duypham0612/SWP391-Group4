@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Sổ cái</div><h1>${ingredient.name}</h1><p>inventory.InventoryTransaction · lịch sử thay đổi tồn</p></div>
+    <div><div class="eyebrow">Lịch sử tồn kho</div><h1>${ingredient.name}</h1><p>Các lần nhập, xuất, hao hụt và điều chỉnh số lượng nguyên liệu.</p></div>
     <a class="btn btn-ghost" href="${ctx}/manager/inventory">← Quay lại tồn kho</a>
 </div>
 
@@ -14,7 +14,7 @@
 
 <c:choose>
     <c:when test="${empty ledger}">
-        <div class="card empty-state"><div class="icon">∅</div><p>Chưa có giao dịch tồn cho nguyên liệu này.</p></div>
+        <div class="card empty-state"><div class="icon">∅</div><p>Chưa có thay đổi tồn kho nào cho nguyên liệu này.</p></div>
     </c:when>
     <c:otherwise>
         <table class="table">
@@ -24,11 +24,26 @@
                     <tr>
                         <td>${t.inventoryTxnId}</td>
                         <td>${t.createdAt}</td>
-                        <td><span class="badge badge-served">${t.txnType}</span></td>
+                        <td><span class="badge badge-served"><c:choose>
+                            <c:when test="${t.txnType == 'RECEIPT'}">Nhập kho</c:when>
+                            <c:when test="${t.txnType == 'DEDUCT'}">Xuất pha chế</c:when>
+                            <c:when test="${t.txnType == 'WASTE'}">Hao hụt</c:when>
+                            <c:when test="${t.txnType == 'PREP_IN'}">Nhập từ sơ chế</c:when>
+                            <c:when test="${t.txnType == 'PREP_OUT'}">Xuất để sơ chế</c:when>
+                            <c:when test="${t.txnType == 'ADJUST'}">Điều chỉnh kiểm kê</c:when>
+                            <c:otherwise>Thay đổi khác</c:otherwise>
+                        </c:choose></span></td>
                         <td style="font-weight:600;color:${t.changeQty.signum() < 0 ? 'var(--st-cancelled)' : 'var(--st-ready)'}">
                             <c:if test="${t.changeQty.signum() > 0}">+</c:if>${t.changeQty} ${t.ingredientUnit}
                         </td>
-                        <td>${t.refTable}<c:if test="${not empty t.refId}"> #${t.refId}</c:if></td>
+                        <td><c:choose>
+                            <c:when test="${t.refTable == 'StockReceipt'}">Phiếu nhập</c:when>
+                            <c:when test="${t.refTable == 'OrderItem'}">Món đã pha</c:when>
+                            <c:when test="${t.refTable == 'PrepBatch'}">Mẻ sơ chế</c:when>
+                            <c:when test="${t.refTable == 'WasteLog'}">Ghi nhận hao hụt</c:when>
+                            <c:when test="${t.refTable == 'StockAdjustment'}">Lần kiểm kê</c:when>
+                            <c:otherwise>${t.refTable}</c:otherwise>
+                        </c:choose><c:if test="${not empty t.refId}"> #${t.refId}</c:if></td>
                         <td>${t.createdByName}</td>
                     </tr>
                 </c:forEach>

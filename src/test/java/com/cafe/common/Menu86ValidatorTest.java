@@ -53,11 +53,18 @@ class Menu86ValidatorTest {
     }
 
     @Test
-    void every_reason_code_is_accepted() {
-        for (Reason86 r : Reason86.values()) {
+    void every_selectable_reason_code_is_accepted() {
+        for (Reason86 r : Reason86.selectableValues()) {
             String note = r == Reason86.OTHER ? "Ghi chú đủ dài cho lý do khác" : null;
             assertSame(r, Menu86Validator.validate(r.name(), note, OK_ETA, NOW).getReason());
         }
+    }
+
+    @Test
+    void legacy_stock_reasons_are_rejected() {
+        // Hết nguyên liệu (kho tự lo) + đồ hỏng (ghi Hao hụt) không còn báo tay được nữa
+        assertTrue(msg(() -> Menu86Validator.validate("INGREDIENT_OUT", null, OK_ETA, NOW)).contains("không dùng"));
+        assertTrue(msg(() -> Menu86Validator.validate("SPOILED", null, OK_ETA, NOW)).contains("không dùng"));
     }
 
     // ---------- Ghi chú ----------
@@ -101,20 +108,20 @@ class Menu86ValidatorTest {
 
     @Test
     void non_other_reason_allows_empty_note() {
-        Menu86Validator.Validated v = Menu86Validator.validate("INGREDIENT_OUT", null, OK_ETA, NOW);
+        Menu86Validator.Validated v = Menu86Validator.validate("EQUIPMENT", null, OK_ETA, NOW);
         assertNull(v.getNote());
     }
 
     @Test
     void blank_note_is_normalized_to_null() {
-        Menu86Validator.Validated v = Menu86Validator.validate("INGREDIENT_OUT", "   ", OK_ETA, NOW);
+        Menu86Validator.Validated v = Menu86Validator.validate("EQUIPMENT", "   ", OK_ETA, NOW);
         assertNull(v.getNote());
     }
 
     @Test
     void note_is_trimmed() {
         Menu86Validator.Validated v =
-                Menu86Validator.validate("INGREDIENT_OUT", "  Hết sữa tươi  ", OK_ETA, NOW);
+                Menu86Validator.validate("EQUIPMENT", "  Hết sữa tươi  ", OK_ETA, NOW);
         assertEquals("Hết sữa tươi", v.getNote());
     }
 
@@ -122,28 +129,28 @@ class Menu86ValidatorTest {
     void chip_joined_note_passes_through() {
         // Bấm nhiều chip → nối chuỗi, lưu text thuần
         String joined = "Hết sữa tươi · Hết đá";
-        Menu86Validator.Validated v = Menu86Validator.validate("INGREDIENT_OUT", joined, OK_ETA, NOW);
+        Menu86Validator.Validated v = Menu86Validator.validate("EQUIPMENT", joined, OK_ETA, NOW);
         assertEquals(joined, v.getNote());
     }
 
     @Test
     void note_at_max_length_is_accepted() {
         String note = repeat("a", 255);
-        assertEquals(note, Menu86Validator.validate("INGREDIENT_OUT", note, OK_ETA, NOW).getNote());
+        assertEquals(note, Menu86Validator.validate("EQUIPMENT", note, OK_ETA, NOW).getNote());
     }
 
     @Test
     void note_over_max_length_is_rejected() {
         // 256 ký tự → tràn NVARCHAR(255), phải chặn trước khi xuống DAO
         String note = repeat("a", 256);
-        assertTrue(msg(() -> Menu86Validator.validate("INGREDIENT_OUT", note, OK_ETA, NOW))
+        assertTrue(msg(() -> Menu86Validator.validate("EQUIPMENT", note, OK_ETA, NOW))
                 .contains("tối đa"));
     }
 
     @Test
     void long_vietnamese_note_over_max_is_rejected() {
         String note = repeat("á", 256);
-        assertTrue(msg(() -> Menu86Validator.validate("INGREDIENT_OUT", note, OK_ETA, NOW))
+        assertTrue(msg(() -> Menu86Validator.validate("EQUIPMENT", note, OK_ETA, NOW))
                 .contains("tối đa"));
     }
 
@@ -175,7 +182,7 @@ class Menu86ValidatorTest {
         // 200 ký tự dựng sẵn (vừa cột) nhưng gõ dạng tổ hợp thành 400 đơn vị → chuẩn hoá xong phải pass
         String typed = nfd(repeat("á", 200));
         assertTrue(typed.length() > Constants.MENU86_NOTE_MAX_CHARS);
-        assertEquals(200, Menu86Validator.validate("INGREDIENT_OUT", typed, OK_ETA, NOW).getNote().length());
+        assertEquals(200, Menu86Validator.validate("EQUIPMENT", typed, OK_ETA, NOW).getNote().length());
     }
 
     @Test
@@ -183,7 +190,7 @@ class Menu86ValidatorTest {
         // Emoji = 2 đơn vị UTF-16 = 2 chỗ trong NVARCHAR(255). 128 emoji = 256 → tràn cột, phải chặn.
         String emojis = repeat("😀", 128);
         assertEquals(256, emojis.length());
-        assertTrue(msg(() -> Menu86Validator.validate("INGREDIENT_OUT", emojis, OK_ETA, NOW))
+        assertTrue(msg(() -> Menu86Validator.validate("EQUIPMENT", emojis, OK_ETA, NOW))
                 .contains("tối đa"));
     }
 
@@ -191,7 +198,7 @@ class Menu86ValidatorTest {
     void emoji_within_column_limit_is_accepted() {
         String emojis = repeat("😀", 127);   // 254 đơn vị → vừa cột
         assertEquals(254, emojis.length());
-        assertEquals(emojis, Menu86Validator.validate("INGREDIENT_OUT", emojis, OK_ETA, NOW).getNote());
+        assertEquals(emojis, Menu86Validator.validate("EQUIPMENT", emojis, OK_ETA, NOW).getNote());
     }
 
     @Test
@@ -204,21 +211,21 @@ class Menu86ValidatorTest {
     // ---------- Dự kiến có lại ----------
 
     @Test
-    void eta_null_is_rejected() {
-        // Đây là lỗ hiện tại: ETA để trống vẫn báo hết được
-        assertTrue(msg(() -> Menu86Validator.validate("INGREDIENT_OUT", null, null, NOW))
-                .contains("dự kiến có lại"));
+    void eta_null_is_accepted() {
+        // 86 sự cố (máy hỏng...) thường bất định thời gian sửa xong → ETA tuỳ chọn, bỏ trống hợp lệ
+        Menu86Validator.Validated v = Menu86Validator.validate("EQUIPMENT", null, null, NOW);
+        assertNull(v.getBackInEta());
     }
 
     @Test
     void eta_in_the_past_is_rejected() {
-        assertTrue(msg(() -> Menu86Validator.validate("INGREDIENT_OUT", null, NOW.minusMinutes(1), NOW))
+        assertTrue(msg(() -> Menu86Validator.validate("EQUIPMENT", null, NOW.minusMinutes(1), NOW))
                 .contains("tương lai"));
     }
 
     @Test
     void eta_equal_now_is_rejected() {
-        assertTrue(msg(() -> Menu86Validator.validate("INGREDIENT_OUT", null, NOW, NOW))
+        assertTrue(msg(() -> Menu86Validator.validate("EQUIPMENT", null, NOW, NOW))
                 .contains("tương lai"));
     }
 
@@ -226,7 +233,7 @@ class Menu86ValidatorTest {
     void eta_below_min_gap_is_rejected() {
         // 14 phút 59 giây → thiếu 1 giây so với mốc 15 phút
         LocalDateTime eta = NOW.plusMinutes(14).plusSeconds(59);
-        assertTrue(msg(() -> Menu86Validator.validate("INGREDIENT_OUT", null, eta, NOW))
+        assertTrue(msg(() -> Menu86Validator.validate("EQUIPMENT", null, eta, NOW))
                 .contains("ít nhất"));
     }
 
@@ -234,20 +241,20 @@ class Menu86ValidatorTest {
     void eta_at_exactly_min_gap_is_accepted() {
         // Biên: đúng 15 phút → cho qua
         LocalDateTime eta = NOW.plusMinutes(15);
-        assertEquals(eta, Menu86Validator.validate("INGREDIENT_OUT", null, eta, NOW).getBackInEta());
+        assertEquals(eta, Menu86Validator.validate("EQUIPMENT", null, eta, NOW).getBackInEta());
     }
 
     @Test
     void eta_at_exactly_max_horizon_is_accepted() {
         // Biên: đúng 7 ngày → cho qua
         LocalDateTime eta = NOW.plusDays(7);
-        assertEquals(eta, Menu86Validator.validate("INGREDIENT_OUT", null, eta, NOW).getBackInEta());
+        assertEquals(eta, Menu86Validator.validate("EQUIPMENT", null, eta, NOW).getBackInEta());
     }
 
     @Test
     void eta_beyond_max_horizon_is_rejected() {
         LocalDateTime eta = NOW.plusDays(7).plusSeconds(1);
-        assertTrue(msg(() -> Menu86Validator.validate("INGREDIENT_OUT", null, eta, NOW))
+        assertTrue(msg(() -> Menu86Validator.validate("EQUIPMENT", null, eta, NOW))
                 .contains("quá"));
     }
 

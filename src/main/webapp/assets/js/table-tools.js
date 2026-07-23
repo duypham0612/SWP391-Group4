@@ -20,8 +20,9 @@
   }
 
   function getPageSize(root) {
+    var fixedSize = root.getAttribute('data-tt-page-size');
     var sizeControl = root.querySelector('[data-tt-size]');
-    var parsed = sizeControl ? parseInt(sizeControl.value, 10) : DEFAULT_PAGE_SIZE;
+    var parsed = fixedSize ? parseInt(fixedSize, 10) : (sizeControl ? parseInt(sizeControl.value, 10) : DEFAULT_PAGE_SIZE);
     return parsed > 0 ? parsed : DEFAULT_PAGE_SIZE;
   }
 
@@ -95,13 +96,11 @@
     var headerCells = Array.prototype.slice.call(table.tHead ? table.tHead.rows[0].cells : []);
     var markedSearchCols = [];
     var defaultSearchCols = [];
-    var rowNumberCol = -1;
     var currentPage = 1;
 
     populateFilterOptions(filters, rows);
 
     headerCells.forEach(function (th, index) {
-      if (String(th.textContent || '').trim() === '#') rowNumberCol = index;
       if (th.hasAttribute('data-tt-search')) markedSearchCols.push(index);
       if (!th.hasAttribute('data-tt-nosearch')) defaultSearchCols.push(index);
     });
@@ -112,7 +111,7 @@
     emptyRow.className = 'tt-empty';
     emptyRow.hidden = true;
     emptyCell.colSpan = Math.max(1, headerCells.length);
-    emptyCell.textContent = root.getAttribute('data-tt-empty') || 'Kh\u00f4ng c\u00f3 k\u1ebft qu\u1ea3';
+    emptyCell.textContent = root.getAttribute('data-tt-empty') || 'Khong co ket qua';
     emptyRow.appendChild(emptyCell);
     tbody.appendChild(emptyRow);
 
@@ -153,13 +152,6 @@
       summary.textContent = total ? start + '-' + end + ' / ' + total : '0 / 0';
     }
 
-    function renderRowNumbers(pageRows, startIndex) {
-      if (rowNumberCol < 0) return;
-      pageRows.forEach(function (row, index) {
-        if (row.cells[rowNumberCol]) row.cells[rowNumberCol].textContent = String(startIndex + index + 1);
-      });
-    }
-
     function update() {
       var query = normalizeText(searchInput ? searchInput.value : '');
       var pageSize = getPageSize(root);
@@ -179,7 +171,6 @@
         row.hidden = pageRows.indexOf(row) === -1;
       });
 
-      renderRowNumbers(pageRows, startIndex);
       emptyRow.hidden = total !== 0;
       renderPager(totalPages);
       renderSummary(total ? startIndex + 1 : 0, endIndex, total);

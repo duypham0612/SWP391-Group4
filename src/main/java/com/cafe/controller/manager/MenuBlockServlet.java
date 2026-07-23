@@ -21,13 +21,7 @@ public class MenuBlockServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
-        try {
-            req.setAttribute("openRequests", service.getOpenRequests(branchId));
-            req.setAttribute("history", service.getRequestHistory(branchId, 20));
-            req.setAttribute("pageTitle", "Món tạm hết");
-            req.getRequestDispatcher("/WEB-INF/views/manager/menu-block.jsp").forward(req, resp);
-        } catch (Exception e) { throw new ServletException(e); }
+        resp.sendRedirect(req.getContextPath() + "/manager/menu#menu86");
     }
 
     @Override
@@ -38,14 +32,11 @@ public class MenuBlockServlet extends HttpServlet {
         User u = SessionUtil.currentUser(req);
         int reviewerId = u != null ? u.getUserId() : 0;
         String action = req.getParameter("action");
-        String redirect = req.getContextPath() + "/manager/menu-block";
+        String redirect = req.getContextPath() + "/manager/menu#menu86";
         try {
             int requestId = Integer.parseInt(req.getParameter("requestId"));
             String reviewNote = req.getParameter("reviewNote");
-            if ("approve".equals(action)) {
-                service.approve86(branchId, requestId, reviewerId, reviewNote);
-                req.getSession().setAttribute("flashOk", "Đã duyệt yêu cầu tạm hết.");
-            } else if ("reject".equals(action)) {
+            if ("reject".equals(action)) {
                 service.reopen86(branchId, requestId, reviewerId, reviewNote, true);
                 req.getSession().setAttribute("flashOk", "Đã từ chối và mở bán lại món.");
             } else if ("reopen".equals(action)) {

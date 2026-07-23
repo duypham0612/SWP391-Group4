@@ -9,7 +9,7 @@
     <div>
         <div class="eyebrow">Trang công khai</div>
         <h1>Chỉnh sửa trang Home</h1>
-        <p>Chọn món hiển thị cho khách, sắp thứ tự ưu tiên và sửa nội dung phần đầu trang.</p>
+        <p>Chọn món nổi bật và nội dung giới thiệu cho trang khách hàng.</p>
     </div>
     <a class="btn btn-ghost" href="${ctx}/home" target="_blank" rel="noopener">Xem trang Home ↗</a>
 </div>

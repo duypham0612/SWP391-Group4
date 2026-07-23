@@ -1,10 +1,10 @@
-<%@ page contentType="text/html;charset=UTF-8" %>
+﻿<%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Chi nhánh</h1><p>org.Branch</p></div>
+    <div><h1>Chi nhánh</h1><p>Quản lý thông tin, giờ mở cửa và người phụ trách.</p></div>
     <a class="btn btn-primary" href="${ctx}/admin/branch?action=new">+ Thêm chi nhánh</a>
 </div>
 
@@ -64,7 +64,7 @@
 
         <script>
         (function(){
-            var PER_PAGE = 5;
+            var PER_PAGE = 6;
             var body = document.getElementById('branchBody');
             if (!body) return;
             var search = document.getElementById('branchSearch');
@@ -113,11 +113,11 @@
                 if (!pager) return;
                 pager.innerHTML = '';
                 if (pageCount <= 1) return;
-                pager.appendChild(pagerBtn('‹', page - 1, { disabled: page === 1 }));
+                pager.appendChild(pagerBtn('\u2039', page - 1, { disabled: page === 1 }));
                 for (var p = 1; p <= pageCount; p++) {
                     pager.appendChild(pagerBtn(String(p), p, { active: p === page }));
                 }
-                pager.appendChild(pagerBtn('›', page + 1, { disabled: page === pageCount }));
+                pager.appendChild(pagerBtn('\u203a', page + 1, { disabled: page === pageCount }));
             }
 
             function render() {
@@ -165,3 +165,4 @@
 </c:choose>
 
 <jsp:include page="../layout/footer.jsp" />
+

@@ -22,6 +22,9 @@ import java.util.Map;
  * A4 · ModifierService (đặc tả mục 4) — Group → Option → IngredientImpact + gán nhóm cho product.
  */
 public class ModifierService {
+    private static final String GROUP_SIZE = "Size";
+    private static final String GROUP_SUGAR = "\u0110\u01b0\u1eddng";
+    private static final String GROUP_ICE = "\u0110\u00e1";
 
     private final ModifierGroupDao groupDao = new ModifierGroupDao();
     private final ModifierOptionDao optionDao = new ModifierOptionDao();
@@ -31,6 +34,13 @@ public class ModifierService {
     // ----- Group -----
     public List<ModifierGroup> getModifierGroups() throws SQLException {
         try (Connection c = DBConnection.getConnection()) { return groupDao.findAll(c); }
+    }
+    public List<ModifierGroup> getChoiceGroups() throws SQLException {
+        List<ModifierGroup> out = new ArrayList<>();
+        for (ModifierGroup g : getModifierGroups()) {
+            if (isChoiceGroup(g.getName())) out.add(g);
+        }
+        return out;
     }
     public ModifierGroup getModifierGroup(int id) throws SQLException {
         try (Connection c = DBConnection.getConnection()) { return groupDao.findById(c, id); }
@@ -94,11 +104,22 @@ public class ModifierService {
     public List<ProductModifierGroup> getProductGroups(int productId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) { return pmgDao.findByProduct(c, productId); }
     }
+    public List<ProductModifierGroup> getProductChoiceGroups(int productId) throws SQLException {
+        List<ProductModifierGroup> out = new ArrayList<>();
+        for (ProductModifierGroup group : getProductGroups(productId)) {
+            if (isChoiceGroup(group.getGroupName())) out.add(group);
+        }
+        return out;
+    }
     public void assignGroupToProduct(int productId, int groupId) throws SQLException {
         txVoid(c -> { if (!pmgDao.exists(c, productId, groupId)) pmgDao.insert(c, productId, groupId); });
     }
     public void unassignGroupFromProduct(int productId, int groupId) throws SQLException {
         txVoid(c -> pmgDao.delete(c, productId, groupId));
+    }
+
+    public boolean isChoiceGroup(String name) {
+        return GROUP_SIZE.equals(name) || GROUP_SUGAR.equals(name) || GROUP_ICE.equals(name);
     }
 
     // ----- tx helpers -----

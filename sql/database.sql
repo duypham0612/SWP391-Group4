@@ -1,4 +1,4 @@
-/* ============================================================================
+﻿/* ============================================================================
    HỆ THỐNG QUẢN LÝ CHUỖI CAFE  —  DATABASE (SQL Server)
    SWP391 · 4 Role (Admin / Branch Manager / Cashier / Barista) · Dine-in
    ----------------------------------------------------------------------------
@@ -58,13 +58,18 @@ DROP TABLE IF EXISTS sales.TableSession;
 DROP TABLE IF EXISTS sales.DiningTable;
 DROP TABLE IF EXISTS inventory.InventoryTransaction;
 DROP TABLE IF EXISTS inventory.StockAdjustment;
+DROP TABLE IF EXISTS inventory.WasteReview;
+DROP TABLE IF EXISTS inventory.WasteAuditLog;
 DROP TABLE IF EXISTS inventory.WasteLog;
+DROP TABLE IF EXISTS inventory.WasteEvent;
 DROP TABLE IF EXISTS inventory.PrepBatch;
 DROP TABLE IF EXISTS inventory.StockReceiptDetail;
 DROP TABLE IF EXISTS inventory.StockReceipt;
 DROP TABLE IF EXISTS inventory.BranchInventory;
 DROP TABLE IF EXISTS inventory.Supplier;
 -- Trỏ tới org.Branch + iam.User nên phải drop trước hai bảng đó.
+DROP TABLE IF EXISTS hr.ShiftHandoverTask;
+DROP TABLE IF EXISTS hr.ShiftHandoverRecipient;
 DROP TABLE IF EXISTS hr.ShiftHandover;
 DROP TABLE IF EXISTS hr.Payroll;
 DROP TABLE IF EXISTS hr.Attendance;
@@ -263,7 +268,7 @@ CREATE TABLE catalog.PrepRecipe (
 );
 GO
 
--- Nhóm modifier (Size, Đường, Sữa, Topping...)
+-- Nhóm lựa chọn đồ uống (Size, Đường, Đá)
 CREATE TABLE catalog.ModifierGroup (
     ModifierGroupId INT IDENTITY PRIMARY KEY,
     Name            NVARCHAR(80) NOT NULL,
@@ -276,7 +281,7 @@ GO
 CREATE TABLE catalog.ModifierOption (
     ModifierOptionId INT IDENTITY PRIMARY KEY,
     ModifierGroupId  INT NOT NULL,
-    Name             NVARCHAR(80)  NOT NULL,     -- Size L, Oat milk, Extra shot...
+    Name             NVARCHAR(80)  NOT NULL,     -- Size L, Ít đường, Không đá...
     PriceDelta       DECIMAL(12,2) NOT NULL DEFAULT 0,
     IsActive         BIT NOT NULL DEFAULT 1,
     CONSTRAINT FK_MO_Group FOREIGN KEY (ModifierGroupId) REFERENCES catalog.ModifierGroup(ModifierGroupId)
@@ -438,6 +443,7 @@ CREATE TABLE inventory.WasteLog (
     Status       VARCHAR(10) NOT NULL DEFAULT 'ACTIVE'   -- huỷ = ghi txn bù (hoàn kho) + đánh dấu VOIDED (không hard-delete)
                  CONSTRAINT CK_WasteLog_Status CHECK (Status IN ('ACTIVE','VOIDED')),
     VoidedAt     DATETIME2 NULL,
+    WasteEventId BIGINT NULL,
     CONSTRAINT FK_WL_Branch     FOREIGN KEY (BranchId)     REFERENCES org.Branch(BranchId),
     CONSTRAINT FK_WL_Ingredient FOREIGN KEY (IngredientId) REFERENCES catalog.Ingredient(IngredientId),
     CONSTRAINT FK_WL_User       FOREIGN KEY (LoggedBy)     REFERENCES iam.[User](UserId)
@@ -541,9 +547,40 @@ CREATE TABLE hr.ShiftHandover (
     BranchId        INT NOT NULL,
     Note            NVARCHAR(1000) NOT NULL,
     CreatedBy       INT NOT NULL,
+    SourceShiftAssignmentId INT NULL,
+    OverallStatus   VARCHAR(20) NOT NULL DEFAULT 'WAITING_RECEIPT'
+                    CONSTRAINT CK_SH_Status CHECK (OverallStatus IN ('WAITING_RECEIPT','IN_PROGRESS','DONE')),
     CreatedAt       DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT FK_SH_Branch FOREIGN KEY (BranchId)  REFERENCES org.Branch(BranchId),
-    CONSTRAINT FK_SH_User   FOREIGN KEY (CreatedBy) REFERENCES iam.[User](UserId)
+    CONSTRAINT FK_SH_User   FOREIGN KEY (CreatedBy) REFERENCES iam.[User](UserId),
+    CONSTRAINT FK_SH_SourceShift FOREIGN KEY (SourceShiftAssignmentId) REFERENCES hr.ShiftAssignment(ShiftAssignmentId)
+);
+GO
+
+CREATE TABLE hr.ShiftHandoverRecipient (
+    ShiftHandoverRecipientId INT IDENTITY PRIMARY KEY,
+    ShiftHandoverId INT NOT NULL,
+    RecipientUserId INT NOT NULL,
+    RecipientShiftAssignmentId INT NULL,
+    RecipientType VARCHAR(20) NOT NULL DEFAULT 'NEXT_SHIFT'
+                  CONSTRAINT CK_SHR_Type CHECK (RecipientType IN ('NEXT_SHIFT','MANAGER_FALLBACK')),
+    AcknowledgedAt DATETIME2 NULL,
+    CONSTRAINT FK_SHR_Handover FOREIGN KEY (ShiftHandoverId) REFERENCES hr.ShiftHandover(ShiftHandoverId) ON DELETE CASCADE,
+    CONSTRAINT FK_SHR_User FOREIGN KEY (RecipientUserId) REFERENCES iam.[User](UserId),
+    CONSTRAINT FK_SHR_Shift FOREIGN KEY (RecipientShiftAssignmentId) REFERENCES hr.ShiftAssignment(ShiftAssignmentId)
+);
+GO
+
+CREATE TABLE hr.ShiftHandoverTask (
+    ShiftHandoverTaskId INT IDENTITY PRIMARY KEY,
+    ShiftHandoverId INT NOT NULL,
+    Content NVARCHAR(255) NOT NULL,
+    Status VARCHAR(12) NOT NULL DEFAULT 'NEW'
+           CONSTRAINT CK_SHT_Status CHECK (Status IN ('NEW','IN_PROGRESS','DONE')),
+    UpdatedBy INT NULL,
+    UpdatedAt DATETIME2 NULL,
+    CONSTRAINT FK_SHT_Handover FOREIGN KEY (ShiftHandoverId) REFERENCES hr.ShiftHandover(ShiftHandoverId) ON DELETE CASCADE,
+    CONSTRAINT FK_SHT_User FOREIGN KEY (UpdatedBy) REFERENCES iam.[User](UserId)
 );
 GO
 
@@ -644,6 +681,77 @@ CREATE TABLE sales.OrderItemModifier (
     PriceDelta          DECIMAL(12,2) NOT NULL DEFAULT 0,
     CONSTRAINT FK_OIM_Item   FOREIGN KEY (OrderItemId)      REFERENCES sales.OrderItem(OrderItemId) ON DELETE CASCADE,
     CONSTRAINT FK_OIM_Option FOREIGN KEY (ModifierOptionId) REFERENCES catalog.ModifierOption(ModifierOptionId)
+);
+GO
+
+/* ===========================================================================
+   HAO HỤT & LÀM LẠI — event-level audit
+   =========================================================================== */
+CREATE TABLE inventory.WasteEvent (
+    WasteEventId  BIGINT IDENTITY PRIMARY KEY,
+    BranchId      INT NOT NULL,
+    EventKind     VARCHAR(20) NOT NULL
+                  CONSTRAINT CK_WE_Kind CHECK (EventKind IN ('INGREDIENT_WASTE','REMAKE')),
+    Source        VARCHAR(12) NOT NULL
+                  CONSTRAINT CK_WE_Source CHECK (Source IN ('MANUAL','KDS')),
+    ProductId     INT NULL,
+    OrderItemId   INT NULL,
+    CupQuantity   INT NULL,
+    CauseCode     VARCHAR(24) NOT NULL,
+    CauseDetail   NVARCHAR(255) NULL,
+    ShiftAssignmentId INT NULL,
+    CreatedBy     INT NOT NULL,
+    CreatedAt     DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    ClientRequestId VARCHAR(64) NULL,
+    CONSTRAINT CK_WE_Remake CHECK ((EventKind='REMAKE' AND ProductId IS NOT NULL AND CupQuantity IS NOT NULL AND CupQuantity > 0)
+                                OR (EventKind='INGREDIENT_WASTE' AND ProductId IS NULL AND CupQuantity IS NULL)),
+    CONSTRAINT FK_WE_Branch    FOREIGN KEY (BranchId)          REFERENCES org.Branch(BranchId),
+    CONSTRAINT FK_WE_Product   FOREIGN KEY (ProductId)         REFERENCES catalog.Product(ProductId),
+    CONSTRAINT FK_WE_OrderItem FOREIGN KEY (OrderItemId)       REFERENCES sales.OrderItem(OrderItemId),
+    CONSTRAINT FK_WE_Shift     FOREIGN KEY (ShiftAssignmentId) REFERENCES hr.ShiftAssignment(ShiftAssignmentId),
+    CONSTRAINT FK_WE_User      FOREIGN KEY (CreatedBy)         REFERENCES iam.[User](UserId)
+);
+GO
+
+ALTER TABLE inventory.WasteLog
+    ADD CONSTRAINT FK_WL_Event FOREIGN KEY (WasteEventId) REFERENCES inventory.WasteEvent(WasteEventId);
+GO
+
+CREATE TABLE inventory.WasteAuditLog (
+    WasteAuditLogId BIGINT IDENTITY PRIMARY KEY,
+    WasteLogId    INT NULL,
+    WasteEventId  BIGINT NULL,
+    ActionType    VARCHAR(20) NOT NULL
+                  CONSTRAINT CK_WAL_Action CHECK (ActionType IN ('CREATE','UPDATE','VOID','REVIEW')),
+    BeforeValue   NVARCHAR(1000) NULL,
+    AfterValue    NVARCHAR(1000) NULL,
+    Reason        NVARCHAR(255) NULL,
+    PerformedBy   INT NOT NULL,
+    PerformedAt   DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT FK_WAL_Log   FOREIGN KEY (WasteLogId)   REFERENCES inventory.WasteLog(WasteLogId),
+    CONSTRAINT FK_WAL_Event FOREIGN KEY (WasteEventId) REFERENCES inventory.WasteEvent(WasteEventId),
+    CONSTRAINT FK_WAL_User  FOREIGN KEY (PerformedBy)  REFERENCES iam.[User](UserId)
+);
+GO
+
+CREATE TABLE inventory.WasteReview (
+    WasteReviewId BIGINT IDENTITY PRIMARY KEY,
+    WasteEventId  BIGINT NOT NULL,
+    IngredientId  INT NOT NULL,
+    ReviewType    VARCHAR(20) NOT NULL
+                  CONSTRAINT CK_WR_Type CHECK (ReviewType IN ('SOFT_NEGATIVE','HARD_NEGATIVE','LATE_CORRECTION','MANAGER_VOID')),
+    QtyBefore     DECIMAL(12,3) NOT NULL,
+    QtyAfter      DECIMAL(12,3) NOT NULL,
+    Status        VARCHAR(16) NOT NULL DEFAULT 'OPEN'
+                  CONSTRAINT CK_WR_Status CHECK (Status IN ('OPEN','ACKNOWLEDGED','RESOLVED')),
+    Note          NVARCHAR(255) NULL,
+    CreatedAt     DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    ResolvedBy    INT NULL,
+    ResolvedAt    DATETIME2 NULL,
+    ResolutionNote NVARCHAR(255) NULL,
+    CONSTRAINT FK_WR_Event      FOREIGN KEY (WasteEventId) REFERENCES inventory.WasteEvent(WasteEventId),
+    CONSTRAINT FK_WR_Ingredient FOREIGN KEY (IngredientId) REFERENCES catalog.Ingredient(IngredientId),
+    CONSTRAINT FK_WR_User       FOREIGN KEY (ResolvedBy)   REFERENCES iam.[User](UserId)
 );
 GO
 
@@ -780,6 +888,10 @@ CREATE INDEX IX_Bill_BranchStatus  ON payment.Bill(BranchId, Status);
 CREATE INDEX IX_Outbox_Unprocessed ON ops.OutboxEvent(ProcessedAt) WHERE ProcessedAt IS NULL;
 CREATE INDEX IX_OrderItem_BaristaStatus ON sales.OrderItem(BaristaId, Status);
 CREATE INDEX IX_OrderItemAction_Item ON ops.OrderItemActionLog(OrderItemId, CreatedAt DESC);
+CREATE UNIQUE INDEX UX_WasteEvent_ClientRequest ON inventory.WasteEvent(BranchId, ClientRequestId) WHERE ClientRequestId IS NOT NULL;
+CREATE INDEX IX_WasteEvent_OrderItem ON inventory.WasteEvent(OrderItemId, CreatedAt DESC) WHERE OrderItemId IS NOT NULL;
+CREATE INDEX IX_WasteLog_Event ON inventory.WasteLog(WasteEventId) WHERE WasteEventId IS NOT NULL;
+CREATE INDEX IX_WasteReview_Open ON inventory.WasteReview(Status, CreatedAt DESC) INCLUDE(WasteEventId, IngredientId, ReviewType);
 GO
 
 /* ---------------------------------------------------------------------------
@@ -871,23 +983,21 @@ INSERT INTO catalog.ModifierGroup(Name, IsRequired, MinSelect, MaxSelect) VALUES
     (N'Size', 1, 1, 1),     -- 2: Size riêng Cold Brew
     (N'Size', 1, 1, 1),     -- 3: Size riêng Trà Đào
     (N'Đường', 1, 1, 1),    -- 4
-    (N'Đá', 1, 1, 1),       -- 5
-    (N'Topping', 0, 0, 3);  -- 6
+    (N'Đá', 1, 1, 1);       -- 5
 GO
 INSERT INTO catalog.ModifierOption(ModifierGroupId, Name, PriceDelta) VALUES
     (1, N'Size S', 0), (1, N'Size M', 6000), (1, N'Size L', 10000),
     (2, N'Size S', 0), (2, N'Size M', 6000), (2, N'Size L', 10000),
     (3, N'Size S', 0), (3, N'Size M', 6000), (3, N'Size L', 10000),
     (4, N'Không đường', 0), (4, N'Ít đường', 0), (4, N'Bình thường', 0), (4, N'Nhiều đường', 0),
-    (5, N'Không đá', 0), (5, N'Ít đá', 0), (5, N'Bình thường', 0), (5, N'Nhiều đá', 0),
-    (6, N'Thêm shot', 8000), (6, N'Trân châu', 7000), (6, N'Kem cheese', 10000);
+    (5, N'Không đá', 0), (5, N'Ít đá', 0), (5, N'Bình thường', 0), (5, N'Nhiều đá', 0);
 GO
 INSERT INTO catalog.ProductModifierGroup(ProductId, ModifierGroupId) VALUES
-    (1,1), (1,4), (1,5), (1,6),
-    (2,2),       (2,5), (2,6),
-    (3,3), (3,4), (3,5), (3,6);
+    (1,1), (1,4), (1,5),
+    (2,2),       (2,5),
+    (3,3), (3,4), (3,5);
 GO
--- Ví dụ ảnh hưởng định mức: "Thêm shot" = +18g cà phê hạt
+-- Ví dụ ảnh hưởng định mức: Size M/L hoặc ít/nhiều đường/đá thay đổi lượng nguyên liệu
 INSERT INTO catalog.ModifierIngredientImpact(ModifierOptionId, IngredientId, QtyDelta) VALUES
     -- Size Cà phê sữa
     ((SELECT mo.ModifierOptionId FROM catalog.ModifierOption mo WHERE mo.ModifierGroupId=1 AND mo.Name=N'Size M'), 1, 4),
@@ -914,18 +1024,14 @@ INSERT INTO catalog.ModifierIngredientImpact(ModifierOptionId, IngredientId, Qty
     ((SELECT mo.ModifierOptionId FROM catalog.ModifierOption mo WHERE mo.ModifierGroupId=4 AND mo.Name=N'Nhiều đường'), 3, 5),
     ((SELECT mo.ModifierOptionId FROM catalog.ModifierOption mo WHERE mo.ModifierGroupId=5 AND mo.Name=N'Không đá'), 4, -100),
     ((SELECT mo.ModifierOptionId FROM catalog.ModifierOption mo WHERE mo.ModifierGroupId=5 AND mo.Name=N'Ít đá'), 4, -50),
-    ((SELECT mo.ModifierOptionId FROM catalog.ModifierOption mo WHERE mo.ModifierGroupId=5 AND mo.Name=N'Nhiều đá'), 4, 50),
-    -- Topping
-    ((SELECT ModifierOptionId FROM catalog.ModifierOption WHERE ModifierGroupId=6 AND Name=N'Thêm shot'), 1, 18),
-    ((SELECT ModifierOptionId FROM catalog.ModifierOption WHERE ModifierGroupId=6 AND Name=N'Trân châu'), 8, 50),
-    ((SELECT ModifierOptionId FROM catalog.ModifierOption WHERE ModifierGroupId=6 AND Name=N'Kem cheese'), 9, 30);
+    ((SELECT mo.ModifierOptionId FROM catalog.ModifierOption mo WHERE mo.ModifierGroupId=5 AND mo.Name=N'Nhiều đá'), 4, 50);
 GO
 
 -- Menu chi nhánh
 INSERT INTO catalog.BranchMenu(BranchId, ProductId, IsAvailable) VALUES (1,1,1),(1,2,1),(1,3,1);
 GO
 
--- Tồn demo cho topping: ghi sổ cái trước, dựng cache BranchInventory từ ledger.
+-- Tồn demo nguyên liệu phụ: ghi sổ cái trước, dựng cache BranchInventory từ ledger.
 INSERT INTO inventory.InventoryTransaction(BranchId,IngredientId,ChangeQty,TxnType,RefTable,RefId,CreatedBy) VALUES
     (1,8,2000,'RECEIPT','Seed',NULL,(SELECT UserId FROM iam.[User] WHERE Username='manager1')),
     (1,9,1500,'RECEIPT','Seed',NULL,(SELECT UserId FROM iam.[User] WHERE Username='manager1'));
@@ -952,7 +1058,7 @@ GO
 
 
 /* ############################################################################
-   PART B — CATALOG ĐẦY ĐỦ (menu 15 món, mọi món đủ công thức + modifier + ảnh)
+   PART B — CATALOG ĐẦY ĐỦ (menu 15 món, mọi món đủ công thức + Size/Đường/Đá + ảnh)
    Idempotent (khoá theo Name). Layer lên PART A. Ảnh = Unsplash (đã verify 200).
    ############################################################################ */
 USE CafeChain;
@@ -1067,15 +1173,13 @@ BEGIN
         WHERE mo.ModifierGroupId=@gid AND mo.Name IN (N'Size M',N'Size L');
 END
 
-/* --- B5. Gắn nhóm dùng chung Đá / Đường / Topping ------------------------- */
+/* --- B5. Gắn nhóm dùng chung Đá / Đường ---------------------------------- */
 DECLARE @gDuong  INT = (SELECT TOP(1) ModifierGroupId FROM catalog.ModifierGroup WHERE Name=N'Đường'  ORDER BY ModifierGroupId);
 DECLARE @gDa     INT = (SELECT TOP(1) ModifierGroupId FROM catalog.ModifierGroup WHERE Name=N'Đá'     ORDER BY ModifierGroupId);
-DECLARE @gTopping INT = (SELECT TOP(1) ModifierGroupId FROM catalog.ModifierGroup WHERE Name=N'Topping' ORDER BY ModifierGroupId);
-
--- Đá + Topping cho mọi món
+-- Đá cho mọi món
 INSERT INTO catalog.ProductModifierGroup(ProductId,ModifierGroupId)
 SELECT p.ProductId, g.g FROM catalog.Product p
-CROSS JOIN (VALUES(@gDa),(@gTopping)) g(g)
+CROSS JOIN (VALUES(@gDa)) g(g)
 WHERE p.IsActive=1 AND g.g IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM catalog.ProductModifierGroup x WHERE x.ProductId=p.ProductId AND x.ModifierGroupId=g.g);
 
@@ -1666,3 +1770,5 @@ COMMIT TRANSACTION;
 
 PRINT N'Đã thêm 28 dữ liệu demo cho Hao hụt & Làm lại tại CN01.';
 GO
+
+

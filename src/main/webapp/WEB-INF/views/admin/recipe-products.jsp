@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Công thức / Recipe</h1><p>Công thức món cho sản phẩm · Công thức pha sẵn cho nguyên liệu pha sẵn</p></div>
+    <div><h1>Công thức</h1><p>Thiết lập định mức nguyên liệu cho món và mẻ pha sẵn.</p></div>
 </div>
 
 <h3>Công thức món — chọn sản phẩm</h3>
@@ -13,7 +13,7 @@
         <div class="card empty-state"><div class="icon">📭</div><p>Chưa có sản phẩm. Hãy thêm sản phẩm trước.</p></div>
     </c:when>
     <c:otherwise>
-        <div data-tabletools style="margin-bottom:26px">
+        <div data-tabletools data-tt-page-size="8" style="margin-bottom:26px">
             <div class="table-toolbar">
                 <div class="form-group table-search">
                     <label for="recipeProductSearch">Tìm kiếm</label>
@@ -23,14 +23,6 @@
                     <label for="recipeProductCategoryFilter">Danh mục</label>
                     <select id="recipeProductCategoryFilter" class="form-control tt-filter" data-tt-filter data-tt-col="2" data-tt-autofill>
                         <option value="">Tất cả</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="recipeProductPageSize">Hiển thị</label>
-                    <select id="recipeProductPageSize" class="form-control tt-size" data-tt-size>
-                        <option value="10">10</option>
-                        <option value="20">20</option>
-                        <option value="50">50</option>
                     </select>
                 </div>
             </div>
@@ -61,19 +53,11 @@
         <div class="card empty-state"><div class="icon">🥤</div><p>Chưa có nguyên liệu pha sẵn nào. Tạo ở mục Nguyên liệu (loại Nguyên liệu pha sẵn).</p></div>
     </c:when>
     <c:otherwise>
-        <div data-tabletools>
+        <div data-tabletools data-tt-page-size="5">
             <div class="table-toolbar">
                 <div class="form-group table-search">
                     <label for="recipePreppedSearch">Tìm kiếm</label>
                     <input id="recipePreppedSearch" class="form-control" type="search" data-tt-search placeholder="Tìm theo tên nguyên liệu">
-                </div>
-                <div class="form-group">
-                    <label for="recipePreppedPageSize">Hiển thị</label>
-                    <select id="recipePreppedPageSize" class="form-control tt-size" data-tt-size>
-                        <option value="10">10</option>
-                        <option value="20">20</option>
-                        <option value="50">50</option>
-                    </select>
                 </div>
             </div>
             <table class="table">

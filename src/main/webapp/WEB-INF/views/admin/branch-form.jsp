@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1><c:choose><c:when test="${branch.branchId > 0}">Sửa chi nhánh</c:when><c:otherwise>Thêm chi nhánh</c:otherwise></c:choose></h1><p>org.Branch</p></div>
+    <div><h1><c:choose><c:when test="${branch.branchId > 0}">Sửa chi nhánh</c:when><c:otherwise>Thêm chi nhánh</c:otherwise></c:choose></h1><p>Cập nhật địa điểm, giờ mở cửa và quản lý phụ trách.</p></div>
     <a class="btn btn-ghost" href="${ctx}/admin/branch">← Quay lại</a>
 </div>
 

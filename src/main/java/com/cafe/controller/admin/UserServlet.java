@@ -16,7 +16,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
 
-/** A1 · UserServlet → /admin/user. Actions: list/create/update/toggleStatus/resetPassword/assignBranch. */
+/** Admin staff accounts. */
 @WebServlet("/admin/user")
 public class UserServlet extends HttpServlet {
 
@@ -33,17 +33,17 @@ public class UserServlet extends HttpServlet {
                 User u = new User();
                 u.setStatus("ACTIVE");
                 req.setAttribute("staff", u);
-                forwardForm(req, resp, "Thêm nhân sự");
+                forwardForm(req, resp, "Them nhan su");
             } else if ("edit".equals(action)) {
                 User u = service.getUser(Integer.parseInt(req.getParameter("id")));
                 if (u == null) { resp.sendError(HttpServletResponse.SC_NOT_FOUND); return; }
-                if (Constants.ROLE_ADMIN.equals(u.getRoleCode())) {       // tài khoản Admin hệ thống — khoá sửa
-                    req.getSession().setAttribute("flashError", "Tài khoản Admin hệ thống không thể chỉnh sửa.");
+                if (Constants.ROLE_ADMIN.equals(u.getRoleCode())) {
+                    req.getSession().setAttribute("flashError", "Tai khoan Admin he thong khong the chinh sua.");
                     resp.sendRedirect(req.getContextPath() + "/admin/user");
                     return;
                 }
                 req.setAttribute("staff", u);
-                forwardForm(req, resp, "Sửa nhân sự");
+                forwardForm(req, resp, "Sua nhan su");
             } else {
                 Integer roleId = parseFilter(req.getParameter("roleId"));
                 Integer branchId = parseFilter(req.getParameter("branchId"));
@@ -65,7 +65,7 @@ public class UserServlet extends HttpServlet {
                 req.setAttribute("rowStart", offset);
                 req.setAttribute("totalPages", totalPages);
                 req.setAttribute("total", total);
-                req.setAttribute("pageTitle", "Nhân sự");
+                req.setAttribute("pageTitle", "Nhan su");
                 req.getRequestDispatcher("/WEB-INF/views/admin/user-list.jsp").forward(req, resp);
             }
         } catch (Exception e) { throw new ServletException(e); }
@@ -81,8 +81,8 @@ public class UserServlet extends HttpServlet {
             if ("toggleStatus".equals(action)) {
                 int id = Integer.parseInt(req.getParameter("id"));
                 User target = service.getUser(id);
-                if (target != null && Constants.ROLE_ADMIN.equals(target.getRoleCode())) {  // admin luôn ACTIVE
-                    req.getSession().setAttribute("flashError", "Tài khoản Admin luôn hoạt động — không thể khoá.");
+                if (target != null && Constants.ROLE_ADMIN.equals(target.getRoleCode())) {
+                    req.getSession().setAttribute("flashError", "Tai khoan Admin luon hoat dong, khong the khoa.");
                     resp.sendRedirect(ctx + "/admin/user");
                     return;
                 }
@@ -94,20 +94,18 @@ public class UserServlet extends HttpServlet {
             User u = bind(req);
             String password = req.getParameter("password");
             boolean creating = u.getUserId() == 0;
-            User existing = null;
 
-            // ----- Bảo vệ tài khoản Admin: chỉ 1 admin toàn chuỗi -----
             if (creating && u.getRoleId() == adminRoleId()) {
                 req.setAttribute("staff", u);
-                req.setAttribute("errorMsg", "Hệ thống chỉ có 1 Admin toàn chuỗi — không thể tạo thêm tài khoản Admin.");
-                forwardForm(req, resp, "Thêm nhân sự");
+                req.setAttribute("errorMsg", "He thong chi co 1 Admin toan chuoi, khong the tao them tai khoan Admin.");
+                forwardForm(req, resp, "Them nhan su");
                 return;
             }
             if (!creating) {
-                existing = service.getUser(u.getUserId());
+                User existing = service.getUser(u.getUserId());
                 if (existing == null) { resp.sendError(HttpServletResponse.SC_NOT_FOUND); return; }
-                if (existing != null && Constants.ROLE_ADMIN.equals(existing.getRoleCode())) {
-                    req.getSession().setAttribute("flashError", "Tài khoản Admin hệ thống không thể chỉnh sửa.");
+                if (Constants.ROLE_ADMIN.equals(existing.getRoleCode())) {
+                    req.getSession().setAttribute("flashError", "Tai khoan Admin he thong khong the chinh sua.");
                     resp.sendRedirect(ctx + "/admin/user");
                     return;
                 }
@@ -118,13 +116,13 @@ public class UserServlet extends HttpServlet {
             if (error != null) {
                 req.setAttribute("staff", u);
                 req.setAttribute("errorMsg", error);
-                forwardForm(req, resp, creating ? "Thêm nhân sự" : "Sửa nhân sự");
+                forwardForm(req, resp, creating ? "Them nhan su" : "Sua nhan su");
                 return;
             }
             if (creating) {
                 service.createUser(u, password);
             } else {
-                service.updateProfile(u.getUserId(), u.getFullName(), u.getEmail(), u.getPhone());
+                service.updateUser(u);
             }
             resp.sendRedirect(ctx + "/admin/user");
         } catch (Exception e) { throw new ServletException(e); }
@@ -138,27 +136,26 @@ public class UserServlet extends HttpServlet {
         u.setFullName(trim(req.getParameter("fullName")));
         u.setEmail(trim(req.getParameter("email")));
         u.setPhone(trim(req.getParameter("phone")));
-        String role = req.getParameter("roleId");
-        if (role != null && !role.isBlank()) u.setRoleId(Integer.parseInt(role));
-        String branch = req.getParameter("branchId");
-        u.setBranchId(branch == null || branch.isBlank() ? null : Integer.parseInt(branch));
+        u.setRoleId(parsePositiveInt(req.getParameter("roleId")));
+        int branchId = parsePositiveInt(req.getParameter("branchId"));
+        u.setBranchId(branchId <= 0 ? null : branchId);
         String status = req.getParameter("status");
         u.setStatus(status == null || status.isBlank() ? "ACTIVE" : status);
         return u;
     }
 
     private String validate(User u, String password, boolean creating) throws Exception {
-        if (u.getUsername() == null || u.getUsername().isBlank()) return "Tên đăng nhập không được để trống.";
-        if (u.getFullName() == null || u.getFullName().isBlank()) return "Họ tên không được để trống.";
-        if (u.getEmail() == null || u.getEmail().isBlank()) return "Email không được để trống.";
-        if (!u.getEmail().contains("@")) return "Email phải có ký tự @.";
-        if (u.getPhone() == null || u.getPhone().isBlank()) return "Số điện thoại không được để trống.";
-        if (!u.getPhone().matches("^0\\d{9}$")) return "Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.";
-        if (u.getRoleId() <= 0) return "Vui lòng chọn vai trò.";
-        if (creating && u.getBranchId() == null) return "Vui lòng chọn chi nhánh.";
-        if (creating && (password == null || password.length() < 6)) return "Mật khẩu tối thiểu 6 ký tự.";
-        if (service.usernameTaken(u.getUsername(), u.getUserId())) return "Tên đăng nhập đã tồn tại.";
-        if (!"ACTIVE".equals(u.getStatus()) && !"LOCKED".equals(u.getStatus())) return "Trạng thái không hợp lệ.";
+        if (u.getUsername() == null || u.getUsername().isBlank()) return "Ten dang nhap khong duoc de trong.";
+        if (u.getFullName() == null || u.getFullName().isBlank()) return "Ho ten khong duoc de trong.";
+        if (u.getEmail() == null || u.getEmail().isBlank()) return "Email khong duoc de trong.";
+        if (!u.getEmail().contains("@")) return "Email phai co ky tu @.";
+        if (u.getPhone() == null || u.getPhone().isBlank()) return "So dien thoai khong duoc de trong.";
+        if (!u.getPhone().matches("^0\\d{9}$")) return "So dien thoai phai gom 10 chu so va bat dau bang 0.";
+        if (u.getRoleId() <= 0) return "Vui long chon vai tro.";
+        if (u.getBranchId() == null) return "Vui long chon chi nhanh.";
+        if (creating && (password == null || password.length() < 6)) return "Mat khau toi thieu 6 ky tu.";
+        if (service.usernameTaken(u.getUsername(), u.getUserId())) return "Ten dang nhap da ton tai.";
+        if (!"ACTIVE".equals(u.getStatus()) && !"LOCKED".equals(u.getStatus())) return "Trang thai khong hop le.";
         return null;
     }
 
@@ -166,7 +163,7 @@ public class UserServlet extends HttpServlet {
             throws ServletException, IOException {
         try {
             List<Role> roles = roleService.getRoleList();
-            roles.removeIf(r -> Constants.ROLE_ADMIN.equals(r.getCode()));   // không cho chọn/tạo role Admin
+            roles.removeIf(r -> Constants.ROLE_ADMIN.equals(r.getCode()));
             req.setAttribute("roles", roles);
             req.setAttribute("branches", branchService.getBranchListActive());
         } catch (Exception e) { throw new ServletException(e); }
@@ -174,10 +171,10 @@ public class UserServlet extends HttpServlet {
         req.getRequestDispatcher("/WEB-INF/views/admin/user-form.jsp").forward(req, resp);
     }
 
-    /** RoleId của ADMIN (-1 nếu không tìm thấy) — để chặn tạo thêm admin. */
     private int adminRoleId() throws Exception {
-        for (Role r : roleService.getRoleList())
+        for (Role r : roleService.getRoleList()) {
             if (Constants.ROLE_ADMIN.equals(r.getCode())) return r.getRoleId();
+        }
         return -1;
     }
 
@@ -185,15 +182,9 @@ public class UserServlet extends HttpServlet {
 
     private void applyLockedFields(User target, User source) {
         target.setUsername(source.getUsername());
-        target.setRoleId(source.getRoleId());
-        target.setRoleCode(source.getRoleCode());
-        target.setRoleName(source.getRoleName());
-        target.setBranchId(source.getBranchId());
-        target.setBranchName(source.getBranchName());
         target.setStatus(source.getStatus());
     }
 
-    /** Param lọc → Integer; rỗng/"0"/không phải số = null (bỏ lọc). */
     private Integer parseFilter(String s) {
         if (s == null || s.isBlank()) return null;
         try { int v = Integer.parseInt(s.trim()); return v <= 0 ? null : v; }
@@ -204,5 +195,15 @@ public class UserServlet extends HttpServlet {
         if (s == null || s.isBlank()) return 1;
         try { return Math.max(1, Integer.parseInt(s.trim())); }
         catch (NumberFormatException e) { return 1; }
+    }
+
+    private int parsePositiveInt(String s) {
+        if (s == null || s.isBlank()) return 0;
+        try {
+            int value = Integer.parseInt(s.trim());
+            return value > 0 ? value : 0;
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 }

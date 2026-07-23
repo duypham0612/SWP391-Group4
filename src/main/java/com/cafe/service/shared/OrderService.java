@@ -39,9 +39,6 @@ import java.util.Map;
  * Contract #1: order.created + status enum chung; #3: cùng bảng sales.Orders.
  */
 public class OrderService {
-    private static final String GROUP_SIZE = "Size";
-    private static final String GROUP_SUGAR = "\u0110\u01b0\u1eddng";
-    private static final String GROUP_ICE = "\u0110\u00e1";
 
     private final OrderDao orderDao = new OrderDao();
     private final OrderItemDao itemDao = new OrderItemDao();
@@ -99,6 +96,8 @@ public class OrderService {
                     is86ByProduct.put(bm.getProductId(), bm.isIs86());
                     nameByProduct.put(bm.getProductId(), bm.getProductName());
                 }
+                // Hết theo kho (bản chất 1): chặn đặt món có nguyên liệu tồn ≤ 0, độc lập với cờ 86 thủ công.
+                java.util.Set<Integer> depletedProduct = productRecipeDao.findDepletedProductIds(conn, branchId);
 
                 Order o = new Order();
                 o.setBranchId(branchId);
@@ -122,6 +121,11 @@ public class OrderService {
                     if (Boolean.TRUE.equals(is86ByProduct.get(line.productId))) {
                         String nm = nameByProduct.getOrDefault(line.productId, "#" + line.productId);
                         throw new IllegalArgumentException("Món \"" + nm + "\" đang hết (86) — vui lòng bỏ khỏi đơn.");
+                    }
+                    // Hết theo kho: nguyên liệu tồn ≤ 0 → chặn đặt, chờ nhập/pha lại (tự có lại khi tồn > 0).
+                    if (depletedProduct.contains(line.productId)) {
+                        String nm = nameByProduct.getOrDefault(line.productId, "#" + line.productId);
+                        throw new IllegalArgumentException("Món \"" + nm + "\" tạm hết nguyên liệu — vui lòng bỏ khỏi đơn.");
                     }
 
                     List<Integer> optionIds = validateOptions(conn, line.productId, line.optionIds);
@@ -185,7 +189,6 @@ public class OrderService {
         for (ProductModifierGroup pmg : pmgDao.findByProduct(conn, productId)) {
             ModifierGroup group = groupDao.findById(conn, pmg.getModifierGroupId());
             if (group == null) continue;
-            if (!isCustomerChoiceGroup(group.getName())) continue;
             groupsById.put(group.getModifierGroupId(), group);
             for (ModifierOption option : optionDao.findByGroup(conn, group.getModifierGroupId())) {
                 if (option.isActive()) optionToGroup.put(option.getModifierOptionId(), group.getModifierGroupId());
@@ -216,10 +219,6 @@ public class OrderService {
             }
         }
         return validOptionIds;
-    }
-
-    private boolean isCustomerChoiceGroup(String name) {
-        return GROUP_SIZE.equals(name) || GROUP_SUGAR.equals(name) || GROUP_ICE.equals(name);
     }
 
     // ---------- KDS (Barista) ----------
@@ -497,10 +496,14 @@ public class OrderService {
         if (clean.isEmpty()) throw new IllegalArgumentException("Vui lòng chọn lý do làm lại.");
         return tx(conn -> {
             OrderItem it = itemDao.findById(conn, orderItemId);
-            if (it == null || itemDao.beginRemake(conn, orderItemId, branchId) == 0) return false;
+            if (it == null) return false;
+            boolean accepted = "READY".equals(it.getStatus())
+                    ? itemDao.beginRemake(conn, orderItemId, branchId) == 1
+                    : itemDao.beginRemakeClaimed(conn, orderItemId, branchId, userId) == 1;
+            if (!accepted) return false;
             inventoryService.reserveRemakeForOrderItem(conn, branchId, orderItemId, it.getProductId(), it.getQuantity(), clean, userId);
             itemDao.finishRemake(conn, orderItemId, branchId);
-            actionDao.insert(conn, orderItemId, branchId, "REMAKE", "READY", "WAITING", clean, userId);
+            actionDao.insert(conn, orderItemId, branchId, "REMAKE", it.getStatus(), "WAITING", clean, userId);
             EventPublisher.publish(conn, EventType.ITEM_REMAKE_REQUESTED, String.valueOf(orderItemId), branchId,
                     "{\"orderId\":" + it.getOrderId() + ",\"orderItemId\":" + orderItemId
                             + ",\"reason\":\"" + clean + "\",\"by\":" + userId + "}");

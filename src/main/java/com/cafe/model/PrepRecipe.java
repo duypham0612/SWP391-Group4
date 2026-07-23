@@ -26,8 +26,14 @@ public class PrepRecipe {
     public BigDecimal getQuantity() { return quantity; }
     public void setQuantity(BigDecimal quantity) { this.quantity = quantity; }
 
+    /** Cho JSP — bỏ .000 thừa. */
+    public String getQuantityDisplay() { return com.cafe.common.QuantityFormat.plain(quantity); }
+
     public BigDecimal getYieldQty() { return yieldQty; }
     public void setYieldQty(BigDecimal yieldQty) { this.yieldQty = yieldQty; }
+
+    /** Hiển thị gọn cho pha chế: 1000.000 → 1000, 250.500 → 250.5. */
+    public String getYieldDisplay() { return com.cafe.common.QuantityFormat.plain(yieldQty); }
 
     public String getRawIngredientName() { return rawIngredientName; }
     public void setRawIngredientName(String rawIngredientName) { this.rawIngredientName = rawIngredientName; }

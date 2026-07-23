@@ -7,14 +7,15 @@
 
   var endpoint = board.dataset.endpoint;
   var FILTER_KEY = 'kdsFiltersV2';
-  var LANE_KEY = 'kdsActiveLane';
+  var TABLE_KEY = 'kdsActiveTable';
   var ALERT_KEY = 'kdsAlertOpen';
   var DEFAULT_FILTERS = { owner: 'all', urgency: 'all', station: 'all', orderType: 'all' };
   var BLOCKING_REASONS = ['EQUIPMENT', 'DISCONTINUED'];
   var filters = readFilters();
-  var activeLane = storageGet(LANE_KEY) || 'waiting';
+  var activeTableKey = storageGet(TABLE_KEY) || '';
   var refreshing = false;
   var suppressUntil = 0;
+  var tableSearch = '';   // ô "Tìm bàn" — giữ ở biến module để sống qua mỗi lần refresh board
   var noticeTimer;
   var modalReturnFocus = null;
   var known = readIds();
@@ -78,7 +79,7 @@
 
   function signature(card) {
     var copy = card.cloneNode(true);
-    copy.querySelectorAll('.kds-sla,.kds-clock,.kds-meta-row,.kds-ready-facts').forEach(function (node) {
+    copy.querySelectorAll('.kds-sla,.kds-clock,.kds-meta-row,.kds-ready-facts,.kds-brow__sla,.kds-brow__by').forEach(function (node) {
       node.remove();
     });
     return copy.textContent.replace(/\s+/g, ' ').trim();
@@ -180,20 +181,60 @@
     return isNaN(value) ? 0 : value;
   }
 
-  /* Số đếm phải khớp thứ đang thấy: bật "Món của tôi" mà tab vẫn ghi tổng toàn quầy thì
-     barista đọc "Chờ pha 12" trong khi lane chỉ có 3 card. Đếm theo LY như phía server. */
-  function updateLaneCounts(lane, visibleCups, totalCups, filtered) {
-    var label = filtered && visibleCups !== totalCups
-      ? visibleCups + '/' + totalCups
-      : String(totalCups);
-    var head = lane.querySelector('.kds-col__count');
-    if (head) head.textContent = label + ' ly';
-    var tab = board.querySelector('[data-lane-tab="' + lane.dataset.lane + '"] span');
-    if (tab) tab.textContent = label;
+  function tableTabs() { return board.querySelectorAll('[data-table-tab]'); }
+  function tablePanels() { return board.querySelectorAll('[data-table-panel]'); }
+
+  function tabByKey(key) {
+    var found = null;
+    tableTabs().forEach(function (tab) { if (!found && tab.dataset.tableKey === key) found = tab; });
+    return found;
   }
 
+  function visibleTableKeys() {
+    var keys = [];
+    tableTabs().forEach(function (tab) { if (!tab.hidden) keys.push(tab.dataset.tableKey); });
+    return keys;
+  }
+
+  // Bỏ dấu + thường hoá để gõ "ban 43" cũng ra "Bàn 43".
+  function stripAccents(text) {
+    var s = (text || '').toLowerCase().normalize('NFD');
+    var out = '';
+    for (var i = 0; i < s.length; i++) {
+      var c = s.charCodeAt(i);
+      if (c < 0x0300 || c > 0x036f) out += s.charAt(i);   // bỏ dấu tổ hợp U+0300..U+036F
+    }
+    return out;
+  }
+
+  function tableMatchesSearch(tab) {
+    if (!tableSearch) return true;
+    var name = tab.querySelector('.kds-table-tab__name');
+    return stripAccents(name ? name.textContent : tab.textContent).indexOf(stripAccents(tableSearch)) >= 0;
+  }
+
+  /* Chọn bàn active; render giữ tất cả panel, chỉ cái is-active hiển thị (như lane cũ). Bàn đang
+     chọn không còn (pha xong hết) hoặc bị filter ẩn thì lùi về bàn đầu tiên đang hiện (khẩn nhất). */
+  function setActiveTable(key, focusTab) {
+    var visible = visibleTableKeys();
+    if (visible.indexOf(key) < 0) key = visible.length ? visible[0] : key;
+    activeTableKey = key;
+    storageSet(TABLE_KEY, key);
+    tableTabs().forEach(function (tab) {
+      var on = tab.dataset.tableKey === key;
+      tab.classList.toggle('is-active', on);
+      tab.setAttribute('aria-selected', String(on));
+      tab.tabIndex = on ? 0 : -1;
+      if (on && focusTab) tab.focus();
+    });
+    tablePanels().forEach(function (panel) {
+      panel.classList.toggle('is-active', panel.dataset.tableKey === key);
+    });
+  }
+
+  /* Lọc card theo bộ lọc; đồng thời cập nhật số ly mỗi mục con, ẩn mục rỗng, ẩn dòng bàn không còn
+     món khớp — để master list và chi tiết luôn khớp con số. Món bị chặn luôn hiện (cảnh báo an toàn). */
   function applyFilters() {
-    // Món bị chặn luôn hiện: đó là cảnh báo an toàn, không phải hàng chờ để lọc.
     board.querySelectorAll('[data-kds-item-id]').forEach(function (card) {
       card.hidden = card.dataset.owner === 'blocked' ? false : !cardMatches(card);
     });
@@ -201,22 +242,35 @@
     var filtered = filters.owner !== 'all' || filters.urgency !== 'all' ||
       filters.station !== 'all' || filters.orderType !== 'all';
 
-    board.querySelectorAll('[data-lane]').forEach(function (lane) {
-      var cards = Array.prototype.slice.call(lane.querySelectorAll('[data-kds-item-id]'));
-      var visibleCups = 0;
-      var totalCups = 0;
-      var anyVisible = false;
-      cards.forEach(function (card) {
-        totalCups += cups(card);
-        if (!card.hidden) {
-          visibleCups += cups(card);
-          anyVisible = true;
-        }
+    tablePanels().forEach(function (panel) {
+      var panelVisible = 0;
+      panel.querySelectorAll('.kds-table-section').forEach(function (section) {
+        var visibleCups = 0;
+        var totalCups = 0;
+        section.querySelectorAll('[data-kds-item-id]').forEach(function (card) {
+          totalCups += cups(card);
+          if (!card.hidden) visibleCups += cups(card);
+        });
+        panelVisible += visibleCups;
+        var count = section.querySelector('.kds-table-section__head span');
+        if (count) count.textContent = (filtered && visibleCups !== totalCups
+          ? visibleCups + '/' + totalCups : String(totalCups)) + ' ly';
+        section.hidden = visibleCups === 0;
       });
-      updateLaneCounts(lane, visibleCups, totalCups, filtered);
-      var filterEmpty = lane.querySelector('.kds-filter-empty');
-      if (filterEmpty) filterEmpty.hidden = cards.length === 0 || anyVisible;
+      // Ẩn nhóm món (batch) khi mọi dòng của nó bị lọc, để không còn trơ header "N× Món" rỗng.
+      panel.querySelectorAll('.kds-batch').forEach(function (batch) {
+        var anyVisible = false;
+        batch.querySelectorAll('[data-kds-item-id]').forEach(function (row) { if (!row.hidden) anyVisible = true; });
+        batch.hidden = !anyVisible;
+      });
+      var tab = tabByKey(panel.dataset.tableKey);
+      // Ẩn dòng bàn khi bộ lọc làm rỗng HOẶC không khớp ô "Tìm bàn".
+      if (tab) tab.hidden = panelVisible === 0 || !tableMatchesSearch(tab);
+      var empty = panel.querySelector('.kds-filter-empty');
+      if (empty) empty.hidden = panelVisible !== 0;
     });
+
+    setActiveTable(activeTableKey, false);
     syncFilterControls();
   }
 
@@ -224,22 +278,6 @@
     filters = Object.assign({}, DEFAULT_FILTERS);
     saveFilters();
     applyFilters();
-  }
-
-  function setActiveLane(lane, focusTab) {
-    if (['waiting', 'making', 'ready'].indexOf(lane) < 0) lane = 'waiting';
-    activeLane = lane;
-    storageSet(LANE_KEY, lane);
-    board.querySelectorAll('[data-lane-tab]').forEach(function (tab) {
-      var selected = tab.dataset.laneTab === lane;
-      tab.classList.toggle('is-active', selected);
-      tab.setAttribute('aria-selected', String(selected));
-      tab.tabIndex = selected ? 0 : -1;
-      if (selected && focusTab) tab.focus();
-    });
-    board.querySelectorAll('[data-lane]').forEach(function (panel) {
-      panel.classList.toggle('is-active', panel.dataset.lane === lane);
-    });
   }
 
   function itemById(id) {
@@ -252,8 +290,8 @@
 
   function focusDescriptor(element) {
     if (!element || !board.contains(element)) return null;
-    var tab = element.closest('[data-lane-tab]');
-    if (tab) return { laneTab: tab.dataset.laneTab };
+    var tab = element.closest('[data-table-tab]');
+    if (tab) return { tableTab: tab.dataset.tableKey };
     var card = element.closest('[data-kds-item-id]');
     if (!card) return null;
     if (element === card) return { itemId: card.dataset.kdsItemId, card: true };
@@ -268,9 +306,12 @@
 
   function captureViewState() {
     var state = { scroll: {}, handoffs: {}, menus: {}, focus: focusDescriptor(document.activeElement) };
-    board.querySelectorAll('[data-lane]').forEach(function (lane) {
-      var body = lane.querySelector('.kds-col__body');
-      state.scroll[lane.dataset.lane] = body ? body.scrollTop : 0;
+    // Scroll của danh sách bàn (trái): nhiều bàn thì phải giữ chỗ đang xem qua mỗi lần polling 5s,
+    // không thì list nhảy về đầu mỗi 5s và barista mất vị trí.
+    var list = board.querySelector('.kds-table-list');
+    state.listScroll = list ? list.scrollTop : 0;
+    tablePanels().forEach(function (panel) {
+      state.scroll[panel.dataset.tableKey] = panel.scrollTop;
     });
     board.querySelectorAll('[data-kds-item-id]').forEach(function (card) {
       var select = card.querySelector('[name="handoverLocation"]');
@@ -287,7 +328,7 @@
   function restoreFocus(descriptor) {
     if (!descriptor) return;
     var target = null;
-    if (descriptor.laneTab) target = board.querySelector('[data-lane-tab="' + descriptor.laneTab + '"]');
+    if (descriptor.tableTab) target = tabByKey(descriptor.tableTab);
     else {
       var card = itemById(descriptor.itemId);
       if (!card || card.hidden) return;
@@ -302,7 +343,7 @@
         });
       }
     }
-    if (target && !target.disabled) {
+    if (target && !target.disabled && !target.hidden) {
       try { target.focus({ preventScroll: true }); } catch (ignore) { target.focus(); }
     }
   }
@@ -322,9 +363,12 @@
     });
     var alerts = document.getElementById('kdsAlertDrawer');
     if (alerts) alerts.open = !!state.alertOpen;
-    board.querySelectorAll('[data-lane]').forEach(function (lane) {
-      var body = lane.querySelector('.kds-col__body');
-      if (body) body.scrollTop = state.scroll[lane.dataset.lane] || 0;
+    var search = document.getElementById('kdsTableSearch');
+    if (search) search.value = tableSearch;   // ô "Tìm bàn" bị tạo lại theo board → nạp lại giá trị đang gõ
+    var list = board.querySelector('.kds-table-list');
+    if (list) list.scrollTop = state.listScroll || 0;
+    tablePanels().forEach(function (panel) {
+      panel.scrollTop = state.scroll[panel.dataset.tableKey] || 0;
     });
     restoreFocus(state.focus);
   }
@@ -332,8 +376,7 @@
   function replaceBoard(html, state) {
     board.innerHTML = html;
     markChanges();
-    setActiveLane(activeLane, false);
-    applyFilters();
+    applyFilters();          // ẩn/hiện card + dòng bàn, đồng thời tái xác lập bàn active (có fallback)
     restoreViewState(state);
   }
 
@@ -458,8 +501,12 @@
     return board.contains(active) && /^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName);
   }
 
-  async function refresh() {
-    if (refreshing || document.visibilityState === 'hidden' || Date.now() < suppressUntil || interactionInProgress()) return;
+  // force = người dùng bấm "Làm mới": bỏ qua các chốt vốn chỉ để chặn làm mới NGẦM
+  // (tab ẩn, vừa submit xong, đang thao tác dở) — bấm tay thì luôn phải chạy, nếu không
+  // nút sẽ im lặng không làm gì và trông như hỏng.
+  async function refresh(force) {
+    if (refreshing) return;
+    if (!force && (document.visibilityState === 'hidden' || Date.now() < suppressUntil || interactionInProgress())) return;
     refreshing = true;
     board.setAttribute('aria-busy', 'true');
     setConnection(true, true);
@@ -480,7 +527,7 @@
   document.addEventListener('click', function (event) {
     var owner = event.target.closest('[data-filter-group="owner"]');
     var urgency = event.target.closest('#kdsUrgencyFilter');
-    var laneTab = event.target.closest('[data-lane-tab]');
+    var tableTab = event.target.closest('[data-table-tab]');
     var issue = event.target.closest('.js-issue');
     var remake = event.target.closest('.js-remake');
     var unblock = event.target.closest('.js-unblock');
@@ -494,8 +541,8 @@
       filters.urgency = filters.urgency === 'late' ? 'all' : 'late';
       saveFilters();
       applyFilters();
-    } else if (laneTab) {
-      setActiveLane(laneTab.dataset.laneTab, false);
+    } else if (tableTab) {
+      setActiveTable(tableTab.dataset.tableKey, false);
     } else if (issue) {
       openModal('issueModal', issue);
     } else if (remake) {
@@ -505,6 +552,14 @@
       openUnblockModal(unblock);
     } else if (close) {
       closeModal(close.closest('.kds-modal'), true);
+    }
+  });
+
+  // Ô "Tìm bàn": delegation vì input nằm trong board (bị tạo lại mỗi lần refresh).
+  document.addEventListener('input', function (event) {
+    if (event.target && event.target.id === 'kdsTableSearch') {
+      tableSearch = event.target.value;
+      applyFilters();   // lọc lại dòng bàn; setActiveTable tự lùi về bàn khớp đầu tiên
     }
   });
 
@@ -550,12 +605,14 @@
       document.querySelectorAll('.kds-modal:not([hidden])').forEach(function (modal) { closeModal(modal, true); });
       return;
     }
-    var tab = event.target.closest && event.target.closest('[data-lane-tab]');
-    if (!tab || ['ArrowLeft', 'ArrowRight'].indexOf(event.key) < 0) return;
+    // Mũi tên lên/xuống chuyển bàn trong danh sách (chỉ giữa các bàn đang hiện).
+    var tab = event.target.closest && event.target.closest('[data-table-tab]');
+    if (!tab || ['ArrowUp', 'ArrowDown'].indexOf(event.key) < 0) return;
     event.preventDefault();
-    var order = ['waiting', 'making', 'ready'];
-    var next = order.indexOf(tab.dataset.laneTab) + (event.key === 'ArrowRight' ? 1 : -1);
-    setActiveLane(order[(next + order.length) % order.length], true);
+    var keys = visibleTableKeys();
+    if (!keys.length) return;
+    var next = keys.indexOf(tab.dataset.tableKey) + (event.key === 'ArrowDown' ? 1 : -1);
+    setActiveTable(keys[(next + keys.length) % keys.length], true);
   });
 
   board.addEventListener('toggle', function (event) {
@@ -565,13 +622,15 @@
   try { localStorage.removeItem('kdsCompact'); } catch (ignore) { /* obsolete preference */ }
   saveFilters();
   syncFilterControls();
-  setActiveLane(activeLane, false);
   var initialAlert = document.getElementById('kdsAlertDrawer');
   if (initialAlert) initialAlert.open = storageGet(ALERT_KEY) === '1';
   applyFilters();
   setConnection(navigator.onLine, false);
 
-  setInterval(refresh, 5000);
-  window.addEventListener('online', refresh);
+  // Không còn tự động làm mới theo chu kỳ — barista chủ động bấm "Làm mới".
+  // Bảng vẫn tự cập nhật sau mỗi thao tác (postForm trả về HTML board mới) và khi có mạng lại.
+  var refreshButton = document.getElementById('kdsRefresh');
+  if (refreshButton) refreshButton.addEventListener('click', function () { refresh(true); });
+  window.addEventListener('online', function () { refresh(true); });
   window.addEventListener('offline', function () { setConnection(false, false); });
 })();

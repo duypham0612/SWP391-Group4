@@ -65,4 +65,27 @@ public class Voucher {
     // Helper cho input datetime-local
     public String getStartInput() { return startDate == null ? "" : startDate.format(INPUT_FMT); }
     public String getEndInput()   { return endDate == null ? "" : endDate.format(INPUT_FMT); }
+
+    public String getLifecycleStatusCode() {
+        LocalDateTime now = LocalDateTime.now();
+        if (endDate != null && now.isAfter(endDate)) return "EXPIRED";
+        if (startDate != null && now.isBefore(startDate)) return "UPCOMING";
+        return "RUNNING";
+    }
+
+    public String getLifecycleStatusLabel() {
+        return switch (getLifecycleStatusCode()) {
+            case "EXPIRED" -> "H\u1ebft h\u1ea1n";
+            case "UPCOMING" -> "S\u1eafp di\u1ec5n ra";
+            default -> "\u0110ang di\u1ec5n ra";
+        };
+    }
+
+    public String getLifecycleBadgeClass() {
+        return switch (getLifecycleStatusCode()) {
+            case "EXPIRED" -> "badge-cancelled";
+            case "UPCOMING" -> "badge-waiting";
+            default -> "badge-ready";
+        };
+    }
 }

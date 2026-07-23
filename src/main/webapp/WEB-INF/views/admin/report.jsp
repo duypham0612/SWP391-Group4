@@ -5,7 +5,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Báo cáo</div><h1>Doanh thu toàn chuỗi</h1><p>payment.Bill (đã thanh toán) · tổng hợp chéo mọi chi nhánh</p></div>
+    <div><div class="eyebrow">Báo cáo</div><h1>Doanh thu toàn chuỗi</h1><p>Tổng hợp doanh thu, hóa đơn và sản phẩm bán chạy.</p></div>
 </div>
 
 <div class="card-grid">

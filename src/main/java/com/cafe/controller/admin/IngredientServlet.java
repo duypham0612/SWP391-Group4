@@ -12,7 +12,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Set;
 
-/** A4 · IngredientServlet → /admin/ingredient (cờ RAW/PREPPED). */
+/** Admin ingredient management. */
 @WebServlet("/admin/ingredient")
 public class IngredientServlet extends HttpServlet {
 
@@ -26,15 +26,15 @@ public class IngredientServlet extends HttpServlet {
         try {
             if ("new".equals(action)) {
                 req.setAttribute("ingredient", new Ingredient());
-                forwardForm(req, resp, "Thêm nguyên liệu");
+                forwardForm(req, resp, "Them nguyen lieu");
             } else if ("edit".equals(action)) {
                 Ingredient i = service.getIngredient(Integer.parseInt(req.getParameter("id")));
                 if (i == null) { resp.sendError(HttpServletResponse.SC_NOT_FOUND); return; }
                 req.setAttribute("ingredient", i);
-                forwardForm(req, resp, "Sửa nguyên liệu");
+                forwardForm(req, resp, "Sua nguyen lieu");
             } else {
                 req.setAttribute("ingredients", service.getIngredientList());
-                req.setAttribute("pageTitle", "Nguyên liệu");
+                req.setAttribute("pageTitle", "Nguyen lieu");
                 req.getRequestDispatcher("/WEB-INF/views/admin/ingredient-list.jsp").forward(req, resp);
             }
         } catch (Exception e) { throw new ServletException(e); }
@@ -57,7 +57,7 @@ public class IngredientServlet extends HttpServlet {
             if (error != null) {
                 req.setAttribute("ingredient", i);
                 req.setAttribute("errorMsg", error);
-                forwardForm(req, resp, i.getIngredientId() == 0 ? "Thêm nguyên liệu" : "Sửa nguyên liệu");
+                forwardForm(req, resp, i.getIngredientId() == 0 ? "Them nguyen lieu" : "Sua nguyen lieu");
                 return;
             }
             if (i.getIngredientId() == 0) service.createIngredient(i); else service.updateIngredient(i);
@@ -77,10 +77,10 @@ public class IngredientServlet extends HttpServlet {
     }
 
     private String validate(Ingredient i) {
-        if (i.getName() == null || i.getName().isBlank()) return "Tên nguyên liệu không được để trống.";
-        if (i.getUnit() == null || i.getUnit().isBlank()) return "Đơn vị không được để trống.";
+        if (i.getName() == null || i.getName().isBlank()) return "Ten nguyen lieu khong duoc de trong.";
+        if (i.getUnit() == null || i.getUnit().isBlank()) return "Don vi khong duoc de trong.";
         if (i.getIngredientType() == null || !TYPES.contains(i.getIngredientType()))
-            return "Loại nguyên liệu phải là RAW hoặc PREPPED.";
+            return "Loai nguyen lieu phai la RAW hoac PREPPED.";
         return null;
     }
 

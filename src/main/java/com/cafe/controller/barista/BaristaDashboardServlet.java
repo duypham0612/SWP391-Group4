@@ -5,6 +5,8 @@ import com.cafe.model.BranchInventory;
 import com.cafe.model.BranchMenuItem;
 import com.cafe.model.OrderItem;
 import com.cafe.service.barista.HandoverService;
+import com.cafe.common.SessionUtil;
+import com.cafe.model.User;
 import com.cafe.service.barista.KdsService;
 import com.cafe.service.barista.WasteService;
 import com.cafe.service.shared.BranchMenuService;
@@ -37,10 +39,11 @@ public class BaristaDashboardServlet extends HttpServlet {
         try {
             List<OrderItem> queue = kdsService.getQueue(branchId);
             List<OrderItem> readyItems = kdsService.getReadyItems(branchId);
-            HandoverService.HandoverKpi kpi = handoverService.getKpi(branchId);
             WasteSummary wasteSummary = wasteService.getTodayWasteSummary(branchId);
             List<BranchInventory> lowStock = inventoryService.getLowStock(branchId);
             List<BranchMenuItem> menuItems = branchMenuService.getMenuAvailability(branchId);
+            User currentUser = SessionUtil.currentUser(req);
+            BaristaShift.expose(req, MyShiftServlet.PATH);
 
             int eightySixCount = 0;
             for (BranchMenuItem item : menuItems) {
@@ -63,7 +66,6 @@ public class BaristaDashboardServlet extends HttpServlet {
             req.setAttribute("topWaitingItems", firstItems(queue, 5));
             req.setAttribute("lowStock", lowStock);
             req.setAttribute("lowStockPreview", firstItems(lowStock, 5));
-            req.setAttribute("kpi", kpi);
             req.setAttribute("wasteSummary", wasteSummary);
             req.setAttribute("queueCount", cupCount(queue));
             req.setAttribute("readyCount", cupCount(readyItems));
@@ -72,6 +74,9 @@ public class BaristaDashboardServlet extends HttpServlet {
             req.setAttribute("oversoldCount", oversoldCount);
             req.setAttribute("suggest86Count", branchMenuService.getSuggested86(branchId).size());
             req.setAttribute("alertCount", lowStock.size() + eightySixCount);
+            if (currentUser != null && BaristaShift.onShift(req)) {
+                req.setAttribute("pendingHandoverCount", handoverService.countUnacknowledgedForUser(branchId, currentUser.getUserId()));
+            }
             req.setAttribute("pageTitle", "Bảng điều khiển ca");
             req.getRequestDispatcher("/WEB-INF/views/barista/dashboard.jsp").forward(req, resp);
         } catch (Exception e) {
