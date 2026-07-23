@@ -38,7 +38,7 @@ public class ShiftServlet extends HttpServlet {
             req.setAttribute("templates", shiftService.getShiftTemplates(branchId));
             req.setAttribute("assignments", shiftService.getWeekSchedule(branchId, weekStart));
             req.setAttribute("staff", userService.getUserListByBranch(branchId));
-            req.setAttribute("pageTitle", "Ca làm");
+            req.setAttribute("pageTitle", "Lịch làm việc");
             req.getRequestDispatcher("/WEB-INF/views/manager/shift-calendar.jsp").forward(req, resp);
         } catch (Exception e) { throw new ServletException(e); }
     }

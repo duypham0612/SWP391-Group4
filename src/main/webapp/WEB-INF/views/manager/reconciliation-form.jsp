@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Điều chỉnh tồn</h1><p>Nhập tồn thực tế sau kiểm kê — hệ thống tự ghi chênh lệch vào sổ cái</p></div>
+    <div><h1>Ghi nhận kiểm kê</h1><p>Nhập số lượng kiểm đếm thực tế; hệ thống sẽ tự tính và lưu phần chênh lệch.</p></div>
     <a class="btn btn-ghost" href="${ctx}/manager/reconciliation">← Quay lại</a>
 </div>
 
@@ -29,7 +29,7 @@
                 <c:forEach var="i" items="${ingredients}">
                     <tr>
                         <td><input class="pickbox" type="checkbox" name="pick" value="${i.ingredientId}"></td>
-                        <td>${i.name} <span class="muted">· ${i.ingredientType}</span></td>
+                        <td>${i.name} <span class="muted">· ${i.ingredientType == 'PREPPED' ? 'Đã sơ chế' : 'Nguyên liệu thô'}</span></td>
                         <td><input type="text" name="unit_${i.ingredientId}" class="form-control" maxlength="20" value="${i.unit}"></td>
                         <td><input type="number" name="actual_${i.ingredientId}" class="form-control" min="0" step="any" placeholder="0"></td>
                         <td><input type="text" name="reason_${i.ingredientId}" class="form-control" maxlength="255" placeholder="Kiểm kê cuối ca..."></td>

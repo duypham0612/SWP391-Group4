@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1><c:choose><c:when test="${supplier.supplierId > 0}">Sửa nhà cung cấp</c:when><c:otherwise>Thêm nhà cung cấp</c:otherwise></c:choose></h1><p>inventory.Supplier</p></div>
+    <div><h1><c:choose><c:when test="${supplier.supplierId > 0}">Cập nhật nhà cung cấp</c:when><c:otherwise>Thêm nhà cung cấp</c:otherwise></c:choose></h1><p>Nhập đầy đủ tên và thông tin liên hệ của nhà cung cấp.</p></div>
     <a class="btn btn-ghost" href="${ctx}/manager/supplier">← Quay lại</a>
 </div>
 
