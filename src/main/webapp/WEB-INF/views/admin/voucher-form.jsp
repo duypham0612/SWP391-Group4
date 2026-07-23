@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1><c:choose><c:when test="${voucher.voucherId > 0}">Sửa voucher</c:when><c:otherwise>Thêm voucher</c:otherwise></c:choose></h1><p>payment.Voucher</p></div>
+    <div><h1><c:choose><c:when test="${voucher.voucherId > 0}">Sửa voucher</c:when><c:otherwise>Thêm voucher</c:otherwise></c:choose></h1><p>Thiết lập mã giảm giá và phạm vi áp dụng.</p></div>
     <a class="btn btn-ghost" href="${ctx}/admin/voucher">← Quay lại</a>
 </div>
 

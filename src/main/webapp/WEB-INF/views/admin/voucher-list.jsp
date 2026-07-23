@@ -5,16 +5,16 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Voucher</h1><p>payment.Voucher</p></div>
+    <div><h1>Voucher</h1><p>Quản lý mã giảm giá theo toàn chuỗi hoặc từng chi nhánh.</p></div>
     <a class="btn btn-primary" href="${ctx}/admin/voucher?action=new">+ Thêm voucher</a>
 </div>
 
 <c:choose>
     <c:when test="${empty vouchers}">
-        <div class="card empty-state"><div class="icon">📭</div><p>Chưa có voucher nào.</p></div>
+        <div class="card empty-state"><div class="icon">--</div><p>Chưa có voucher nào.</p></div>
     </c:when>
     <c:otherwise>
-        <div data-tabletools>
+        <div data-tabletools data-tt-page-size="10">
             <div class="table-toolbar">
                 <div class="form-group table-search">
                     <label for="voucherSearch">Tìm kiếm</label>
@@ -40,23 +40,22 @@
                     <label for="voucherStatusFilter">Trạng thái</label>
                     <select id="voucherStatusFilter" class="form-control tt-filter" data-tt-filter data-tt-col="6">
                         <option value="">Tất cả</option>
-                        <option value="true">Bật</option>
-                        <option value="false">Tắt</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="voucherPageSize">Hiển thị</label>
-                    <select id="voucherPageSize" class="form-control tt-size" data-tt-size>
-                        <option value="10">10</option>
-                        <option value="20">20</option>
-                        <option value="50">50</option>
+                        <option value="UPCOMING">Sắp diễn ra</option>
+                        <option value="RUNNING">Đang diễn ra</option>
+                        <option value="EXPIRED">Hết hạn</option>
                     </select>
                 </div>
             </div>
             <table class="table">
                 <thead><tr>
-                    <th data-tt-search>Mã</th><th data-tt-nosearch>Loại</th><th data-tt-nosearch>Giá trị</th><th data-tt-nosearch>Đơn tối thiểu</th><th data-tt-nosearch>Phạm vi</th>
-                    <th data-tt-nosearch>Đã dùng</th><th style="width:110px" data-tt-nosearch>Trạng thái</th><th style="width:170px" data-tt-nosearch>Thao tác</th>
+                    <th data-tt-search>Mã</th>
+                    <th data-tt-nosearch>Loại</th>
+                    <th data-tt-nosearch>Giá trị</th>
+                    <th data-tt-nosearch>Đơn tối thiểu</th>
+                    <th data-tt-nosearch>Phạm vi</th>
+                    <th data-tt-nosearch>Đã dùng</th>
+                    <th style="width:140px" data-tt-nosearch>Trạng thái</th>
+                    <th style="width:170px" data-tt-nosearch>Thao tác</th>
                 </tr></thead>
                 <tbody>
                     <c:forEach var="v" items="${vouchers}">
@@ -70,9 +69,16 @@
                                 </c:choose>
                             </td>
                             <td><fmt:formatNumber value="${v.minOrderAmount}" maxFractionDigits="0"/> ₫</td>
-                            <td data-tt-val="${v.scope}"><c:choose><c:when test="${v.scope == 'BRANCH'}">${v.branchName}</c:when><c:otherwise>Toàn chuỗi</c:otherwise></c:choose></td>
+                            <td data-tt-val="${v.scope}">
+                                <c:choose>
+                                    <c:when test="${v.scope == 'BRANCH'}">${v.branchName}</c:when>
+                                    <c:otherwise>Toàn chuỗi</c:otherwise>
+                                </c:choose>
+                            </td>
                             <td>${v.usedCount}<c:if test="${not empty v.usageLimit}">/${v.usageLimit}</c:if></td>
-                            <td data-tt-val="${v.active}"><c:choose><c:when test="${v.active}"><span class="badge badge-ready">Bật</span></c:when><c:otherwise><span class="badge badge-cancelled">Tắt</span></c:otherwise></c:choose></td>
+                            <td data-tt-val="${v.lifecycleStatusCode}">
+                                <span class="badge ${v.lifecycleBadgeClass}">${v.lifecycleStatusLabel}</span>
+                            </td>
                             <td>
                                 <a class="btn btn-ghost btn-sm" href="${ctx}/admin/voucher?action=edit&id=${v.voucherId}">Sửa</a>
                                 <form action="${ctx}/admin/voucher" method="post" style="display:inline" onsubmit="return confirm('Đổi trạng thái voucher này?');">

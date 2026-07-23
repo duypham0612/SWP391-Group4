@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Công thức: ${product.name}</h1><p>catalog.ProductRecipe · định mức cho 1 phần</p></div>
+    <div><h1>Công thức: ${product.name}</h1><p>Định mức nguyên liệu cho một phần.</p></div>
     <a class="btn btn-ghost" href="${ctx}/admin/recipe">← Chọn sản phẩm khác</a>
 </div>
 

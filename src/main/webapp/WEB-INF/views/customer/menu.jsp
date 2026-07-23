@@ -57,7 +57,7 @@
                     <div class="qr-grp" data-group-name="${g.name}" data-required="${g.required}" data-min="${g.minSelect}" data-max="${g.maxSelect}">
                         <div class="lbl">${g.name}</div>
                         <c:forEach var="o" items="${g.options}">
-                            <c:set var="isDefault" value="${(g.name == 'Size' and o.name == 'Size M') or ((g.name == 'Đá' or g.name == 'Đường') and o.name == 'Bình thường')}" />
+                            <c:set var="isDefault" value="${(g.name == 'Size' and o.name == 'Size S') or ((g.name == 'Đá' or g.name == 'Đường') and o.name == 'Bình thường')}" />
                             <label><input type="${g.maxSelect == 1 ? 'radio' : 'checkbox'}" name="g-${m.productId}-${g.groupId}"
                                           class="pos-opt" data-option-id="${o.modifierOptionId}" data-delta="${o.priceDelta}" data-name="${o.name}"
                                           data-default="${isDefault}" ${isDefault ? 'checked' : ''}>

@@ -11,7 +11,7 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 
-/** A3 · CategoryServlet → /admin/category. Actions: list/create/update/delete. */
+/** Admin category management. */
 @WebServlet("/admin/category")
 public class CategoryServlet extends HttpServlet {
 
@@ -24,15 +24,15 @@ public class CategoryServlet extends HttpServlet {
         try {
             if ("new".equals(action)) {
                 req.setAttribute("category", new Category());
-                forwardForm(req, resp, "Thêm danh mục");
+                forwardForm(req, resp, "Them danh muc");
             } else if ("edit".equals(action)) {
                 Category c = service.getCategory(Integer.parseInt(req.getParameter("id")));
                 if (c == null) { resp.sendError(HttpServletResponse.SC_NOT_FOUND); return; }
                 req.setAttribute("category", c);
-                forwardForm(req, resp, "Sửa danh mục");
+                forwardForm(req, resp, "Sua danh muc");
             } else {
                 req.setAttribute("categories", service.getCategoryList());
-                req.setAttribute("pageTitle", "Danh mục");
+                req.setAttribute("pageTitle", "Danh muc");
                 req.getRequestDispatcher("/WEB-INF/views/admin/category-list.jsp").forward(req, resp);
             }
         } catch (Exception e) { throw new ServletException(e); }
@@ -55,7 +55,7 @@ public class CategoryServlet extends HttpServlet {
             if (error != null) {
                 req.setAttribute("category", c);
                 req.setAttribute("errorMsg", error);
-                forwardForm(req, resp, c.getCategoryId() == 0 ? "Thêm danh mục" : "Sửa danh mục");
+                forwardForm(req, resp, c.getCategoryId() == 0 ? "Them danh muc" : "Sua danh muc");
                 return;
             }
             if (c.getCategoryId() == 0) service.createCategory(c); else service.updateCategory(c);
@@ -68,16 +68,15 @@ public class CategoryServlet extends HttpServlet {
         String id = req.getParameter("categoryId");
         if (id != null && !id.isBlank()) c.setCategoryId(Integer.parseInt(id));
         c.setName(trim(req.getParameter("name")));
-        String so = req.getParameter("sortOrder");
-        c.setSortOrder(so == null || so.isBlank() ? 0 : Integer.parseInt(so));
+        c.setSortOrder(parseNonNegativeInt(req.getParameter("sortOrder"), -1));
         c.setActive(req.getParameter("active") != null);
         return c;
     }
 
     private String validate(Category c) {
-        if (c.getName() == null || c.getName().isBlank()) return "Tên danh mục không được để trống.";
-        if (c.getName().length() > 100) return "Tên danh mục tối đa 100 ký tự.";
-        if (c.getSortOrder() < 0) return "Thứ tự phải >= 0.";
+        if (c.getName() == null || c.getName().isBlank()) return "Ten danh muc khong duoc de trong.";
+        if (c.getName().length() > 100) return "Ten danh muc toi da 100 ky tu.";
+        if (c.getSortOrder() < 0) return "Thu tu phai >= 0.";
         return null;
     }
 
@@ -88,4 +87,14 @@ public class CategoryServlet extends HttpServlet {
     }
 
     private String trim(String s) { return s == null ? null : s.trim(); }
+
+    private int parseNonNegativeInt(String raw, int fallback) {
+        try {
+            if (raw == null || raw.isBlank()) return 0;
+            int value = Integer.parseInt(raw.trim());
+            return value >= 0 ? value : fallback;
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
 }

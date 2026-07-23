@@ -8,7 +8,7 @@
 <div class="page-header">
     <div>
         <h1><c:choose><c:when test="${isNew}">Thêm nhóm tuỳ chọn</c:when><c:otherwise>Nhóm: ${group.name}</c:otherwise></c:choose></h1>
-        <p>Cấu hình nhóm · option · định mức nguyên liệu — tất cả trong một trang</p>
+        <p>Cấu hình nhóm Size / Đường / Đá, các mức chọn và định mức nguyên liệu</p>
     </div>
     <a class="btn btn-ghost" href="${ctx}/admin/modifier">← Danh sách nhóm</a>
 </div>
@@ -25,7 +25,7 @@
         <input type="hidden" name="modifierGroupId" value="${group.modifierGroupId}">
 
         <div class="form-group">
-            <label for="name">Tên nhóm * <span class="muted">(vd Size, Sữa, Đường, Topping)</span></label>
+            <label for="name">Tên nhóm * <span class="muted">(chỉ dùng Size, Đường hoặc Đá)</span></label>
             <input id="name" type="text" name="name" class="form-control" maxlength="80" value="${group.name}" required autofocus>
         </div>
         <div class="form-group">
@@ -50,7 +50,7 @@
 
 <c:choose>
     <c:when test="${isNew}">
-        <div class="alert alert-info">Lưu cấu hình nhóm trước, sau đó bạn có thể thêm các option (Size L, Oat milk, Extra shot…) và định mức nguyên liệu ngay tại đây.</div>
+        <div class="alert alert-info">Lưu cấu hình nhóm trước, sau đó thêm các mức chọn như Size S/M/L, Không đường/Ít đường/Nhiều đường, Không đá/Ít đá/Nhiều đá.</div>
     </c:when>
     <c:otherwise>
         <%-- ============ Card 2: danh sách option + định mức inline ============ --%>
@@ -164,7 +164,7 @@
                 <input type="hidden" name="action" value="addOption">
                 <input type="hidden" name="groupId" value="${group.modifierGroupId}">
                 <div class="form-group" style="margin:0;flex:1;min-width:220px">
-                    <label for="newOptName">Tên option * <span class="muted">(vd Size L, Oat milk, Extra shot)</span></label>
+                    <label for="newOptName">Tên mức chọn * <span class="muted">(vd Size L, Ít đường, Không đá)</span></label>
                     <input id="newOptName" type="text" name="name" class="form-control" maxlength="80" required>
                 </div>
                 <div class="form-group" style="margin:0;width:180px">

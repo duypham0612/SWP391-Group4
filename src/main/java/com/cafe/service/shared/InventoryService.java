@@ -11,6 +11,7 @@ import com.cafe.config.DBConnection;
 import com.cafe.dao.shared.BranchMenuDao;
 import com.cafe.dao.shared.BranchInventoryDao;
 import com.cafe.dao.shared.InventoryTransactionDao;
+import com.cafe.dao.shared.ModifierGroupDao;
 import com.cafe.dao.shared.ModifierIngredientImpactDao;
 import com.cafe.dao.shared.ModifierOptionDao;
 import com.cafe.dao.shared.OrderItemModifierDao;
@@ -27,6 +28,7 @@ import com.cafe.dao.shared.WasteAuditLogDao;
 import com.cafe.model.BranchMenuItem;
 import com.cafe.model.BranchInventory;
 import com.cafe.model.InventoryTransaction;
+import com.cafe.model.ModifierGroup;
 import com.cafe.model.ModifierIngredientImpact;
 import com.cafe.model.ModifierOption;
 import com.cafe.model.PrepRecipe;
@@ -53,6 +55,14 @@ import java.util.Set;
  * KHÔNG nơi nào được UPDATE thẳng BranchInventory ngoài DAO này (gọi qua applyTxn).
  */
 public class InventoryService {
+    private static final String GROUP_SIZE = "Size";
+    private static final String GROUP_SUGAR = "\u0110\u01b0\u1eddng";
+    private static final String GROUP_ICE = "\u0110\u00e1";
+
+    /** WasteLog/BranchInventory dùng DECIMAL(12,3); giới hạn này tránh lỗi làm tròn hoặc tràn DB. */
+    private static final BigDecimal MAX_WASTE_QUANTITY = new BigDecimal("999999999.999");
+    /** Một sự cố làm lại tại quầy không được phép biến thành thao tác hàng loạt. */
+    private static final int MAX_MANUAL_REMAKE_CUPS = 100;
 
     /** WasteLog/BranchInventory dùng DECIMAL(12,3); giới hạn này tránh lỗi làm tròn hoặc tràn DB. */
     private static final BigDecimal MAX_WASTE_QUANTITY = new BigDecimal("999999999.999");
@@ -65,6 +75,7 @@ public class InventoryService {
     private final StockReceiptDetailDao detailDao = new StockReceiptDetailDao();
     private final StockAdjustmentDao adjustmentDao = new StockAdjustmentDao();
     private final ProductRecipeDao productRecipeDao = new ProductRecipeDao();
+    private final ModifierGroupDao groupDao = new ModifierGroupDao();
     private final ModifierIngredientImpactDao impactDao = new ModifierIngredientImpactDao();
     private final ModifierOptionDao optionDao = new ModifierOptionDao();
     private final ProductModifierGroupDao pmgDao = new ProductModifierGroupDao();
@@ -473,6 +484,8 @@ public class InventoryService {
     private java.util.Set<Integer> validOptionIdsForProduct(Connection conn, int productId) throws SQLException {
         java.util.Set<Integer> valid = new java.util.HashSet<>();
         for (ProductModifierGroup pmg : pmgDao.findByProduct(conn, productId)) {
+            ModifierGroup group = groupDao.findById(conn, pmg.getModifierGroupId());
+            if (group == null || !isChoiceGroup(group.getName())) continue;
             for (ModifierOption opt : optionDao.findByGroup(conn, pmg.getModifierGroupId())) {
                 if (opt.isActive()) valid.add(opt.getModifierOptionId());
             }
@@ -493,6 +506,8 @@ public class InventoryService {
                 java.util.Set<Integer> seen = new java.util.HashSet<>();
                 List<String> opts = new ArrayList<>();
                 for (ProductModifierGroup pmg : pmgDao.findByProduct(conn, pid)) {
+                    ModifierGroup group = groupDao.findById(conn, pmg.getModifierGroupId());
+                    if (group == null || !isChoiceGroup(group.getName())) continue;
                     for (ModifierOption opt : optionDao.findByGroup(conn, pmg.getModifierGroupId())) {
                         if (!opt.isActive() || !seen.add(opt.getModifierOptionId())) continue;
                         if (impactDao.findByOption(conn, opt.getModifierOptionId()).isEmpty()) continue;
@@ -512,6 +527,10 @@ public class InventoryService {
         if (s == null) return "";
         return s.replace("\\", "\\\\").replace("\"", "\\\"")
                 .replace("<", "\\u003C").replace(">", "\\u003E").replace("&", "\\u0026");
+    }
+
+    private static boolean isChoiceGroup(String name) {
+        return GROUP_SIZE.equals(name) || GROUP_SUGAR.equals(name) || GROUP_ICE.equals(name);
     }
 
     /**
