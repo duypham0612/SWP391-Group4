@@ -28,7 +28,7 @@
 <div class="qr-app">
     <div class="qr-top">
         <h1>Đơn của bạn</h1>
-        <div class="sub">${session.tableNumber} · cập nhật tự động</div>
+        <div class="sub">${session.tableNumber} · bấm "Làm mới" để xem trạng thái mới nhất</div>
     </div>
     <div class="qr-body">
         <c:if test="${not empty sessionScope.qrFlash}">
@@ -41,8 +41,7 @@
                 <c:choose>
                     <c:when test="${empty items}"><p class="muted">Chưa có món nào.</p></c:when>
                     <c:otherwise>
-                        <%-- Nhãn hướng tới KHÁCH (thân thiện, không jargon) và phải KHỚP hàm badge() dưới,
-                             nếu không chữ sẽ nhảy sau 5 giây khi poll lần đầu chạy. --%>
+                        <%-- Nhãn hướng tới KHÁCH (thân thiện, không jargon). --%>
                         <c:forEach var="it" items="${items}">
                             <div class="qr-item">
                                 <span>${it.quantity}× ${it.productName}</span>
@@ -100,20 +99,5 @@
     </div>
 </div>
 
-<script>
-const CTX='${ctx}', SID=${sessionId};
-function badge(st){
-  const m={WAITING:['badge-waiting','Chờ pha'],MAKING:['badge-making','Đang pha'],READY:['badge-ready','Đã pha xong'],PICKED_UP:['badge-ready','Nhân viên đang mang ra'],SERVED:['badge-served','Đã phục vụ'],BLOCKED:['badge-waiting','Tạm chưa làm được'],REMAKE:['badge-waiting','Đang làm lại'],CANCELLED:['badge-cancelled','Đã huỷ']};
-  const x=m[st]||['badge-served',st];return '<span class="badge '+x[0]+'">'+x[1]+'</span>';
-}
-function poll(){
-  fetch(CTX+'/qr/track?action=status&s='+SID).then(r=>r.json()).then(items=>{
-    const box=document.getElementById('trackList');
-    if(!items.length){box.innerHTML='<p class="muted">Chưa có món nào.</p>';return;}
-    box.innerHTML=items.map(it=>'<div class="qr-item"><span>'+it.qty+'× '+it.name+'</span>'+badge(it.status)+'</div>').join('');
-  }).catch(()=>{});
-}
-setInterval(poll,5000);
-</script>
 </body>
 </html>
