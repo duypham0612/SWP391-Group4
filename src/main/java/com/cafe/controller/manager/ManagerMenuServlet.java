@@ -31,8 +31,10 @@ public class ManagerMenuServlet extends HttpServlet {
         int branchId = InventoryDashboardServlet.branchId(req);
         try {
             req.setAttribute("items", service.listForBranch(branchId));
+            req.setAttribute("openRequests", service.getOpenRequests(branchId));
+            req.setAttribute("requestHistory", service.getRequestHistory(branchId, 20));
             req.setAttribute("branchId", branchId);
-            req.setAttribute("pageTitle", "Menu chi nhánh");
+            req.setAttribute("pageTitle", "Thực đơn chi nhánh");
             req.getRequestDispatcher("/WEB-INF/views/manager/branch-menu.jsp").forward(req, resp);
         } catch (Exception e) { throw new ServletException(e); }
     }

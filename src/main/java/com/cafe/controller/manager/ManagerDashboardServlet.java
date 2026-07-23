@@ -32,7 +32,7 @@ public class ManagerDashboardServlet extends HttpServlet {
             req.setAttribute("oversoldAlerts", service.getOversoldAlerts(branchId));
             req.setAttribute("managerHandoverFallbacks", handoverService.getManagerFallbacks(branchId, SessionUtil.currentUser(req).getUserId()));
             req.setAttribute("today", today);
-            req.setAttribute("pageTitle", "Bảng điều khiển");
+            req.setAttribute("pageTitle", "Tổng quan chi nhánh");
             req.getRequestDispatcher("/WEB-INF/views/manager/dashboard.jsp").forward(req, resp);
         } catch (Exception e) { throw new ServletException(e); }
     }

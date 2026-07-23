@@ -78,20 +78,18 @@
             </c:when>
             <c:when test="${u.roleCode == 'BRANCH_MANAGER'}">
                 <li class="nav-section">Kho</li>
-                <li><a class="${curPath == ctx.concat('/manager/inventory') ? 'active' : ''}" href="${ctx}/manager/inventory"><svg class="ic"><use href="#ic-box"/></svg>Tồn kho &amp; cảnh báo</a></li>
+                <li><a class="${curPath == ctx.concat('/manager/inventory') ? 'active' : ''}" href="${ctx}/manager/inventory"><svg class="ic"><use href="#ic-box"/></svg>Tồn kho</a></li>
                 <li><a class="${curPath == ctx.concat('/manager/receipt') ? 'active' : ''}" href="${ctx}/manager/receipt"><svg class="ic"><use href="#ic-truck"/></svg>Nhập kho</a></li>
                 <li><a class="${curPath == ctx.concat('/manager/supplier') ? 'active' : ''}" href="${ctx}/manager/supplier"><svg class="ic"><use href="#ic-store"/></svg>Nhà cung cấp</a></li>
-                <li><a class="${curPath == ctx.concat('/manager/reconciliation') ? 'active' : ''}" href="${ctx}/manager/reconciliation"><svg class="ic"><use href="#ic-scale"/></svg>Đối soát tồn</a></li>
-                <li><a class="${curPath == ctx.concat('/manager/waste') ? 'active' : ''}" href="${ctx}/manager/waste" title="Hao hụt &amp; làm lại"><svg class="ic"><use href="#ic-scale"/></svg>Hao hụt &amp; làm lại</a></li>
+                <li><a class="${curPath == ctx.concat('/manager/reconciliation') or curPath == ctx.concat('/manager/waste') ? 'active' : ''}" href="${ctx}/manager/reconciliation"><svg class="ic"><use href="#ic-scale"/></svg>Đối soát &amp; hao hụt</a></li>
                 <li class="nav-section">Nhân sự</li>
-                <li><a class="${curPath == ctx.concat('/manager/shift') ? 'active' : ''}" href="${ctx}/manager/shift"><svg class="ic"><use href="#ic-calendar"/></svg>Ca làm</a></li>
+                <li><a class="${curPath == ctx.concat('/manager/shift') ? 'active' : ''}" href="${ctx}/manager/shift"><svg class="ic"><use href="#ic-calendar"/></svg>Lịch làm việc</a></li>
                 <li><a class="${curPath == ctx.concat('/manager/attendance') ? 'active' : ''}" href="${ctx}/manager/attendance"><svg class="ic"><use href="#ic-clock"/></svg>Chấm công</a></li>
                 <li><a class="${curPath == ctx.concat('/manager/payroll') ? 'active' : ''}" href="${ctx}/manager/payroll"><svg class="ic"><use href="#ic-wallet"/></svg>Bảng lương</a></li>
                 <li class="nav-section">Thực đơn</li>
-                <li><a class="${curPath == ctx.concat('/manager/menu') ? 'active' : ''}" href="${ctx}/manager/menu"><svg class="ic"><use href="#ic-menu"/></svg>Menu chi nhánh</a></li>
-                <li><a class="${curPath == ctx.concat('/manager/menu-block') ? 'active' : ''}" href="${ctx}/manager/menu-block"><svg class="ic"><use href="#ic-ban"/></svg>Món tạm hết</a></li>
+                <li><a class="${curPath == ctx.concat('/manager/menu') or curPath == ctx.concat('/manager/menu-block') ? 'active' : ''}" href="${ctx}/manager/menu"><svg class="ic"><use href="#ic-menu"/></svg>Thực đơn chi nhánh</a></li>
                 <li class="nav-section">Vận hành</li>
-                <li><a class="${curPath == ctx.concat('/manager/handover') ? 'active' : ''}" href="${ctx}/manager/handover"><svg class="ic"><use href="#ic-clipboard"/></svg>Bàn giao dự phòng</a></li>
+                <li><a class="${curPath == ctx.concat('/manager/handover') ? 'active' : ''}" href="${ctx}/manager/handover"><svg class="ic"><use href="#ic-clipboard"/></svg>Bàn giao cần tiếp nhận</a></li>
                 <li><a class="${curPath == ctx.concat('/manager/branch-settings') ? 'active' : ''}" href="${ctx}/manager/branch-settings"><svg class="ic"><use href="#ic-store"/></svg>Cài đặt chi nhánh</a></li>
             </c:when>
             <c:when test="${u.roleCode == 'CASHIER'}">

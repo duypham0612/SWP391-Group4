@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Nhân sự</div><h1>Chấm công</h1><p>hr.Attendance — nhân viên đang làm tại cơ sở · tick ✓ để duyệt giờ làm</p></div>
+    <div><div class="eyebrow">Nhân sự</div><h1>Chấm công</h1><p>Kiểm tra giờ vào, giờ ra và duyệt thời gian làm việc của nhân viên.</p></div>
 </div>
 
 <c:if test="${not empty sessionScope.flashOk}">
@@ -20,7 +20,7 @@
 
 <c:choose>
     <c:when test="${empty attendances}">
-        <div class="card empty-state"><div class="icon">∅</div><p>Chưa có nhân viên/chấm công nào ở cơ sở này.</p></div>
+        <div class="card empty-state"><div class="icon">∅</div><p>Chưa có dữ liệu chấm công tại chi nhánh này.</p></div>
     </c:when>
     <c:otherwise>
         <%-- Form chấm công hàng loạt: tick = duyệt (✓ xanh), bỏ tick = chờ duyệt --%>

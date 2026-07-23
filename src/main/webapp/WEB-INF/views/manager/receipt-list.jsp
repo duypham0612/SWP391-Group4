@@ -5,7 +5,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Kho</div><h1>Phiếu nhập kho</h1><p>inventory.StockReceipt · xác nhận để cộng tồn (ledger)</p></div>
+    <div><div class="eyebrow">Kho</div><h1>Phiếu nhập kho</h1><p>Tạo, kiểm tra và xác nhận các lần nhập nguyên liệu vào chi nhánh.</p></div>
     <a class="btn btn-primary" href="${ctx}/manager/receipt?action=new">+ Tạo phiếu nhập</a>
 </div>
 
