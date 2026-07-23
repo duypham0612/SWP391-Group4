@@ -228,7 +228,7 @@ public class InventoryService {
     }
 
     private static String plain(BigDecimal v) {
-        return v.stripTrailingZeros().toPlainString();
+        return com.cafe.common.QuantityFormat.plain(v);
     }
 
     /**
