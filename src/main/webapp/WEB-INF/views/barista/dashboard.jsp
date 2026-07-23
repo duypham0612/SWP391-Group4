@@ -7,9 +7,10 @@
     <div>
         <div class="eyebrow">Pha chế</div>
         <h1>Bảng điều khiển ca</h1>
-        <p>${sessionScope.authUser.branchName} · tự cập nhật mỗi <span id="baristaCountdown">5</span> giây</p>
+        <p>${sessionScope.authUser.branchName}</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a class="btn btn-ghost" href="${ctx}/barista/dashboard">↻ Làm mới</a>
         <a class="btn btn-primary" href="${ctx}/barista/kds">Mở quầy pha chế</a>
     </div>
 </div>
@@ -20,7 +21,7 @@
     </a>
 </c:if>
 
-<div class="card-grid">
+<div class="card-grid card-grid--4">
     <a class="card stat" href="${ctx}/barista/kds">
         <span class="label">Đang chờ pha</span>
         <span class="value">${queueCount}</span>
@@ -112,8 +113,8 @@
                                         <c:otherwise><span class="badge badge-waiting" style="margin-left:6px">Thấp</span></c:otherwise>
                                     </c:choose>
                                 </td>
-                                <td>${l.quantityOnHand} ${l.ingredientUnit}</td>
-                                <td>${l.minThreshold}</td>
+                                <td>${l.quantityOnHandDisplay} ${l.ingredientUnit}</td>
+                                <td>${l.minThresholdDisplay}</td>
                             </tr>
                         </c:forEach>
                     </tbody>
@@ -123,14 +124,4 @@
     </div>
 </div>
 
-<script>
-  (function(){
-    var n = 5, el = document.getElementById('baristaCountdown');
-    setInterval(function(){
-      if (document.visibilityState === 'hidden') return;
-      n--; if (el) el.textContent = n;
-      if (n <= 0) location.reload();
-    }, 1000);
-  })();
-</script>
 <jsp:include page="../layout/footer.jsp" />
