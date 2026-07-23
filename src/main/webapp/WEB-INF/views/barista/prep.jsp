@@ -82,7 +82,7 @@
                                 data-prepped-id="${r.ingredientId}" ${r.hasRecipe ? '' : 'disabled'}
                                 title="${r.hasRecipe ? 'Bấm để pha ngay' : 'Chưa có công thức prep'}">
                             <strong>${r.name}</strong>
-                            <span>tồn ${r.onHand} / ngưỡng ${r.threshold} ${r.unit}</span>
+                            <span>tồn ${r.onHandDisplay} / ngưỡng ${r.thresholdDisplay} ${r.unit}</span>
                             <c:if test="${not r.hasRecipe}"><em>⚠ chưa có công thức</em></c:if>
                         </button>
                     </c:if>

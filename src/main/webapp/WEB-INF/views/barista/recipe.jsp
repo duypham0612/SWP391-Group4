@@ -165,7 +165,7 @@
                                     <c:forEach var="r" items="${recipe}">
                                         <tr>
                                             <td><c:out value="${r.ingredientName}"/></td>
-                                            <td class="recipe-qty"><strong><c:out value="${r.quantity}"/></strong> <c:out value="${r.ingredientUnit}"/></td>
+                                            <td class="recipe-qty"><strong><c:out value="${r.quantityDisplay}"/></strong> <c:out value="${r.ingredientUnit}"/></td>
                                             <td>
                                                 <c:choose>
                                                     <c:when test="${r.ingredientType == 'PREPPED'}"><span class="badge recipe-badge-prepped">Pha sẵn</span></c:when>
@@ -191,7 +191,7 @@
                                     <thead><tr><th>Nguyên liệu thô</th><th style="width:150px">Lượng dùng</th><th style="width:150px">Sản lượng</th></tr></thead>
                                     <tbody>
                                         <c:forEach var="l" items="${ps.lines}">
-                                            <tr><td><c:out value="${l.rawIngredientName}"/></td><td class="recipe-qty"><c:out value="${l.quantity}"/> <c:out value="${l.rawIngredientUnit}"/></td><td class="recipe-qty"><strong><c:out value="${l.yieldDisplay}"/></strong> <c:out value="${ps.unit}"/></td></tr>
+                                            <tr><td><c:out value="${l.rawIngredientName}"/></td><td class="recipe-qty"><c:out value="${l.quantityDisplay}"/> <c:out value="${l.rawIngredientUnit}"/></td><td class="recipe-qty"><strong><c:out value="${l.yieldDisplay}"/></strong> <c:out value="${ps.unit}"/></td></tr>
                                         </c:forEach>
                                     </tbody>
                                 </table></div>
