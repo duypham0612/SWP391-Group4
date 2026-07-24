@@ -166,7 +166,7 @@ public class ProductServlet extends HttpServlet {
     private BigDecimal parseMoney(String raw) {
         try {
             if (raw == null || raw.isBlank()) return BigDecimal.ZERO;
-            return new BigDecimal(raw.trim());
+            return new BigDecimal(raw.trim().replace(",", ""));
         } catch (NumberFormatException e) {
             return BigDecimal.valueOf(-1);
         }

@@ -31,11 +31,11 @@
         </div>
         <div class="form-group">
             <label for="discountValue">Giá trị giảm *</label>
-            <input id="discountValue" type="number" name="discountValue" class="form-control" min="0" step="0.01" value="${voucher.discountValue}" required>
+            <input id="discountValue" type="text" name="discountValue" class="form-control" value="${voucher.discountValue}" data-money-input required>
         </div>
         <div class="form-group">
             <label for="minOrderAmount">Đơn tối thiểu (₫)</label>
-            <input id="minOrderAmount" type="number" name="minOrderAmount" class="form-control" min="0" step="1000" value="${voucher.minOrderAmount}">
+            <input id="minOrderAmount" type="text" name="minOrderAmount" class="form-control" value="${voucher.minOrderAmount}" data-money-input>
         </div>
         <div class="form-group">
             <label for="scope">Phạm vi *</label>

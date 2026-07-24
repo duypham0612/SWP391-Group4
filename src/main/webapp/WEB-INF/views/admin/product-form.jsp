@@ -31,7 +31,7 @@
         </div>
         <div class="form-group">
             <label for="basePrice">Giá gốc (₫) *</label>
-            <input id="basePrice" type="number" name="basePrice" class="form-control" min="0" step="1000" value="${product.basePrice}" required>
+            <input id="basePrice" type="text" name="basePrice" class="form-control" value="${product.basePrice}" data-money-input required>
         </div>
         <section style="border:1px solid var(--line);border-radius:var(--radius-sm);margin:0 0 18px;padding:16px">
             <h3 style="margin-top:0">Size</h3>
@@ -43,11 +43,11 @@
                 </div>
                 <div class="form-group" style="margin:0">
                     <label for="sizeMDelta">Size M cộng thêm (₫)</label>
-                    <input id="sizeMDelta" type="number" name="sizeMDelta" class="form-control" min="0" step="1000" value="${sizeConfig.sizeMDelta}">
+                    <input id="sizeMDelta" type="text" name="sizeMDelta" class="form-control" value="${sizeConfig.sizeMDelta}" data-money-input>
                 </div>
                 <div class="form-group" style="margin:0">
                     <label for="sizeLDelta">Size L cộng thêm (₫)</label>
-                    <input id="sizeLDelta" type="number" name="sizeLDelta" class="form-control" min="0" step="1000" value="${sizeConfig.sizeLDelta}">
+                    <input id="sizeLDelta" type="text" name="sizeLDelta" class="form-control" value="${sizeConfig.sizeLDelta}" data-money-input>
                 </div>
             </div>
         </section>

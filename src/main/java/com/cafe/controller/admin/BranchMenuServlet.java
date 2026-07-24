@@ -64,7 +64,7 @@ public class BranchMenuServlet extends HttpServlet {
                 String lp = req.getParameter("localPrice");
                 if (lp != null && !lp.isBlank()) {
                     try {
-                        localPrice = new BigDecimal(lp.trim());
+                        localPrice = new BigDecimal(lp.trim().replace(",", ""));
                     } catch (NumberFormatException ignored) {
                         req.getSession().setAttribute("flashError", "Gia rieng phai la so hop le.");
                         resp.sendRedirect(ctx + "/admin/branch-menu?branchId=" + branchId);
