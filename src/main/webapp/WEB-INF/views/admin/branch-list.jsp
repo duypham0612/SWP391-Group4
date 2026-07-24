@@ -31,7 +31,7 @@
             <thead><tr>
                 <th style="width:60px">#</th><th style="width:100px">Mã</th><th>Tên</th><th>Địa chỉ</th>
                 <th style="width:120px">Giờ mở cửa</th><th>Quản lý</th>
-                <th style="width:110px">Trạng thái</th><th style="width:170px">Thao tác</th>
+                <th style="width:110px">Trạng thái</th><th style="width:230px">Thao tác</th>
             </tr></thead>
             <tbody id="branchBody">
                 <c:forEach var="b" items="${branches}">
@@ -45,6 +45,7 @@
                         <td><c:choose><c:when test="${b.active}"><span class="badge badge-ready">Hoạt động</span></c:when><c:otherwise><span class="badge badge-cancelled">Ngừng</span></c:otherwise></c:choose></td>
                         <td>
                             <a class="btn btn-ghost btn-sm" href="${ctx}/admin/branch?action=edit&id=${b.branchId}">Sửa</a>
+                            <a class="btn btn-ghost btn-sm" href="${ctx}/admin/branch-menu?branchId=${b.branchId}">Menu</a>
                             <form action="${ctx}/admin/branch" method="post" style="display:inline" onsubmit="return confirm('Đổi trạng thái chi nhánh này?');">
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                 <input type="hidden" name="action" value="toggleActive">

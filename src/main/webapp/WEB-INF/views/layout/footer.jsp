@@ -14,6 +14,7 @@
     });
   })();
 </script>
+<script src="${pageContext.request.contextPath}/assets/js/admin-money-input.js?v=${applicationScope.assetVersion}" defer></script>
 <script src="${pageContext.request.contextPath}/assets/js/table-tools.js?v=${applicationScope.assetVersion}" defer></script>
 </body>
 </html>

@@ -69,7 +69,6 @@
                 <li><a class="${curPath == ctx.concat('/admin/product') ? 'active' : ''}" href="${ctx}/admin/product"><svg class="ic"><use href="#ic-coffee"/></svg>Sản phẩm</a></li>
                 <li><a class="${curPath == ctx.concat('/admin/ingredient') ? 'active' : ''}" href="${ctx}/admin/ingredient"><svg class="ic"><use href="#ic-leaf"/></svg>Nguyên liệu</a></li>
                 <li><a class="${curPath == ctx.concat('/admin/recipe') ? 'active' : ''}" href="${ctx}/admin/recipe"><svg class="ic"><use href="#ic-book"/></svg>Công thức</a></li>
-                <li><a class="${curPath == ctx.concat('/admin/branch-menu') ? 'active' : ''}" href="${ctx}/admin/branch-menu"><svg class="ic"><use href="#ic-menu"/></svg>Menu chi nhánh</a></li>
                 <li class="nav-section">Trang công khai</li>
                 <li><a class="${curPath == ctx.concat('/admin/home') ? 'active' : ''}" href="${ctx}/admin/home"><svg class="ic"><use href="#ic-home"/></svg>Trang Home</a></li>
                 <li class="nav-section">Khuyến mãi</li>

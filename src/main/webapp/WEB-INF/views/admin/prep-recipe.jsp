@@ -1,5 +1,6 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
+<%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <jsp:include page="../layout/header.jsp" />
 
@@ -9,11 +10,6 @@
 </div>
 
 <c:if test="${not empty errorMsg}"><div class="alert alert-error">${errorMsg}</div></c:if>
-
-<div class="alert alert-info">
-    Đây là NƠI DUY NHẤT trừ nguyên liệu thô để tạo nguyên liệu pha sẵn (qua mẻ pha sẵn ở Phase 4). Khai mỗi nguyên liệu thô kèm
-    <strong>lượng dùng</strong> và <strong>sản lượng (yield)</strong> cho 1 mẻ. Khi pha món, hệ thống trừ thẳng tồn nguyên liệu pha sẵn — không trừ nguyên liệu thô lần 2.
-</div>
 
 <div class="card" style="margin-bottom:18px">
     <h3 style="margin-top:0">Thêm nguyên liệu thô vào công thức pha</h3>
@@ -51,10 +47,12 @@
             <thead><tr><th>Nguyên liệu thô</th><th style="width:160px">Lượng dùng</th><th style="width:160px">Yield</th><th style="width:100px">Xoá</th></tr></thead>
             <tbody>
                 <c:forEach var="pl" items="${prepLines}">
+                    <fmt:formatNumber var="prepQty" value="${pl.quantity}" groupingUsed="false" maxFractionDigits="3" />
+                    <fmt:formatNumber var="prepYield" value="${pl.yieldQty}" groupingUsed="false" maxFractionDigits="3" />
                     <tr>
                         <td>${pl.rawIngredientName}</td>
-                        <td>${pl.quantity} ${pl.rawIngredientUnit}</td>
-                        <td>${pl.yieldQty} ${prepped.unit}</td>
+                        <td>${prepQty} ${pl.rawIngredientUnit}</td>
+                        <td>${prepYield} ${prepped.unit}</td>
                         <td>
                             <form action="${ctx}/admin/recipe" method="post" style="display:inline" onsubmit="return confirm('Xoá dòng này?');">
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">

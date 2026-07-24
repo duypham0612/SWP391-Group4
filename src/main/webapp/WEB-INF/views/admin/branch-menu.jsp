@@ -6,7 +6,7 @@
 
 <div class="page-header">
     <div><h1>Menu: ${branch.name}</h1><p>Bật món bán tại chi nhánh, đặt giá riêng và đánh dấu tạm hết.</p></div>
-    <a class="btn btn-ghost" href="${ctx}/admin/branch-menu">← Chọn chi nhánh khác</a>
+    <a class="btn btn-ghost" href="${ctx}/admin/branch">← Quay lại chi nhánh</a>
 </div>
 
 <c:if test="${not empty sessionScope.flashError}">
@@ -54,7 +54,7 @@
                         </td>
                         <td><fmt:formatNumber value="${m.basePrice}" maxFractionDigits="0"/> ₫</td>
                         <td><label class="check-cell"><input form="menuForm${m.productId}" type="checkbox" name="available" value="1" <c:if test="${m.available}">checked</c:if>> Bán</label></td>
-                        <td><input form="menuForm${m.productId}" type="number" name="localPrice" class="form-control" min="0" step="500" placeholder="Giá gốc" value="${m.localPrice}"></td>
+                        <td><input form="menuForm${m.productId}" type="text" name="localPrice" class="form-control" placeholder="Giá gốc" value="${m.localPrice}" data-money-input></td>
                         <td><label class="check-cell"><input form="menuForm${m.productId}" type="checkbox" name="is86" value="1" <c:if test="${m.is86}">checked</c:if>> Tạm hết</label></td>
                         <td><button type="submit" form="menuForm${m.productId}" class="btn btn-primary btn-sm">Lưu</button></td>
                     </tr>

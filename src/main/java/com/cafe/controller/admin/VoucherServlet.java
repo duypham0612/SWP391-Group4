@@ -117,7 +117,7 @@ public class VoucherServlet extends HttpServlet {
     }
 
     private BigDecimal decimal(String s) {
-        try { return s == null || s.isBlank() ? BigDecimal.ZERO : new BigDecimal(s.trim()); }
+        try { return s == null || s.isBlank() ? BigDecimal.ZERO : new BigDecimal(s.trim().replace(",", "")); }
         catch (NumberFormatException e) { return BigDecimal.valueOf(-1); }
     }
 
