@@ -28,15 +28,15 @@ public class BranchServlet extends HttpServlet {
         try {
             if ("new".equals(action)) {
                 req.setAttribute("branch", new Branch());
-                forwardForm(req, resp, "Them chi nhanh");
+                forwardForm(req, resp, "Thêm chi nhánh");
             } else if ("edit".equals(action)) {
                 Branch b = service.getBranch(Integer.parseInt(req.getParameter("id")));
                 if (b == null) { resp.sendError(HttpServletResponse.SC_NOT_FOUND); return; }
                 req.setAttribute("branch", b);
-                forwardForm(req, resp, "Sua chi nhanh");
+                forwardForm(req, resp, "Sửa chi nhánh");
             } else {
                 req.setAttribute("branches", service.getBranchList());
-                req.setAttribute("pageTitle", "Chi nhanh");
+                req.setAttribute("pageTitle", "Chi nhánh");
                 req.getRequestDispatcher("/WEB-INF/views/admin/branch-list.jsp").forward(req, resp);
             }
         } catch (Exception e) { throw new ServletException(e); }
@@ -51,6 +51,7 @@ public class BranchServlet extends HttpServlet {
         try {
             if ("toggleActive".equals(action)) {
                 service.toggleActive(Integer.parseInt(req.getParameter("id")));
+                req.getSession().setAttribute("flashOk", "Đã cập nhật trạng thái chi nhánh.");
                 resp.sendRedirect(ctx + "/admin/branch");
                 return;
             }
@@ -63,10 +64,16 @@ public class BranchServlet extends HttpServlet {
                 }
                 req.setAttribute("branch", b);
                 req.setAttribute("errorMsg", error);
-                forwardForm(req, resp, b.getBranchId() == 0 ? "Them chi nhanh" : "Sua chi nhanh");
+                forwardForm(req, resp, b.getBranchId() == 0 ? "Thêm chi nhánh" : "Sửa chi nhánh");
                 return;
             }
-            if (b.getBranchId() == 0) service.createBranch(b); else service.updateBranch(b);
+            if (b.getBranchId() == 0) {
+                service.createBranch(b);
+                req.getSession().setAttribute("flashOk", "Đã thêm chi nhánh thành công.");
+            } else {
+                service.updateBranch(b);
+                req.getSession().setAttribute("flashOk", "Đã cập nhật chi nhánh thành công.");
+            }
             resp.sendRedirect(ctx + "/admin/branch");
         } catch (Exception e) { throw new ServletException(e); }
     }
@@ -92,14 +99,14 @@ public class BranchServlet extends HttpServlet {
     }
 
     private String validate(Branch b) throws Exception {
-        if (b.getName() == null || b.getName().isBlank()) return "Ten chi nhanh khong duoc de trong.";
-        if (b.getAddress() == null || b.getAddress().isBlank()) return "Dia chi khong duoc de trong.";
+        if (b.getName() == null || b.getName().isBlank()) return "Tên chi nhánh không được để trống.";
+        if (b.getAddress() == null || b.getAddress().isBlank()) return "Địa chỉ không được để trống.";
         if ((b.getOpenTime() == null) != (b.getCloseTime() == null))
-            return "Gio mo/dong phai nhap ca hai hoac de trong ca hai.";
+            return "Giờ mở cửa và giờ đóng cửa phải nhập cả hai hoặc để trống cả hai.";
         if (b.getOpenTime() != null && !b.getOpenTime().isBefore(b.getCloseTime()))
-            return "Gio mo cua phai truoc gio dong cua trong cung ngay.";
+            return "Giờ mở cửa phải trước giờ đóng cửa trong cùng ngày.";
         if (b.getManagerUserId() != null && userService.getManagers().stream().noneMatch(u -> u.getUserId() == b.getManagerUserId()))
-            return "Quan ly phu trach khong hop le.";
+            return "Quản lý phụ trách không hợp lệ.";
         return null;
     }
 

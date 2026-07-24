@@ -48,7 +48,7 @@ public class HomeAdminServlet extends HttpServlet {
                     req.getSession().setAttribute("flashError", error);
                 } else {
                     service.saveContent(s);
-                    req.getSession().setAttribute("flashOk", "Da luu noi dung trang Home.");
+                    req.getSession().setAttribute("flashOk", "Đã lưu nội dung trang Home.");
                 }
             }
             resp.sendRedirect(ctx + "/admin/home");
@@ -80,12 +80,12 @@ public class HomeAdminServlet extends HttpServlet {
             orders[i] = orderList.get(i);
         }
         service.saveProductHomeBatch(ids, shows, orders);
-        req.getSession().setAttribute("flashOk", "Da luu hien thi va thu tu cac mon tren Home.");
+        req.getSession().setAttribute("flashOk", "Đã lưu hiển thị và thứ tự các món trên Home.");
     }
 
     private String validateContent(HomeSetting s) {
         if (s.getHeroTitle() == null || s.getHeroTitle().isBlank())
-            return "Tieu de trang Home khong duoc de trong.";
+            return "Tiêu đề trang Home không được để trống.";
         return null;
     }
 

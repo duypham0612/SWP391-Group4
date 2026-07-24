@@ -11,6 +11,13 @@
     <a class="btn btn-primary" href="${ctx}/admin/category?action=new">+ Thêm danh mục</a>
 </div>
 
+<c:if test="${not empty sessionScope.flashError}">
+    <div class="alert alert-error"><c:out value="${sessionScope.flashError}"/></div><c:remove var="flashError" scope="session" />
+</c:if>
+<c:if test="${not empty sessionScope.flashOk}">
+    <div class="alert alert-success"><c:out value="${sessionScope.flashOk}"/></div><c:remove var="flashOk" scope="session" />
+</c:if>
+
 <c:choose>
     <c:when test="${empty categories}">
         <div class="card empty-state">
