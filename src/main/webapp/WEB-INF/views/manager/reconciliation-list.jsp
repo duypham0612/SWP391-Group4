@@ -24,9 +24,9 @@
                     <tr>
                         <td>${a.stockAdjustmentId}</td>
                         <td>${a.ingredientName}</td>
-                        <td>${a.systemQty} ${a.displayUnit}</td>
-                        <td>${a.actualQty} ${a.displayUnit}</td>
-                        <td style="font-weight:600;color:${a.diffQty.signum() < 0 ? 'var(--st-cancelled)' : 'var(--st-ready)'}"><c:if test="${a.diffQty.signum() > 0}">+</c:if>${a.diffQty}</td>
+                        <td>${a.systemQtyDisplay} ${a.displayUnit}</td>
+                        <td>${a.actualQtyDisplay} ${a.displayUnit}</td>
+                        <td style="font-weight:600;color:${a.diffQty.signum() < 0 ? 'var(--st-cancelled)' : 'var(--st-ready)'}"><c:if test="${a.diffQty.signum() > 0}">+</c:if>${a.diffQtyDisplay}</td>
                         <td>${a.reason}</td>
                         <td>${a.adjustedByName}</td>
                     </tr>

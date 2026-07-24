@@ -202,6 +202,9 @@ hr{border:none; border-top:1px solid var(--line); margin:var(--s5) 0}
 .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow-sm); padding:var(--s5); transition:box-shadow var(--t),border-color var(--t),transform var(--t)}
 .card-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(232px,1fr)); gap:var(--s4)}
 .card-grid .card{margin:0}
+/* Biến thể ép ĐÚNG 4 cột trên 1 hàng (dashboard có đúng 4 thẻ KPI); hạ 2 cột khi màn hẹp. */
+.card-grid--4{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width:1100px){.card-grid--4{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 .stat{position:relative; overflow:hidden}
 .stat:hover{box-shadow:var(--shadow-md); transform:translateY(-2px)}
@@ -897,6 +900,14 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
   min-width:24px; height:22px; padding:0 8px; display:inline-flex; align-items:center; justify-content:center;
   border-radius:var(--radius-pill); background:var(--ink); color:var(--surface); font-size:12px; font-variant-numeric:tabular-nums;
 }
+.kds-table-search{flex:none; margin-bottom:6px}
+.kds-table-search__input{
+  width:100%; box-sizing:border-box; padding:7px 11px;
+  border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface);
+  color:var(--ink); font:inherit; font-size:13px;
+}
+.kds-table-search__input::placeholder{color:var(--muted)}
+.kds-table-search__input:focus-visible{outline:none; border-color:var(--brand); box-shadow:var(--ring)}
 .kds-table-list{
   flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;
   display:flex; flex-direction:column; gap:6px; padding-right:3px;

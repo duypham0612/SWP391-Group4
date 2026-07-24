@@ -1,5 +1,7 @@
 package com.cafe.model;
 
+import com.cafe.common.QuantityFormat;
+
 import java.math.BigDecimal;
 
 /** inventory.BranchInventory — số dư tồn (cache); nguồn sự thật là InventoryTransaction. */
@@ -25,6 +27,10 @@ public class BranchInventory {
 
     public BigDecimal getMinThreshold() { return minThreshold; }
     public void setMinThreshold(BigDecimal minThreshold) { this.minThreshold = minThreshold; }
+
+    /** Cho JSP — bỏ .000 thừa. So sánh/tính toán vẫn dùng getter BigDecimal ở trên. */
+    public String getQuantityOnHandDisplay() { return QuantityFormat.plain(quantityOnHand); }
+    public String getMinThresholdDisplay() { return QuantityFormat.plain(minThreshold); }
 
     public boolean isLow() {
         return quantityOnHand != null && minThreshold != null && quantityOnHand.compareTo(minThreshold) <= 0;

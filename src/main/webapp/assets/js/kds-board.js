@@ -15,6 +15,7 @@
   var activeTableKey = storageGet(TABLE_KEY) || '';
   var refreshing = false;
   var suppressUntil = 0;
+  var tableSearch = '';   // ô "Tìm bàn" — giữ ở biến module để sống qua mỗi lần refresh board
   var noticeTimer;
   var modalReturnFocus = null;
   var known = readIds();
@@ -195,6 +196,23 @@
     return keys;
   }
 
+  // Bỏ dấu + thường hoá để gõ "ban 43" cũng ra "Bàn 43".
+  function stripAccents(text) {
+    var s = (text || '').toLowerCase().normalize('NFD');
+    var out = '';
+    for (var i = 0; i < s.length; i++) {
+      var c = s.charCodeAt(i);
+      if (c < 0x0300 || c > 0x036f) out += s.charAt(i);   // bỏ dấu tổ hợp U+0300..U+036F
+    }
+    return out;
+  }
+
+  function tableMatchesSearch(tab) {
+    if (!tableSearch) return true;
+    var name = tab.querySelector('.kds-table-tab__name');
+    return stripAccents(name ? name.textContent : tab.textContent).indexOf(stripAccents(tableSearch)) >= 0;
+  }
+
   /* Chọn bàn active; render giữ tất cả panel, chỉ cái is-active hiển thị (như lane cũ). Bàn đang
      chọn không còn (pha xong hết) hoặc bị filter ẩn thì lùi về bàn đầu tiên đang hiện (khẩn nhất). */
   function setActiveTable(key, focusTab) {
@@ -246,7 +264,8 @@
         batch.hidden = !anyVisible;
       });
       var tab = tabByKey(panel.dataset.tableKey);
-      if (tab) tab.hidden = panelVisible === 0;
+      // Ẩn dòng bàn khi bộ lọc làm rỗng HOẶC không khớp ô "Tìm bàn".
+      if (tab) tab.hidden = panelVisible === 0 || !tableMatchesSearch(tab);
       var empty = panel.querySelector('.kds-filter-empty');
       if (empty) empty.hidden = panelVisible !== 0;
     });
@@ -344,6 +363,8 @@
     });
     var alerts = document.getElementById('kdsAlertDrawer');
     if (alerts) alerts.open = !!state.alertOpen;
+    var search = document.getElementById('kdsTableSearch');
+    if (search) search.value = tableSearch;   // ô "Tìm bàn" bị tạo lại theo board → nạp lại giá trị đang gõ
     var list = board.querySelector('.kds-table-list');
     if (list) list.scrollTop = state.listScroll || 0;
     tablePanels().forEach(function (panel) {
@@ -480,8 +501,12 @@
     return board.contains(active) && /^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName);
   }
 
-  async function refresh() {
-    if (refreshing || document.visibilityState === 'hidden' || Date.now() < suppressUntil || interactionInProgress()) return;
+  // force = người dùng bấm "Làm mới": bỏ qua các chốt vốn chỉ để chặn làm mới NGẦM
+  // (tab ẩn, vừa submit xong, đang thao tác dở) — bấm tay thì luôn phải chạy, nếu không
+  // nút sẽ im lặng không làm gì và trông như hỏng.
+  async function refresh(force) {
+    if (refreshing) return;
+    if (!force && (document.visibilityState === 'hidden' || Date.now() < suppressUntil || interactionInProgress())) return;
     refreshing = true;
     board.setAttribute('aria-busy', 'true');
     setConnection(true, true);
@@ -527,6 +552,14 @@
       openUnblockModal(unblock);
     } else if (close) {
       closeModal(close.closest('.kds-modal'), true);
+    }
+  });
+
+  // Ô "Tìm bàn": delegation vì input nằm trong board (bị tạo lại mỗi lần refresh).
+  document.addEventListener('input', function (event) {
+    if (event.target && event.target.id === 'kdsTableSearch') {
+      tableSearch = event.target.value;
+      applyFilters();   // lọc lại dòng bàn; setActiveTable tự lùi về bàn khớp đầu tiên
     }
   });
 
@@ -594,7 +627,10 @@
   applyFilters();
   setConnection(navigator.onLine, false);
 
-  setInterval(refresh, 5000);
-  window.addEventListener('online', refresh);
+  // Không còn tự động làm mới theo chu kỳ — barista chủ động bấm "Làm mới".
+  // Bảng vẫn tự cập nhật sau mỗi thao tác (postForm trả về HTML board mới) và khi có mạng lại.
+  var refreshButton = document.getElementById('kdsRefresh');
+  if (refreshButton) refreshButton.addEventListener('click', function () { refresh(true); });
+  window.addEventListener('online', function () { refresh(true); });
   window.addEventListener('offline', function () { setConnection(false, false); });
 })();

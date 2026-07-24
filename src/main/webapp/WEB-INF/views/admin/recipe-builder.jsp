@@ -56,7 +56,7 @@
                                 <input type="hidden" name="action" value="updateLine">
                                 <input type="hidden" name="productId" value="${product.productId}">
                                 <input type="hidden" name="lineId" value="${l.productRecipeId}">
-                                <input type="number" name="quantity" class="form-control" style="width:100px" min="0.001" step="0.001" value="${l.quantity}" required>
+                                <input type="number" name="quantity" class="form-control" style="width:100px" min="0.001" step="0.001" value="${l.quantityDisplay}" required>
                                 <span class="muted">${l.ingredientUnit}</span>
                                 <button type="submit" class="btn btn-ghost btn-sm">Lưu</button>
                             </form>

@@ -79,7 +79,7 @@
             <c:forEach var="o" items="${oversoldAlerts}">
                 <tr>
                     <td><strong>${o.ingredientName}</strong></td>
-                    <td><span class="badge badge-cancelled">${o.quantityOnHand} ${o.ingredientUnit}</span></td>
+                    <td><span class="badge badge-cancelled">${o.quantityOnHandDisplay} ${o.ingredientUnit}</span></td>
                     <td><c:choose><c:when test="${o.ingredientType == 'RAW'}">Thô</c:when><c:otherwise>Pha sẵn</c:otherwise></c:choose></td>
                     <td><a class="btn btn-ghost btn-sm" href="${ctx}/manager/reconciliation?action=new">Kiểm kê</a></td>
                 </tr>
@@ -153,8 +153,8 @@
                         <c:forEach var="l" items="${lowStockAlerts}">
                             <tr>
                                 <td>${l.ingredientName} <span class="badge badge-waiting" style="margin-left:6px">Thấp</span></td>
-                                <td>${l.quantityOnHand} ${l.ingredientUnit}</td>
-                                <td>${l.minThreshold}</td>
+                                <td>${l.quantityOnHandDisplay} ${l.ingredientUnit}</td>
+                                <td>${l.minThresholdDisplay}</td>
                             </tr>
                         </c:forEach>
                     </tbody>

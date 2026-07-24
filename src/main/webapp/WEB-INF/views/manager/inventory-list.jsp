@@ -14,7 +14,7 @@
 <c:if test="${not empty oversoldStock}">
     <div class="alert alert-error">
         <strong>Tồn âm cần kiểm kê:</strong>
-        <c:forEach var="o" items="${oversoldStock}" varStatus="st">${o.ingredientName} (${o.quantityOnHand} ${o.ingredientUnit})<c:if test="${not st.last}">, </c:if></c:forEach>
+        <c:forEach var="o" items="${oversoldStock}" varStatus="st">${o.ingredientName} (${o.quantityOnHandDisplay} ${o.ingredientUnit})<c:if test="${not st.last}">, </c:if></c:forEach>
         <a class="btn btn-ghost btn-sm" href="${ctx}/manager/reconciliation?action=new" style="margin-left:10px">Điều chỉnh tồn</a>
     </div>
 </c:if>
@@ -22,7 +22,7 @@
 <c:if test="${not empty lowStock}">
     <div class="alert alert-error">
         <strong>Cảnh báo tồn thấp:</strong>
-        <c:forEach var="l" items="${lowStock}" varStatus="st">${l.ingredientName} (${l.quantityOnHand} ${l.ingredientUnit})<c:if test="${not st.last}">, </c:if></c:forEach>
+        <c:forEach var="l" items="${lowStock}" varStatus="st">${l.ingredientName} (${l.quantityOnHandDisplay} ${l.ingredientUnit})<c:if test="${not st.last}">, </c:if></c:forEach>
     </div>
 </c:if>
 
@@ -43,13 +43,13 @@
                             </c:choose>
                         </td>
                         <td><c:choose><c:when test="${bi.ingredientType == 'RAW'}"><span class="badge badge-making">Thô</span></c:when><c:otherwise><span class="badge badge-ready">Pha sẵn</span></c:otherwise></c:choose></td>
-                        <td><strong>${bi.quantityOnHand}</strong> ${bi.ingredientUnit}</td>
+                        <td><strong>${bi.quantityOnHandDisplay}</strong> ${bi.ingredientUnit}</td>
                         <td>
                             <form action="${ctx}/manager/inventory" method="post" style="display:flex;gap:6px;align-items:center;margin:0">
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                 <input type="hidden" name="action" value="setThreshold">
                                 <input type="hidden" name="ingredientId" value="${bi.ingredientId}">
-                                <input type="number" name="threshold" class="form-control" style="width:110px" step="0.001" value="${bi.minThreshold}">
+                                <input type="number" name="threshold" class="form-control" style="width:110px" step="0.001" value="${bi.minThresholdDisplay}">
                                 <button type="submit" class="btn btn-ghost btn-sm">Lưu</button>
                             </form>
                         </td>

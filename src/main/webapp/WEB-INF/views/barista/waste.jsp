@@ -284,7 +284,7 @@
                                             <strong>${w.ingredientName}</strong>
                                             <c:if test="${w.ingredientType == 'PREPPED'}"><span class="badge badge-making">Pha sẵn</span></c:if>
                                         </td>
-                                        <td><strong>${w.quantity}</strong> ${w.ingredientUnit}</td>
+                                        <td><strong>${w.quantityDisplay}</strong> ${w.ingredientUnit}</td>
                                         <td>${w.wasteTypeLabel}</td>
                                         <td>${fn:escapeXml(w.reason)}<c:if test="${not empty w.wasteEvent}"><small class="muted"><br>${w.wasteEvent.sourceLabel}<c:if test="${not empty w.wasteEvent.productName}"> · ${w.wasteEvent.cupQuantity} × ${w.wasteEvent.productName}</c:if></small></c:if></td>
                                         <td>${w.loggedByName}</td>

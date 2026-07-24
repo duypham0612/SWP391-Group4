@@ -26,6 +26,10 @@ public class PrepChecklistRow {
     public String getUnit() { return unit; }
     public BigDecimal getOnHand() { return onHand; }
     public BigDecimal getThreshold() { return threshold; }
+
+    /** Cho JSP — bỏ .000 thừa. */
+    public String getOnHandDisplay() { return com.cafe.common.QuantityFormat.plain(onHand); }
+    public String getThresholdDisplay() { return com.cafe.common.QuantityFormat.plain(threshold); }
     public boolean isHasRecipe() { return hasRecipe; }
 
     /** Cần pha khi tồn ≤ ngưỡng tối thiểu. */

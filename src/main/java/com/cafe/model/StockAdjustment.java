@@ -39,6 +39,11 @@ public class StockAdjustment {
     public BigDecimal getDiffQty() { return diffQty; }
     public void setDiffQty(BigDecimal diffQty) { this.diffQty = diffQty; }
 
+    /** Cho JSP — bỏ .000 thừa. */
+    public String getSystemQtyDisplay() { return com.cafe.common.QuantityFormat.plain(systemQty); }
+    public String getActualQtyDisplay() { return com.cafe.common.QuantityFormat.plain(actualQty); }
+    public String getDiffQtyDisplay() { return com.cafe.common.QuantityFormat.plain(diffQty); }
+
     public String getReason() { return reason; }
     public void setReason(String reason) { this.reason = reason; }
 
