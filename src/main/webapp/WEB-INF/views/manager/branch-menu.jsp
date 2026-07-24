@@ -5,7 +5,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Thực đơn</div><h1>Menu chi nhánh</h1><p>catalog.BranchMenu — bật/tắt bán, giá địa phương, hết tạm thời</p></div>
+    <div><div class="eyebrow">Thực đơn</div><h1>Thực đơn chi nhánh</h1><p>Quản lý giá bán, trạng thái phục vụ và các món đang tạm hết tại chi nhánh.</p></div>
 </div>
 
 <c:if test="${not empty sessionScope.flashOk}">
@@ -19,7 +19,7 @@
 
 <c:choose>
     <c:when test="${empty items}">
-        <div class="card empty-state"><div class="icon">∅</div><p>Chưa có sản phẩm nào được Admin publish cho chi nhánh này.</p></div>
+        <div class="card empty-state"><div class="icon">∅</div><p>Chưa có sản phẩm nào được quản trị viên phân phối cho chi nhánh này.</p></div>
     </c:when>
     <c:otherwise>
         <%-- Ẩn nhiều món cùng lúc: tick các món đang bán rồi bấm "Ẩn các món đã chọn" --%>
@@ -35,7 +35,7 @@
             <thead><tr>
                 <th style="width:40px"><input type="checkbox" onclick="document.querySelectorAll('.menupick').forEach(c=>c.checked=this.checked)"></th>
                 <th>Sản phẩm</th><th style="width:140px">Giá gốc</th>
-                <th style="width:260px">Giá địa phương</th>
+                <th style="width:260px">Giá tại chi nhánh</th>
                 <th style="width:120px">Bán</th><th style="width:140px">Hết tạm thời</th>
             </tr></thead>
             <tbody>
@@ -61,7 +61,7 @@
                                 <input type="hidden" name="action" value="setLocalPrice">
                                 <input type="hidden" name="productId" value="${m.productId}">
                                 <input type="number" name="localPrice" class="form-control" style="width:130px" step="100" min="0"
-                                       value="${m.localPrice}" placeholder="(giá gốc)">
+                                       value="${m.localPrice}" placeholder="Dùng giá gốc">
                                 <button type="submit" class="btn btn-ghost btn-sm">Lưu</button>
                             </form>
                         </td>
@@ -91,5 +91,7 @@
         </table>
     </c:otherwise>
 </c:choose>
+
+<jsp:include page="menu-block-panel.jsp" />
 
 <jsp:include page="../layout/footer.jsp" />

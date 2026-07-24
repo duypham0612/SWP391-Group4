@@ -52,7 +52,7 @@
             </c:choose>
         </span>
     </a>
-    <a class="card stat" href="${ctx}/manager/waste">
+    <a class="card stat" href="${ctx}/manager/reconciliation">
         <span class="label">Hao hụt hôm nay</span>
         <span class="value"><fmt:formatNumber value="${summary.todayWaste.totalCost}" maxFractionDigits="0"/> ₫</span>
         <span class="muted">${summary.todayWaste.activeCount} dòng · ${summary.todayWaste.remakeCount} làm lại</span>

@@ -10,30 +10,55 @@
 
 <div class="page-header">
     <div>
-        <div class="eyebrow">Quản lý chi nhánh</div>
-        <h1>Hao hụt &amp; làm lại</h1>
-        <p>Theo dõi nguyên liệu hao hụt và món làm lại của toàn chi nhánh theo khoảng ngày.</p>
+        <div class="eyebrow">Kho chi nhánh</div>
+        <h1>Đối soát tồn và hao hụt</h1>
+        <p>Kiểm kê chênh lệch, xử lý ngoại lệ và theo dõi hao hụt trong cùng một màn hình.</p>
     </div>
-    <div class="waste-scope">
-        <strong>${range.label}</strong>
-        <span>${range.dayCount} ngày</span>
-    </div>
+    <a class="btn btn-primary" href="${ctx}/manager/reconciliation?action=new">+ Tạo lần kiểm kê</a>
 </div>
 
-<c:url var="todayUrl" value="/manager/waste">
+<section class="card" style="margin-bottom:22px">
+    <div class="waste-card__head">
+        <div><h3>Lịch sử kiểm kê và điều chỉnh tồn</h3><p>Các lần ghi nhận chênh lệch giữa số lượng trên hệ thống và số lượng kiểm đếm thực tế.</p></div>
+        <strong>${fn:length(adjustments)} lần</strong>
+    </div>
+    <c:choose>
+        <c:when test="${empty adjustments}">
+            <div class="empty-state"><div class="icon">✓</div><p>Chưa phát sinh chênh lệch tồn kho.</p></div>
+        </c:when>
+        <c:otherwise>
+            <div class="table-scroll"><table class="table">
+                <thead><tr><th>Mã</th><th>Nguyên liệu</th><th>Tồn hệ thống</th><th>Tồn thực tế</th><th>Chênh lệch</th><th>Lý do</th><th>Người thực hiện</th></tr></thead>
+                <tbody><c:forEach var="a" items="${adjustments}"><tr>
+                    <td>#${a.stockAdjustmentId}</td><td>${a.ingredientName}</td>
+                    <td>${a.systemQty} ${a.displayUnit}</td><td>${a.actualQty} ${a.displayUnit}</td>
+                    <td><strong><c:if test="${a.diffQty.signum() > 0}">+</c:if>${a.diffQty}</strong></td>
+                    <td><c:out value="${a.reason}" /></td><td>${a.adjustedByName}</td>
+                </tr></c:forEach></tbody>
+            </table></div>
+        </c:otherwise>
+    </c:choose>
+</section>
+
+<div class="section-title">
+    <h2 style="margin:0">Hao hụt và làm lại món</h2>
+    <p class="muted" style="margin:4px 0 0">Số liệu trong khoảng ${range.label} (${range.dayCount} ngày).</p>
+</div>
+
+<c:url var="todayUrl" value="/manager/reconciliation">
     <c:param name="from" value="${todayDate}" />
     <c:param name="to" value="${todayDate}" />
 </c:url>
-<c:url var="last7Url" value="/manager/waste">
+<c:url var="last7Url" value="/manager/reconciliation">
     <c:param name="from" value="${last7FromDate}" />
     <c:param name="to" value="${todayDate}" />
 </c:url>
-<c:url var="last30Url" value="/manager/waste">
+<c:url var="last30Url" value="/manager/reconciliation">
     <c:param name="from" value="${last30FromDate}" />
     <c:param name="to" value="${todayDate}" />
 </c:url>
 
-<form class="table-toolbar" action="${ctx}/manager/waste" method="get">
+<form class="table-toolbar" action="${ctx}/manager/reconciliation" method="get">
     <input type="hidden" name="page" value="1">
     <div class="form-group">
         <label for="fromDate">Từ ngày</label>
@@ -93,10 +118,10 @@
 <p class="muted">Bốn số trên tính cho toàn bộ khoảng ngày ${range.label}, không chịu ảnh hưởng của bộ lọc và phân trang bên dưới.</p>
 
 <section class="card waste-review-card">
-    <div class="waste-card__head"><div><h3>Ngoại lệ cần đối soát</h3><p>Tồn âm sau hao hụt vẫn được ghi để quầy không bị gián đoạn; Quản lý xác nhận và đối soát bằng màn tồn kho khi cần.</p></div><strong>${fn:length(openReviews)} mở</strong></div>
+    <div class="waste-card__head"><div><h3>Ngoại lệ cần xử lý</h3><p>Kiểm tra các trường hợp tồn bị âm sau khi ghi nhận hao hụt, sau đó kiểm kê và điều chỉnh nếu cần.</p></div><strong>${fn:length(openReviews)} trường hợp</strong></div>
     <c:choose><c:when test="${empty openReviews}"><p class="muted">Không có ngoại lệ đang chờ xử lý.</p></c:when><c:otherwise>
         <div class="table-scroll"><table class="table"><thead><tr><th>Loại</th><th>Nguyên liệu</th><th>Tồn trước → sau</th><th>Ghi chú</th><th></th></tr></thead><tbody>
-        <c:forEach var="r" items="${openReviews}"><tr><td>${r.reviewType}</td><td>${r.ingredientName}</td><td>${r.qtyBefore} → ${r.qtyAfter}</td><td>${r.note}</td><td><form action="${ctx}/manager/waste" method="post"><input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="resolveReview"><input type="hidden" name="reviewId" value="${r.wasteReviewId}"><input class="form-control" name="note" maxlength="255" placeholder="Ghi chú xử lý" required><button class="btn btn-primary btn-sm" type="submit">Xác nhận</button></form></td></tr></c:forEach>
+        <c:forEach var="r" items="${openReviews}"><tr><td><c:choose><c:when test="${r.reviewType == 'NEGATIVE_STOCK'}">Tồn kho âm</c:when><c:otherwise>Cần kiểm tra</c:otherwise></c:choose></td><td>${r.ingredientName}</td><td>${r.qtyBefore} → ${r.qtyAfter}</td><td><c:out value="${r.note}" /></td><td><form action="${ctx}/manager/waste" method="post"><input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="resolveReview"><input type="hidden" name="reviewId" value="${r.wasteReviewId}"><input class="form-control" name="note" maxlength="255" placeholder="Ghi chú cách xử lý" required><button class="btn btn-primary btn-sm" type="submit">Đánh dấu đã xử lý</button></form></td></tr></c:forEach>
         </tbody></table></div>
     </c:otherwise></c:choose>
 </section>
@@ -106,7 +131,7 @@
 </c:if>
 
 <h3 class="section-title">Nhật ký hao hụt &amp; làm lại</h3>
-<form id="wasteLogFilters" class="table-toolbar" action="${ctx}/manager/waste" method="get">
+<form id="wasteLogFilters" class="table-toolbar" action="${ctx}/manager/reconciliation" method="get">
     <input type="hidden" name="page" value="1">
     <input type="hidden" name="from" value="${range.fromDate}">
     <input type="hidden" name="to" value="${range.toDate}">
@@ -185,12 +210,12 @@
     <span class="tt-summary" aria-live="polite">${wasteLogPage.startRow}-${wasteLogPage.endRow} / ${wasteLogPage.total}</span>
     <c:if test="${wasteLogPage.totalPages > 1}">
         <div class="pagination" aria-label="Phân trang nhật ký hao hụt">
-            <c:url var="firstWasteLogPageUrl" value="/manager/waste">
+            <c:url var="firstWasteLogPageUrl" value="/manager/reconciliation">
                 <c:param name="from" value="${range.fromDate}" /><c:param name="to" value="${range.toDate}" />
                 <c:param name="q" value="${wasteLogQuery}" /><c:param name="wasteType" value="${wasteLogWasteType}" />
                 <c:param name="status" value="${wasteLogStatus}" /><c:param name="page" value="1" />
             </c:url>
-            <c:url var="previousWasteLogPageUrl" value="/manager/waste">
+            <c:url var="previousWasteLogPageUrl" value="/manager/reconciliation">
                 <c:param name="from" value="${range.fromDate}" /><c:param name="to" value="${range.toDate}" />
                 <c:param name="q" value="${wasteLogQuery}" /><c:param name="wasteType" value="${wasteLogWasteType}" />
                 <c:param name="status" value="${wasteLogStatus}" /><c:param name="page" value="${wasteLogPage.page - 1}" />
@@ -198,19 +223,19 @@
             <a class="page" href="${firstWasteLogPageUrl}" aria-disabled="${not wasteLogPage.hasPrevious}">«</a>
             <a class="page" href="${previousWasteLogPageUrl}" aria-disabled="${not wasteLogPage.hasPrevious}">‹</a>
             <c:forEach var="pageNumber" items="${wasteLogPage.visiblePages}">
-                <c:url var="wasteLogPageUrl" value="/manager/waste">
+                <c:url var="wasteLogPageUrl" value="/manager/reconciliation">
                     <c:param name="from" value="${range.fromDate}" /><c:param name="to" value="${range.toDate}" />
                     <c:param name="q" value="${wasteLogQuery}" /><c:param name="wasteType" value="${wasteLogWasteType}" />
                     <c:param name="status" value="${wasteLogStatus}" /><c:param name="page" value="${pageNumber}" />
                 </c:url>
                 <a class="page ${pageNumber == wasteLogPage.page ? 'is-active' : ''}" href="${wasteLogPageUrl}" aria-current="${pageNumber == wasteLogPage.page ? 'page' : 'false'}">${pageNumber}</a>
             </c:forEach>
-            <c:url var="nextWasteLogPageUrl" value="/manager/waste">
+            <c:url var="nextWasteLogPageUrl" value="/manager/reconciliation">
                 <c:param name="from" value="${range.fromDate}" /><c:param name="to" value="${range.toDate}" />
                 <c:param name="q" value="${wasteLogQuery}" /><c:param name="wasteType" value="${wasteLogWasteType}" />
                 <c:param name="status" value="${wasteLogStatus}" /><c:param name="page" value="${wasteLogPage.page + 1}" />
             </c:url>
-            <c:url var="lastWasteLogPageUrl" value="/manager/waste">
+            <c:url var="lastWasteLogPageUrl" value="/manager/reconciliation">
                 <c:param name="from" value="${range.fromDate}" /><c:param name="to" value="${range.toDate}" />
                 <c:param name="q" value="${wasteLogQuery}" /><c:param name="wasteType" value="${wasteLogWasteType}" />
                 <c:param name="status" value="${wasteLogStatus}" /><c:param name="page" value="${wasteLogPage.totalPages}" />

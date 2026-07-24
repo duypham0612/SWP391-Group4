@@ -32,6 +32,10 @@ GO
 USE CafeChain;
 GO
 
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
+
 -- Chỉ đổi thành 1 khi chủ động dựng database demo mới. Deploy luôn để 0.
 DECLARE @SeedDemo BIT = 0;
 EXEC sys.sp_set_session_context @key = N'CafeChainSeedDemo', @value = @SeedDemo;
@@ -1049,7 +1053,7 @@ IF OBJECT_ID(N'inventory.WasteLog', N'U') IS NOT NULL
 CREATE INDEX IX_WasteLog_BranchLogged ON inventory.WasteLog(BranchId, LoggedAt DESC);
 IF COL_LENGTH(N'inventory.WasteLog', N'WasteEventId') IS NOT NULL
    AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'inventory.WasteLog') AND name = N'IX_WasteLog_Event')
-CREATE INDEX IX_WasteLog_Event ON inventory.WasteLog(WasteEventId) WHERE WasteEventId IS NOT NULL;
+EXEC(N'CREATE INDEX IX_WasteLog_Event ON inventory.WasteLog(WasteEventId) WHERE WasteEventId IS NOT NULL;');
 IF OBJECT_ID(N'inventory.WasteReview', N'U') IS NOT NULL
    AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'inventory.WasteReview') AND name = N'IX_WasteReview_Open')
 CREATE INDEX IX_WasteReview_Open ON inventory.WasteReview(Status, CreatedAt DESC) INCLUDE(WasteEventId, IngredientId, ReviewType);

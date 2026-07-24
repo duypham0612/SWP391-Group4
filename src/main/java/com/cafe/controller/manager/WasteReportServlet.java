@@ -23,6 +23,12 @@ public class WasteReportServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
+        if (req.getAttribute("combinedInventoryView") == null) {
+            String query = req.getQueryString();
+            resp.sendRedirect(req.getContextPath() + "/manager/reconciliation"
+                    + (query == null || query.isBlank() ? "" : "?" + query));
+            return;
+        }
         int branchId = InventoryDashboardServlet.branchId(req);
         LocalDate todayVn = LocalDate.now(BusinessDay.VN_ZONE);
         WasteReportService.Range range = WasteReportService.resolveRange(
@@ -46,7 +52,7 @@ public class WasteReportServlet extends HttpServlet {
             req.setAttribute("wasteLogWasteType", logWasteType);
             req.setAttribute("wasteLogStatus", logStatus);
             req.setAttribute("openReviews", service.openReviews(branchId));
-            req.setAttribute("pageTitle", "Hao hụt & làm lại");
+            req.setAttribute("pageTitle", "Đối soát tồn và hao hụt");
             req.getRequestDispatcher("/WEB-INF/views/manager/waste.jsp").forward(req, resp);
         } catch (Exception e) {
             throw new ServletException(e);
@@ -63,7 +69,7 @@ public class WasteReportServlet extends HttpServlet {
             boolean ok = service.resolveReview(InventoryDashboardServlet.branchId(req), id,
                     user == null ? 0 : user.getUserId(), req.getParameter("note"));
             req.getSession().setAttribute(ok ? "flashOk" : "flashError", ok ? "Đã xác nhận ngoại lệ." : "Ngoại lệ đã được xử lý.");
-            resp.sendRedirect(req.getContextPath() + "/manager/waste");
+            resp.sendRedirect(req.getContextPath() + "/manager/reconciliation");
         } catch (NumberFormatException e) { resp.sendError(400); }
         catch (Exception e) { throw new ServletException(e); }
     }
