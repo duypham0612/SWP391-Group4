@@ -115,6 +115,10 @@ public class WasteServlet extends HttpServlet {
         } catch (IllegalArgumentException e) {
             req.setAttribute("flashError", e.getMessage());
             forwardAfterError(req, resp, branchId, userId, editId);
+        } catch (SQLException e) {
+            // Hạ tầng lỗi thì redirect an toàn; không forward lại để tránh truy vấn DB hỏng lần thứ hai.
+            req.getSession().setAttribute("flashError", "Không thể cập nhật hao hụt lúc này. Vui lòng thử lại.");
+            resp.sendRedirect(req.getContextPath() + "/barista/waste");
         } catch (Exception e) {
             throw new ServletException(e);
         }

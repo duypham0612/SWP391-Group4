@@ -66,7 +66,11 @@ public class PrepServlet extends HttpServlet {
                 req.getSession().setAttribute("flashOk", "Đã huỷ mẻ — tồn kho hoàn lại qua sổ cái (txn bù).");
             } else if ("updateBatch".equals(action)) {
                 int batchId = Integer.parseInt(req.getParameter("prepBatchId"));
-                BigDecimal qty = new BigDecimal(req.getParameter("quantityProduced").trim());
+                String quantityProduced = req.getParameter("quantityProduced");
+                if (blank(quantityProduced)) {
+                    throw new BusinessException("Sản lượng không hợp lệ.");
+                }
+                BigDecimal qty = new BigDecimal(quantityProduced.trim());
                 if (qty.signum() > 0) {
                     service.updateBatch(branchId, batchId, qty, userId);
                     req.getSession().setAttribute("flashOk", "Đã cập nhật sản lượng — chênh lệch ghi vào sổ cái.");
@@ -89,6 +93,10 @@ public class PrepServlet extends HttpServlet {
                 req.getSession().setAttribute("flashError", "Sản lượng không hợp lệ.");
                 resp.sendRedirect(req.getContextPath() + "/barista/prep");
             }
+        } catch (SQLException e) {
+            // SQL lỗi thật (timeout/mất kết nối) không được biến thành stack trace hoặc lộ dữ liệu nội bộ.
+            req.getSession().setAttribute("flashError", "Không thể cập nhật mẻ pha lúc này. Vui lòng thử lại.");
+            resp.sendRedirect(req.getContextPath() + "/barista/prep");
         } catch (Exception e) { throw new ServletException(e); }
     }
 

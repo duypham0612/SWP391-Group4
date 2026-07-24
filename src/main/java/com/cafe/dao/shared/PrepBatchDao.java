@@ -96,6 +96,16 @@ public class PrepBatchDao {
         }
     }
 
+    /** Scoped lookup: callers must not load a batch belonging to another branch. */
+    public PrepBatch findByIdForBranch(Connection conn, int prepBatchId, int branchId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                SELECT + "WHERE pb.PrepBatchId=? AND pb.BranchId=?")) {
+            ps.setInt(1, prepBatchId);
+            ps.setInt(2, branchId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? map(rs) : null; }
+        }
+    }
+
     /** Me ACTIVE da qua han, cat theo ExpiresAt thay vi MadeAt de bat ca me pha tu ngay truoc. */
     public List<PrepBatch> findExpiredActive(Connection conn, int branchId) throws SQLException {
         final String sql =
@@ -133,12 +143,39 @@ public class PrepBatchDao {
         }
     }
 
+    /** Scoped status update; keeps the write protected even if a caller has a stale object. */
+    public int updateStatusForBranch(Connection conn, int prepBatchId, int branchId, String status) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE inventory.PrepBatch SET Status=?, VoidedAt=CASE WHEN ?='CANCELLED' THEN SYSUTCDATETIME() ELSE NULL END "
+                        + "WHERE PrepBatchId=? AND BranchId=? AND Status='ACTIVE'")) {
+            ps.setString(1, status);
+            ps.setString(2, status);
+            ps.setInt(3, prepBatchId);
+            ps.setInt(4, branchId);
+            return ps.executeUpdate();
+        }
+    }
+
     public int updateQuantity(Connection conn, int prepBatchId, BigDecimal qtyProduced, BigDecimal expectedQtyProduced) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
                 "UPDATE inventory.PrepBatch SET QuantityProduced=? WHERE PrepBatchId=? AND Status='ACTIVE' AND QuantityProduced=?")) {
             ps.setBigDecimal(1, qtyProduced);
             ps.setInt(2, prepBatchId);
             ps.setBigDecimal(3, expectedQtyProduced);
+            return ps.executeUpdate();
+        }
+    }
+
+    /** Optimistic update scoped to the current branch. */
+    public int updateQuantityForBranch(Connection conn, int prepBatchId, int branchId,
+                                       BigDecimal qtyProduced, BigDecimal expectedQtyProduced) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE inventory.PrepBatch SET QuantityProduced=? "
+                        + "WHERE PrepBatchId=? AND BranchId=? AND Status='ACTIVE' AND QuantityProduced=?")) {
+            ps.setBigDecimal(1, qtyProduced);
+            ps.setInt(2, prepBatchId);
+            ps.setInt(3, branchId);
+            ps.setBigDecimal(4, expectedQtyProduced);
             return ps.executeUpdate();
         }
     }
