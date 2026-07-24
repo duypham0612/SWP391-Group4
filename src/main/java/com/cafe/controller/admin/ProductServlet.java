@@ -31,17 +31,17 @@ public class ProductServlet extends HttpServlet {
             if ("new".equals(action)) {
                 req.setAttribute("product", new Product());
                 req.setAttribute("sizeConfig", ProductSizeConfig.defaults());
-                forwardForm(req, resp, "Them san pham");
+                forwardForm(req, resp, "Thêm sản phẩm");
             } else if ("edit".equals(action)) {
                 Product p = service.getProduct(Integer.parseInt(req.getParameter("id")));
                 if (p == null) { resp.sendError(HttpServletResponse.SC_NOT_FOUND); return; }
                 req.setAttribute("product", p);
                 req.setAttribute("sizeConfig", service.getSizeConfig(p.getProductId()));
-                forwardForm(req, resp, "Sua san pham");
+                forwardForm(req, resp, "Sửa sản phẩm");
             } else {
                 req.setAttribute("products", service.getProductList());
                 req.setAttribute("branches", branchService.getBranchListActive());
-                req.setAttribute("pageTitle", "San pham");
+                req.setAttribute("pageTitle", "Sản phẩm");
                 req.getRequestDispatcher("/WEB-INF/views/admin/product-list.jsp").forward(req, resp);
             }
         } catch (Exception e) { throw new ServletException(e); }
@@ -56,6 +56,7 @@ public class ProductServlet extends HttpServlet {
         try {
             if ("toggleActive".equals(action)) {
                 service.toggleActive(Integer.parseInt(req.getParameter("id")));
+                req.getSession().setAttribute("flashOk", "Đã cập nhật trạng thái sản phẩm.");
                 resp.sendRedirect(ctx + "/admin/product");
                 return;
             }
@@ -63,6 +64,7 @@ public class ProductServlet extends HttpServlet {
                 int productId = Integer.parseInt(req.getParameter("id"));
                 int branchId = Integer.parseInt(req.getParameter("branchId"));
                 service.publishToBranch(productId, branchId);
+                req.getSession().setAttribute("flashOk", "Đã thêm sản phẩm vào chi nhánh.");
                 resp.sendRedirect(ctx + "/admin/product");
                 return;
             }
@@ -70,12 +72,12 @@ public class ProductServlet extends HttpServlet {
                 String[] selected = req.getParameterValues("productIds");
                 int branchId = parsePositiveInt(req.getParameter("branchId"));
                 if (selected == null || selected.length == 0) {
-                    req.getSession().setAttribute("flashError", "Vui long chon it nhat 1 san pham.");
+                    req.getSession().setAttribute("flashError", "Vui lòng chọn ít nhất 1 sản phẩm.");
                     resp.sendRedirect(ctx + "/admin/product");
                     return;
                 }
                 if (branchId <= 0) {
-                    req.getSession().setAttribute("flashError", "Vui long chon chi nhanh.");
+                    req.getSession().setAttribute("flashError", "Vui lòng chọn chi nhánh.");
                     resp.sendRedirect(ctx + "/admin/product");
                     return;
                 }
@@ -86,7 +88,7 @@ public class ProductServlet extends HttpServlet {
                     if (productId > 0) productIds[count++] = productId;
                 }
                 if (count == 0) {
-                    req.getSession().setAttribute("flashError", "Vui long chon it nhat 1 san pham hop le.");
+                    req.getSession().setAttribute("flashError", "Vui lòng chọn ít nhất 1 sản phẩm hợp lệ.");
                     resp.sendRedirect(ctx + "/admin/product");
                     return;
                 }
@@ -96,7 +98,7 @@ public class ProductServlet extends HttpServlet {
                     productIds = trimmed;
                 }
                 service.publishManyToBranch(productIds, branchId);
-                req.getSession().setAttribute("flashOk", "Da them " + productIds.length + " san pham vao chi nhanh.");
+                req.getSession().setAttribute("flashOk", "Đã thêm " + productIds.length + " sản phẩm vào chi nhánh.");
                 resp.sendRedirect(ctx + "/admin/product");
                 return;
             }
@@ -108,10 +110,16 @@ public class ProductServlet extends HttpServlet {
                 req.setAttribute("product", p);
                 req.setAttribute("sizeConfig", sizeConfig);
                 req.setAttribute("errorMsg", error);
-                forwardForm(req, resp, p.getProductId() == 0 ? "Them san pham" : "Sua san pham");
+                forwardForm(req, resp, p.getProductId() == 0 ? "Thêm sản phẩm" : "Sửa sản phẩm");
                 return;
             }
-            if (p.getProductId() == 0) service.createProduct(p, sizeConfig); else service.updateProduct(p, sizeConfig);
+            if (p.getProductId() == 0) {
+                service.createProduct(p, sizeConfig);
+                req.getSession().setAttribute("flashOk", "Đã thêm sản phẩm thành công.");
+            } else {
+                service.updateProduct(p, sizeConfig);
+                req.getSession().setAttribute("flashOk", "Đã cập nhật sản phẩm thành công.");
+            }
             resp.sendRedirect(ctx + "/admin/product");
         } catch (Exception e) { throw new ServletException(e); }
     }
@@ -123,7 +131,7 @@ public class ProductServlet extends HttpServlet {
         p.setCategoryId(parsePositiveInt(req.getParameter("categoryId")));
         p.setName(trim(req.getParameter("name")));
         String price = req.getParameter("basePrice");
-        try { p.setBasePrice(price == null || price.isBlank() ? BigDecimal.ZERO : new BigDecimal(price.trim())); }
+        try { p.setBasePrice(price == null || price.isBlank() ? BigDecimal.ZERO : new BigDecimal(price.trim().replace(",", ""))); }
         catch (NumberFormatException e) { p.setBasePrice(BigDecimal.valueOf(-1)); }
         p.setImageUrl(trim(req.getParameter("imageUrl")));
         p.setActive(req.getParameter("active") != null);
@@ -141,15 +149,15 @@ public class ProductServlet extends HttpServlet {
     }
 
     private String validate(Product p) {
-        if (p.getName() == null || p.getName().isBlank()) return "Ten san pham khong duoc de trong.";
-        if (p.getCategoryId() <= 0) return "Vui long chon danh muc.";
-        if (p.getBasePrice() == null || p.getBasePrice().signum() < 0) return "Gia phai la so >= 0.";
-        if (p.getPrepSeconds() < 60) return "Thoi gian pha chuan phai la so phut >= 1.";
+        if (p.getName() == null || p.getName().isBlank()) return "Tên sản phẩm không được để trống.";
+        if (p.getCategoryId() <= 0) return "Vui lòng chọn danh mục.";
+        if (p.getBasePrice() == null || p.getBasePrice().signum() < 0) return "Giá phải là số lớn hơn hoặc bằng 0.";
+        if (p.getPrepSeconds() < 60) return "Thời gian pha chuẩn phải là số phút lớn hơn hoặc bằng 1.";
         return null;
     }
 
     private String validateSizeConfig(ProductSizeConfig cfg) {
-        if (cfg.getSizeMDelta().signum() < 0 || cfg.getSizeLDelta().signum() < 0) return "Gia tang size phai >= 0.";
+        if (cfg.getSizeMDelta().signum() < 0 || cfg.getSizeLDelta().signum() < 0) return "Giá tăng size phải lớn hơn hoặc bằng 0.";
         return null;
     }
 

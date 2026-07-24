@@ -27,7 +27,7 @@ public class BranchMenuServlet extends HttpServlet {
         try {
             if (bid == null || bid.isBlank()) {
                 req.setAttribute("branches", branchService.getBranchListActive());
-                req.setAttribute("pageTitle", "Menu chi nhanh - chon chi nhanh");
+                req.setAttribute("pageTitle", "Menu chi nhánh - chọn chi nhánh");
                 req.getRequestDispatcher("/WEB-INF/views/admin/branch-menu-branches.jsp").forward(req, resp);
                 return;
             }
@@ -51,7 +51,7 @@ public class BranchMenuServlet extends HttpServlet {
         String action = req.getParameter("action");
         try {
             if (branchId <= 0 || productId <= 0) {
-                req.getSession().setAttribute("flashError", "Du lieu menu khong hop le.");
+                req.getSession().setAttribute("flashError", "Dữ liệu menu không hợp lệ.");
                 resp.sendRedirect(ctx + "/admin/branch-menu");
                 return;
             }
@@ -66,18 +66,19 @@ public class BranchMenuServlet extends HttpServlet {
                     try {
                         localPrice = new BigDecimal(lp.trim().replace(",", ""));
                     } catch (NumberFormatException ignored) {
-                        req.getSession().setAttribute("flashError", "Gia rieng phai la so hop le.");
+                        req.getSession().setAttribute("flashError", "Giá riêng phải là số hợp lệ.");
                         resp.sendRedirect(ctx + "/admin/branch-menu?branchId=" + branchId);
                         return;
                     }
                     if (localPrice.signum() < 0) {
-                        req.getSession().setAttribute("flashError", "Gia rieng khong duoc am.");
+                        req.getSession().setAttribute("flashError", "Giá riêng không được âm.");
                         resp.sendRedirect(ctx + "/admin/branch-menu?branchId=" + branchId);
                         return;
                     }
                 }
                 if (!available) is86 = false;
                 service.save(branchId, productId, available, localPrice, is86);
+                req.getSession().setAttribute("flashOk", "Đã lưu menu chi nhánh thành công.");
             }
             resp.sendRedirect(ctx + "/admin/branch-menu?branchId=" + branchId);
         } catch (Exception e) { throw new ServletException(e); }

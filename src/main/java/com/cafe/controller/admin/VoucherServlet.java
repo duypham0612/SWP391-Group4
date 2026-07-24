@@ -32,12 +32,12 @@ public class VoucherServlet extends HttpServlet {
         try {
             if ("new".equals(action)) {
                 req.setAttribute("voucher", new Voucher());
-                forwardForm(req, resp, "Them voucher");
+                forwardForm(req, resp, "Thêm voucher");
             } else if ("edit".equals(action)) {
                 Voucher v = service.getVoucher(Integer.parseInt(req.getParameter("id")));
                 if (v == null) { resp.sendError(HttpServletResponse.SC_NOT_FOUND); return; }
                 req.setAttribute("voucher", v);
-                forwardForm(req, resp, "Sua voucher");
+                forwardForm(req, resp, "Sửa voucher");
             } else {
                 req.setAttribute("vouchers", service.getVoucherList());
                 req.setAttribute("pageTitle", "Voucher");
@@ -55,6 +55,7 @@ public class VoucherServlet extends HttpServlet {
         try {
             if ("toggleActive".equals(action)) {
                 service.toggleActive(Integer.parseInt(req.getParameter("id")));
+                req.getSession().setAttribute("flashOk", "Đã cập nhật trạng thái voucher.");
                 resp.sendRedirect(ctx + "/admin/voucher");
                 return;
             }
@@ -67,10 +68,16 @@ public class VoucherServlet extends HttpServlet {
             if (error != null) {
                 req.setAttribute("voucher", v);
                 req.setAttribute("errorMsg", error);
-                forwardForm(req, resp, v.getVoucherId() == 0 ? "Them voucher" : "Sua voucher");
+                forwardForm(req, resp, v.getVoucherId() == 0 ? "Thêm voucher" : "Sửa voucher");
                 return;
             }
-            if (v.getVoucherId() == 0) service.createVoucher(v); else service.updateVoucher(v);
+            if (v.getVoucherId() == 0) {
+                service.createVoucher(v);
+                req.getSession().setAttribute("flashOk", "Đã thêm voucher thành công.");
+            } else {
+                service.updateVoucher(v);
+                req.getSession().setAttribute("flashOk", "Đã cập nhật voucher thành công.");
+            }
             resp.sendRedirect(ctx + "/admin/voucher");
         } catch (Exception e) { throw new ServletException(e); }
     }
@@ -94,17 +101,17 @@ public class VoucherServlet extends HttpServlet {
     }
 
     private String validate(Voucher v) {
-        if (v.getCode() == null || v.getCode().isBlank()) return "Ma voucher khong duoc de trong.";
-        if (v.getDiscountType() == null || !TYPES.contains(v.getDiscountType())) return "Loai giam phai la PERCENT hoac FIXED.";
-        if (v.getDiscountValue() == null || v.getDiscountValue().signum() < 0) return "Gia tri giam phai >= 0.";
+        if (v.getCode() == null || v.getCode().isBlank()) return "Mã voucher không được để trống.";
+        if (v.getDiscountType() == null || !TYPES.contains(v.getDiscountType())) return "Loại giảm phải là PERCENT hoặc FIXED.";
+        if (v.getDiscountValue() == null || v.getDiscountValue().signum() < 0) return "Giá trị giảm phải lớn hơn hoặc bằng 0.";
         if ("PERCENT".equals(v.getDiscountType()) && v.getDiscountValue().compareTo(BigDecimal.valueOf(100)) > 0)
-            return "Giam theo phan tram khong duoc vuot qua 100.";
-        if (v.getScope() == null || !SCOPES.contains(v.getScope())) return "Pham vi phai la CHAIN hoac BRANCH.";
-        if ("BRANCH".equals(v.getScope()) && v.getBranchId() == null) return "Voucher pham vi BRANCH phai chon chi nhanh.";
+            return "Giảm theo phần trăm không được vượt quá 100.";
+        if (v.getScope() == null || !SCOPES.contains(v.getScope())) return "Phạm vi phải là CHAIN hoặc BRANCH.";
+        if ("BRANCH".equals(v.getScope()) && v.getBranchId() == null) return "Voucher phạm vi BRANCH phải chọn chi nhánh.";
         if ("CHAIN".equals(v.getScope())) v.setBranchId(null);
-        if (v.getUsageLimit() != null && v.getUsageLimit() < 0) return "Gioi han su dung phai >= 0.";
+        if (v.getUsageLimit() != null && v.getUsageLimit() < 0) return "Giới hạn sử dụng phải lớn hơn hoặc bằng 0.";
         if (v.getStartDate() != null && v.getEndDate() != null && v.getEndDate().isBefore(v.getStartDate()))
-            return "Ngay ket thuc phai sau ngay bat dau.";
+            return "Ngày kết thúc phải sau ngày bắt đầu.";
         return null;
     }
 

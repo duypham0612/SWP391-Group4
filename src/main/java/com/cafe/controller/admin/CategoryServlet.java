@@ -24,15 +24,15 @@ public class CategoryServlet extends HttpServlet {
         try {
             if ("new".equals(action)) {
                 req.setAttribute("category", new Category());
-                forwardForm(req, resp, "Them danh muc");
+                forwardForm(req, resp, "Thêm danh mục");
             } else if ("edit".equals(action)) {
                 Category c = service.getCategory(Integer.parseInt(req.getParameter("id")));
                 if (c == null) { resp.sendError(HttpServletResponse.SC_NOT_FOUND); return; }
                 req.setAttribute("category", c);
-                forwardForm(req, resp, "Sua danh muc");
+                forwardForm(req, resp, "Sửa danh mục");
             } else {
                 req.setAttribute("categories", service.getCategoryList());
-                req.setAttribute("pageTitle", "Danh muc");
+                req.setAttribute("pageTitle", "Danh mục");
                 req.getRequestDispatcher("/WEB-INF/views/admin/category-list.jsp").forward(req, resp);
             }
         } catch (Exception e) { throw new ServletException(e); }
@@ -47,6 +47,7 @@ public class CategoryServlet extends HttpServlet {
         try {
             if ("delete".equals(action)) {
                 service.deleteCategory(Integer.parseInt(req.getParameter("id")));
+                req.getSession().setAttribute("flashOk", "Đã xoá danh mục thành công.");
                 resp.sendRedirect(ctx + "/admin/category");
                 return;
             }
@@ -55,10 +56,16 @@ public class CategoryServlet extends HttpServlet {
             if (error != null) {
                 req.setAttribute("category", c);
                 req.setAttribute("errorMsg", error);
-                forwardForm(req, resp, c.getCategoryId() == 0 ? "Them danh muc" : "Sua danh muc");
+                forwardForm(req, resp, c.getCategoryId() == 0 ? "Thêm danh mục" : "Sửa danh mục");
                 return;
             }
-            if (c.getCategoryId() == 0) service.createCategory(c); else service.updateCategory(c);
+            if (c.getCategoryId() == 0) {
+                service.createCategory(c);
+                req.getSession().setAttribute("flashOk", "Đã thêm danh mục thành công.");
+            } else {
+                service.updateCategory(c);
+                req.getSession().setAttribute("flashOk", "Đã cập nhật danh mục thành công.");
+            }
             resp.sendRedirect(ctx + "/admin/category");
         } catch (Exception e) { throw new ServletException(e); }
     }
@@ -74,9 +81,9 @@ public class CategoryServlet extends HttpServlet {
     }
 
     private String validate(Category c) {
-        if (c.getName() == null || c.getName().isBlank()) return "Ten danh muc khong duoc de trong.";
-        if (c.getName().length() > 100) return "Ten danh muc toi da 100 ky tu.";
-        if (c.getSortOrder() < 0) return "Thu tu phai >= 0.";
+        if (c.getName() == null || c.getName().isBlank()) return "Tên danh mục không được để trống.";
+        if (c.getName().length() > 100) return "Tên danh mục tối đa 100 ký tự.";
+        if (c.getSortOrder() < 0) return "Thứ tự phải lớn hơn hoặc bằng 0.";
         return null;
     }
 

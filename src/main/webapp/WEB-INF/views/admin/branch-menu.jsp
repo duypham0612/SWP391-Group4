@@ -10,10 +10,10 @@
 </div>
 
 <c:if test="${not empty sessionScope.flashError}">
-    <div class="alert alert-error">${sessionScope.flashError}</div><c:remove var="flashError" scope="session" />
+    <div class="alert alert-error"><c:out value="${sessionScope.flashError}"/></div><c:remove var="flashError" scope="session" />
 </c:if>
 <c:if test="${not empty sessionScope.flashOk}">
-    <div class="alert alert-success">${sessionScope.flashOk}</div><c:remove var="flashOk" scope="session" />
+    <div class="alert alert-success"><c:out value="${sessionScope.flashOk}"/></div><c:remove var="flashOk" scope="session" />
 </c:if>
 
 <div class="alert alert-info">
