@@ -68,13 +68,13 @@
 </div>
 
 <%-- Bảng phân tích --%>
-<div class="grid-2">
-    <div class="card">
+<div class="grid-2 dashboard-report-grid">
+    <div class="card report-card">
         <h3 style="margin-top:0">Doanh thu theo chi nhánh</h3>
         <c:choose>
             <c:when test="${empty byBranch}"><p class="muted">Chưa có dữ liệu.</p></c:when>
             <c:otherwise>
-                <table class="table">
+                <table class="table report-table">
                     <thead><tr><th>Chi nhánh</th><th style="width:80px">HĐ</th><th style="width:150px">Doanh thu</th></tr></thead>
                     <tbody>
                         <c:forEach var="r" items="${byBranch}">
@@ -85,12 +85,12 @@
             </c:otherwise>
         </c:choose>
     </div>
-    <div class="card">
+    <div class="card report-card">
         <h3 style="margin-top:0">Theo hình thức thanh toán</h3>
         <c:choose>
             <c:when test="${empty byMethod}"><p class="muted">Chưa có dữ liệu.</p></c:when>
             <c:otherwise>
-                <table class="table">
+                <table class="table report-table">
                     <thead><tr><th>Hình thức</th><th style="width:80px">HĐ</th><th style="width:150px">Doanh thu</th></tr></thead>
                     <tbody>
                         <c:forEach var="r" items="${byMethod}">
@@ -114,12 +114,12 @@
     </div>
 </div>
 
-<div class="card" style="margin-top:24px">
+<div class="card report-card report-card-wide" style="margin-top:24px">
     <h3 style="margin-top:0">Top sản phẩm bán chạy</h3>
     <c:choose>
         <c:when test="${empty topProducts}"><p class="muted">Chưa có sản phẩm nào được bán &amp; thanh toán trong kỳ.</p></c:when>
         <c:otherwise>
-            <table class="table">
+            <table class="table report-table report-table-top">
                 <thead><tr><th style="width:50px">#</th><th>Sản phẩm</th><th style="width:110px">Số ly</th><th style="width:170px">Doanh thu</th></tr></thead>
                 <tbody>
                     <c:forEach var="r" items="${topProducts}" varStatus="st">

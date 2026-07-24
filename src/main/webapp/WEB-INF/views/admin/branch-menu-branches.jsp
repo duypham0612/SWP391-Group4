@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Menu chi nhánh</h1><p>Chọn chi nhánh để publish sản phẩm + cờ 86</p></div>
+    <div><h1>Menu chi nhánh</h1><p>Chọn chi nhánh để cập nhật món đang bán.</p></div>
 </div>
 
 <c:choose>
@@ -12,7 +12,7 @@
         <div class="card empty-state"><div class="icon">🏢</div><p>Chưa có chi nhánh hoạt động.</p></div>
     </c:when>
     <c:otherwise>
-        <table class="table">
+        <table class="table admin-branch-menu-branches">
             <thead><tr><th style="width:100px">Mã</th><th>Chi nhánh</th><th style="width:160px">Menu</th></tr></thead>
             <tbody>
                 <c:forEach var="b" items="${branches}">

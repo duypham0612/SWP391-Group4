@@ -4,9 +4,6 @@ import com.cafe.common.CsrfUtil;
 import com.cafe.model.Branch;
 import com.cafe.service.admin.BranchService;
 import com.cafe.service.admin.UserService;
-
-import java.time.LocalTime;
-import java.time.format.DateTimeParseException;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -14,8 +11,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
 
-/** A2 · BranchServlet → /admin/branch. Actions: list/create/update/toggleActive. */
+/** Admin branch management. */
 @WebServlet("/admin/branch")
 public class BranchServlet extends HttpServlet {
 
@@ -52,6 +51,7 @@ public class BranchServlet extends HttpServlet {
         try {
             if ("toggleActive".equals(action)) {
                 service.toggleActive(Integer.parseInt(req.getParameter("id")));
+                req.getSession().setAttribute("flashOk", "Đã cập nhật trạng thái chi nhánh.");
                 resp.sendRedirect(ctx + "/admin/branch");
                 return;
             }
@@ -67,7 +67,13 @@ public class BranchServlet extends HttpServlet {
                 forwardForm(req, resp, b.getBranchId() == 0 ? "Thêm chi nhánh" : "Sửa chi nhánh");
                 return;
             }
-            if (b.getBranchId() == 0) service.createBranch(b); else service.updateBranch(b);
+            if (b.getBranchId() == 0) {
+                service.createBranch(b);
+                req.getSession().setAttribute("flashOk", "Đã thêm chi nhánh thành công.");
+            } else {
+                service.updateBranch(b);
+                req.getSession().setAttribute("flashOk", "Đã cập nhật chi nhánh thành công.");
+            }
             resp.sendRedirect(ctx + "/admin/branch");
         } catch (Exception e) { throw new ServletException(e); }
     }
@@ -82,26 +88,25 @@ public class BranchServlet extends HttpServlet {
         b.setActive(req.getParameter("active") != null);
         b.setOpenTime(parseTime(req.getParameter("openTime")));
         b.setCloseTime(parseTime(req.getParameter("closeTime")));
-        String mgr = req.getParameter("managerUserId");
-        b.setManagerUserId(mgr == null || mgr.isBlank() ? null : Integer.parseInt(mgr));
+        int managerUserId = parsePositiveInt(req.getParameter("managerUserId"));
+        b.setManagerUserId(managerUserId <= 0 ? null : managerUserId);
         return b;
     }
 
-    /** input type=time ("HH:mm") → LocalTime; rỗng = null. */
     private LocalTime parseTime(String s) {
         if (s == null || s.isBlank()) return null;
         try { return LocalTime.parse(s); } catch (DateTimeParseException e) { return null; }
     }
 
-    private String validate(Branch b) {
+    private String validate(Branch b) throws Exception {
         if (b.getName() == null || b.getName().isBlank()) return "Tên chi nhánh không được để trống.";
         if (b.getAddress() == null || b.getAddress().isBlank()) return "Địa chỉ không được để trống.";
         if ((b.getOpenTime() == null) != (b.getCloseTime() == null))
-            return "Giờ mở/đóng phải nhập cả hai hoặc để trống cả hai.";
-        // Cho phép giờ đóng SỚM hơn giờ mở (quán bán qua nửa đêm, vd mở 17:00 đóng 01:00);
-        // chỉ chặn khi trùng nhau (không xác định được độ dài ca).
-        if (b.getOpenTime() != null && b.getCloseTime().equals(b.getOpenTime()))
-            return "Giờ đóng và giờ mở cửa không được trùng nhau.";
+            return "Giờ mở cửa và giờ đóng cửa phải nhập cả hai hoặc để trống cả hai.";
+        if (b.getOpenTime() != null && !b.getOpenTime().isBefore(b.getCloseTime()))
+            return "Giờ mở cửa phải trước giờ đóng cửa trong cùng ngày.";
+        if (b.getManagerUserId() != null && userService.getManagers().stream().noneMatch(u -> u.getUserId() == b.getManagerUserId()))
+            return "Quản lý phụ trách không hợp lệ.";
         return null;
     }
 
@@ -114,4 +119,14 @@ public class BranchServlet extends HttpServlet {
     }
 
     private String trim(String s) { return s == null ? null : s.trim(); }
+
+    private int parsePositiveInt(String raw) {
+        try {
+            if (raw == null || raw.isBlank()) return 0;
+            int value = Integer.parseInt(raw.trim());
+            return value > 0 ? value : 0;
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
 }

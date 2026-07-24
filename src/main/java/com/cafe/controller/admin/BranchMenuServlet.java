@@ -2,8 +2,8 @@ package com.cafe.controller.admin;
 
 import com.cafe.common.CsrfUtil;
 import com.cafe.model.Branch;
-import com.cafe.service.shared.BranchMenuService;
 import com.cafe.service.admin.BranchService;
+import com.cafe.service.shared.BranchMenuService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -13,7 +13,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.math.BigDecimal;
 
-/** Publish menu theo chi nhánh + cờ 86. /admin/branch-menu */
+/** Admin updates per-branch menu availability and local pricing. */
 @WebServlet("/admin/branch-menu")
 public class BranchMenuServlet extends HttpServlet {
 
@@ -27,7 +27,7 @@ public class BranchMenuServlet extends HttpServlet {
         try {
             if (bid == null || bid.isBlank()) {
                 req.setAttribute("branches", branchService.getBranchListActive());
-                req.setAttribute("pageTitle", "Menu chi nhánh — chọn chi nhánh");
+                req.setAttribute("pageTitle", "Menu chi nhánh - chọn chi nhánh");
                 req.getRequestDispatcher("/WEB-INF/views/admin/branch-menu-branches.jsp").forward(req, resp);
                 return;
             }
@@ -46,10 +46,15 @@ public class BranchMenuServlet extends HttpServlet {
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(HttpServletResponse.SC_FORBIDDEN, "CSRF"); return; }
         String ctx = req.getContextPath();
-        int branchId = Integer.parseInt(req.getParameter("branchId"));
-        int productId = Integer.parseInt(req.getParameter("productId"));
+        int branchId = parsePositiveInt(req.getParameter("branchId"));
+        int productId = parsePositiveInt(req.getParameter("productId"));
         String action = req.getParameter("action");
         try {
+            if (branchId <= 0 || productId <= 0) {
+                req.getSession().setAttribute("flashError", "Dữ liệu menu không hợp lệ.");
+                resp.sendRedirect(ctx + "/admin/branch-menu");
+                return;
+            }
             if ("remove".equals(action)) {
                 service.remove(branchId, productId);
             } else {
@@ -58,11 +63,34 @@ public class BranchMenuServlet extends HttpServlet {
                 BigDecimal localPrice = null;
                 String lp = req.getParameter("localPrice");
                 if (lp != null && !lp.isBlank()) {
-                    try { localPrice = new BigDecimal(lp.trim()); } catch (NumberFormatException ignored) { }
+                    try {
+                        localPrice = new BigDecimal(lp.trim().replace(",", ""));
+                    } catch (NumberFormatException ignored) {
+                        req.getSession().setAttribute("flashError", "Giá riêng phải là số hợp lệ.");
+                        resp.sendRedirect(ctx + "/admin/branch-menu?branchId=" + branchId);
+                        return;
+                    }
+                    if (localPrice.signum() < 0) {
+                        req.getSession().setAttribute("flashError", "Giá riêng không được âm.");
+                        resp.sendRedirect(ctx + "/admin/branch-menu?branchId=" + branchId);
+                        return;
+                    }
                 }
+                if (!available) is86 = false;
                 service.save(branchId, productId, available, localPrice, is86);
+                req.getSession().setAttribute("flashOk", "Đã lưu menu chi nhánh thành công.");
             }
             resp.sendRedirect(ctx + "/admin/branch-menu?branchId=" + branchId);
         } catch (Exception e) { throw new ServletException(e); }
+    }
+
+    private int parsePositiveInt(String raw) {
+        try {
+            if (raw == null || raw.isBlank()) return 0;
+            int value = Integer.parseInt(raw.trim());
+            return value > 0 ? value : 0;
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 }

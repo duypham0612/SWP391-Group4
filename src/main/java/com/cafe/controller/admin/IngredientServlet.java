@@ -12,7 +12,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Set;
 
-/** A4 · IngredientServlet → /admin/ingredient (cờ RAW/PREPPED). */
+/** Admin ingredient management. */
 @WebServlet("/admin/ingredient")
 public class IngredientServlet extends HttpServlet {
 
@@ -49,6 +49,7 @@ public class IngredientServlet extends HttpServlet {
         try {
             if ("delete".equals(action)) {
                 service.deleteIngredient(Integer.parseInt(req.getParameter("id")));
+                req.getSession().setAttribute("flashOk", "Đã xoá nguyên liệu thành công.");
                 resp.sendRedirect(ctx + "/admin/ingredient");
                 return;
             }
@@ -60,7 +61,13 @@ public class IngredientServlet extends HttpServlet {
                 forwardForm(req, resp, i.getIngredientId() == 0 ? "Thêm nguyên liệu" : "Sửa nguyên liệu");
                 return;
             }
-            if (i.getIngredientId() == 0) service.createIngredient(i); else service.updateIngredient(i);
+            if (i.getIngredientId() == 0) {
+                service.createIngredient(i);
+                req.getSession().setAttribute("flashOk", "Đã thêm nguyên liệu thành công.");
+            } else {
+                service.updateIngredient(i);
+                req.getSession().setAttribute("flashOk", "Đã cập nhật nguyên liệu thành công.");
+            }
             resp.sendRedirect(ctx + "/admin/ingredient");
         } catch (Exception e) { throw new ServletException(e); }
     }

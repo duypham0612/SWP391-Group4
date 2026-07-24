@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1><c:choose><c:when test="${voucher.voucherId > 0}">Sửa voucher</c:when><c:otherwise>Thêm voucher</c:otherwise></c:choose></h1><p>payment.Voucher</p></div>
+    <div><h1><c:choose><c:when test="${voucher.voucherId > 0}">Sửa voucher</c:when><c:otherwise>Thêm voucher</c:otherwise></c:choose></h1><p>Thiết lập mã giảm giá và phạm vi áp dụng.</p></div>
     <a class="btn btn-ghost" href="${ctx}/admin/voucher">← Quay lại</a>
 </div>
 
@@ -31,11 +31,11 @@
         </div>
         <div class="form-group">
             <label for="discountValue">Giá trị giảm *</label>
-            <input id="discountValue" type="number" name="discountValue" class="form-control" min="0" step="0.01" value="${voucher.discountValue}" required>
+            <input id="discountValue" type="text" name="discountValue" class="form-control" value="${voucher.discountValue}" data-money-input required>
         </div>
         <div class="form-group">
             <label for="minOrderAmount">Đơn tối thiểu (₫)</label>
-            <input id="minOrderAmount" type="number" name="minOrderAmount" class="form-control" min="0" step="1000" value="${voucher.minOrderAmount}">
+            <input id="minOrderAmount" type="text" name="minOrderAmount" class="form-control" value="${voucher.minOrderAmount}" data-money-input>
         </div>
         <div class="form-group">
             <label for="scope">Phạm vi *</label>

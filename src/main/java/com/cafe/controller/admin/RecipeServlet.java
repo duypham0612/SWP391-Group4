@@ -15,12 +15,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.math.BigDecimal;
 
-/**
- * A4 · RecipeServlet → /admin/recipe.
- * - ?productId=X : BOM của product (recipe-builder.jsp)
- * - ?preppedId=X : công thức pha sẵn của 1 nguyên liệu PREPPED (prep-recipe.jsp)
- * - không tham số : trang chọn (recipe-products.jsp)
- */
+/** Admin recipe management. */
 @WebServlet("/admin/recipe")
 public class RecipeServlet extends HttpServlet {
 
@@ -41,7 +36,7 @@ public class RecipeServlet extends HttpServlet {
             } else {
                 req.setAttribute("products", productService.getProductList());
                 req.setAttribute("preppedIngredients", ingredientService.getIngredientListByType("PREPPED"));
-                req.setAttribute("pageTitle", "Công thức — chọn");
+                req.setAttribute("pageTitle", "Công thức - chọn");
                 req.getRequestDispatcher("/WEB-INF/views/admin/recipe-products.jsp").forward(req, resp);
             }
         } catch (Exception e) { throw new ServletException(e); }
@@ -58,23 +53,26 @@ public class RecipeServlet extends HttpServlet {
                 case "addLine": {
                     int productId = Integer.parseInt(req.getParameter("productId"));
                     BigDecimal qty = decimal(req.getParameter("quantity"));
-                    if (qty.signum() <= 0) { showProductRecipe(req, resp, productId, "Số lượng phải > 0."); return; }
+                    if (qty.signum() <= 0) { showProductRecipe(req, resp, productId, "Số lượng phải lớn hơn 0."); return; }
                     try { service.addRecipeLine(productId, Integer.parseInt(req.getParameter("ingredientId")), qty); }
-                    catch (Exception e) { showProductRecipe(req, resp, productId, "Không thêm được (nguyên liệu đã có trong công thức?)."); return; }
+                    catch (Exception e) { showProductRecipe(req, resp, productId, "Không thêm được vì nguyên liệu đã có trong công thức."); return; }
+                    req.getSession().setAttribute("flashOk", "Đã thêm nguyên liệu vào công thức.");
                     resp.sendRedirect(ctx + "/admin/recipe?productId=" + productId);
                     return;
                 }
                 case "updateLine": {
                     int productId = Integer.parseInt(req.getParameter("productId"));
                     BigDecimal qty = decimal(req.getParameter("quantity"));
-                    if (qty.signum() <= 0) { showProductRecipe(req, resp, productId, "Số lượng phải > 0."); return; }
+                    if (qty.signum() <= 0) { showProductRecipe(req, resp, productId, "Số lượng phải lớn hơn 0."); return; }
                     service.updateRecipeLine(Integer.parseInt(req.getParameter("lineId")), qty);
+                    req.getSession().setAttribute("flashOk", "Đã cập nhật định mức công thức.");
                     resp.sendRedirect(ctx + "/admin/recipe?productId=" + productId);
                     return;
                 }
                 case "deleteLine": {
                     int productId = Integer.parseInt(req.getParameter("productId"));
                     service.removeRecipeLine(Integer.parseInt(req.getParameter("lineId")));
+                    req.getSession().setAttribute("flashOk", "Đã xoá nguyên liệu khỏi công thức.");
                     resp.sendRedirect(ctx + "/admin/recipe?productId=" + productId);
                     return;
                 }
@@ -82,15 +80,17 @@ public class RecipeServlet extends HttpServlet {
                     int preppedId = Integer.parseInt(req.getParameter("preppedId"));
                     BigDecimal qty = decimal(req.getParameter("quantity"));
                     BigDecimal yield = decimal(req.getParameter("yieldQty"));
-                    if (qty.signum() <= 0 || yield.signum() <= 0) { showPrepRecipe(req, resp, preppedId, "Số lượng & sản lượng phải > 0."); return; }
+                    if (qty.signum() <= 0 || yield.signum() <= 0) { showPrepRecipe(req, resp, preppedId, "Số lượng và sản lượng phải lớn hơn 0."); return; }
                     try { service.addPrepLine(preppedId, Integer.parseInt(req.getParameter("rawIngredientId")), qty, yield); }
-                    catch (Exception e) { showPrepRecipe(req, resp, preppedId, "Không thêm được (nguyên liệu RAW đã có?)."); return; }
+                    catch (Exception e) { showPrepRecipe(req, resp, preppedId, "Không thêm được vì nguyên liệu thô đã có trong công thức pha sẵn."); return; }
+                    req.getSession().setAttribute("flashOk", "Đã thêm nguyên liệu vào công thức pha sẵn.");
                     resp.sendRedirect(ctx + "/admin/recipe?preppedId=" + preppedId);
                     return;
                 }
                 case "deletePrep": {
                     int preppedId = Integer.parseInt(req.getParameter("preppedId"));
                     service.removePrepLine(Integer.parseInt(req.getParameter("prepId")));
+                    req.getSession().setAttribute("flashOk", "Đã xoá nguyên liệu khỏi công thức pha sẵn.");
                     resp.sendRedirect(ctx + "/admin/recipe?preppedId=" + preppedId);
                     return;
                 }

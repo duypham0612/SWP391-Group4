@@ -6,10 +6,17 @@
 <div class="page-header">
     <div>
         <h1>Danh mục sản phẩm</h1>
-        <p>Quản lý các nhóm món (catalog.Category)</p>
+        <p>Sắp xếp các nhóm món hiển thị trong menu.</p>
     </div>
     <a class="btn btn-primary" href="${ctx}/admin/category?action=new">+ Thêm danh mục</a>
 </div>
+
+<c:if test="${not empty sessionScope.flashError}">
+    <div class="alert alert-error"><c:out value="${sessionScope.flashError}"/></div><c:remove var="flashError" scope="session" />
+</c:if>
+<c:if test="${not empty sessionScope.flashOk}">
+    <div class="alert alert-success"><c:out value="${sessionScope.flashOk}"/></div><c:remove var="flashOk" scope="session" />
+</c:if>
 
 <c:choose>
     <c:when test="${empty categories}">
@@ -19,7 +26,7 @@
         </div>
     </c:when>
     <c:otherwise>
-        <div data-tabletools>
+        <div data-tabletools data-tt-page-size="6">
             <div class="table-toolbar">
                 <div class="form-group table-search">
                     <label for="categorySearch">Tìm kiếm</label>
@@ -31,14 +38,6 @@
                         <option value="">Tất cả</option>
                         <option value="true">Hiển thị</option>
                         <option value="false">Ẩn</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="categoryPageSize">Hiển thị</label>
-                    <select id="categoryPageSize" class="form-control tt-size" data-tt-size>
-                        <option value="10">10</option>
-                        <option value="20">20</option>
-                        <option value="50">50</option>
                     </select>
                 </div>
             </div>

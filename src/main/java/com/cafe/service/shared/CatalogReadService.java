@@ -31,6 +31,9 @@ import java.util.List;
 
 /** Đọc menu để dựng màn POS / QR (chỉ món available, chưa 86) + tra cứu công thức (Barista, read-only). */
 public class CatalogReadService {
+    private static final String GROUP_SIZE = "Size";
+    private static final String GROUP_SUGAR = "\u0110\u01b0\u1eddng";
+    private static final String GROUP_ICE = "\u0110\u00e1";
 
     private final BranchMenuDao branchMenuDao = new BranchMenuDao();
     private final ProductModifierGroupDao pmgDao = new ProductModifierGroupDao();
@@ -60,7 +63,7 @@ public class CatalogReadService {
 
                 for (ProductModifierGroup pmg : pmgDao.findByProduct(conn, bm.getProductId())) {
                     ModifierGroup g = groupDao.findById(conn, pmg.getModifierGroupId());
-                    if (g == null) continue;
+                    if (g == null || !isChoiceGroup(g.getName())) continue;
                     PosMenuItem.Group grp = new PosMenuItem.Group();
                     grp.setGroupId(g.getModifierGroupId());
                     grp.setName(g.getName());
@@ -188,7 +191,7 @@ public class CatalogReadService {
             List<OptionImpactRow> rows = new ArrayList<>();
             for (ProductModifierGroup pmg : pmgDao.findByProduct(conn, productId)) {
                 ModifierGroup g = groupDao.findById(conn, pmg.getModifierGroupId());
-                if (g == null) continue;
+                if (g == null || !isChoiceGroup(g.getName())) continue;
                 for (ModifierOption o : optionDao.findByGroup(conn, g.getModifierGroupId())) {
                     // Barista chỉ cần định mức của lựa chọn còn có thể bán trên POS.
                     if (!o.isActive()) continue;
@@ -216,5 +219,9 @@ public class CatalogReadService {
         public String getIngredientName() { return ingredientName; }
         public String getIngredientUnit() { return ingredientUnit; }
         public BigDecimal getQtyDelta() { return qtyDelta; }
+    }
+
+    private static boolean isChoiceGroup(String name) {
+        return GROUP_SIZE.equals(name) || GROUP_SUGAR.equals(name) || GROUP_ICE.equals(name);
     }
 }
