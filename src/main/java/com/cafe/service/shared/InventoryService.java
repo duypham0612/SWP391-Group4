@@ -246,8 +246,8 @@ public class InventoryService {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
             try {
-                com.cafe.model.PrepBatch b = prepBatchDao.findById(conn, prepBatchId);
-                if (b == null || b.getBranchId() != branchId) throw new SQLException("Mẻ pha không tồn tại ở chi nhánh này.");
+                com.cafe.model.PrepBatch b = prepBatchDao.findByIdForBranch(conn, prepBatchId, branchId);
+                if (b == null) throw new BusinessException("Mẻ pha không còn khả dụng. Vui lòng tải lại.");
                 if (!b.isActive()) { conn.rollback(); return; }   // idempotent: đã huỷ rồi
                 BigDecimal qtyProduced = b.getQuantityProduced();
                 requirePreppedOnHandForReduction(conn, branchId, b.getPreppedIngredientId(),
@@ -260,7 +260,7 @@ public class InventoryService {
                 }
                 applyTxn(conn, branchId, b.getPreppedIngredientId(), qtyProduced.negate(),  // rút PREPPED (-)
                         TxnType.PREP_IN, "PrepBatch", (long) prepBatchId, userId);
-                if (prepBatchDao.updateStatus(conn, prepBatchId, "CANCELLED") != 1) {
+                if (prepBatchDao.updateStatusForBranch(conn, prepBatchId, branchId, "CANCELLED") != 1) {
                     throw new BusinessException("Mẻ đã được thay đổi bởi thao tác khác. Vui lòng tải lại.");
                 }
                 conn.commit();
@@ -279,9 +279,9 @@ public class InventoryService {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
             try {
-                com.cafe.model.PrepBatch b = prepBatchDao.findById(conn, prepBatchId);
-                if (b == null || b.getBranchId() != branchId) throw new SQLException("Mẻ pha không tồn tại ở chi nhánh này.");
-                if (!b.isActive()) throw new SQLException("Mẻ đã huỷ — không sửa được.");
+                com.cafe.model.PrepBatch b = prepBatchDao.findByIdForBranch(conn, prepBatchId, branchId);
+                if (b == null) throw new BusinessException("Mẻ pha không còn khả dụng. Vui lòng tải lại.");
+                if (!b.isActive()) throw new BusinessException("Mẻ đã huỷ — không sửa được.");
                 BigDecimal delta = newQtyProduced.subtract(b.getQuantityProduced());
                 if (delta.signum() != 0) {
                     List<PrepRecipe> lines = prepRecipeDao.findByPrepped(conn, b.getPreppedIngredientId());
@@ -309,7 +309,8 @@ public class InventoryService {
                     }
                     applyTxn(conn, branchId, b.getPreppedIngredientId(), delta,                    // delta>0 cộng thêm PREPPED
                             TxnType.PREP_IN, "PrepBatch", (long) prepBatchId, userId);
-                    if (prepBatchDao.updateQuantity(conn, prepBatchId, newQtyProduced, b.getQuantityProduced()) != 1) {
+                    if (prepBatchDao.updateQuantityForBranch(conn, prepBatchId, branchId,
+                            newQtyProduced, b.getQuantityProduced()) != 1) {
                         throw new BusinessException("Mẻ đã được thay đổi bởi thao tác khác. Vui lòng tải lại.");
                     }
                 }
@@ -539,17 +540,17 @@ public class InventoryService {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
             try {
-                com.cafe.model.WasteLog w = wasteLogDao.findById(conn, wasteLogId);
-                if (w == null || w.getBranchId() != branchId) throw new SQLException("Bản ghi hao hụt không tồn tại ở chi nhánh này.");
+                com.cafe.model.WasteLog w = wasteLogDao.findByIdForBranch(conn, wasteLogId, branchId);
+                if (w == null) throw new BusinessException("Bản ghi hao hụt không còn khả dụng. Vui lòng tải lại.");
                 requireBaristaCorrectionWindow(w, userId);
-                if (!w.isActive()) throw new SQLException("Bản ghi đã huỷ — không sửa được.");
+                if (!w.isActive()) throw new BusinessException("Bản ghi đã huỷ — không sửa được.");
                 if (w.isRemake()) throw new BusinessException("Dòng làm lại món không sửa lẻ; hãy huỷ rồi ghi lại nếu cần.");
                 BigDecimal delta = newQty.subtract(w.getQuantity());
                 if (delta.signum() != 0) {
                 applyTxn(conn, branchId, w.getIngredientId(), delta.negate(),  // delta>0 trừ thêm tồn
                             TxnType.WASTE, "WasteLog", (long) wasteLogId, userId);
                 }
-                if (wasteLogDao.update(conn, wasteLogId, newQty, normalizeWasteType(wasteType),
+                if (wasteLogDao.updateForBranch(conn, wasteLogId, branchId, newQty, normalizeWasteType(wasteType),
                         cleanReason(reason), w.getQuantity()) != 1) {
                     throw new BusinessException("Bản ghi hao hụt đã được thay đổi bởi thao tác khác. Vui lòng tải lại.");
                 }
@@ -573,8 +574,8 @@ public class InventoryService {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
             try {
-                com.cafe.model.WasteLog w = wasteLogDao.findById(conn, wasteLogId);
-                if (w == null || w.getBranchId() != branchId) throw new SQLException("Bản ghi hao hụt không tồn tại ở chi nhánh này.");
+                com.cafe.model.WasteLog w = wasteLogDao.findByIdForBranch(conn, wasteLogId, branchId);
+                if (w == null) throw new BusinessException("Bản ghi hao hụt không còn khả dụng. Vui lòng tải lại.");
                 requireBaristaCorrectionWindow(w, userId);
                 if (!w.isActive()) { conn.rollback(); return; }   // idempotent
                 if (w.isRemake()) {
@@ -582,7 +583,7 @@ public class InventoryService {
                 }
                 applyTxn(conn, branchId, w.getIngredientId(), w.getQuantity(),  // hoàn lại tồn (+)
                         TxnType.WASTE, "WasteLog", (long) wasteLogId, userId);
-                if (wasteLogDao.updateStatus(conn, wasteLogId, "VOIDED") != 1) {
+                if (wasteLogDao.updateStatusForBranch(conn, wasteLogId, branchId, "VOIDED") != 1) {
                     throw new BusinessException("Bản ghi hao hụt đã được thay đổi bởi thao tác khác. Vui lòng tải lại.");
                 }
                 wasteAuditLogDao.insert(conn, wasteLogId, w.getWasteEventId(), "VOID", w.getQuantity().toPlainString(),

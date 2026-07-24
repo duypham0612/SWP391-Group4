@@ -1,4 +1,4 @@
-package com.cafe.controller.barista;
+package com.cafe.controller.cashier;
 import com.cafe.controller.manager.InventoryDashboardServlet;
 
 import com.cafe.common.CsrfUtil;

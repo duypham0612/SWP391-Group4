@@ -18,7 +18,7 @@ import java.util.Map;
  *
  * <p>Khoá gom: đơn tại bàn gom theo số bàn (nhiều đơn cùng bàn dồn về một dòng — đúng ý "1 bàn
  * cần gì"); đơn mang đi/giao không có bàn thì gom theo từng đơn để không dồn hết vào một "bàn" ảo.
- * Chỉ chứa món của ngày kinh doanh hiện tại — đơn treo qua đêm đi đường {@link StaleOrderGroup}.
+ * Chỉ chứa món của ngày kinh doanh hiện tại — đơn treo qua đêm đã được lọc khỏi board từ trước.
  */
 public class TableGroup {
 
