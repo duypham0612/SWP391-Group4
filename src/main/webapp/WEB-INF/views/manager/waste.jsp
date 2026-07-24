@@ -31,8 +31,8 @@
                 <thead><tr><th>Mã</th><th>Nguyên liệu</th><th>Tồn hệ thống</th><th>Tồn thực tế</th><th>Chênh lệch</th><th>Lý do</th><th>Người thực hiện</th></tr></thead>
                 <tbody><c:forEach var="a" items="${adjustments}"><tr>
                     <td>#${a.stockAdjustmentId}</td><td>${a.ingredientName}</td>
-                    <td>${a.systemQty} ${a.displayUnit}</td><td>${a.actualQty} ${a.displayUnit}</td>
-                    <td><strong><c:if test="${a.diffQty.signum() > 0}">+</c:if>${a.diffQty}</strong></td>
+                    <td>${a.systemQtyDisplay} ${a.displayUnit}</td><td>${a.actualQtyDisplay} ${a.displayUnit}</td>
+                    <td><strong><c:if test="${a.diffQty.signum() > 0}">+</c:if>${a.diffQtyDisplay}</strong></td>
                     <td><c:out value="${a.reason}" /></td><td>${a.adjustedByName}</td>
                 </tr></c:forEach></tbody>
             </table></div>
@@ -187,7 +187,7 @@
                                 <strong>${w.ingredientName}</strong>
                                 <c:if test="${w.ingredientType == 'PREPPED'}"><span class="badge badge-making">Pha sẵn</span></c:if>
                             </td>
-                            <td><strong>${w.quantity}</strong> ${w.ingredientUnit}</td>
+                            <td><strong>${w.quantityDisplay}</strong> ${w.ingredientUnit}</td>
                             <td>${w.wasteTypeLabel}</td>
                             <td>${w.reason}<c:if test="${not empty w.wasteEvent}"><small class="muted"><br>${w.wasteEvent.sourceLabel}<c:if test="${not empty w.wasteEvent.productName}"> · ${w.wasteEvent.cupQuantity} × ${w.wasteEvent.productName}</c:if></small></c:if></td>
                             <td><strong>${w.costDisplay}</strong><small class="muted"><br>${w.costBasisLabel}</small></td>

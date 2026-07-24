@@ -97,7 +97,7 @@
                 <c:forEach var="d" items="${details}">
                     <tr>
                         <td>${d.ingredientName}</td>
-                        <td>${d.quantity} ${d.displayUnit}</td>
+                        <td>${d.quantityDisplay} ${d.displayUnit}</td>
                         <td><fmt:formatNumber value="${d.unitCost}" maxFractionDigits="0"/> ₫</td>
                         <td><fmt:formatNumber value="${d.lineCost}" maxFractionDigits="0"/> ₫</td>
                         <c:if test="${draft}">
