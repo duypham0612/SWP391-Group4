@@ -67,7 +67,13 @@ public class MyShiftServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
-        String redirect = BaristaShift.handleClock(req, req.getParameter("action"), PATH);
+        String action = req.getParameter("action");
+        if (!BaristaWritePolicy.isShiftAction(action)) {
+            req.getSession().setAttribute("flashError", BaristaWritePolicy.invalidActionMessage());
+            resp.sendRedirect(req.getContextPath() + PATH);
+            return;
+        }
+        String redirect = BaristaShift.handleClock(req, action, PATH);
         resp.sendRedirect(req.getContextPath() + (redirect == null ? PATH : redirect));
     }
 

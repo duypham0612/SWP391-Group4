@@ -53,6 +53,11 @@ public class PrepServlet extends HttpServlet {
         User u = SessionUtil.currentUser(req);
         int userId = u != null ? u.getUserId() : 0;
         String action = req.getParameter("action");
+        if (!BaristaWritePolicy.isPrepAction(action)) {
+            req.getSession().setAttribute("flashError", BaristaWritePolicy.invalidActionMessage());
+            resp.sendRedirect(req.getContextPath() + "/barista/prep");
+            return;
+        }
         if (BaristaShift.guardWrite(req, resp, action, "/barista/prep")) return;   // vào ca / chặn ngoài ca
         List<SubmittedPrepRow> submittedRows = "createBatch".equals(action) ? submittedRows(req) : List.of();
         try {

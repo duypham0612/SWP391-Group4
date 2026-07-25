@@ -60,6 +60,11 @@ public class ShiftHandoverServlet extends HttpServlet {
         String action = req.getParameter("action");
         // Quay lại đúng bộ lọc + trang đang xem; thiếu nó là mỗi lần đổi trạng thái một việc lại văng về trang 1.
         String redirect = selfUrlKeepingFilters(req, null);
+        if (!BaristaWritePolicy.isHandoverAction(action)) {
+            req.getSession().setAttribute("flashError", BaristaWritePolicy.invalidActionMessage());
+            resp.sendRedirect(req.getContextPath() + redirect);
+            return;
+        }
         try {
             if ("create".equals(action) || "createAndClockOut".equals(action)) {
                 // Không chặn theo onShift ở đây: ca quá hạn chấm công vẫn phải giao được việc tồn.
