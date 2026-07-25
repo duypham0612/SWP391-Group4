@@ -21,6 +21,7 @@ public class Order {
     // join / computed
     private String tableNumber;
     private String paymentStatus;      // PAID | PAYING | ERROR — suy từ bill của phiên (R3, không lưu DB)
+    private boolean stale;             // đơn treo từ ngày kinh doanh trước — chỉ Thu ngân xử lý được
     private List<OrderItem> items = new ArrayList<>();
 
     public int getOrderId() { return orderId; }
@@ -58,6 +59,9 @@ public class Order {
 
     public String getPaymentStatus() { return paymentStatus; }
     public void setPaymentStatus(String v) { this.paymentStatus = v; }
+
+    public boolean isStale() { return stale; }
+    public void setStale(boolean v) { this.stale = v; }
 
     public List<OrderItem> getItems() { return items; }
     public void setItems(List<OrderItem> v) { this.items = v; }

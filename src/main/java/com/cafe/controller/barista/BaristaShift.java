@@ -26,8 +26,12 @@ public final class BaristaShift {
     /** Lời báo khi thao tác ghi bị chặn vì ngoài ca — dùng chung cho cả nhánh redirect lẫn AJAX. */
     public static final String OFF_SHIFT_MESSAGE = "Bạn đang ngoài ca — cần vào ca trước khi thao tác.";
 
+    /** Màn hàng chờ, đã lọc sẵn về món của chính mình — nơi barista gỡ nốt món dở trước khi tan ca. */
+    public static final String MY_QUEUE_PATH = "/barista/kds?owner=mine";
+
     private static final AttendanceService attendance = new AttendanceService();
     private static final HandoverService handover = new HandoverService();
+    private static final com.cafe.service.shared.OrderService orders = new com.cafe.service.shared.OrderService();
 
     private BaristaShift() {}
 
@@ -99,6 +103,8 @@ public final class BaristaShift {
             if ("clockIn".equals(action)) {
                 attendance.clockIn(userId, branchId);
                 req.getSession().setAttribute("flashOk", "Đã vào ca.");
+            } else if (pendingBrewBlock(req, branchId, userId)) {
+                return MY_QUEUE_PATH;
             } else if (handover.requiresHandoverBeforeClockOut(branchId, userId)) {
                 req.getSession().setAttribute("flashError",
                         "Bạn cần bàn giao ca trước khi tan ca. Nhập việc cần bàn giao rồi bấm “Lưu bàn giao & Tan ca”.");
@@ -113,6 +119,25 @@ public final class BaristaShift {
             req.getSession().setAttribute("flashError", "Không chấm công được: " + e.getMessage());
         }
         return selfPath;
+    }
+
+    /**
+     * Cổng tan ca: còn ly đang pha dưới tên mình thì chưa được tan ca.
+     *
+     * <p>Món MAKING mang BaristaId của người nhận, mà cả "Xong" lẫn "Trả lại chờ" đều guard theo
+     * BaristaId — đi về mà không gỡ thì ly đó bị khoá, ca sau nhìn thấy nhưng không đụng được và
+     * khách ngồi đợi mãi. Chặn ở đây là chính đáng vì lối thoát nằm trọn trong tay barista:
+     * bấm Xong, hoặc Trả lại chờ (không đụng kho, chạy được cả với món chưa có công thức).
+     *
+     * @return true nếu đã chặn (đã ghi flashError, caller phải đưa họ về hàng chờ).
+     */
+    private static boolean pendingBrewBlock(HttpServletRequest req, int branchId, int userId)
+            throws SQLException {
+        int pending = orders.countMyMakingItems(branchId, userId);
+        if (pending <= 0) return false;
+        req.getSession().setAttribute("flashError", "Bạn còn " + pending
+                + " ly đang pha — bấm “Xong” hoặc “Trả lại chờ” cho từng ly rồi mới tan ca được.");
+        return true;
     }
 
     private static ShiftClockStatus status(HttpServletRequest req) throws SQLException {

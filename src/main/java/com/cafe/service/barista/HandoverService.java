@@ -70,8 +70,43 @@ public class HandoverService {
             // Đã có bàn giao cho ca này thì tan ca không còn bị chặn nữa — không nhắc lại cảnh báo.
             board.handoverRequired = board.receiver != null && !handoverDao.existsForSourceAssignment(conn, source.getShiftAssignmentId());
             board.carryOverTasks = handoverDao.findOpenTasksForUser(conn, branchId, userId, CARRY_OVER_LIMIT);
+            board.brewTasks = brewSuggestions(conn, branchId);
             return board;
         }
+    }
+
+    /** Số dòng gợi ý tối đa từ hàng chờ — form chỉ nhận 10 việc, phải chừa chỗ cho việc gõ tay. */
+    private static final int BREW_SUGGESTION_LIMIT = 4;
+
+    /**
+     * Việc bàn giao gợi ý sẵn, đọc từ chính hàng chờ quầy pha chế của ngày kinh doanh hiện tại.
+     *
+     * <p>Trước đây barista phải tự gõ lại "còn mấy ly chưa pha" — mà đúng lúc tan ca thì đó là thứ
+     * dễ quên nhất, và quên thì ca sau nhận một quầy không biết đang nợ gì. Món đang pha KHÔNG nằm
+     * trong gợi ý: cổng tan ca đã buộc gỡ hết trước khi tới bước này.
+     */
+    private List<String> brewSuggestions(Connection conn, int branchId) throws SQLException {
+        Branch branch = branchDao.findById(conn, branchId);
+        LocalDateTime dayStart = com.cafe.common.BusinessDay.startUtc(
+                branch == null ? null : branch.getOpenTime());
+        int waitingCups = 0;
+        int readyCups = 0;
+        List<String> blocked = new ArrayList<>();
+        for (OrderItem it : orderItemDao.findBaristaWorkbench(conn, branchId, dayStart)) {
+            String status = it.getStatus();
+            if ("WAITING".equals(status)) waitingCups += it.getQuantity();
+            else if ("READY".equals(status)) readyCups += it.getQuantity();
+            else if ("BLOCKED".equals(status) && blocked.size() < BREW_SUGGESTION_LIMIT - 2) {
+                blocked.add("Món tạm dừng cần xử lý: " + it.getQuantity() + " × " + it.getProductName()
+                        + (it.getIssueReason() == null || it.getIssueReason().isBlank()
+                           ? "" : " (" + it.getIssueReason() + ")"));
+            }
+        }
+        List<String> out = new ArrayList<>();
+        if (waitingCups > 0) out.add("Hàng chờ còn " + waitingCups + " ly chưa pha");
+        if (readyCups > 0) out.add(readyCups + " ly đã pha xong đang chờ nhân viên nhận");
+        out.addAll(blocked);
+        return out;
     }
 
     public int countUnacknowledgedForUser(int branchId, int userId) throws SQLException {
@@ -113,6 +148,14 @@ public class HandoverService {
             try {
                 ShiftAssignment source = handoverDao.findOpenSourceAssignment(conn, userId, branchId);
                 if (source == null) throw new IllegalStateException("Bạn cần đang trong ca để lập bàn giao.");
+                // Cổng tan ca thứ hai: nút "Lưu bàn giao & Tan ca" chấm công thẳng ở đây, KHÔNG đi qua
+                // BaristaShift.handleClock — chỉ chặn một bên là barista vẫn tan ca được kèm ly đang pha,
+                // và ly đó khoá cứng dưới tên người đã về. Kiểm trước khi ghi để không sinh dữ liệu thừa.
+                if (clockOut) {
+                    int pending = orderItemDao.countMakingByBarista(conn, branchId, userId);
+                    if (pending > 0) throw new IllegalStateException("Bạn còn " + pending
+                            + " ly đang pha — bấm “Xong” hoặc “Trả lại chờ” cho từng ly ở Quầy pha chế rồi mới tan ca được.");
+                }
                 ReceiverPlan receiver = resolveReceiver(conn, branchId, source);
                 int id = handoverDao.insert(conn, branchId, safeNote, userId, source.getShiftAssignmentId());
                 for (ShiftAssignment assignment : receiver.assignments) handoverDao.insertRecipient(conn, id, assignment.getUserId(), assignment.getShiftAssignmentId(), "NEXT_SHIFT");
@@ -223,6 +266,7 @@ public class HandoverService {
         private final HandoverPage page; private final HandoverSummary summary;
         private ReceiverPlan receiver; private String receiverError; private boolean handoverRequired;
         private List<ShiftHandoverTask> carryOverTasks = List.of();
+        private List<String> brewTasks = List.of();
         HandoverBoard(HandoverPage page, HandoverSummary summary) { this.page = page; this.summary = summary; }
         public HandoverPage getPage() { return page; }
         public HandoverSummary getSummary() { return summary; }
@@ -230,6 +274,8 @@ public class HandoverService {
         public String getReceiverError() { return receiverError; }
         public boolean isHandoverRequired() { return handoverRequired; }
         public List<ShiftHandoverTask> getCarryOverTasks() { return carryOverTasks; }
+        /** Việc gợi ý lấy từ chính hàng chờ quầy — barista chỉ cần tick thay vì gõ tay. */
+        public List<String> getBrewTasks() { return brewTasks; }
     }
 
     public static class HandoverSummary {

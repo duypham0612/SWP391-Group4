@@ -40,6 +40,7 @@ public class ShiftHandoverServlet extends HttpServlet {
             req.setAttribute("receiverPreviewError", board.getReceiverError());
             req.setAttribute("handoverRequired", board.isHandoverRequired());
             req.setAttribute("carryOverTasks", board.getCarryOverTasks());
+            req.setAttribute("brewTasks", board.getBrewTasks());
             req.setAttribute("filterScope", scope);
             req.setAttribute("filterStatus", status);
             req.setAttribute("filterQuery", query);

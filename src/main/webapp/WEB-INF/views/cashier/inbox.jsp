@@ -17,16 +17,27 @@
     <c:remove var="flashError" scope="session" />
 </c:if>
 
+<%-- Đơn treo từ ngày kinh doanh trước: quán đã đóng cửa nhiều giờ trước mốc cắt ngày nên khách của
+     những đơn này đã về — quầy pha chế không nhận nữa, chỉ Thu ngân chốt được (huỷ & hoàn tiền).
+     Chúng đã được xếp lên đầu danh sách; dòng nhắc này để không phải đếm bằng mắt. --%>
+<c:if test="${staleOrderCount > 0}">
+    <div class="alert alert-error">
+        <strong>${staleOrderCount} đơn treo từ ngày kinh doanh trước</strong> — nằm ở đầu danh sách.
+        Huỷ món chưa pha &amp; hoàn tiền cho khách, hoặc giao nốt món đã pha xong ở màn Bàn giao.
+    </div>
+</c:if>
+
 <c:choose>
     <c:when test="${empty orders}">
         <div class="card empty-state"><div class="icon">📭</div><p>Không có đơn nào đang xử lý.</p></div>
     </c:when>
     <c:otherwise>
         <c:forEach var="o" items="${orders}">
-            <div class="card" style="margin-bottom:14px">
+            <div class="card" style="margin-bottom:14px${o.stale ? ';border-left:4px solid var(--st-cancelled)' : ''}">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
                     <div>
                         <c:if test="${not empty o.pickupCode}"><span class="kds-code"><c:out value="${o.pickupCode}" /></span> </c:if><strong>Đơn #${o.orderId}</strong>
+                        <c:if test="${o.stale}"><span class="badge badge-cancelled">Treo từ ngày trước</span></c:if>
                         <c:choose>
                             <c:when test="${o.source == 'QR'}"><span class="badge" style="background:var(--caramel);color:#fff">QR</span></c:when>
                             <c:otherwise><span class="badge" style="background:var(--coffee);color:#fff">Quầy</span></c:otherwise>

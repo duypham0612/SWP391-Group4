@@ -22,11 +22,13 @@
 </c:if>
 
 <%-- Đơn treo nằm ngoài mọi con số của ca hôm nay nên phải có lối nhắc riêng, nếu không barista
-     vào ca sẽ không bao giờ biết là còn nợ khách ly từ hôm trước. --%>
+     vào ca sẽ không bao giờ biết là còn nợ khách ly từ hôm trước.
+     KHÔNG dẫn sang màn nào: quầy pha chế không còn nhận những ly này (khách đã về từ hôm trước),
+     còn Đơn đến là màn của Thu ngân — barista bấm vào sẽ bị chặn quyền. --%>
 <c:if test="${staleCount > 0}">
-    <a class="alert alert-error" href="${ctx}/barista/kds" style="display:block;margin-bottom:16px;text-decoration:none">
-        <strong>${staleCount} ly còn treo từ ngày kinh doanh trước.</strong> Mở quầy pha chế để pha nốt hoặc báo Thu ngân huỷ →
-    </a>
+    <div class="alert alert-error" style="margin-bottom:16px">
+        <strong>${staleCount} ly còn treo từ ngày kinh doanh trước.</strong> Báo Thu ngân xử lý ở màn Đơn đến (huỷ &amp; hoàn tiền cho khách).
+    </div>
 </c:if>
 
 <div class="card-grid card-grid--4">

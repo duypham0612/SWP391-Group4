@@ -50,6 +50,11 @@ public class OrderItem {
     private boolean recipeMissing;      // sản phẩm chưa khai báo công thức → backend chặn hoàn thành
     private int prepSeconds = Constants.KDS_SLA_SECONDS;  // thời gian pha chuẩn của món (catalog.Product); mặc định 12' giữ hành vi cũ
     private int seqNo;                  // số thứ tự pha ở chế độ cao điểm (0 = không hiển thị)
+    private int orderLineNo;            // dòng thứ mấy trong đơn (1-based) — nhãn "món 2/3"
+    private OrderGroupInfo groupInfo;   // thông tin cấp đơn, dùng chung giữa các dòng cùng đơn
+    private boolean groupStart;         // dòng mở đầu một khối trên danh sách ĐANG render
+    private boolean groupMember;        // dòng nằm trong một khối ĐANG render (để vẽ vạch nối)
+    private boolean ownerOffDuty;       // món đang pha mà chủ món đã rời ca → cho phép thu hồi
 
     public int getOrderItemId() { return orderItemId; }
     public void setOrderItemId(int v) { this.orderItemId = v; }
@@ -150,6 +155,24 @@ public class OrderItem {
 
     public int getSeqNo() { return seqNo; }
     public void setSeqNo(int v) { this.seqNo = v; }
+
+    public int getOrderLineNo() { return orderLineNo; }
+    public void setOrderLineNo(int v) { this.orderLineNo = v; }
+
+    public OrderGroupInfo getGroupInfo() { return groupInfo; }
+    public void setGroupInfo(OrderGroupInfo v) { this.groupInfo = v; }
+
+    public boolean isGroupStart() { return groupStart; }
+    public void setGroupStart(boolean v) { this.groupStart = v; }
+
+    public boolean isGroupMember() { return groupMember; }
+    public void setGroupMember(boolean v) { this.groupMember = v; }
+
+    public boolean isOwnerOffDuty() { return ownerOffDuty; }
+    public void setOwnerOffDuty(boolean v) { this.ownerOffDuty = v; }
+
+    /** Dòng này có thuộc một đơn nhiều món không — quyết định hiện nhãn "món 2/3". */
+    public boolean isGrouped() { return groupInfo != null && groupInfo.isGrouped(); }
 
     /** Mốc pha chuẩn dùng để tính trễ: theo món; số bất thường (chưa nạp/0) thì lùi về mặc định 12'. */
     private int effectivePrepSeconds() {

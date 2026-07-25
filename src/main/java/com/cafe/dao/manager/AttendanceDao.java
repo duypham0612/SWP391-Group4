@@ -101,6 +101,25 @@ public class AttendanceDao {
         return out;
     }
 
+    /**
+     * Chấm công CHƯA tan ca của chi nhánh quanh ngày kinh doanh — nguồn để biết ai còn đang trực.
+     * Lấy cả ca hôm trước vì ca đêm chỉ kết thúc vào sáng hôm sau; service lọc tiếp bằng
+     * {@link com.cafe.common.ShiftWindow#onDuty} nên ca đã quá giờ tan không được tính là còn trực.
+     */
+    public List<Attendance> findOpenByBranch(Connection conn, int branchId, LocalDate businessDate)
+            throws SQLException {
+        List<Attendance> out = new ArrayList<>();
+        final String sql = SELECT + "WHERE st.BranchId=? AND a.CheckOutAt IS NULL "
+                + "AND sa.WorkDate >= ? AND sa.WorkDate <= ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setDate(2, Date.valueOf(businessDate.minusDays(1)));
+            ps.setDate(3, Date.valueOf(businessDate));
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
+        }
+        return out;
+    }
+
     /** TẤT CẢ chấm công của chi nhánh (mọi trạng thái) — 1 màn gộp, mới nhất trước. */
     public List<Attendance> findByBranch(Connection conn, int branchId) throws SQLException {
         List<Attendance> out = new ArrayList<>();

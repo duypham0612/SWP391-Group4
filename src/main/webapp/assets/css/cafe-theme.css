@@ -947,37 +947,40 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
 .kds-queue__foot .pagination{gap:5px}
 .kds-queue__foot .page{min-width:34px; height:34px; padding:0 9px; font-size:12.5px}
 
-/* Đơn treo mang sang từ ngày kinh doanh trước: tách hẳn khỏi hàng chờ bằng viền cảnh báo, để
-   không ai nhầm nó là việc bình thường của ca — nhưng vẫn nằm trên cùng một màn để không bị bỏ
-   quên. Tên riêng "carryover" chứ không dùng lại .kds-stale: lớp đó thuộc khu drawer cảnh báo
-   của bố cục card cũ, trùng tên thì hai bộ quy tắc đè nhau tuỳ thứ tự khai báo. */
-/* flex:0 1 auto (co được) chứ KHÔNG phải flex:none: bảng cao cố định, khu này mà cứng thì trên
-   màn thấp nó đội ra ngoài vùng overflow:hidden và bị cắt mất. Co lại chỉ làm lộ ít dòng hơn —
-   phần còn lại vẫn cuộn được trong danh sách bên dưới. */
-.kds-carryover{
-  flex:0 1 auto; min-height:0; display:flex; flex-direction:column;
-  margin-top:var(--s4); padding:var(--s3); border:1px solid var(--st-cancelled);
-  border-radius:var(--radius-sm); background:color-mix(in srgb, var(--st-cancelled) 6%, var(--surface));
-}
-.kds-carryover__head{flex:none; margin-bottom:var(--s2)}
-.kds-carryover__title{margin:0; font-size:14px; color:var(--st-cancelled)}
-.kds-carryover__note{margin:2px 0 0; color:var(--muted); font-size:12px}
-/* Xếp dòng như hàng chờ nhưng KHÔNG dùng .kds-queue: khu này không phải vùng cuộn của bảng
-   (nó vốn ngắn), lấy nguyên flex:1/overflow của hàng chờ sẽ tranh chiều cao với danh sách chính.
-   Trần chiều cao + tự cuộn là BẮT BUỘC: khu này flex:none nên khi tồn đọng nhiều dòng nó không
-   co lại, ăn hết chiều cao bảng và bóp hàng chờ chính xuống 0px (đo được 7801px với 89 dòng).
-   Đơn vị vh để trần tự co theo màn, không giành chỗ trên màn quầy thấp. */
-.kds-carryover__list{
-  flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:5px;
-  max-height:min(26vh,220px); overflow-y:auto; overscroll-behavior:contain; padding-right:3px;
-}
-.kds-carryover .kds-qrow__seq{color:var(--st-cancelled)}
-
 .kds-qrow{
   padding:9px 12px; background:var(--surface); border:1px solid var(--line);
   border-left:4px solid var(--sec,var(--line-strong)); border-radius:var(--radius-sm);
 }
 .kds-qrow[hidden]{display:none}
+
+/* ----- Khối đơn nhiều món ----- */
+/* Hàng chờ xếp theo LY, nên các ly của một đơn nằm liền nhau mà không có gì nói chúng cùng đơn.
+   Tiêu đề nhóm + vạch nối trái là lớp hiển thị phủ lên danh sách đã sắp — KHÔNG sắp lại thứ tự
+   pha. Chỉ đơn từ 2 dòng liền nhau trở lên mới có tiêu đề (xem KdsService.markGroupStarts):
+   dựng cho mọi đơn thì quán toàn đơn một ly sẽ có danh sách dài gấp đôi mà không thêm thông tin. */
+.kds-qgroup{
+  display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px;
+  margin:6px 0 -1px; padding:5px 12px 5px 10px;
+  border-left:4px solid var(--brand); border-top-left-radius:var(--radius-sm);
+  border-top-right-radius:var(--radius-sm); background:var(--surface-2);
+  font-size:12px; color:var(--ink-soft);
+}
+.kds-qgroup__dest{font-size:13px; font-weight:800; color:var(--ink); overflow-wrap:anywhere}
+.kds-qgroup__count{color:var(--muted); font-variant-numeric:tabular-nums}
+/* Thao tác cấp đơn dạt về phải để không tranh chỗ với đích đến (thứ barista đọc trước tiên). */
+.kds-qgroup__act{display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-left:auto}
+.kds-qgroup__act form{display:flex}
+.kds-qgroup__ready{align-items:center; gap:6px}
+.kds-qgroup .btn-sm{min-height:34px}
+/* Vạch nối cho dòng trong khối: vẽ bằng inset box-shadow NGAY SAU viền trạng thái, cố ý không
+   dùng margin/padding — dòng phải giữ đúng lưới 7 cột của .kds-queue__head, lệch một chút là
+   cột SL/Món/Bàn không còn thẳng với tiêu đề bảng. Màu trạng thái ở border-left giữ nguyên. */
+.kds-qrow--grouped{box-shadow:inset 3px 0 0 0 color-mix(in srgb, var(--brand) 40%, transparent)}
+.kds-qrow__line{
+  padding:1px 6px; border-radius:var(--radius-pill); background:var(--surface-2);
+  border:1px solid var(--line); color:var(--ink-soft); font-weight:700;
+  font-variant-numeric:tabular-nums; white-space:nowrap;
+}
 .kds-qrow:hover{border-color:var(--brand)}
 .kds-qrow:focus-visible{outline:none; box-shadow:var(--ring)}
 /* Viền theo TRẠNG THÁI, không theo đồng hồ: chỉ món cần xử lý mới nổi lên, món đã xong làm mờ. */
@@ -1001,7 +1004,9 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
   background:var(--surface-2); border:1px solid var(--line); color:var(--muted);
   font-size:11px; font-weight:700; white-space:nowrap;
 }
-.kds-qrow__code{grid-column:5; grid-row:1; display:flex; align-items:center; gap:6px; font-size:11.5px}
+/* Xuống dòng được: ở đơn nhiều món ô này gánh tới ba nhãn (mã gọi món · 2/3 · #id), cột rộng
+   cố định 116px không đủ chỗ cho cả ba trên một hàng. */
+.kds-qrow__code{grid-column:5; grid-row:1; display:flex; align-items:center; flex-wrap:wrap; gap:2px 6px; font-size:11.5px}
 .kds-qrow__ord{color:var(--muted); font-variant-numeric:tabular-nums}
 
 .kds-qrow__state{

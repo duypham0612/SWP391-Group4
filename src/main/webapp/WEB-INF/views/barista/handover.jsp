@@ -65,6 +65,23 @@
           </div>
         </c:if>
 
+        <%-- Gợi ý lấy thẳng từ hàng chờ quầy: lúc tan ca thì "còn mấy ly chưa pha" là thứ dễ quên
+             nhất, mà quên thì ca sau nhận quầy không biết đang nợ gì. Tick sẵn vì đây là hiện trạng
+             có thật, barista chỉ cần bỏ tick nếu thấy không cần bàn giao. --%>
+        <c:if test="${not empty brewTasks}">
+          <div class="form-group">
+            <label>Hiện trạng quầy pha chế <span class="muted">(bỏ tick nếu không cần bàn giao)</span></label>
+            <div class="handover-carry">
+              <c:forEach var="bt" items="${brewTasks}">
+                <label class="handover-carry__item">
+                  <input type="checkbox" name="task" value="${fn:escapeXml(bt)}" checked>
+                  <span><c:out value="${bt}" /></span>
+                </label>
+              </c:forEach>
+            </div>
+          </div>
+        </c:if>
+
         <div class="form-group">
           <label>Việc cần bàn giao</label>
           <div id="handoverTasks"><input class="form-control" name="task" maxlength="500" placeholder="VD: Kiểm tra máy xay #2 kêu lạ"></div>

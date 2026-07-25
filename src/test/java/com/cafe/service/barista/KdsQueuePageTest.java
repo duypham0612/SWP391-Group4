@@ -37,6 +37,13 @@ class KdsQueuePageTest {
         return items.stream().map(OrderItem::getOrderItemId).toList();
     }
 
+    /** Dòng thuộc MỘT đơn cụ thể — dựng khối để kiểm phân trang không cắt ngang đơn. */
+    private static OrderItem lineOf(int orderItemId, int orderId) {
+        OrderItem it = item(orderItemId, "WAITING");
+        it.setOrderId(orderId);
+        return it;
+    }
+
     @Test
     void page_slices_the_queue_and_reports_its_range() {
         KdsService.QueuePage page = KdsService.paginate(waiting(25), 2, 12);
@@ -142,6 +149,61 @@ class KdsQueuePageTest {
 
         assertEquals(3, KdsService.filterWorkbench(items, null, null, null, 7).size());
         assertEquals(3, KdsService.filterWorkbench(items, "all", "all", "all", null).size());
+    }
+
+    /**
+     * Đơn nhiều món KHÔNG được cắt ngang hai trang: pha hết trang 1 mà đơn còn ly ở trang 2 là
+     * cách chắc chắn nhất để giao thiếu. Trang nhận trọn khối chừng nào chưa đạt cỡ trang.
+     */
+    @Test
+    void a_multi_line_order_is_never_split_across_pages() {
+        List<OrderItem> items = new ArrayList<>();
+        for (int i = 1; i <= 10; i++) items.add(lineOf(i, 200 + i));   // 10 đơn một dòng
+        for (int i = 11; i <= 14; i++) items.add(lineOf(i, 999));      // một đơn 4 dòng
+
+        KdsService.QueuePage page = KdsService.paginate(items, 1, 12);
+
+        assertEquals(14, page.getItems().size());   // kéo trọn khối 4 dòng thay vì cắt ở dòng 12
+        assertEquals(1, page.getTotalPages());
+        assertEquals(1, page.getStartRow());
+        assertEquals(14, page.getEndRow());
+        assertFalse(page.isHasNext());
+    }
+
+    /** Trang đã đủ cỡ thì khối kế tiếp mở trang mới — và phạm vi "đang xem" phải theo vị trí thật. */
+    @Test
+    void the_next_block_starts_a_new_page_and_rows_keep_counting() {
+        List<OrderItem> items = new ArrayList<>();
+        for (int i = 1; i <= 10; i++) items.add(lineOf(i, 200 + i));
+        for (int i = 11; i <= 14; i++) items.add(lineOf(i, 999));      // trang 1 dôi thành 14 dòng
+        for (int i = 15; i <= 17; i++) items.add(lineOf(i, 300 + i));
+
+        KdsService.QueuePage second = KdsService.paginate(items, 2, 12);
+
+        assertEquals(List.of(15, 16, 17), ids(second.getItems()));
+        assertEquals(2, second.getTotalPages());
+        assertEquals(15, second.getStartRow());
+        assertEquals(17, second.getEndRow());
+        assertEquals(17, second.getTotal());
+        assertTrue(second.isHasPrevious());
+        assertFalse(second.isHasNext());
+    }
+
+    /** Đơn lớn hơn cả trang vẫn nằm trọn một trang — nếu không thì không trang nào chứa nổi nó. */
+    @Test
+    void a_block_larger_than_one_page_still_stays_whole() {
+        List<OrderItem> items = new ArrayList<>();
+        for (int i = 1; i <= 15; i++) items.add(lineOf(i, 999));
+        items.add(lineOf(16, 777));
+
+        KdsService.QueuePage first = KdsService.paginate(items, 1, 12);
+        KdsService.QueuePage second = KdsService.paginate(items, 2, 12);
+
+        assertEquals(15, first.getItems().size());
+        assertEquals(2, first.getTotalPages());
+        assertEquals(List.of(16), ids(second.getItems()));
+        assertEquals(16, second.getStartRow());
+        assertEquals(16, second.getEndRow());
     }
 
     /** Cắt trang phải chạy TRÊN tập đã lọc, nếu không số trang sẽ đếm cả món đang bị ẩn. */
