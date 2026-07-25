@@ -49,6 +49,11 @@ public class EightySixServlet extends HttpServlet {
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
         String action = req.getParameter("action");
+        if (!BaristaWritePolicy.isEightySixAction(action)) {
+            req.getSession().setAttribute("flashError", BaristaWritePolicy.invalidActionMessage());
+            resp.sendRedirect(req.getContextPath() + "/barista/eightysix");
+            return;
+        }
         if (BaristaShift.guardWrite(req, resp, action, "/barista/eightysix")) return;   // vào ca / chặn ngoài ca
         int branchId = InventoryDashboardServlet.branchId(req);
         User u = SessionUtil.currentUser(req);

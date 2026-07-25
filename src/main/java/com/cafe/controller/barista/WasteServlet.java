@@ -62,6 +62,11 @@ public class WasteServlet extends HttpServlet {
         int branchId = InventoryDashboardServlet.branchId(req);
         int userId = currentUserId(req);
         String action = req.getParameter("action");
+        if (!BaristaWritePolicy.isWasteAction(action)) {
+            req.getSession().setAttribute("flashError", BaristaWritePolicy.invalidActionMessage());
+            resp.sendRedirect(req.getContextPath() + "/barista/waste");
+            return;
+        }
         if (BaristaShift.guardWrite(req, resp, action, "/barista/waste")) return;   // vào ca / chặn ngoài ca
         String editId = null;
 

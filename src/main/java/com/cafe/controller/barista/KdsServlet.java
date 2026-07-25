@@ -70,15 +70,25 @@ public class KdsServlet extends HttpServlet {
         User u = SessionUtil.currentUser(req);
         Integer userId = u != null ? u.getUserId() : null;
         String action = req.getParameter("action");
+        int branchId = InventoryDashboardServlet.branchId(req);
+        if (!BaristaWritePolicy.isKdsAction(action)) {
+            rejectInvalidAction(req, resp, branchId);
+            return;
+        }
         // Vào ca / tan ca vẫn đi lối redirect thường (nút chấm công nằm ngoài khung bảng, post bình thường).
         String clockRedirect = BaristaShift.handleClock(req, action, "/barista/kds");
         if (clockRedirect != null) { resp.sendRedirect(req.getContextPath() + clockRedirect); return; }
-        int branchId = InventoryDashboardServlet.branchId(req);
         // Ngoài ca thì chặn ghi, nhưng trả lời bằng ĐÚNG định dạng client đang chờ (fragment khi AJAX)
         // thay vì redirect — xem BaristaShift.blockedOffShift.
         if (BaristaShift.blockedOffShift(req)) {
-            try { renderResult(req, resp, branchId); }
-            catch (SQLException e) { throw new ServletException(e); }
+            if ("1".equals(req.getParameter("ajax"))) {
+                resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                resp.setContentType("application/json;charset=UTF-8");
+                resp.setHeader("X-Barista-Write-Denied", "off-shift");
+                resp.getWriter().write("{\"error\":\"" + BaristaShift.OFF_SHIFT_MESSAGE + "\"}");
+            } else {
+                resp.sendRedirect(req.getContextPath() + "/barista/kds");
+            }
             return;
         }
         try {
@@ -185,6 +195,21 @@ public class KdsServlet extends HttpServlet {
         } else {
             resp.sendRedirect(req.getContextPath() + "/barista/kds");
         }
+    }
+
+    /** KDS AJAX nhận JSON 400 để client hiện lỗi mà không gửi lại form lần thứ hai. */
+    private void rejectInvalidAction(HttpServletRequest req, HttpServletResponse resp, int branchId)
+            throws IOException {
+        String message = BaristaWritePolicy.invalidActionMessage();
+        req.getSession().setAttribute("flashError", message);
+        if ("1".equals(req.getParameter("ajax"))) {
+            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            resp.setContentType("application/json;charset=UTF-8");
+            resp.setHeader("X-Barista-Write-Denied", "invalid-action");
+            resp.getWriter().write("{\"error\":\"" + message + "\"}");
+            return;
+        }
+        resp.sendRedirect(req.getContextPath() + "/barista/kds");
     }
 
     /**
