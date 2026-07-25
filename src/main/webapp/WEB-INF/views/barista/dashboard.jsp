@@ -15,19 +15,7 @@
     </div>
 </div>
 
-<c:if test="${pendingHandoverCount > 0}">
-    <a class="alert alert-warn" href="${ctx}/barista/handover" style="display:block;margin-bottom:16px;text-decoration:none">
-        <strong>${pendingHandoverCount} bàn giao ca đang chờ bạn xác nhận.</strong> Đọc và tiếp nhận các việc trước khi xử lý →
-    </a>
-</c:if>
-
-<%-- Đơn treo nằm ngoài mọi con số của ca hôm nay nên phải có lối nhắc riêng, nếu không barista
-     vào ca sẽ không bao giờ biết là còn nợ khách ly từ hôm trước. --%>
-<c:if test="${staleCount > 0}">
-    <a class="alert alert-error" href="${ctx}/barista/kds" style="display:block;margin-bottom:16px;text-decoration:none">
-        <strong>${staleCount} ly còn treo từ ngày kinh doanh trước.</strong> Mở quầy pha chế để pha nốt hoặc báo Thu ngân huỷ →
-    </a>
-</c:if>
+<jsp:include page="../layout/_handoverPendingAlert.jsp" />
 
 <div class="card-grid card-grid--4">
     <a class="card stat" href="${ctx}/barista/kds">

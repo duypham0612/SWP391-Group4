@@ -33,12 +33,9 @@
 
 ## 2. Tạo Database
 
-Mở **SSMS** → mở file `sql/database.sql` → **Execute** (F5).
+Mở **SSMS** → mở file `sql/database.sql` → **Execute** (F5). Đây là **file SQL duy nhất** của dự án.
 
-Script `database.sql` giờ là **file DUY NHẤT** — chạy 1 phát ra DB demo đầy đủ (schema + toàn bộ seed, đã gộp mọi migration). Gồm 3 phần:
-- **PART A** — Database **`CafeChain`** (8 schema, 37 bảng) + seed gốc.
-- **PART B** — Catalog **15 món** (mọi món đủ công thức + modifier) + ảnh thật (Unsplash).
-- **PART C** — Demo lớn: **3 chi nhánh**, **16 tài khoản** (BCrypt thật, mật khẩu `123456`), **~31 ngày lịch sử bán (≈800 hoá đơn)** + story hôm nay đủ mọi role → **đăng nhập được ngay, dashboard/biểu đồ đầy dữ liệu**.
+Mặc định script chỉ tạo hoặc nâng cấp schema (an toàn cho DB hiện hữu), đồng thời áp dụng mọi migration còn thiếu. Khi dựng DB demo mới, đổi dòng `DECLARE @SeedDemo BIT = 0;` ở đầu file thành `1`, rồi Execute toàn bộ file. Khi bật demo, script tạo catalog 15 món, dữ liệu vận hành, demo hao hụt và bộ KDS size/modifier ZT1–ZT4.
 
 ---
 

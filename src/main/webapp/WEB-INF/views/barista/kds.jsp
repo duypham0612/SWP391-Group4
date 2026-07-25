@@ -7,6 +7,7 @@
 <h1 class="visually-hidden">Quầy pha chế</h1>
 
 <jsp:include page="../layout/_baristaShiftBanner.jsp" />
+<jsp:include page="../layout/_handoverPendingAlert.jsp" />
 
 <div class="kds-toolbar">
     <div class="kds-filters" id="kdsOwnerFilters" role="group" aria-label="Lọc theo người phụ trách">

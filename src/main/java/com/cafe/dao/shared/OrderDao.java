@@ -53,11 +53,25 @@ public class OrderDao {
         return out;
     }
 
-    /** Đơn đang xử lý (ACTIVE) của chi nhánh — cho Order Inbox (Cashier monitor). Mới nhất trước. */
-    public List<Order> findActiveByBranch(Connection conn, int branchId) throws SQLException {
+    /**
+     * Đơn đang xử lý (ACTIVE) của chi nhánh — cho Order Inbox (Cashier monitor).
+     *
+     * <p>Đơn TREO (tạo trước mốc đầu ngày kinh doanh) xếp lên ĐẦU, phần còn lại giữ mới-trước như cũ.
+     * Sắp thuần "mới nhất trước" đẩy đơn càng cũ càng xuống đáy — đúng chỗ không ai nhìn, trong khi
+     * đơn treo lại là loại duy nhất chỉ Thu ngân xử lý được (huỷ &amp; hoàn tiền cho khách đã về).
+     *
+     * @param businessDayStartUtc mốc đầu ngày kinh doanh; null = không tách nhóm treo.
+     */
+    public List<Order> findActiveByBranch(Connection conn, int branchId,
+                                          java.time.LocalDateTime businessDayStartUtc) throws SQLException {
         List<Order> out = new ArrayList<>();
-        try (PreparedStatement ps = conn.prepareStatement(SELECT + "WHERE o.BranchId=? AND o.Status='ACTIVE' ORDER BY o.CreatedAt DESC")) {
+        String order = businessDayStartUtc == null
+                ? "ORDER BY o.CreatedAt DESC"
+                : "ORDER BY CASE WHEN o.CreatedAt < ? THEN 0 ELSE 1 END, o.CreatedAt DESC";
+        try (PreparedStatement ps = conn.prepareStatement(
+                SELECT + "WHERE o.BranchId=? AND o.Status='ACTIVE' " + order)) {
             ps.setInt(1, branchId);
+            if (businessDayStartUtc != null) ps.setTimestamp(2, Timestamp.valueOf(businessDayStartUtc));
             try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
         }
         return out;

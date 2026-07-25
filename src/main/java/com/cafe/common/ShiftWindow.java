@@ -17,6 +17,15 @@ public final class ShiftWindow {
     /** Tan ca trễ vẫn chấm được trong khoảng này sau giờ kết thúc — dọn quầy, chốt sổ, bàn giao. */
     public static final Duration CLOCK_OUT_GRACE = Duration.ofHours(6);
 
+    /**
+     * Quá giờ tan ca theo lịch bấy nhiêu mà chưa bấm tan ca thì coi như đã rời quầy — dùng cho
+     * quyền thu hồi món đang pha của người khác.
+     *
+     * <p>Cố ý NGẮN hơn nhiều so với {@link #CLOCK_OUT_GRACE}: ân hạn chấm công dài là để nhân viên
+     * không mất giờ công, còn ở đây mỗi phút chờ là một ly khách đang đợi mà không ai được pha tiếp.
+     */
+    public static final Duration OFF_DUTY_GRACE = Duration.ofMinutes(30);
+
     private ShiftWindow() {}
 
     /** Ca qua đêm khi giờ kết thúc không sau giờ bắt đầu (22:00–06:00). */
@@ -42,5 +51,21 @@ public final class ShiftWindow {
         if (!workDate.equals(businessDate.minusDays(1)) || !isOvernight(start, end)) return false;
         if (nowVn == null) return false;
         return nowVn.isBefore(scheduledEnd(workDate, start, end).plus(grace == null ? Duration.ZERO : grace));
+    }
+
+    /**
+     * Người này còn đang trực quầy tại thời điểm {@code nowVn} không — dùng để quyết định có cho
+     * người khác thu hồi món họ đang giữ hay không.
+     *
+     * <p>Còn trực = đã vào ca, chưa bấm tan ca, VÀ chưa quá giờ tan theo lịch cộng
+     * {@link #OFF_DUTY_GRACE}. Vế cuối là vế quan trọng: người bỏ về mà không bấm tan ca sẽ mãi
+     * "chưa tan ca" theo dữ liệu chấm công, thiếu nó thì món họ giữ bị khoá tới tận hôm sau.
+     */
+    public static boolean onDuty(LocalDate workDate, LocalTime start, LocalTime end,
+                                 boolean checkedIn, boolean checkedOut, LocalDateTime nowVn) {
+        if (!checkedIn || checkedOut) return false;
+        LocalDateTime end0 = scheduledEnd(workDate, start, end);
+        if (end0 == null || nowVn == null) return checkedIn && !checkedOut;   // thiếu lịch → tin chấm công
+        return nowVn.isBefore(end0.plus(OFF_DUTY_GRACE));
     }
 }

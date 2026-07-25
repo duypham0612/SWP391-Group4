@@ -8,6 +8,7 @@
 </div>
 
 <jsp:include page="../layout/_baristaShiftBanner.jsp" />
+<jsp:include page="../layout/_handoverPendingAlert.jsp" />
 
 <c:if test="${not empty sessionScope.flashOk}">
     <div class="alert alert-success">${sessionScope.flashOk}</div><c:remove var="flashOk" scope="session" />

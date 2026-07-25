@@ -26,7 +26,8 @@ public class ShiftHandoverServlet extends HttpServlet {
     @Override protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         int branchId = InventoryDashboardServlet.branchId(req); User user = SessionUtil.currentUser(req);
         try {
-            BaristaShift.expose(req, MyShiftServlet.PATH);
+            // Màn này đã có summary.pendingForMe riêng; không lặp thêm truy vấn đếm của cảnh báo dùng chung.
+            BaristaShift.expose(req, MyShiftServlet.PATH, false);
             int userId = user == null ? 0 : user.getUserId();
             boolean onShift = Boolean.TRUE.equals(req.getAttribute("onShift"));
             String scope = scopeParam(req), status = statusParam(req), query = textParam(req, "q", 100);
@@ -39,7 +40,11 @@ public class ShiftHandoverServlet extends HttpServlet {
             req.setAttribute("receiverPreview", board.getReceiver());
             req.setAttribute("receiverPreviewError", board.getReceiverError());
             req.setAttribute("handoverRequired", board.isHandoverRequired());
+            // Hai quyền tách nhau: ca quá hạn chấm công vẫn lập được bàn giao nhưng không tan ca được.
+            req.setAttribute("canCreateHandover", board.isCanCreate());
+            req.setAttribute("canClockOutHandover", board.isCanClockOut());
             req.setAttribute("carryOverTasks", board.getCarryOverTasks());
+            req.setAttribute("brewTasks", board.getBrewTasks());
             req.setAttribute("filterScope", scope);
             req.setAttribute("filterStatus", status);
             req.setAttribute("filterQuery", query);
@@ -57,7 +62,8 @@ public class ShiftHandoverServlet extends HttpServlet {
         String redirect = selfUrlKeepingFilters(req, null);
         try {
             if ("create".equals(action) || "createAndClockOut".equals(action)) {
-                if (!BaristaShift.onShift(req)) throw new IllegalStateException("Bạn đang ngoài ca — cần vào ca trước khi lập bàn giao.");
+                // Không chặn theo onShift ở đây: ca quá hạn chấm công vẫn phải giao được việc tồn.
+                // Service mới là nơi kiểm — có ca đang mở không, và có còn tan ca được không.
                 List<String> tasks = Arrays.asList(req.getParameterValues("task") == null ? new String[0] : req.getParameterValues("task"));
                 if ("createAndClockOut".equals(action)) {
                     service.createHandoverAndClockOut(branchId, userId, req.getParameter("note"), tasks);
@@ -73,6 +79,12 @@ public class ShiftHandoverServlet extends HttpServlet {
                 service.acknowledge(branchId, handoverId, userId);
                 redirect = selfUrlKeepingFilters(req, handoverId);
                 req.getSession().setAttribute("flashOk", "Đã xác nhận nhận bàn giao.");
+            } else if ("claim".equals(action)) {
+                if (!BaristaShift.onShift(req)) throw new IllegalStateException("Bạn cần vào ca trước khi tiếp nhận bàn giao.");
+                int handoverId = parsePositive(req, "handoverId");
+                service.claim(branchId, handoverId, userId);
+                redirect = selfUrlKeepingFilters(req, handoverId);
+                req.getSession().setAttribute("flashOk", "Đã tiếp nhận bàn giao của ca trước.");
             } else if ("updateTask".equals(action)) {
                 if (!BaristaShift.onShift(req)) throw new IllegalStateException("Bạn cần đang trong ca để cập nhật việc bàn giao.");
                 int handoverId = parsePositive(req, "handoverId");

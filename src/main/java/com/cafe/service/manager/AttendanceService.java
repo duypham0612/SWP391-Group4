@@ -110,6 +110,27 @@ public class AttendanceService {
         return out;
     }
 
+    /**
+     * Những người CÒN đang trực quầy ở chi nhánh lúc này (đã vào ca, chưa tan, chưa quá giờ tan
+     * theo lịch + ân hạn ngắn). Quầy pha chế dùng tập này để biết món đang pha có còn chủ hay không.
+     *
+     * <p>Một truy vấn cho cả chi nhánh rồi lọc bằng {@link ShiftWindow#onDuty} — không hỏi từng người,
+     * vì màn quầy pha chế gọi nó cho cả bảng mỗi lần làm mới.
+     */
+    public Set<Integer> getOnDutyUserIds(int branchId) throws SQLException {
+        try (Connection c = DBConnection.getConnection()) {
+            LocalDateTime nowVn = LocalDateTime.now(BusinessDay.VN_ZONE);
+            Set<Integer> out = new java.util.HashSet<>();
+            for (Attendance a : dao.findOpenByBranch(c, branchId, currentVnDate())) {
+                if (ShiftWindow.onDuty(a.getWorkDate(), a.getStartTime(), a.getEndTime(),
+                        a.getCheckInAt() != null, a.getCheckOutAt() != null, nowVn)) {
+                    out.add(a.getUserId());
+                }
+            }
+            return out;
+        }
+    }
+
     /** Ca còn hiệu lực chấm công của một người — dùng chung cho màn trực ca của thu ngân. */
     public List<ShiftAssignment> currentShiftAssignments(Connection c, int userId, int branchId) throws SQLException {
         return clockableAssignments(c, userId, branchId, currentVnDate(), ShiftWindow.CLOCK_OUT_GRACE);

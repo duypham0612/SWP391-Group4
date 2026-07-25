@@ -26,6 +26,8 @@ import java.util.Map;
 public class KdsServlet extends HttpServlet {
 
     private final KdsService service = new KdsService();
+    private final com.cafe.service.manager.AttendanceService attendance =
+            new com.cafe.service.manager.AttendanceService();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -53,7 +55,7 @@ public class KdsServlet extends HttpServlet {
             loadBoard(req, branchId);
             req.setAttribute("pageTitle", "Quầy pha chế");
             boolean partial = "1".equals(req.getParameter("partial"));
-            BaristaShift.expose(req, "/barista/kds");
+            BaristaShift.expose(req, "/barista/kds", !partial);
             String view = partial
                     ? "/WEB-INF/views/barista/kds_cards.jsp"
                     : "/WEB-INF/views/barista/kds.jsp";
@@ -83,12 +85,39 @@ public class KdsServlet extends HttpServlet {
             if ("start".equals(action)) {
                 if (!service.startItem(intParam(req, "orderItemId"), userId, branchId))
                     flashConflict(req);
+            } else if ("startOrder".equals(action)) {
+                // Cả đơn thường do một người pha trọn; gộp lại để khỏi bấm N lần trên N ly.
+                int claimed = service.startOrder(intParam(req, "orderId"), userId, branchId);
+                if (claimed == 0) flashConflict(req);
+                else req.getSession().setAttribute("flashOk", "Đã nhận pha " + claimed + " món của đơn này.");
+            } else if ("markOrderReady".equals(action)) {
+                String loc = req.getParameter("handoverLocation");
+                if (loc != null && !com.cafe.common.Constants.HANDOVER_LOCATIONS.contains(loc)) loc = null;
+                OrderService.BulkReadyResult result =
+                        service.markOrderReady(intParam(req, "orderId"), userId, branchId, loc);
+                if (result.getCompleted() == 0 && result.getSkippedNoRecipe() == 0) flashConflict(req);
+                else if (result.getSkippedNoRecipe() > 0) {
+                    // Nói rõ phần chưa xong và lối thoát — món thiếu công thức sẽ không bao giờ tự xong được.
+                    req.getSession().setAttribute("flashError", "Đã hoàn thành " + result.getCompleted()
+                            + " món. Còn " + result.getSkippedNoRecipe()
+                            + " món chưa có công thức — hãy bấm Báo sự cố cho từng món đó.");
+                } else req.getSession().setAttribute("flashOk",
+                        "Đã hoàn thành " + result.getCompleted() + " món của đơn này.");
             } else if ("markReady".equals(action)) {
                 // Vị trí đặt: chỉ nhận giá trị trong whitelist, sai/rỗng → null (không tin client).
                 String loc = req.getParameter("handoverLocation");
                 if (loc != null && !com.cafe.common.Constants.HANDOVER_LOCATIONS.contains(loc)) loc = null;
                 if (!service.markReady(intParam(req, "orderItemId"), userId, branchId, loc))
                     flashConflict(req);
+            } else if ("reclaim".equals(action)) {
+                // Thu hồi món của người đã rời ca. Điều kiện "đã rời ca" kiểm lại ở SERVER, không tin
+                // nút hiện trên màn: bảng có thể đã cũ vài phút và chủ món vừa quay lại quầy.
+                int itemId = intParam(req, "orderItemId");
+                if (!service.reclaimItem(itemId, userId, branchId, u == null ? null : u.getFullName(),
+                        attendance.getOnDutyUserIds(branchId))) {
+                    flashConflict(req);
+                } else req.getSession().setAttribute("flashOk",
+                        "Đã thu hồi món về hàng chờ — ai cũng nhận pha tiếp được.");
             } else if ("returnQueue".equals(action)) {
                 if (!service.returnToQueue(intParam(req, "orderItemId"), userId, branchId)) flashConflict(req);
             } else if ("reportIssue".equals(action)) {
@@ -151,7 +180,7 @@ public class KdsServlet extends HttpServlet {
             throws SQLException, ServletException, IOException {
         if ("1".equals(req.getParameter("ajax"))) {
             loadBoard(req, branchId);
-            BaristaShift.expose(req, "/barista/kds");
+            BaristaShift.expose(req, "/barista/kds", false);
             req.getRequestDispatcher("/WEB-INF/views/barista/kds_cards.jsp").forward(req, resp);
         } else {
             resp.sendRedirect(req.getContextPath() + "/barista/kds");
@@ -171,6 +200,18 @@ public class KdsServlet extends HttpServlet {
         // Một truy vấn duy nhất: danh sách phẳng đã đúng thứ tự pha; các con số chỉ phân giỏ lại
         // trên chính danh sách đó.
         List<OrderItem> queue = service.getWorkbenchQueue(branchId, dayStart);
+        User current = SessionUtil.currentUser(req);
+        Integer currentUserId = current == null ? null : current.getUserId();
+        // Đếm dòng theo đơn TRƯỚC khi lọc/cắt trang: nhãn "món 2/3" phải nói về cả đơn, không phải
+        // về phần còn sót lại sau bộ lọc. Chạy trên danh sách gốc nên số dòng bám đúng thứ tự đặt.
+        com.cafe.service.barista.KdsService.annotateOrderLines(queue, currentUserId);
+        // Ai còn đứng quầy — một truy vấn cho cả bảng. Món đang pha của người đã rời ca bị khoá dưới
+        // tên họ (Xong/Trả lại chờ đều guard theo BaristaId) nên phải mở lối cho người còn lại thu hồi.
+        java.util.Set<Integer> onDuty = attendance.getOnDutyUserIds(branchId);
+        for (OrderItem item : queue) {
+            item.setOwnerOffDuty("MAKING".equals(item.getStatus()) && item.getBaristaId() != null
+                    && !onDuty.contains(item.getBaristaId()));
+        }
         Map<String, List<OrderItem>> board = com.cafe.service.barista.KdsService.splitWorkbench(queue);
         List<OrderItem> waiting = board.get("waiting");
         List<OrderItem> inProgress = board.get("inProgress");
@@ -192,8 +233,6 @@ public class KdsServlet extends HttpServlet {
         req.setAttribute("peakMode", peakMode);
         req.setAttribute("peakQueueCups", queueCups);
 
-        User current = SessionUtil.currentUser(req);
-        Integer currentUserId = current == null ? null : current.getUserId();
         // Lọc rồi mới cắt trang: có vậy "x/y món" và số trang mới đếm trên đúng tập đang xem.
         // Số thứ tự pha đã gán ở trên nên vẫn là vị trí thật trong cả hàng chờ, không đánh lại.
         String owner = filterParam(req, "owner", OWNER_FILTERS);
@@ -201,9 +240,13 @@ public class KdsServlet extends HttpServlet {
         String orderType = filterParam(req, "orderType", ORDER_TYPE_FILTERS);
         List<OrderItem> visible = com.cafe.service.barista.KdsService.filterWorkbench(
                 queueItems, owner, station, orderType, currentUserId);
+        com.cafe.service.barista.KdsService.QueuePage queuePage =
+                com.cafe.service.barista.KdsService.paginate(visible, pageParam(req), QUEUE_PAGE_SIZE);
+        // Khối chỉ được đánh dấu trên đúng những dòng SẼ hiện: lọc và cắt trang có thể để lại
+        // một dòng lẻ của đơn nhiều món, dòng đó không được đội tiêu đề như một đơn riêng.
+        com.cafe.service.barista.KdsService.markGroupStarts(queuePage.getItems());
         req.setAttribute("queueTotal", queueItems.size());
-        req.setAttribute("queuePage", com.cafe.service.barista.KdsService.paginate(
-                visible, pageParam(req), QUEUE_PAGE_SIZE));
+        req.setAttribute("queuePage", queuePage);
         req.setAttribute("filterOwner", owner);
         req.setAttribute("filterStation", station);
         req.setAttribute("filterOrderType", orderType);
@@ -224,13 +267,10 @@ public class KdsServlet extends HttpServlet {
         // bỏ ra thì con số này mâu thuẫn với chính chữ ở khu "Cần xử lý".
         req.setAttribute("openOrderCount", distinctOrders(waiting, inProgress, ready, blocked));
 
-        // Đơn treo của ngày kinh doanh TRƯỚC. Chúng bị cắt khỏi hàng chờ chính để rác cũ không
-        // làm lệch thống kê, nhưng phải hiện ở một khu riêng — bỏ hẳn thì món nằm ngoài MỌI màn
-        // của barista, khách vẫn đang chờ mà không ai ở quầy biết là còn nợ ly đó.
-        // Không lọc và không phân trang: khu này vốn phải rỗng, có dòng nào là phải xử lý dòng đó.
-        List<OrderItem> stale = service.getStaleItems(branchId, dayStart);
-        req.setAttribute("staleItems", stale);
-        req.setAttribute("staleCups", cups(stale));
+        // Món dang dở của ngày kinh doanh TRƯỚC cố ý KHÔNG hiện ở màn này nữa. Mốc cắt ngày kinh
+        // doanh nằm sau giờ đóng cửa nhiều tiếng nên khách của những ly đó đã về: việc đúng là Thu
+        // ngân huỷ & hoàn tiền ở Đơn đến, còn "pha nốt" tại quầy sẽ trừ kho thật cho ly không ai
+        // uống.
 
         req.setAttribute("currentUserId", currentUserId == null ? 0 : currentUserId);
         req.setAttribute("handoverLocations", com.cafe.common.Constants.HANDOVER_LOCATIONS);

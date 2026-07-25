@@ -6,8 +6,8 @@ import com.cafe.common.SessionUtil;
 import com.cafe.controller.manager.InventoryDashboardServlet;
 import com.cafe.model.MonthlyAttendanceRow;
 import com.cafe.model.User;
-import com.cafe.service.manager.AttendanceService;
 import com.cafe.service.barista.HandoverService;
+import com.cafe.service.manager.AttendanceService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -49,8 +49,8 @@ public class MyShiftServlet extends HttpServlet {
                 req.setAttribute("historyPage", attendanceService.getMyMonthlyHistoryPage(
                         u.getUserId(), branchId, ym, query, state, positiveIntParam(req, "page", 1), pageSize));
                 if (BaristaShift.onShift(req)) {
-                    req.setAttribute("pendingHandoverCount", handoverService.countUnacknowledgedForUser(branchId, u.getUserId()));
-                    req.setAttribute("handoverRequired", handoverService.requiresHandoverBeforeClockOut(branchId, u.getUserId()));
+                    req.setAttribute("handoverRequired",
+                            handoverService.requiresHandoverBeforeClockOut(branchId, u.getUserId()));
                 }
             }
             req.setAttribute("month", ym.toString());

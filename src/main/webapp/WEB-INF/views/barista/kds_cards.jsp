@@ -96,21 +96,7 @@
     </c:otherwise>
 </c:choose>
 
-<%-- ĐƠN TREO: món còn dang dở từ ngày kinh doanh TRƯỚC. Bị cắt khỏi hàng chờ chính (và khỏi mọi
-     con số ở dải trạng thái) để rác cũ không làm lệch thống kê ca hôm nay, nhưng vẫn phải hiện —
-     khách đã đặt và vẫn đang chờ. Thao tác giữ nguyên như dòng thường: pha nốt, chặn, hoặc để
-     Thu ngân huỷ. Khu này vốn phải rỗng; có dòng nào là có việc phải chốt. --%>
-<c:if test="${not empty staleItems}">
-    <section class="kds-carryover" aria-labelledby="kdsCarryoverTitle">
-        <div class="kds-carryover__head">
-            <h2 id="kdsCarryoverTitle" class="kds-carryover__title">⚠ Đơn treo cần xử lý</h2>
-            <p class="kds-carryover__note">${staleCups} ly từ ngày kinh doanh trước còn dang dở — pha nốt, hoặc báo Thu ngân huỷ &amp; hoàn tiền.</p>
-        </div>
-        <div class="kds-carryover__list">
-            <c:forEach var="item" items="${staleItems}">
-                <c:set var="cardItem" value="${item}" scope="request" />
-                <jsp:include page="_kdsQueueRow.jsp" />
-            </c:forEach>
-        </div>
-    </section>
-</c:if>
+<%-- Món dang dở từ ngày kinh doanh TRƯỚC KHÔNG còn hiện ở đây. Quán đã đóng cửa trước mốc cắt
+     ngày kinh doanh nhiều giờ nên khách của những ly đó đã về: việc đúng là Thu ngân huỷ &
+     hoàn tiền, không phải pha nốt — mà "pha nốt" ở màn này còn trừ kho thật cho ly không ai uống.
+     Chỗ xử lý là màn Đơn đến của Thu ngân. --%>

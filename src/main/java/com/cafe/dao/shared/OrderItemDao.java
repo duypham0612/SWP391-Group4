@@ -285,6 +285,36 @@ public class OrderItemDao {
         }
     }
 
+    /**
+     * Số dòng món barista này đang giữ ở trạng thái đang pha — cổng tan ca đọc con số này.
+     * Chỉ đếm MAKING: món BLOCKED đã rời hàng chờ và không còn mang tên ai, tính vào sẽ khoá
+     * barista bằng thứ chính họ không gỡ được (phải chờ nhập nguyên liệu hoặc Thu ngân huỷ).
+     */
+    public int countMakingByBarista(Connection conn, int branchId, int baristaId) throws SQLException {
+        final String sql = "SELECT COUNT(*) FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId "
+                + "WHERE o.BranchId=? AND o.Status='ACTIVE' AND oi.Status='MAKING' AND oi.BaristaId=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId); ps.setInt(2, baristaId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getInt(1) : 0; }
+        }
+    }
+
+    /**
+     * Thu hồi món của barista ĐÃ RỜI CA về hàng chờ. Khác {@link #returnToQueue} ở chỗ người bấm
+     * không phải chủ món; vẫn guard theo chủ món ĐANG kỳ vọng để không thắng cuộc đua với chính
+     * họ vừa bấm Xong (khi đó BaristaId/Status đã đổi, affected=0 → caller báo conflict).
+     */
+    public int reclaim(Connection conn, int orderItemId, int branchId, int expectedBaristaId) throws SQLException {
+        final String sql = "UPDATE oi SET oi.Status='WAITING',oi.BaristaId=NULL,oi.StartedAt=NULL "
+                + "FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId "
+                + "WHERE oi.OrderItemId=? AND o.BranchId=? AND o.Status='ACTIVE' "
+                + "  AND oi.Status='MAKING' AND oi.BaristaId=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, orderItemId); ps.setInt(2, branchId); ps.setInt(3, expectedBaristaId);
+            return ps.executeUpdate();
+        }
+    }
+
     public int returnToQueue(Connection conn, int orderItemId, int branchId, int baristaId) throws SQLException {
         final String sql = "UPDATE oi SET oi.Status='WAITING',oi.BaristaId=NULL,oi.StartedAt=NULL "
                 + "FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId "

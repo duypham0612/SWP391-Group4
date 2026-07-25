@@ -361,16 +361,134 @@ public class OrderService {
         return tx(conn -> {
             OrderItem it = itemDao.findById(conn, orderItemId);
             if (it == null) return false;
-            int rows = itemDao.completeClaimed(conn, orderItemId, sessionBranchId, userId, handoverLocation);
-            if (rows == 0) return false;   // đã READY/SERVED/CANCELLED / khác chi nhánh → không trừ kho
-            int branchId = branchOf(it);
-            if (!it.isRemakeInventoryReserved()) {
-                inventoryService.deductForOrderItem(conn, branchId, orderItemId, it.getProductId(), it.getQuantity(), userId);
+            return completeInTx(conn, it, userId, sessionBranchId, handoverLocation);
+        });
+    }
+
+    /**
+     * Thân của MAKING → READY, gọi TRONG tx của caller — dùng chung cho bản một món và bản cả đơn.
+     * Tách ra vì đây là điểm auto-deduct: hai bản sao chép logic thì chỉ cần một bên được sửa mà
+     * bên kia quên là sổ kho lệch, và lỗi đó không lộ ra cho tới lúc kiểm kê.
+     */
+    private boolean completeInTx(Connection conn, OrderItem it, int userId, int sessionBranchId,
+                                 String handoverLocation) throws SQLException {
+        int orderItemId = it.getOrderItemId();
+        int rows = itemDao.completeClaimed(conn, orderItemId, sessionBranchId, userId, handoverLocation);
+        if (rows == 0) return false;   // đã READY/SERVED/CANCELLED / khác chi nhánh → không trừ kho
+        int branchId = branchOf(it);
+        if (!it.isRemakeInventoryReserved()) {
+            inventoryService.deductForOrderItem(conn, branchId, orderItemId, it.getProductId(), it.getQuantity(), userId);
+        }
+        actionDao.insert(conn, orderItemId, branchId, "COMPLETE", "MAKING", "READY", null, userId);
+        publishStatus(conn, it, "READY");
+        EventPublisher.publish(conn, EventType.ITEM_READY, String.valueOf(orderItemId), branchId,
+                "{\"orderId\":" + it.getOrderId() + ",\"orderItemId\":" + orderItemId + ",\"by\":" + userId + "}");
+        return true;
+    }
+
+    /**
+     * Nhận pha MỌI món còn chờ của một đơn, trong một transaction. Trả số món nhận được.
+     *
+     * <p>Từng món vẫn đi qua đúng WHERE-guard của {@code claim} (đang WAITING · đơn ACTIVE · đúng
+     * chi nhánh), nên món vừa bị barista khác nhận chỉ đơn giản không được tính — không kéo theo
+     * huỷ cả lượt bấm.
+     */
+    public int startAllInOrder(int orderId, Integer userId, int sessionBranchId) throws SQLException {
+        if (userId == null) return 0;
+        return tx(conn -> {
+            int count = 0;
+            for (OrderItem it : itemDao.findByOrder(conn, orderId)) {
+                if (!"WAITING".equals(it.getStatus())) continue;
+                if (itemDao.claim(conn, it.getOrderItemId(), sessionBranchId, userId) == 0) continue;
+                actionDao.insert(conn, it.getOrderItemId(), sessionBranchId, "CLAIM", "WAITING", "MAKING", null, userId);
+                publishStatus(conn, it, "MAKING");
+                count++;
             }
-            actionDao.insert(conn, orderItemId, branchId, "COMPLETE", "MAKING", "READY", null, userId);
-            publishStatus(conn, it, "READY");
-            EventPublisher.publish(conn, EventType.ITEM_READY, String.valueOf(orderItemId), branchId,
-                    "{\"orderId\":" + it.getOrderId() + ",\"orderItemId\":" + orderItemId + ",\"by\":" + userId + "}");
+            return count;
+        });
+    }
+
+    /** Kết quả "Xong cả đơn": số món đã hoàn thành và số món phải bỏ qua vì chưa khai công thức. */
+    public static class BulkReadyResult {
+        private final int completed;
+        private final int skippedNoRecipe;
+
+        public BulkReadyResult(int completed, int skippedNoRecipe) {
+            this.completed = completed;
+            this.skippedNoRecipe = skippedNoRecipe;
+        }
+
+        public int getCompleted() { return completed; }
+        public int getSkippedNoRecipe() { return skippedNoRecipe; }
+    }
+
+    /**
+     * Hoàn thành MỌI món mà chính barista này đang pha trong một đơn, cùng một nơi đặt,
+     * trong MỘT transaction (một đơn = một lần trừ kho trọn gói).
+     *
+     * <p>Món chưa khai công thức bị loại TRƯỚC vòng lặp: {@code deductForOrderItem} ném
+     * {@link BusinessException} khi công thức rỗng, mà ném giữa vòng lặp thì cả đơn rollback chỉ
+     * vì một dòng — các ly đã pha xong thật sẽ quay ngược về "đang pha".
+     */
+    public BulkReadyResult markOrderReady(int orderId, Integer userId, int sessionBranchId,
+                                          String handoverLocation) throws SQLException {
+        if (userId == null) return new BulkReadyResult(0, 0);
+        return tx(conn -> {
+            List<OrderItem> items = itemDao.findByOrder(conn, orderId);
+            java.util.Set<Integer> productIds = new java.util.HashSet<>();
+            for (OrderItem it : items) productIds.add(it.getProductId());
+            java.util.Set<Integer> withRecipe = productRecipeDao.findProductIdsWithRecipe(conn, productIds);
+
+            int completed = 0;
+            int skipped = 0;
+            for (OrderItem it : items) {
+                if (!"MAKING".equals(it.getStatus())) continue;
+                if (!userId.equals(it.getBaristaId())) continue;          // chỉ món của chính mình
+                if (!withRecipe.contains(it.getProductId())) { skipped++; continue; }
+                if (completeInTx(conn, it, userId, sessionBranchId, handoverLocation)) completed++;
+            }
+            return new BulkReadyResult(completed, skipped);
+        });
+    }
+
+    /**
+     * Số ly barista đang giữ dở — cổng tan ca. Barista tan ca mà còn món MAKING thì món đó bị
+     * khoá dưới tên người đã về: cả `completeClaimed` lẫn `returnToQueue` đều guard theo BaristaId
+     * nên ca sau không đụng được, khách ngồi đợi mà không ai pha tiếp.
+     */
+    public int countMyMakingItems(int branchId, int userId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            return itemDao.countMakingByBarista(conn, branchId, userId);
+        }
+    }
+
+    /**
+     * Thu hồi món của barista ĐÃ RỜI CA về hàng chờ, để ca sau pha tiếp thay vì Thu ngân phải huỷ món.
+     *
+     * <p>Điều kiện "đã rời ca" kiểm ở đây chứ không tin nút trên màn: bảng quầy có thể đã dựng vài
+     * phút trước và chủ món vừa quay lại. Chủ món còn trực → ném {@link BusinessException} để barista
+     * đi nhờ họ trả lại, thay vì giật món khỏi tay người đang pha.
+     *
+     * @param onDutyUserIds những người còn đang trực tại chi nhánh, do caller nạp một lần cho cả bảng.
+     * @return false khi món vừa bị đổi bởi thao tác khác (kể cả chính chủ vừa bấm Xong).
+     */
+    public boolean reclaimItem(int orderItemId, Integer actorUserId, int branchId, String actorName,
+                               java.util.Set<Integer> onDutyUserIds) throws SQLException {
+        if (actorUserId == null) return false;
+        java.util.Set<Integer> onDuty = onDutyUserIds == null ? java.util.Set.of() : onDutyUserIds;
+        return tx(conn -> {
+            OrderItem it = itemDao.findById(conn, orderItemId);
+            if (it == null || it.getBaristaId() == null) return false;
+            if (actorUserId.equals(it.getBaristaId())) return false;   // món của chính mình: dùng Trả lại chờ
+            if (onDuty.contains(it.getBaristaId())) {
+                throw new BusinessException("Người này vẫn đang trong ca — nhờ họ bấm “Trả lại chờ” cho món này.");
+            }
+            if (itemDao.reclaim(conn, orderItemId, branchId, it.getBaristaId()) == 0) return false;
+            String reason = "Thu hồi từ " + (it.getBaristaName() == null ? "barista đã rời ca" : it.getBaristaName())
+                    + (actorName == null || actorName.isBlank() ? "" : " bởi " + actorName);
+            actionDao.insert(conn, orderItemId, branchId, "RETURN_QUEUE", "MAKING", "WAITING",
+                    sanitizeReason(reason), actorUserId);
+            publishStatus(conn, it, "WAITING");
             return true;
         });
     }
@@ -761,11 +879,17 @@ public class OrderService {
      */
     public List<Order> getIncomingOrders(int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            List<Order> orders = orderDao.findActiveByBranch(conn, branchId);
+            // Mốc đầu ngày kinh doanh để tách đơn treo lên đầu. Quầy pha chế đã bỏ những đơn này
+            // khỏi hàng chờ (khách đã về từ hôm trước), nên đây là màn duy nhất còn chốt được chúng.
+            com.cafe.model.Branch branch = branchDao.findById(conn, branchId);
+            java.time.LocalDateTime dayStart = com.cafe.common.BusinessDay.startUtc(
+                    branch == null ? null : branch.getOpenTime());
+            List<Order> orders = orderDao.findActiveByBranch(conn, branchId, dayStart);
             for (Order o : orders) {
                 List<OrderItem> items = itemDao.findByOrder(conn, o.getOrderId());
                 attachModifiers(conn, items);
                 o.setItems(items);
+                o.setStale(o.getCreatedAt() != null && dayStart != null && o.getCreatedAt().isBefore(dayStart));
                 // R3 · trạng thái thanh toán tổng đơn (suy từ các bill của phiên bàn)
                 o.setPaymentStatus(o.getTableSessionId() == null ? "PAYING"
                         : paymentStatusFor(billDao.findStatusesBySession(conn, o.getTableSessionId())));
