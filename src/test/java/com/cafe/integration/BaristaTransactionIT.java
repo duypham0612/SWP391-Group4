@@ -1,0 +1,216 @@
+package com.cafe.integration;
+
+import com.cafe.service.shared.OrderService;
+import com.cafe.service.shared.InventoryService;
+import com.cafe.service.barista.HandoverService;
+import com.cafe.common.BusinessException;
+import org.junit.jupiter.api.Test;
+
+import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.List;
+import java.util.UUID;
+import java.time.LocalDate;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/** Contract transaction quan trọng nhất của quầy pha chế, chạy với SQL Server thật. */
+class BaristaTransactionIT extends SqlServerIntegrationSupport {
+
+    @Test
+    void simultaneous_claim_allows_exactly_one_barista() throws Exception {
+        Fixture f = fixture(false);
+        List<Boolean> results = concurrently(() -> new OrderService().startItem(f.orderItemId, f.baristaOneId, f.branchId),
+                () -> new OrderService().startItem(f.orderItemId, f.baristaTwoId, f.branchId));
+
+        assertEquals(1, results.stream().filter(Boolean::booleanValue).count());
+        assertEquals("MAKING", scalarString("SELECT Status FROM sales.OrderItem WHERE OrderItemId=?", f.orderItemId));
+        assertEquals(1, scalarInt("SELECT COUNT(*) FROM ops.OrderItemActionLog WHERE OrderItemId=? AND ActionType='CLAIM'", f.orderItemId));
+    }
+
+    @Test
+    void simultaneous_ready_deducts_recipe_and_modifier_once() throws Exception {
+        Fixture f = fixture(true);
+        OrderService service = new OrderService();
+        assertTrue(service.startItem(f.orderItemId, f.baristaOneId, f.branchId));
+
+        List<Boolean> results = concurrently(() -> new OrderService().markItemReady(f.orderItemId, f.baristaOneId, f.branchId),
+                () -> new OrderService().markItemReady(f.orderItemId, f.baristaOneId, f.branchId));
+
+        assertEquals(1, results.stream().filter(Boolean::booleanValue).count());
+        assertEquals("READY", scalarString("SELECT Status FROM sales.OrderItem WHERE OrderItemId=?", f.orderItemId));
+        // 2 ly × (10 RAW theo công thức + 2 RAW từ modifier) = 24; ledger phải chỉ có một lần trừ.
+        assertEquals(new BigDecimal("-24.000"), scalarDecimal(
+                "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction WHERE RefTable='OrderItem' AND RefId=? AND TxnType='DEDUCT'", f.orderItemId));
+        assertEquals(1, scalarInt("SELECT COUNT(*) FROM ops.OrderItemActionLog WHERE OrderItemId=? AND ActionType='COMPLETE'", f.orderItemId));
+    }
+
+    @Test
+    void simultaneous_remake_creates_one_reservation_and_one_waste_event() throws Exception {
+        Fixture f = fixture(false);
+        OrderService service = new OrderService();
+        assertTrue(service.startItem(f.orderItemId, f.baristaOneId, f.branchId));
+        assertTrue(service.markItemReady(f.orderItemId, f.baristaOneId, f.branchId));
+
+        List<Boolean> results = concurrently(() -> new OrderService().remakeItem(f.orderItemId, "Sai ly", f.baristaOneId, f.branchId),
+                () -> new OrderService().remakeItem(f.orderItemId, "Sai ly", f.baristaOneId, f.branchId));
+
+        assertEquals(1, results.stream().filter(Boolean::booleanValue).count());
+        assertEquals("WAITING", scalarString("SELECT Status FROM sales.OrderItem WHERE OrderItemId=?", f.orderItemId));
+        assertEquals(1, scalarInt("SELECT COUNT(*) FROM inventory.WasteEvent WHERE OrderItemId=? AND EventKind='REMAKE'", f.orderItemId));
+        assertEquals(1, scalarInt("SELECT COUNT(*) FROM inventory.WasteLog WHERE WasteEventId IN (SELECT WasteEventId FROM inventory.WasteEvent WHERE OrderItemId=?)", f.orderItemId));
+    }
+
+    @Test
+    void voiding_manual_waste_keeps_audit_and_nets_ledger_to_zero() throws Exception {
+        Fixture f = fixture(false);
+        InventoryService inventory = new InventoryService();
+        int wasteLogId = inventory.logWaste(f.branchId, f.rawIngredientId, new BigDecimal("5"), "SPILL", "IT spill", f.baristaOneId);
+
+        inventory.voidWaste(f.branchId, wasteLogId, f.baristaOneId);
+
+        assertEquals("VOIDED", scalarString("SELECT Status FROM inventory.WasteLog WHERE WasteLogId=?", wasteLogId));
+        assertEquals(new BigDecimal("0.000"), scalarDecimal(
+                "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction WHERE RefTable='WasteLog' AND RefId=?", wasteLogId));
+        assertEquals(2, scalarInt("SELECT COUNT(*) FROM inventory.InventoryTransaction WHERE RefTable='WasteLog' AND RefId=?", wasteLogId));
+    }
+
+    @Test
+    void cancelling_prep_reverses_the_exact_ledger_entries() throws Exception {
+        Fixture f = fixture(false);
+        InventoryService inventory = new InventoryService();
+        int prepBatchId = inventory.createPrepBatch(f.branchId, f.preppedIngredientId,
+                new BigDecimal("100"), java.time.LocalDateTime.now(java.time.ZoneOffset.UTC).plusHours(2), f.baristaOneId);
+
+        assertTrue(inventory.cancelPrepBatch(f.branchId, prepBatchId, f.baristaOneId));
+        assertFalse(inventory.cancelPrepBatch(f.branchId, prepBatchId, f.baristaOneId));
+        assertEquals("CANCELLED", scalarString("SELECT Status FROM inventory.PrepBatch WHERE PrepBatchId=?", prepBatchId));
+        assertEquals(new BigDecimal("0.000"), scalarDecimal(
+                "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction WHERE RefTable='PrepBatch' AND RefId=?", prepBatchId));
+    }
+
+    @Test
+    void expired_prep_batch_can_be_written_off_only_once() throws Exception {
+        Fixture f = fixture(false);
+        InventoryService inventory = new InventoryService();
+        int prepBatchId = inventory.createPrepBatch(f.branchId, f.preppedIngredientId,
+                new BigDecimal("100"), java.time.LocalDateTime.now(java.time.ZoneOffset.UTC).minusHours(1), f.baristaOneId);
+
+        int wasteLogId = inventory.writeOffExpiredPrepBatch(f.branchId, prepBatchId, new BigDecimal("100"), f.baristaOneId);
+
+        assertTrue(wasteLogId > 0);
+        assertThrows(BusinessException.class, () -> inventory.writeOffExpiredPrepBatch(
+                f.branchId, prepBatchId, new BigDecimal("100"), f.baristaOneId));
+        assertEquals(1, scalarInt("SELECT COUNT(*) FROM inventory.WasteLog WHERE WasteLogId=?", wasteLogId));
+    }
+
+    @Test
+    void late_shift_can_save_handover_for_the_adjacent_shift_but_cannot_clock_out() throws Exception {
+        Fixture f = fixture(false);
+        LocalDate yesterday = LocalDate.now(com.cafe.common.BusinessDay.VN_ZONE).minusDays(1);
+        int sourceAssignmentId;
+        int receiverAssignmentId;
+        try (Connection conn = connection(); Statement st = conn.createStatement()) {
+            st.executeUpdate("INSERT hr.ShiftTemplate(BranchId,Name,StartTime,EndTime) VALUES (" + f.branchId
+                    + ",N'IT source','07:00','12:00'),(" + f.branchId + ",N'IT receiver','12:00','17:00')");
+            sourceAssignmentId = id(conn, "SELECT MIN(ShiftTemplateId) FROM hr.ShiftTemplate WHERE BranchId=?", f.branchId);
+            int receiverTemplateId = id(conn, "SELECT MAX(ShiftTemplateId) FROM hr.ShiftTemplate WHERE BranchId=?", f.branchId);
+            st.executeUpdate("INSERT hr.ShiftAssignment(ShiftTemplateId,UserId,WorkDate) VALUES (" + sourceAssignmentId
+                    + "," + f.baristaOneId + ",'" + yesterday + "'),(" + receiverTemplateId + "," + f.baristaTwoId + ",'" + yesterday + "')");
+            sourceAssignmentId = id(conn, "SELECT ShiftAssignmentId FROM hr.ShiftAssignment WHERE ShiftTemplateId=? AND UserId=?", sourceAssignmentId, f.baristaOneId);
+            receiverAssignmentId = id(conn, "SELECT ShiftAssignmentId FROM hr.ShiftAssignment WHERE ShiftTemplateId=? AND UserId=?", receiverTemplateId, f.baristaTwoId);
+            st.executeUpdate("INSERT hr.Attendance(ShiftAssignmentId,CheckInAt) VALUES (" + sourceAssignmentId + ",SYSUTCDATETIME())");
+        }
+
+        HandoverService handover = new HandoverService();
+        int handoverId = handover.createHandover(f.branchId, f.baristaOneId, "IT late handover", List.of("Kiểm tra máy xay"));
+
+        assertEquals(receiverAssignmentId, scalarInt(
+                "SELECT RecipientShiftAssignmentId FROM hr.ShiftHandoverRecipient WHERE ShiftHandoverId=?", handoverId));
+        assertThrows(IllegalStateException.class, () -> handover.createHandoverAndClockOut(
+                f.branchId, f.baristaOneId, "IT must not clock out late", List.of("Việc khác")));
+        assertEquals(1, scalarInt("SELECT COUNT(*) FROM hr.ShiftHandover WHERE SourceShiftAssignmentId=?", sourceAssignmentId));
+        assertEquals(0, scalarInt("SELECT COUNT(*) FROM hr.Attendance WHERE ShiftAssignmentId=? AND CheckOutAt IS NOT NULL", sourceAssignmentId));
+    }
+
+    private static List<Boolean> concurrently(Callable<Boolean> first, Callable<Boolean> second) throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            Callable<Boolean> wrap = () -> { ready.countDown(); start.await(); return first.call(); };
+            Future<Boolean> left = executor.submit(wrap);
+            Future<Boolean> right = executor.submit(() -> { ready.countDown(); start.await(); return second.call(); });
+            ready.await(); start.countDown();
+            return List.of(left.get(), right.get());
+        } finally { executor.shutdownNow(); }
+    }
+
+    private Fixture fixture(boolean withModifier) throws Exception {
+        String key = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        try (Connection conn = connection(); Statement st = conn.createStatement()) {
+            st.executeUpdate("IF NOT EXISTS (SELECT 1 FROM iam.Role WHERE Code='BARISTA') "
+                    + "INSERT iam.Role(Code,Name) VALUES ('BARISTA',N'Barista')");
+            st.executeUpdate("INSERT org.Branch(Code,Name,OpenTime,CloseTime) VALUES ('B" + key + "',N'IT Branch','00:00','23:59')");
+            int roleId = id(conn, "SELECT RoleId FROM iam.Role WHERE Code=?", "BARISTA");
+            int branchId = id(conn, "SELECT BranchId FROM org.Branch WHERE Code=?", "B" + key);
+            st.executeUpdate("INSERT iam.[User](Username,PasswordHash,FullName,RoleId,BranchId) VALUES ('b1" + key + "','x',N'Barista One'," + roleId + "," + branchId + "),('b2" + key + "','x',N'Barista Two'," + roleId + "," + branchId + ")");
+            int one = id(conn, "SELECT UserId FROM iam.[User] WHERE Username=?", "b1" + key);
+            int two = id(conn, "SELECT UserId FROM iam.[User] WHERE Username=?", "b2" + key);
+            st.executeUpdate("INSERT catalog.Category(Name) VALUES (N'IT Category')");
+            int category = id(conn, "SELECT MAX(CategoryId) FROM catalog.Category");
+            st.executeUpdate("INSERT catalog.Product(CategoryId,Name,BasePrice) VALUES (" + category + ",N'IT Drink',10000)");
+            int product = id(conn, "SELECT MAX(ProductId) FROM catalog.Product");
+            st.executeUpdate("INSERT catalog.Ingredient(Name,Unit,IngredientType) VALUES (N'IT Raw " + key + "',N'g','RAW'),(N'IT Prepped " + key + "',N'ml','PREPPED')");
+            int ingredient = id(conn, "SELECT IngredientId FROM catalog.Ingredient WHERE Name=?", "IT Raw " + key);
+            int prepped = id(conn, "SELECT IngredientId FROM catalog.Ingredient WHERE Name=?", "IT Prepped " + key);
+            st.executeUpdate("INSERT catalog.ProductRecipe(ProductId,IngredientId,Quantity) VALUES (" + product + "," + ingredient + ",10)");
+            st.executeUpdate("INSERT catalog.PrepRecipe(PreppedIngredientId,RawIngredientId,Quantity,YieldQty) VALUES (" + prepped + "," + ingredient + ",10,100)");
+            st.executeUpdate("INSERT inventory.BranchInventory(BranchId,IngredientId,QuantityOnHand) VALUES (" + branchId + "," + ingredient + ",1000),(" + branchId + "," + prepped + ",0)");
+            st.executeUpdate("INSERT sales.Orders(BranchId,Source,OrderType,Status,CreatedBy) VALUES (" + branchId + ",'COUNTER','TAKEAWAY','ACTIVE'," + one + ")");
+            int orderId = id(conn, "SELECT MAX(OrderId) FROM sales.Orders");
+            st.executeUpdate("INSERT sales.OrderItem(OrderId,ProductId,Quantity,UnitPrice,Status) VALUES (" + orderId + "," + product + ",2,10000,'WAITING')");
+            int itemId = id(conn, "SELECT MAX(OrderItemId) FROM sales.OrderItem");
+            if (withModifier) {
+                st.executeUpdate("INSERT catalog.ModifierGroup(Name) VALUES (N'IT Extra')");
+                int groupId = id(conn, "SELECT MAX(ModifierGroupId) FROM catalog.ModifierGroup");
+                st.executeUpdate("INSERT catalog.ModifierOption(ModifierGroupId,Name,PriceDelta) VALUES (" + groupId + ",N'IT Extra',0)");
+                int optionId = id(conn, "SELECT MAX(ModifierOptionId) FROM catalog.ModifierOption");
+                st.executeUpdate("INSERT catalog.ModifierIngredientImpact(ModifierOptionId,IngredientId,QtyDelta) VALUES (" + optionId + "," + ingredient + ",2)");
+                st.executeUpdate("INSERT sales.OrderItemModifier(OrderItemId,ModifierOptionId,PriceDelta) VALUES (" + itemId + "," + optionId + ",0)");
+            }
+            return new Fixture(branchId, one, two, itemId, ingredient, prepped);
+        }
+    }
+
+    private static int id(Connection conn, String sql, Object... values) throws Exception {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (int i = 0; i < values.length; i++) ps.setObject(i + 1, values[i]);
+            try (ResultSet rs = ps.executeQuery()) { rs.next(); return rs.getInt(1); }
+        }
+    }
+
+    private static int scalarInt(String sql, int id) throws Exception {
+        try (Connection conn = connection()) { return id(conn, sql, id); }
+    }
+    private static String scalarString(String sql, int id) throws Exception {
+        try (Connection conn = connection(); PreparedStatement ps = conn.prepareStatement(sql)) { ps.setInt(1, id); try (ResultSet rs = ps.executeQuery()) { rs.next(); return rs.getString(1); } }
+    }
+    private static BigDecimal scalarDecimal(String sql, int id) throws Exception {
+        try (Connection conn = connection(); PreparedStatement ps = conn.prepareStatement(sql)) { ps.setInt(1, id); try (ResultSet rs = ps.executeQuery()) { rs.next(); return rs.getBigDecimal(1); } }
+    }
+
+    private record Fixture(int branchId, int baristaOneId, int baristaTwoId, int orderItemId,
+                           int rawIngredientId, int preppedIngredientId) { }
+}
