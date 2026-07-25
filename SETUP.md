@@ -120,7 +120,19 @@ File WAR: `target/cafe-shop.war` → copy vào `<TOMCAT>/webapps/`.
 
 ---
 
-## 8. Cấu trúc dự án (MVC, layer-based — package gốc `com.cafe`)
+## 8. Kiểm thử integration Barista (Docker)
+
+`mvn test` chỉ chạy unit test nhanh. Để chạy transaction thật với SQL Server disposable qua Testcontainers (không dùng `db.properties` local), cần Docker đang hoạt động rồi chạy:
+
+```bash
+mvn -Pintegration verify
+```
+
+Suite tạo database tạm từ `sql/database.sql`, kiểm KDS concurrent claim/complete/remake và tự xóa container sau khi chạy. GitHub Actions chạy cùng lệnh cho mọi pull request và push vào `main`.
+
+---
+
+## 9. Cấu trúc dự án (MVC, layer-based — package gốc `com.cafe`)
 
 ```
 src/main/java/com/cafe/
