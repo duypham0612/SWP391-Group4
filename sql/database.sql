@@ -1041,6 +1041,11 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'ops.Outbo
 CREATE INDEX IX_Outbox_Unprocessed ON ops.OutboxEvent(ProcessedAt) WHERE ProcessedAt IS NULL;
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'sales.OrderItem') AND name = N'IX_OrderItem_BaristaStatus')
 CREATE INDEX IX_OrderItem_BaristaStatus ON sales.OrderItem(BaristaId, Status);
+-- Dashboard Barista: truy vấn KPI theo người hoàn thành + thời điểm pha xong, không quét toàn bộ lịch sử.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'sales.OrderItem') AND name = N'IX_OrderItem_PreparedDone')
+CREATE INDEX IX_OrderItem_PreparedDone ON sales.OrderItem(PreparedBy, DoneAt) INCLUDE (OrderId, Quantity, StartedAt, Status);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'inventory.WasteEvent') AND name = N'IX_WasteEvent_BranchActorTime')
+CREATE INDEX IX_WasteEvent_BranchActorTime ON inventory.WasteEvent(BranchId, CreatedBy, CreatedAt) INCLUDE (EventKind);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'ops.OrderItemActionLog') AND name = N'IX_OrderItemAction_Item')
 CREATE INDEX IX_OrderItemAction_Item ON ops.OrderItemActionLog(OrderItemId, CreatedAt DESC);
 -- Hao hụt & làm lại

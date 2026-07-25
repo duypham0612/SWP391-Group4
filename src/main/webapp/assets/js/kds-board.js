@@ -400,6 +400,18 @@
         method: 'POST', body: body, credentials: 'same-origin',
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
       });
+      if (response.status === 403 && response.headers.get('X-Barista-Write-Denied') === 'off-shift') {
+        var denied = await response.json();
+        notice(denied.error || 'Bạn đang ngoài ca — cần vào ca trước khi thao tác.');
+        window.setTimeout(function () { window.location.assign(endpoint); }, 700);
+        return;
+      }
+      if (response.status === 400 && response.headers.get('X-Barista-Write-Denied') === 'invalid-action') {
+        var invalid = await response.json();
+        notice(invalid.error || 'Thao tác không hợp lệ. Vui lòng tải lại màn hình.');
+        setConnection(true, false);
+        return;
+      }
       if (!response.ok) throw new Error('post');
       replaceBoard(await response.text(), state);
       setConnection(true, false);

@@ -15,6 +15,30 @@
     </div>
 </div>
 
+<h3 class="section-title">Nhịp làm việc của bạn</h3>
+<div class="card-grid card-grid--4">
+    <a class="card stat" href="${ctx}/barista/kds?owner=mine">
+        <span class="label">Bạn đang pha</span><span class="value">${baristaOps.myMakingCups}</span><span class="muted">ly đang giữ tại quầy</span>
+    </a>
+    <a class="card stat" href="${ctx}/barista/kds?owner=mine">
+        <span class="label">Bạn đã hoàn thành</span><span class="value">${baristaOps.myCompletedCups}</span><span class="muted">ly trong ngày kinh doanh</span>
+    </a>
+    <a class="card stat" href="${ctx}/barista/waste">
+        <span class="label">Làm lại / hao hụt</span><span class="value">${baristaOps.myRemakeCount} / ${baristaOps.myWasteCount}</span><span class="muted">sự kiện do bạn ghi</span>
+    </a>
+    <a class="card stat" href="${ctx}/barista/kds?owner=mine">
+        <span class="label">Thời gian pha TB</span><span class="value" style="font-size:1.25rem">${baristaOps.myAveragePreparationDisplay}</span><span class="muted">các ly bạn đã hoàn thành</span>
+    </a>
+</div>
+
+<h3 class="section-title">Tổng quan quầy pha chế</h3>
+<div class="card-grid card-grid--4">
+    <a class="card stat" href="${ctx}/barista/kds"><span class="label">Chờ / đang pha</span><span class="value">${baristaOps.branchWaitingCups} / ${baristaOps.branchMakingCups}</span><span class="muted">ly của toàn quầy</span></a>
+    <a class="card stat" href="${ctx}/barista/kds"><span class="label">Sẵn sàng / bị chặn</span><span class="value">${baristaOps.branchReadyCups} / ${baristaOps.branchBlockedCups}</span><span class="muted">ly cần được tiếp nhận hoặc xử lý</span></a>
+    <a class="card stat" href="${ctx}/barista/waste"><span class="label">Làm lại toàn quầy</span><span class="value">${baristaOps.branchRemakeCount}</span><span class="muted">lần trong ngày kinh doanh</span></a>
+    <a class="card stat" href="${ctx}/barista/prep" style="${baristaOps.expiredPrepBatchCount gt 0 ? 'border-color:var(--st-waiting)' : ''}"><span class="label">Mẻ prep quá hạn</span><span class="value">${baristaOps.expiredPrepBatchCount}</span><span class="muted">cần ghi hao hụt trước khi bàn giao</span></a>
+</div>
+
 <jsp:include page="../layout/_handoverPendingAlert.jsp" />
 
 <div class="card-grid card-grid--4">
