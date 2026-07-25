@@ -8,7 +8,9 @@
 <c:if test="${not empty sessionScope.flashError}"><div class="alert alert-error">${sessionScope.flashError}</div><c:remove var="flashError" scope="session" /></c:if>
 <c:if test="${not empty sessionScope.flashOk}"><div class="alert alert-success">${sessionScope.flashOk}</div><c:remove var="flashOk" scope="session" /></c:if>
 
-<jsp:include page="../layout/_baristaShiftBanner.jsp" />
+<%-- Ca quá hạn chấm công vẫn lập được bàn giao, lúc đó banner "Ngoài ca — chỉ xem" nói ngược với
+     form đang mở ngay bên dưới. Trường hợp đó để thẻ tạo bàn giao tự giải thích. --%>
+<c:if test="${not canCreateHandover}"><jsp:include page="../layout/_baristaShiftBanner.jsp" /></c:if>
 
 <%-- Ba con số mở đầu: việc của tôi trước, tình hình chi nhánh sau. --%>
 <section class="card-grid">
@@ -35,13 +37,17 @@
 <%-- Đến từ nút tan ca: ca chưa bàn giao nên chưa được tan, nói rõ việc cần làm để tan ca. --%>
 <c:if test="${handoverRequired}"><div class="alert alert-warn"><strong>Ca của bạn chưa được bàn giao nên chưa thể tan ca.</strong> Ghi việc cần bàn giao cho ca sau rồi bấm “Lưu bàn giao &amp; Tan ca”.</div></c:if>
 
+<%-- Bàn giao mồ côi hoặc quá hạn chưa ai xác nhận: ai đang trực thì có thể nhận thay. Link bỏ
+     bộ lọc vì bàn giao mồ côi không nằm trong phạm vi "Gửi cho tôi". --%>
+<c:if test="${summary.claimable > 0}"><div class="alert alert-warn"><strong>Có ${summary.claimable} bàn giao ca trước để lại chưa ai tiếp nhận.</strong> <a href="${ctx}/barista/handover?pageSize=${handoverPage.pageSize}">Xem toàn bộ bàn giao chi nhánh</a> rồi bấm “Tiếp nhận” để nhận việc về mình.</div></c:if>
+
 <c:choose>
-  <c:when test="${onShift}">
+  <c:when test="${canCreateHandover}">
     <div class="card form-card" style="margin-bottom:var(--s5)">
       <h3 style="margin-top:0">Tạo bàn giao cho ca sau</h3>
       <c:choose>
         <c:when test="${not empty receiverPreview}">
-          <p class="alert alert-info">Người nhận: <strong><c:out value="${receiverPreview.label}" /></strong><c:if test="${receiverPreview.managerFallback}"> · chưa có ca barista kế tiếp nên quản lý sẽ nhận dự phòng</c:if></p>
+          <p class="alert alert-info">Người nhận: <strong><c:out value="${receiverPreview.label}" /></strong><c:if test="${receiverPreview.managerFallback}"> · chưa có ca barista kế tiếp nên quản lý sẽ nhận dự phòng</c:if><c:if test="${receiverPreview.unassigned}"> · chưa xếp ca sau và chi nhánh chưa có quản lý, bàn giao vẫn được lưu để người vào ca sau tiếp nhận</c:if></p>
         </c:when>
         <c:otherwise><p class="alert alert-error"><c:out value="${receiverPreviewError}" /></p></c:otherwise>
       </c:choose>
@@ -89,7 +95,10 @@
           <div class="muted" style="margin-top:6px">Tối đa 10 việc (tính cả việc tồn đã tick). Mỗi việc sẽ được ca nhận theo dõi riêng.</div>
         </div>
         <div class="form-group"><label for="handoverNote">Ghi chú chung <span class="muted">(không bắt buộc)</span></label><textarea id="handoverNote" name="note" class="form-control" rows="3" maxlength="1000" placeholder="Bối cảnh chung cho ca nhận..."></textarea></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="submit" name="action" value="create" class="btn btn-ghost">Lưu bàn giao</button><button type="submit" name="action" value="createAndClockOut" class="btn btn-primary">Lưu bàn giao &amp; Tan ca</button></div>
+        <%-- Quá hạn chấm công thì chỉ còn lưu bàn giao: giờ tan ca phải do Quản lý chốt, nhưng việc
+             tồn thì vẫn phải sang được ca sau ngay bây giờ. --%>
+        <c:if test="${not canClockOutHandover}"><div class="alert alert-warn">Ca của bạn đã quá hạn bấm tan ca. Bạn vẫn lưu được bàn giao cho ca sau; giờ tan ca nhờ Quản lý chốt giúp.</div></c:if>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="submit" name="action" value="create" class="btn ${canClockOutHandover ? 'btn-ghost' : 'btn-primary'}">Lưu bàn giao</button><c:if test="${canClockOutHandover}"><button type="submit" name="action" value="createAndClockOut" class="btn btn-primary">Lưu bàn giao &amp; Tan ca</button></c:if></div>
       </form></c:if>
     </div>
   </c:when>
@@ -144,7 +153,7 @@
 
 <c:choose><c:when test="${empty handoverPage.items}"><div class="card empty-state"><div class="icon">∅</div><p>Không có bàn giao nào khớp bộ lọc.</p></div></c:when><c:otherwise>
   <c:forEach var="h" items="${handoverPage.items}">
-    <article id="h${h.shiftHandoverId}" class="card handover-card ${h.canAcknowledge ? 'is-actionable' : ''}">
+    <article id="h${h.shiftHandoverId}" class="card handover-card ${h.canAcknowledge or h.claimable ? 'is-actionable' : ''}">
       <div class="handover-card__head">
         <div>
           <h3>Bàn giao bởi <c:out value="${h.createdByName}" /><c:if test="${h.currentUserCreator}"> <span class="badge badge-served">Bạn gửi</span></c:if></h3>
@@ -166,6 +175,15 @@
         <div class="muted" style="margin:var(--s3) 0">
           <strong>Người nhận (${h.acknowledgedCount}/${h.recipientCount} đã nhận):</strong>
           <c:forEach var="r" items="${h.recipients}" varStatus="loop"><c:out value="${r.recipientName}" /> <span class="badge ${r.acknowledged ? 'badge-ready' : 'badge-waiting'}">${r.acknowledged ? 'Đã nhận' : 'Chưa nhận'}</span><c:if test="${not empty r.shiftLabel}"> · <c:out value="${r.shiftLabel}" /></c:if><c:if test="${not loop.last}">; </c:if></c:forEach>
+        </div>
+      </c:if>
+
+      <%-- Bàn giao mồ côi hoặc quá hạn chưa ai xác nhận: người đang trực tự đứng ra nhận.
+           Nhận là gánh việc luôn, nên nói rõ trước khi bấm thay vì chỉ hiện một cái nút. --%>
+      <c:if test="${h.claimable}">
+        <div class="${onShift ? '' : 'is-viewonly'}" style="margin:var(--s3) 0">
+          <div class="muted" style="margin-bottom:6px">Bàn giao này chưa ai xác nhận và đang cần người trực nhận thay. Tiếp nhận để các việc bên dưới về danh sách của bạn.</div>
+          <form action="${ctx}/barista/handover" method="post"><input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="claim"><input type="hidden" name="handoverId" value="${h.shiftHandoverId}">${keepFilters}<button class="btn btn-primary">Tiếp nhận bàn giao này</button></form>
         </div>
       </c:if>
 

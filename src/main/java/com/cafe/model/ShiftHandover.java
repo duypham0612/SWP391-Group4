@@ -10,6 +10,12 @@ import java.util.List;
 
 /** hr.ShiftHandover — ghi chú bàn giao ca (Barista, B7). */
 public class ShiftHandover {
+    /**
+     * Sau ngưỡng này, nếu chưa người nhận nào xác nhận thì barista đang trực được nhận thay.
+     * Mốc tính từ lúc lập bàn giao và dùng chung với điều kiện ghi/đếm trong ShiftHandoverDao.
+     */
+    public static final int CLAIM_AFTER_HOURS = 4;
+
     private int shiftHandoverId;
     private int branchId;
     private String note;
@@ -26,6 +32,7 @@ public class ShiftHandover {
     private boolean currentUserRecipient;
     private boolean currentUserAcknowledged;
     private boolean currentUserCreator;
+    private boolean claimable;
 
     public int getShiftHandoverId() { return shiftHandoverId; }
     public void setShiftHandoverId(int v) { this.shiftHandoverId = v; }
@@ -61,6 +68,31 @@ public class ShiftHandover {
     public void setCurrentUserAcknowledged(boolean v) { this.currentUserAcknowledged = v; }
     public boolean isCurrentUserCreator() { return currentUserCreator; }
     public void setCurrentUserCreator(boolean v) { this.currentUserCreator = v; }
+    /**
+     * Bàn giao chưa có người nhận, hoặc đã quá hạn mà chưa ai xác nhận — người đang trực nhận được.
+     * Tách khỏi {@link #isCanAcknowledge()} vì xác nhận dành cho người đã được chỉ định, còn nhận
+     * thay là tự đứng ra gánh phần việc ca trước đang bị kẹt.
+     */
+    public boolean isClaimable() { return claimable; }
+    public void setClaimable(boolean v) { this.claimable = v; }
+
+    /**
+     * Gán các cờ phụ thuộc người đang xem, sau khi người nhận đã được nạp xong.
+     * Luật ở đây phải khớp với claimStale/countClaimableInBranch trong ShiftHandoverDao:
+     * chỉ WAITING_RECEIPT, chưa ai xác nhận, người xem chưa nằm trong danh sách nhận và không phải
+     * người gửi; bàn giao mồ côi nhận ngay, bàn giao đã có người nhận chỉ nhận thay khi quá hạn.
+     */
+    public void applyViewer(int currentUserId) {
+        this.currentUserCreator = createdBy == currentUserId;
+        boolean noneAcknowledged = getAcknowledgedCount() == 0;
+        boolean stale = createdAt != null
+                && createdAt.isBefore(LocalDateTime.now(ZoneOffset.UTC).minusHours(CLAIM_AFTER_HOURS));
+        this.claimable = "WAITING_RECEIPT".equals(overallStatus)
+                && createdBy != currentUserId
+                && !currentUserRecipient
+                && noneAcknowledged
+                && (recipients.isEmpty() || stale);
+    }
     public boolean isCanAcknowledge() { return currentUserRecipient && !currentUserAcknowledged; }
     public boolean isCanUpdateTasks() { return currentUserRecipient && currentUserAcknowledged; }
     public boolean isLegacy() { return "LEGACY".equals(overallStatus); }

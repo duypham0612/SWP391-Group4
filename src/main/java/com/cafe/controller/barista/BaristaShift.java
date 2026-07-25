@@ -37,11 +37,25 @@ public final class BaristaShift {
 
     /** Nạp trạng thái chấm công cho JSP: clockStatus, onShift, clockPostUrl (nút Vào ca post về đây), handoverUrl. */
     public static void expose(HttpServletRequest req, String selfPath) throws SQLException {
+        expose(req, selfPath, true);
+    }
+
+    /**
+     * Nạp trạng thái trực ca dùng chung. Fragment AJAX của KDS không render cảnh báo bàn giao nên
+     * có thể bỏ truy vấn đếm; các trang đầy đủ luôn dùng overload mặc định ở trên.
+     */
+    public static void expose(HttpServletRequest req, String selfPath, boolean includeHandoverCount)
+            throws SQLException {
         ShiftClockStatus status = status(req);
         req.setAttribute("clockStatus", status);
         req.setAttribute("onShift", status != null && status.isCanClockOut());
         req.setAttribute("clockPostUrl", req.getContextPath() + selfPath);
         req.setAttribute("handoverUrl", req.getContextPath() + HANDOVER_PATH);
+        User user = SessionUtil.currentUser(req);
+        if (includeHandoverCount && user != null) {
+            req.setAttribute("pendingHandoverCount", handover.countUnacknowledgedForUser(
+                    InventoryDashboardServlet.branchId(req), user.getUserId()));
+        }
     }
 
     /** True nếu barista đang trong ca (đã vào, chưa tan). Lỗi → coi như ngoài ca (fail-closed, an toàn). */

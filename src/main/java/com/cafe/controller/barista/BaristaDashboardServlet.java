@@ -4,9 +4,6 @@ import com.cafe.controller.manager.InventoryDashboardServlet;
 import com.cafe.model.BranchInventory;
 import com.cafe.model.BranchMenuItem;
 import com.cafe.model.OrderItem;
-import com.cafe.service.barista.HandoverService;
-import com.cafe.common.SessionUtil;
-import com.cafe.model.User;
 import com.cafe.service.barista.KdsService;
 import com.cafe.service.barista.WasteService;
 import com.cafe.service.shared.BranchMenuService;
@@ -27,7 +24,6 @@ import java.util.List;
 public class BaristaDashboardServlet extends HttpServlet {
 
     private final KdsService kdsService = new KdsService();
-    private final HandoverService handoverService = new HandoverService();
     private final WasteService wasteService = new WasteService();
     private final InventoryService inventoryService = new InventoryService();
     private final BranchMenuService branchMenuService = new BranchMenuService();
@@ -53,11 +49,9 @@ public class BaristaDashboardServlet extends HttpServlet {
             }
             List<OrderItem> readyItems = board.get("ready");
             List<OrderItem> blocked = board.get("blocked");
-            List<OrderItem> staleItems = kdsService.getStaleItems(branchId, dayStart);
             WasteSummary wasteSummary = wasteService.getTodayWasteSummary(branchId);
             List<BranchInventory> lowStock = inventoryService.getLowStock(branchId);
             List<BranchMenuItem> menuItems = branchMenuService.getMenuAvailability(branchId);
-            User currentUser = SessionUtil.currentUser(req);
             BaristaShift.expose(req, MyShiftServlet.PATH);
 
             int eightySixCount = 0;
@@ -85,15 +79,11 @@ public class BaristaDashboardServlet extends HttpServlet {
             req.setAttribute("queueCount", cupCount(queue));
             req.setAttribute("readyCount", cupCount(readyItems));
             req.setAttribute("blockedCount", cupCount(blocked));
-            req.setAttribute("staleCount", cupCount(staleItems));
             req.setAttribute("lowStockCount", lowStock.size());
             req.setAttribute("eightySixCount", eightySixCount);
             req.setAttribute("oversoldCount", oversoldCount);
             req.setAttribute("suggest86Count", branchMenuService.getSuggested86(branchId).size());
             req.setAttribute("alertCount", lowStock.size() + eightySixCount);
-            if (currentUser != null && BaristaShift.onShift(req)) {
-                req.setAttribute("pendingHandoverCount", handoverService.countUnacknowledgedForUser(branchId, currentUser.getUserId()));
-            }
             req.setAttribute("pageTitle", "Bảng điều khiển ca");
             req.getRequestDispatcher("/WEB-INF/views/barista/dashboard.jsp").forward(req, resp);
         } catch (Exception e) {

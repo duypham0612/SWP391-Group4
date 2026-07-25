@@ -52,6 +52,42 @@ class ShiftHandoverProgressTest {
         assertFalse(new ShiftHandover().isAwaitingReceipt());
     }
 
+    /**
+     * Bàn giao ca trước để lại lúc chưa xếp được người nhận: người đang trực phải nhận thay được,
+     * nếu không thì việc tồn nằm mãi không ai đụng tới.
+     */
+    @Test
+    void handoverWithoutRecipientsIsClaimableByAnotherBarista() {
+        ShiftHandover h = handoverFrom(7, "WAITING_RECEIPT");
+        h.applyViewer(9);
+        assertTrue(h.isClaimable());
+        assertFalse(h.isCurrentUserCreator());
+    }
+
+    @Test
+    void senderCannotClaimBackTheirOwnHandover() {
+        ShiftHandover h = handoverFrom(7, "WAITING_RECEIPT");
+        h.applyViewer(7);
+        assertFalse(h.isClaimable());
+        assertTrue(h.isCurrentUserCreator());
+    }
+
+    @Test
+    void handoverWithRecipientsIsNotClaimable() {
+        ShiftHandover h = handoverFrom(7, "WAITING_RECEIPT");
+        h.setRecipients(List.of(recipient(false)));
+        h.applyViewer(9);
+        assertFalse(h.isClaimable());
+    }
+
+    /** Dữ liệu cũ vốn không có người nhận — tính là chờ nhận thì cả lịch sử sẽ mời bấm tiếp nhận. */
+    @Test
+    void legacyHandoversAreNeverClaimable() {
+        ShiftHandover h = handoverFrom(7, "LEGACY");
+        h.applyViewer(9);
+        assertFalse(h.isClaimable());
+    }
+
     @Test
     void ageDisplayScalesFromMinutesToDays() {
         assertEquals("vừa xong", handoverCreatedMinutesAgo(0).getAgeDisplay());
@@ -76,6 +112,13 @@ class ShiftHandoverProgressTest {
         List<ShiftHandoverTask> tasks = new java.util.ArrayList<>();
         for (String status : statuses) { ShiftHandoverTask t = new ShiftHandoverTask(); t.setStatus(status); tasks.add(t); }
         h.setTasks(tasks);
+        return h;
+    }
+
+    private static ShiftHandover handoverFrom(int createdBy, String overallStatus) {
+        ShiftHandover h = new ShiftHandover();
+        h.setCreatedBy(createdBy);
+        h.setOverallStatus(overallStatus);
         return h;
     }
 

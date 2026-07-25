@@ -199,6 +199,53 @@ public class ShiftHandoverDao {
         return result;
     }
 
+    /**
+     * Đếm đúng các bàn giao mà người đang xem có thể nhận thay. Điều kiện phải khớp với
+     * {@link #claimStale} và ShiftHandover.applyViewer để số cảnh báo, nút và quyền ghi không lệch.
+     */
+    public int countClaimableInBranch(Connection conn, int branchId, int userId, int staleAfterHours)
+            throws SQLException {
+        final String sql = "SELECT COUNT(*) FROM hr.ShiftHandover sh WHERE sh.BranchId=? AND sh.CreatedBy<>? " +
+            "AND sh.OverallStatus='WAITING_RECEIPT' " +
+            "AND NOT EXISTS (SELECT 1 FROM hr.ShiftHandoverRecipient a WHERE a.ShiftHandoverId=sh.ShiftHandoverId AND a.AcknowledgedAt IS NOT NULL) " +
+            "AND NOT EXISTS (SELECT 1 FROM hr.ShiftHandoverRecipient m WHERE m.ShiftHandoverId=sh.ShiftHandoverId AND m.RecipientUserId=?) " +
+            "AND (NOT EXISTS (SELECT 1 FROM hr.ShiftHandoverRecipient r WHERE r.ShiftHandoverId=sh.ShiftHandoverId) " +
+            "     OR sh.CreatedAt < DATEADD(HOUR, -?, SYSUTCDATETIME()))";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId); ps.setInt(2, userId); ps.setInt(3, userId);
+            ps.setInt(4, staleAfterHours);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getInt(1) : 0; }
+        }
+    }
+
+    /**
+     * Ca sau tự đứng ra nhận một bàn giao mồ côi hoặc quá hạn chưa ai xác nhận: chèn thẳng dòng
+     * người nhận đã xác nhận.
+     *
+     * <p>Toàn bộ điều kiện nằm trong mệnh đề WHERE của INSERT…SELECT chứ không kiểm ở Java, nên hai
+     * barista bấm cùng lúc thì người sau chèn 0 dòng và nhận báo xung đột thay vì cả hai cùng nhận.
+     * {@code UPDLOCK} khoá dòng bàn giao cha để hai giao dịch không cùng thấy "chưa ai xác nhận".
+     * Điều kiện phải khớp với {@link #countClaimableInBranch} và ShiftHandover.applyViewer.
+     */
+    public boolean claimStale(Connection conn, int handoverId, int branchId, int userId,
+                              Integer assignmentId, int staleAfterHours) throws SQLException {
+        final String sql = "INSERT INTO hr.ShiftHandoverRecipient(ShiftHandoverId,RecipientUserId,RecipientShiftAssignmentId,RecipientType,AcknowledgedAt) " +
+            "SELECT sh.ShiftHandoverId, ?, ?, 'NEXT_SHIFT', SYSUTCDATETIME() " +
+            "FROM hr.ShiftHandover sh WITH (UPDLOCK, HOLDLOCK) " +
+            "WHERE sh.ShiftHandoverId=? AND sh.BranchId=? AND sh.CreatedBy<>? AND sh.OverallStatus='WAITING_RECEIPT' " +
+            "AND NOT EXISTS (SELECT 1 FROM hr.ShiftHandoverRecipient a WHERE a.ShiftHandoverId=sh.ShiftHandoverId AND a.AcknowledgedAt IS NOT NULL) " +
+            "AND NOT EXISTS (SELECT 1 FROM hr.ShiftHandoverRecipient m WHERE m.ShiftHandoverId=sh.ShiftHandoverId AND m.RecipientUserId=?) " +
+            "AND (NOT EXISTS (SELECT 1 FROM hr.ShiftHandoverRecipient r WHERE r.ShiftHandoverId=sh.ShiftHandoverId) " +
+            "     OR sh.CreatedAt < DATEADD(HOUR, -?, SYSUTCDATETIME()))";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            if (assignmentId == null) ps.setNull(2, java.sql.Types.INTEGER); else ps.setInt(2, assignmentId);
+            ps.setInt(3, handoverId); ps.setInt(4, branchId); ps.setInt(5, userId);
+            ps.setInt(6, userId); ps.setInt(7, staleAfterHours);
+            return ps.executeUpdate() == 1;
+        }
+    }
+
     public int countUnacknowledgedForUser(Connection conn, int branchId, int userId) throws SQLException {
         final String sql = "SELECT COUNT(*) FROM hr.ShiftHandoverRecipient r JOIN hr.ShiftHandover h ON h.ShiftHandoverId=r.ShiftHandoverId " +
             "WHERE h.BranchId=? AND r.RecipientUserId=? AND r.AcknowledgedAt IS NULL AND h.OverallStatus <> 'LEGACY'";
@@ -228,15 +275,23 @@ public class ShiftHandoverDao {
     }
 
     public void refreshOverallStatus(Connection conn, int handoverId) throws SQLException {
-        int recipients = count(conn, "SELECT COUNT(*) FROM hr.ShiftHandoverRecipient WHERE ShiftHandoverId=?", handoverId);
         int acknowledged = count(conn, "SELECT COUNT(*) FROM hr.ShiftHandoverRecipient WHERE ShiftHandoverId=? AND AcknowledgedAt IS NOT NULL", handoverId);
         int tasks = count(conn, "SELECT COUNT(*) FROM hr.ShiftHandoverTask WHERE ShiftHandoverId=?", handoverId);
         int done = count(conn, "SELECT COUNT(*) FROM hr.ShiftHandoverTask WHERE ShiftHandoverId=? AND Status='DONE'", handoverId);
-        String status = recipients > 0 && recipients == acknowledged && tasks > 0 && tasks == done ? "COMPLETED"
-            : (acknowledged > 0 ? "IN_PROGRESS" : "WAITING_RECEIPT");
+        String status = overallStatus(acknowledged, tasks, done);
         try (PreparedStatement ps = conn.prepareStatement("UPDATE hr.ShiftHandover SET OverallStatus=? WHERE ShiftHandoverId=?")) {
             ps.setString(1, status); ps.setInt(2, handoverId); ps.executeUpdate();
         }
+    }
+
+    /**
+     * Bàn giao hoàn tất khi đã có ít nhất một người thực sự tiếp nhận và toàn bộ đầu việc đã xong.
+     * Không đòi mọi người được chỉ định cùng xác nhận: ca nhiều người hoặc người nhận thay quá hạn
+     * vẫn phải đóng được bàn giao khi công việc thực tế đã hoàn tất.
+     */
+    static String overallStatus(int acknowledged, int tasks, int done) {
+        return acknowledged > 0 && tasks > 0 && tasks == done ? "COMPLETED"
+            : (acknowledged > 0 ? "IN_PROGRESS" : "WAITING_RECEIPT");
     }
 
     private int count(Connection conn, String sql, int handoverId) throws SQLException {
@@ -283,7 +338,7 @@ public class ShiftHandoverDao {
                 h.getTasks().add(t);
             }}
         }
-        for (ShiftHandover h : handovers) h.setCurrentUserCreator(h.getCreatedBy() == currentUserId);
+        for (ShiftHandover h : handovers) h.applyViewer(currentUserId);
     }
 
     private static String placeholders(int size) {

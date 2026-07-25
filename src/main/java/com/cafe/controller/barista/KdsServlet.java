@@ -55,7 +55,7 @@ public class KdsServlet extends HttpServlet {
             loadBoard(req, branchId);
             req.setAttribute("pageTitle", "Quầy pha chế");
             boolean partial = "1".equals(req.getParameter("partial"));
-            BaristaShift.expose(req, "/barista/kds");
+            BaristaShift.expose(req, "/barista/kds", !partial);
             String view = partial
                     ? "/WEB-INF/views/barista/kds_cards.jsp"
                     : "/WEB-INF/views/barista/kds.jsp";
@@ -180,7 +180,7 @@ public class KdsServlet extends HttpServlet {
             throws SQLException, ServletException, IOException {
         if ("1".equals(req.getParameter("ajax"))) {
             loadBoard(req, branchId);
-            BaristaShift.expose(req, "/barista/kds");
+            BaristaShift.expose(req, "/barista/kds", false);
             req.getRequestDispatcher("/WEB-INF/views/barista/kds_cards.jsp").forward(req, resp);
         } else {
             resp.sendRedirect(req.getContextPath() + "/barista/kds");
@@ -270,7 +270,7 @@ public class KdsServlet extends HttpServlet {
         // Món dang dở của ngày kinh doanh TRƯỚC cố ý KHÔNG hiện ở màn này nữa. Mốc cắt ngày kinh
         // doanh nằm sau giờ đóng cửa nhiều tiếng nên khách của những ly đó đã về: việc đúng là Thu
         // ngân huỷ & hoàn tiền ở Đơn đến, còn "pha nốt" tại quầy sẽ trừ kho thật cho ly không ai
-        // uống. Cảnh báo vẫn còn ở dashboard barista (staleCount) để không ai quên là còn nợ ly đó.
+        // uống.
 
         req.setAttribute("currentUserId", currentUserId == null ? 0 : currentUserId);
         req.setAttribute("handoverLocations", com.cafe.common.Constants.HANDOVER_LOCATIONS);

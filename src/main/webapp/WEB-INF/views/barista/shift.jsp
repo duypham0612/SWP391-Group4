@@ -26,11 +26,7 @@
     </div>
 </c:if>
 
-<c:if test="${pendingHandoverCount > 0}">
-    <a class="alert alert-warn" href="${ctx}/barista/handover" style="display:block;margin-top:var(--s4);text-decoration:none">
-        <strong>Có ${pendingHandoverCount} bàn giao ca bạn chưa xác nhận.</strong> Mở để tiếp nhận và xử lý các việc còn lại →
-    </a>
-</c:if>
+<jsp:include page="../layout/_handoverPendingAlert.jsp" />
 
 <c:if test="${not empty monthSummary}">
     <div class="page-header" style="margin-top:var(--s6)">
@@ -95,6 +91,8 @@
         <div class="alert alert-warn">
             Có ${monthSummary.openCount} ca bạn quên bấm Tan ca — những ca này chưa được tính giờ.
             Báo quản lý để chỉnh giúp.
+            <%-- Giờ công cần Quản lý, nhưng việc tồn của ca đó thì barista vẫn tự giao được ngay. --%>
+            Nếu ca đó còn việc chưa giao cho ai, sang <a href="${ctx}/barista/handover">Bàn giao ca</a> lưu lại trước khi quên.
         </div>
     </c:if>
 

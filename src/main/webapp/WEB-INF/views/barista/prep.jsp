@@ -25,6 +25,7 @@
 </c:if>
 
 <jsp:include page="../layout/_baristaShiftBanner.jsp" />
+<jsp:include page="../layout/_handoverPendingAlert.jsp" />
 
 <div class="${onShift ? '' : 'is-viewonly'}">
 <%-- ===== Mẻ pha sẵn quá hạn: cắt theo ExpiresAt, không theo MadeAt ===== --%>

@@ -99,4 +99,4 @@
 <%-- Món dang dở từ ngày kinh doanh TRƯỚC KHÔNG còn hiện ở đây. Quán đã đóng cửa trước mốc cắt
      ngày kinh doanh nhiều giờ nên khách của những ly đó đã về: việc đúng là Thu ngân huỷ &
      hoàn tiền, không phải pha nốt — mà "pha nốt" ở màn này còn trừ kho thật cho ly không ai uống.
-     Cảnh báo vẫn còn ở dashboard barista (staleCount), chỗ xử lý là Đơn đến của Thu ngân. --%>
+     Chỗ xử lý là màn Đơn đến của Thu ngân. --%>
