@@ -101,11 +101,11 @@ public class ProductService {
         }
     }
 
-    /** Publish 1 product vào BranchMenu của 1 chi nhánh (mặc định bán, chưa 86, giá gốc). */
+    /** Publish 1 product vào BranchMenu của 1 chi nhánh (mặc định bán, giá gốc). Cờ 86 do luồng báo hết quản. */
     public void publishToBranch(int productId, int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
-            try { branchMenuDao.upsert(conn, branchId, productId, true, null, false); conn.commit(); }
+            try { branchMenuDao.upsert(conn, branchId, productId, true, null); conn.commit(); }
             catch (SQLException e) { conn.rollback(); throw e; }
             finally { conn.setAutoCommit(true); }
         }
@@ -117,7 +117,7 @@ public class ProductService {
             conn.setAutoCommit(false);
             try {
                 for (int productId : productIds) {
-                    branchMenuDao.upsert(conn, branchId, productId, true, null, false);
+                    branchMenuDao.upsert(conn, branchId, productId, true, null);
                 }
                 conn.commit();
             } catch (SQLException e) { conn.rollback(); throw e; }

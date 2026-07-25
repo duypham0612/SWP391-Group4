@@ -45,45 +45,39 @@
 <div class="recipe-layout">
     <section id="recipeResults" class="card recipe-results-card" aria-labelledby="recipeResultsTitle">
         <div class="recipe-card__head">
-            <div><div class="eyebrow">Danh sách</div><h2 id="recipeResultsTitle">Món (${total})</h2></div>
-            <span class="recipe-count"><c:out value="${total}"/> món</span>
+            <div><div class="eyebrow">Danh sách</div><h2 id="recipeResultsTitle">Món</h2></div>
+            <span class="recipe-count" data-recipe-total><c:out value="${total}"/> món</span>
         </div>
         <c:choose>
             <c:when test="${empty products}">
                 <div class="empty-state"><div class="icon">∅</div><p>Không có món phù hợp.</p></div>
             </c:when>
             <c:otherwise>
-                <div class="recipe-table-wrap">
-                <table class="table recipe-results-table">
-                    <thead><tr><th>Món</th><th style="width:90px"></th></tr></thead>
-                    <tbody>
-                        <c:forEach var="p" items="${products}">
-                            <c:url var="viewUrl" value="/barista/recipe">
-                                <c:param name="productId" value="${p.productId}" />
-                                <c:if test="${not empty q or not empty fCategoryId or not empty fRecipeState or not fBranchOnly}">
-                                    <c:param name="filter" value="1" />
-                                </c:if>
-                                <c:if test="${not empty q}"><c:param name="q" value="${q}" /></c:if>
-                                <c:if test="${not empty fCategoryId}"><c:param name="categoryId" value="${fCategoryId}" /></c:if>
-                                <c:if test="${not empty fRecipeState}"><c:param name="recipeState" value="${fRecipeState}" /></c:if>
-                                <c:if test="${fBranchOnly}"><c:param name="branchOnly" value="1" /></c:if>
-                                <c:if test="${page > 1}"><c:param name="page" value="${page}" /></c:if>
-                            </c:url>
-                            <tr>
-                                <td>
-                                    <a class="recipe-product-link" href="${viewUrl}" data-recipe-select
-                                       <c:if test="${selected.productId == p.productId}">aria-current="true"</c:if>>
-                                        <strong class="recipe-product-name"><c:out value="${p.name}"/></strong><br>
-                                        <small><c:out value="${p.categoryName}"/></small>
-                                    </a>
-                                </td>
-                                <td>
-                                    <a class="btn btn-ghost btn-sm" href="${viewUrl}" data-recipe-select aria-label="Xem công thức: <c:out value='${p.name}'/>">Xem</a>
-                                </td>
-                            </tr>
-                        </c:forEach>
-                    </tbody>
-                </table>
+                <div class="recipe-product-scroll">
+                <ul class="recipe-product-list">
+                    <c:forEach var="p" items="${products}">
+                        <c:url var="viewUrl" value="/barista/recipe">
+                            <c:param name="productId" value="${p.productId}" />
+                            <c:if test="${not empty q or not empty fCategoryId or not empty fRecipeState or not fBranchOnly}">
+                                <c:param name="filter" value="1" />
+                            </c:if>
+                            <c:if test="${not empty q}"><c:param name="q" value="${q}" /></c:if>
+                            <c:if test="${not empty fCategoryId}"><c:param name="categoryId" value="${fCategoryId}" /></c:if>
+                            <c:if test="${not empty fRecipeState}"><c:param name="recipeState" value="${fRecipeState}" /></c:if>
+                            <c:if test="${fBranchOnly}"><c:param name="branchOnly" value="1" /></c:if>
+                            <c:if test="${page > 1}"><c:param name="page" value="${page}" /></c:if>
+                        </c:url>
+                        <li>
+                            <a class="recipe-product-link" href="${viewUrl}" data-recipe-select
+                               <c:if test="${selected.productId == p.productId}">aria-current="true"</c:if>>
+                                <strong class="recipe-product-name"><c:out value="${p.name}"/></strong>
+                                <small class="recipe-product-cat">
+                                    <c:out value="${p.categoryName}"/><c:if test="${p.hasRecipe eq false}"> · <span class="recipe-norecipe-tag">Chưa có công thức</span></c:if>
+                                </small>
+                            </a>
+                        </li>
+                    </c:forEach>
+                </ul>
                 </div>
                 <c:if test="${totalPages > 1}">
                     <div class="pagination" style="justify-content:center;margin-top:16px">
@@ -143,7 +137,18 @@
     <article id="recipeDetail" class="card recipe-detail-card" aria-live="polite" aria-atomic="false">
         <c:choose>
             <c:when test="${empty selected}">
-                <div class="empty-state"><div class="icon">☕</div><p><c:choose><c:when test="${not empty recipeLookupNotice}"><c:out value="${recipeLookupNotice}"/></c:when><c:otherwise>Chọn một món để xem công thức.</c:otherwise></c:choose></p></div>
+                <div class="empty-state recipe-empty">
+                    <div class="icon">☕</div>
+                    <c:choose>
+                        <c:when test="${not empty recipeLookupNotice}">
+                            <p><c:out value="${recipeLookupNotice}"/></p>
+                        </c:when>
+                        <c:otherwise>
+                            <p>Chọn một món ở danh sách bên trái để xem công thức.</p>
+                            <p class="recipe-empty__hint">Mỗi món hiển thị định mức cho 1 phần, định mức pha sẵn của đồ nền và mức cộng/trừ theo từng modifier.</p>
+                        </c:otherwise>
+                    </c:choose>
+                </div>
             </c:when>
             <c:otherwise>
                 <div class="recipe-detail-card__head">
@@ -159,14 +164,14 @@
                             <p class="recipe-muted">Chưa khai báo công thức cho món này.</p>
                         </c:when>
                         <c:otherwise>
-                            <div class="recipe-table-wrap"><table class="table">
+                            <div class="recipe-table-wrap"><table class="table recipe-stack-table recipe-stack-table--lead">
                                 <thead><tr><th>Nguyên liệu</th><th style="width:120px">Định mức</th><th style="width:110px">Loại</th></tr></thead>
                                 <tbody>
                                     <c:forEach var="r" items="${recipe}">
                                         <tr>
-                                            <td><c:out value="${r.ingredientName}"/></td>
-                                            <td class="recipe-qty"><strong><c:out value="${r.quantityDisplay}"/></strong> <c:out value="${r.ingredientUnit}"/></td>
-                                            <td>
+                                            <td data-label="Nguyên liệu"><c:out value="${r.ingredientName}"/></td>
+                                            <td class="recipe-qty" data-label="Định mức"><strong><c:out value="${r.quantityDisplay}"/></strong> <c:out value="${r.ingredientUnit}"/></td>
+                                            <td data-label="Loại">
                                                 <c:choose>
                                                     <c:when test="${r.ingredientType == 'PREPPED'}"><span class="badge recipe-badge-prepped">Pha sẵn</span></c:when>
                                                     <c:otherwise><span class="badge recipe-badge-raw">Thô</span></c:otherwise>
@@ -186,12 +191,36 @@
                         <p class="recipe-section__hint">Nguyên liệu thô cần dùng để tạo đồ nền.</p>
                         <c:forEach var="ps" items="${preps}">
                             <div class="recipe-prep-card">
-                                <div class="recipe-prep-card__head"><strong><c:out value="${ps.name}"/></strong><span class="recipe-prep-card__unit">Đơn vị thành phẩm: <c:out value="${ps.unit}"/></span></div>
-                                <div class="recipe-table-wrap"><table class="table">
-                                    <thead><tr><th>Nguyên liệu thô</th><th style="width:150px">Lượng dùng</th><th style="width:150px">Sản lượng</th></tr></thead>
+                                <div class="recipe-prep-card__head">
+                                    <strong><c:out value="${ps.name}"/></strong>
+                                    <c:choose>
+                                        <c:when test="${not empty ps.sharedYieldDisplay}">
+                                            <span class="recipe-prep-card__yield">1 mẻ → <strong><c:out value="${ps.sharedYieldDisplay}"/></strong> <c:out value="${ps.unit}"/></span>
+                                        </c:when>
+                                        <c:otherwise>
+                                            <span class="recipe-prep-card__unit">Đơn vị thành phẩm: <c:out value="${ps.unit}"/></span>
+                                        </c:otherwise>
+                                    </c:choose>
+                                </div>
+                                <div class="recipe-table-wrap"><table class="table recipe-stack-table recipe-stack-table--lead">
+                                    <thead>
+                                        <tr>
+                                            <th>Nguyên liệu thô</th>
+                                            <th style="width:150px">Lượng dùng</th>
+                                            <%-- Sản lượng là thuộc tính của mẻ, không phải của từng dòng: chỉ giữ cột
+                                                 khi các dòng khai báo yield lệch nhau, còn lại đã đưa lên đầu thẻ. --%>
+                                            <c:if test="${empty ps.sharedYieldDisplay}"><th style="width:150px">Sản lượng</th></c:if>
+                                        </tr>
+                                    </thead>
                                     <tbody>
                                         <c:forEach var="l" items="${ps.lines}">
-                                            <tr><td><c:out value="${l.rawIngredientName}"/></td><td class="recipe-qty"><c:out value="${l.quantityDisplay}"/> <c:out value="${l.rawIngredientUnit}"/></td><td class="recipe-qty"><strong><c:out value="${l.yieldDisplay}"/></strong> <c:out value="${ps.unit}"/></td></tr>
+                                            <tr>
+                                                <td data-label="Nguyên liệu thô"><c:out value="${l.rawIngredientName}"/></td>
+                                                <td class="recipe-qty" data-label="Lượng dùng"><strong><c:out value="${l.quantityDisplay}"/></strong> <c:out value="${l.rawIngredientUnit}"/></td>
+                                                <c:if test="${empty ps.sharedYieldDisplay}">
+                                                    <td class="recipe-qty" data-label="Sản lượng"><strong><c:out value="${l.yieldDisplay}"/></strong> <c:out value="${ps.unit}"/></td>
+                                                </c:if>
+                                            </tr>
                                         </c:forEach>
                                     </tbody>
                                 </table></div>
@@ -208,19 +237,27 @@
                             <p class="recipe-muted">Modifier không ảnh hưởng định mức (hoặc chưa khai báo).</p>
                         </c:when>
                         <c:otherwise>
-                            <div class="recipe-table-wrap"><table class="table">
+                            <div class="recipe-table-wrap"><table class="table recipe-impact-table recipe-stack-table">
                                 <thead><tr><th>Nhóm</th><th>Tuỳ chọn</th><th>Nguyên liệu</th><th style="width:130px">Thay đổi</th></tr></thead>
                                 <tbody>
+                                    <%-- Kẻ đậm giữa các nhóm để 8 dòng đọc thành 3 cụm Size / Đường / Đá. --%>
+                                    <c:set var="prevGroup" value="" />
                                     <c:forEach var="im" items="${impacts}">
-                                        <tr>
-                                            <td><c:out value="${im.groupName}"/></td>
-                                            <td><c:out value="${im.optionName}"/></td>
-                                            <td><c:out value="${im.ingredientName}"/></td>
-                                            <td class="recipe-impact-delta"><strong><c:if test="${im.qtyDelta > 0}">+</c:if><c:out value="${im.qtyDelta}"/></strong> <c:out value="${im.ingredientUnit}"/></td>
+                                        <tr <c:if test="${not empty prevGroup and im.groupName ne prevGroup}">class="is-group-start"</c:if>>
+                                            <td data-label="Nhóm"><c:out value="${im.groupName}"/></td>
+                                            <td data-label="Tuỳ chọn"><c:out value="${im.optionName}"/></td>
+                                            <%-- Bọc trong 1 span để ở chế độ thẻ (mobile) tên và dấu * không bị
+                                                 tách thành 2 flex item riêng, tránh khoảng hở giữa chúng. --%>
+                                            <td data-label="Nguyên liệu"><span><c:out value="${im.ingredientName}"/><c:if test="${not im.inBaseRecipe}"><sup class="recipe-extra-mark" title="Không có trong định mức chuẩn của món">*</sup></c:if></span></td>
+                                            <td class="recipe-impact-delta" data-label="Thay đổi"><strong><c:out value="${im.qtyDeltaDisplay}"/></strong> <c:out value="${im.ingredientUnit}"/></td>
                                         </tr>
+                                        <c:set var="prevGroup" value="${im.groupName}" />
                                     </c:forEach>
                                 </tbody>
                             </table></div>
+                            <c:if test="${hasExtraIngredient}">
+                                <p class="recipe-section__foot"><span class="recipe-extra-mark">*</span> Nguyên liệu không có trong định mức chuẩn ở trên — modifier tự cộng/trừ khi khách chọn.</p>
+                            </c:if>
                         </c:otherwise>
                     </c:choose>
                 </section>
@@ -292,8 +329,10 @@
         if (push) window.history.replaceState(null, '', url);
         syncClear();
         if (liveStatus) {
-            var heading = nextResults.querySelector('h2');
-            liveStatus.textContent = heading ? heading.textContent.trim() + ' đã được cập nhật.' : 'Kết quả tra cứu đã được cập nhật.';
+            // Số lượng nằm ở pill đếm, không còn trong <h2> — đọc đúng chỗ để screen reader
+            // vẫn nghe được "15 món" sau mỗi lần lọc.
+            var count = nextResults.querySelector('[data-recipe-total]');
+            liveStatus.textContent = count ? 'Kết quả: ' + count.textContent.trim() + '.' : 'Kết quả tra cứu đã được cập nhật.';
         }
         return true;
     }

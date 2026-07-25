@@ -29,9 +29,13 @@ public class PrepBatchDao {
         }
     }
 
+    private static final String COLUMNS =
+        "pb.PrepBatchId, pb.BranchId, pb.PreppedIngredientId, pb.QuantityProduced, pb.MadeBy, pb.MadeAt, " +
+        "pb.ExpiresAt, pb.Status, pb.VoidedAt, pb.WrittenOffAt, pb.WriteOffWasteLogId, " +
+        "i.Name AS IngName, i.Unit AS IngUnit, u.FullName AS MadeByName ";
+
     private static final String SELECT =
-        "SELECT pb.PrepBatchId, pb.BranchId, pb.PreppedIngredientId, pb.QuantityProduced, pb.MadeBy, pb.MadeAt, pb.ExpiresAt, pb.Status, pb.VoidedAt, " +
-        "       i.Name AS IngName, i.Unit AS IngUnit, u.FullName AS MadeByName " +
+        "SELECT " + COLUMNS +
         "FROM inventory.PrepBatch pb " +
         "JOIN catalog.Ingredient i ON i.IngredientId=pb.PreppedIngredientId " +
         "JOIN iam.[User] u ON u.UserId=pb.MadeBy ";
@@ -106,17 +110,19 @@ public class PrepBatchDao {
         }
     }
 
-    /** Me ACTIVE da qua han, cat theo ExpiresAt thay vi MadeAt de bat ca me pha tu ngay truoc. */
+    /**
+     * Me ACTIVE da qua han va CHUA ghi hao hut, cat theo ExpiresAt thay vi MadeAt de bat ca me pha tu ngay truoc.
+     * Loc WrittenOffAt IS NULL de me da xu ly roi khoi treo mai o banner Prep va banner ban giao ca.
+     * Thu tu ExpiresAt ASC la dau vao cua phan bo FIFO trong ExpiryWasteCalculator - khong doi thu tu nay.
+     */
     public List<PrepBatch> findExpiredActive(Connection conn, int branchId) throws SQLException {
         final String sql =
-            "SELECT pb.PrepBatchId, pb.BranchId, pb.PreppedIngredientId, pb.QuantityProduced, pb.MadeBy, pb.MadeAt, pb.ExpiresAt, pb.Status, pb.VoidedAt, " +
-            "       i.Name AS IngName, i.Unit AS IngUnit, u.FullName AS MadeByName, " +
-            "       ISNULL(bi.QuantityOnHand, 0) AS BranchQuantityOnHand " +
+            "SELECT " + COLUMNS + ", ISNULL(bi.QuantityOnHand, 0) AS BranchQuantityOnHand " +
             "FROM inventory.PrepBatch pb " +
             "JOIN catalog.Ingredient i ON i.IngredientId=pb.PreppedIngredientId " +
             "JOIN iam.[User] u ON u.UserId=pb.MadeBy " +
             "LEFT JOIN inventory.BranchInventory bi ON bi.BranchId=pb.BranchId AND bi.IngredientId=pb.PreppedIngredientId " +
-            "WHERE pb.BranchId=? AND pb.Status='ACTIVE' AND pb.ExpiresAt<SYSUTCDATETIME() " +
+            "WHERE pb.BranchId=? AND pb.Status='ACTIVE' AND pb.WrittenOffAt IS NULL AND pb.ExpiresAt<SYSUTCDATETIME() " +
             "ORDER BY pb.ExpiresAt ASC, pb.MadeAt ASC, pb.PrepBatchId ASC";
         List<PrepBatch> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -152,6 +158,21 @@ public class PrepBatchDao {
             ps.setString(2, status);
             ps.setInt(3, prepBatchId);
             ps.setInt(4, branchId);
+            return ps.executeUpdate();
+        }
+    }
+
+    /**
+     * Đóng vòng đời mẻ quá hạn: gắn dòng hao hụt đã ghi. Điều kiện WrittenOffAt IS NULL là chốt
+     * nguyên tử — bấm hai lần hoặc hai barista cùng xử lý một mẻ thì chỉ một lần trừ tồn được ghi nhận.
+     */
+    public int markWrittenOff(Connection conn, int prepBatchId, int branchId, int wasteLogId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE inventory.PrepBatch SET WrittenOffAt=SYSUTCDATETIME(), WriteOffWasteLogId=? "
+                        + "WHERE PrepBatchId=? AND BranchId=? AND Status='ACTIVE' AND WrittenOffAt IS NULL")) {
+            ps.setInt(1, wasteLogId);
+            ps.setInt(2, prepBatchId);
+            ps.setInt(3, branchId);
             return ps.executeUpdate();
         }
     }
@@ -237,6 +258,10 @@ public class PrepBatchDao {
         b.setStatus(rs.getString("Status"));
         Timestamp va = rs.getTimestamp("VoidedAt");
         if (va != null) b.setVoidedAt(va.toLocalDateTime());
+        Timestamp wo = rs.getTimestamp("WrittenOffAt");
+        if (wo != null) b.setWrittenOffAt(wo.toLocalDateTime());
+        int wasteLogId = rs.getInt("WriteOffWasteLogId");
+        b.setWriteOffWasteLogId(rs.wasNull() ? null : wasteLogId);
         b.setPreppedIngredientName(rs.getString("IngName"));
         b.setPreppedIngredientUnit(rs.getString("IngUnit"));
         b.setMadeByName(rs.getString("MadeByName"));

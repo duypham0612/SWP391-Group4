@@ -27,9 +27,7 @@ class WasteServletValidationTest {
     }
 
     @Test
-    void qc_sample_and_remake_reason_use_normalized_codes() {
+    void qc_sample_reason_uses_normalized_code() {
         assertEquals("QC_SAMPLE", WasteServlet.requireIngredientCause("OTHER", "Mẫu thử/QC", "", 1, true));
-        assertEquals("WRONG_RECIPE", WasteServlet.requireRemakeCause("wrong_recipe"));
-        assertThrows(BusinessException.class, () -> WasteServlet.requireRemakeCause("OTHER"));
     }
 }

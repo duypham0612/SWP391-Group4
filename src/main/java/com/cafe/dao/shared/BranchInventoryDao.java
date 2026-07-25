@@ -80,6 +80,26 @@ public class BranchInventoryDao {
         }
     }
 
+    /**
+     * Đọc tồn kèm khoá dòng — dành cho guard tiền-kiểm phải chặn tồn âm.
+     * Không khoá thì hai request song song cùng đọc tồn cũ rồi cùng trừ, guard bị lọt và tồn xuống âm.
+     * UPDLOCK giữ đến hết transaction của caller nên lần đọc thứ hai phải chờ lần thứ nhất commit.
+     * Chưa có dòng tồn thì trả 0 (không khoá được cái chưa tồn tại) — guard vẫn chặn vì mọi nhu cầu đều > 0.
+     */
+    public BigDecimal findQtyOnHandForUpdate(Connection conn, int branchId, int ingredientId) throws SQLException {
+        final String sql = "SELECT QuantityOnHand FROM inventory.BranchInventory WITH (UPDLOCK, ROWLOCK) "
+                + "WHERE BranchId=? AND IngredientId=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setInt(2, ingredientId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return BigDecimal.ZERO;
+                BigDecimal onHand = rs.getBigDecimal(1);
+                return onHand == null ? BigDecimal.ZERO : onHand;
+            }
+        }
+    }
+
     /** Chỉ cho Barista ghi hao hụt vào nguyên liệu active đã được cấu hình tồn tại đúng chi nhánh. */
     public boolean isActiveConfiguredIngredient(Connection conn, int branchId, int ingredientId) throws SQLException {
         final String sql = "SELECT 1 FROM inventory.BranchInventory bi "

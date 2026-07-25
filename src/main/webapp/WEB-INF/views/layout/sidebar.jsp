@@ -55,7 +55,7 @@
             </span>
         </span>
     </div>
-    <ul class="nav">
+    <ul class="nav" id="appNav">
         <li class="nav-section">Tổng quan</li>
         <li><a class="${curPath == ctx.concat('/dashboard') ? 'active' : ''}" href="${ctx}/dashboard" title="Bảng điều khiển"><svg class="ic"><use href="#ic-dash"/></svg>Bảng điều khiển</a></li>
 
@@ -115,5 +115,14 @@
             </c:when>
         </c:choose>
     </ul>
+    <%-- Chỉ màn dạng bảng điều hành (quầy pha chế) mới cần thu gọn menu để lấy chiều ngang.
+         Trạng thái lưu ở localStorage nên giữ nguyên khi chuyển màn. --%>
+    <c:if test="${wideLayout}">
+        <button type="button" class="sidebar-toggle" id="navToggle" aria-expanded="true"
+                aria-controls="appNav" title="Thu gọn / mở rộng menu">
+            <svg class="ic" aria-hidden="true"><use href="#ic-menu"/></svg>
+            <span class="sidebar-toggle__text" data-text-open="Thu gọn menu" data-text-closed="Mở rộng menu">Thu gọn menu</span>
+        </button>
+    </c:if>
     <div class="sidebar-foot">SWP391 · phiên bản 0.3</div>
 </aside>

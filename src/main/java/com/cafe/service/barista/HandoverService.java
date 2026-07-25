@@ -1,5 +1,6 @@
 package com.cafe.service.barista;
 
+import com.cafe.common.ShiftWindow;
 import com.cafe.config.DBConnection;
 import com.cafe.dao.admin.BranchDao;
 import com.cafe.dao.manager.ShiftAssignmentDao;
@@ -9,6 +10,7 @@ import com.cafe.model.Branch;
 import com.cafe.model.OrderItem;
 import com.cafe.model.ShiftAssignment;
 import com.cafe.model.ShiftHandover;
+import com.cafe.model.ShiftHandoverTask;
 import com.cafe.service.manager.AttendanceService;
 import com.cafe.service.shared.InventoryService;
 
@@ -19,12 +21,17 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /** Bàn giao ca có người nhận, xác nhận tiếp nhận và đầu việc theo dõi tới khi hoàn tất. */
 public class HandoverService {
     private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final String ROLE_BARISTA = "BARISTA";
+    /** Trần số việc tồn gợi ý chuyển tiếp — nhiều hơn thì form tạo bàn giao dài quá không đọc nổi. */
+    private static final int CARRY_OVER_LIMIT = 20;
+    private static final int MANAGER_FALLBACK_LIMIT = 50;
     private final ShiftHandoverDao handoverDao = new ShiftHandoverDao();
     private final ShiftAssignmentDao assignmentDao = new ShiftAssignmentDao();
     private final BranchDao branchDao = new BranchDao();
@@ -32,24 +39,58 @@ public class HandoverService {
     private final InventoryService inventoryService = new InventoryService();
     private final AttendanceService attendanceService = new AttendanceService();
 
-    public List<ShiftHandover> getHandovers(int branchId, int currentUserId) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) { return handoverDao.findByBranch(conn, branchId, currentUserId); }
+    /** Bàn giao gửi tới quản lý — chặn trên bằng số dòng, tránh nạp cả lịch sử chi nhánh. */
+    public List<ShiftHandover> getManagerFallbacks(int branchId, int managerUserId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) { return handoverDao.findManagerFallbacks(conn, branchId, managerUserId, MANAGER_FALLBACK_LIMIT); }
     }
 
-    public List<ShiftHandover> getManagerFallbacks(int branchId, int managerUserId) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) { return handoverDao.findManagerFallbacks(conn, branchId, managerUserId); }
+    /**
+     * Toàn bộ dữ liệu màn bàn giao trong một kết nối: trang danh sách đã lọc, ba con số tổng quan,
+     * người nhận dự kiến và việc tồn có thể chuyển tiếp. Gọi lẻ từng hàm như trước là 5-6 lần mở
+     * kết nối cho một lần mở màn, và phần dò ca nguồn bị lặp giữa preview với kiểm tra tan ca.
+     */
+    public HandoverBoard loadBoard(int branchId, int userId, boolean onShift,
+                                   String scope, String status, String query, int requestedPage, int pageSize) throws SQLException {
+        int safePageSize = pageSize > 0 ? pageSize : 5;
+        try (Connection conn = DBConnection.getConnection()) {
+            int total = handoverDao.countByFilter(conn, branchId, userId, scope, status, query);
+            int totalPages = Math.max(1, (int) Math.ceil((double) total / safePageSize));
+            int page = Math.max(1, Math.min(requestedPage, totalPages));
+            HandoverPage pageData = new HandoverPage(
+                handoverDao.findPage(conn, branchId, userId, scope, status, query, (page - 1) * safePageSize, safePageSize),
+                total, page, safePageSize);
+            int[] counts = handoverDao.summaryCounts(conn, branchId, userId);
+            HandoverBoard board = new HandoverBoard(pageData, new HandoverSummary(counts[0], counts[1], counts[2]));
+            if (!onShift) return board;
+
+            ShiftAssignment source = handoverDao.findOpenSourceAssignment(conn, userId, branchId);
+            if (source == null) { board.receiverError = "Bạn cần đang trong ca để lập bàn giao."; return board; }
+            try { board.receiver = resolveReceiver(conn, branchId, source); }
+            catch (IllegalStateException e) { board.receiverError = e.getMessage(); }
+            // Đã có bàn giao cho ca này thì tan ca không còn bị chặn nữa — không nhắc lại cảnh báo.
+            board.handoverRequired = board.receiver != null && !handoverDao.existsForSourceAssignment(conn, source.getShiftAssignmentId());
+            board.carryOverTasks = handoverDao.findOpenTasksForUser(conn, branchId, userId, CARRY_OVER_LIMIT);
+            return board;
+        }
     }
 
     public int countUnacknowledgedForUser(int branchId, int userId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) { return handoverDao.countUnacknowledgedForUser(conn, branchId, userId); }
     }
 
-    /** Preview người nhận trước khi barista gửi. Chỉ hợp lệ khi đang có attendance mở. */
-    public ReceiverPlan previewReceiver(int branchId, int userId) throws SQLException {
+    /**
+     * True khi barista phải qua màn bàn giao trước khi được tan ca.
+     * Không chặn nếu: đang ngoài ca (clockOut tự báo lỗi sẵn có), ca này đã có bàn giao,
+     * hoặc không tìm được người nhận — tránh khoá cứng làm barista treo ca, mất giờ công.
+     */
+    public boolean requiresHandoverBeforeClockOut(int branchId, int userId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             ShiftAssignment source = handoverDao.findOpenSourceAssignment(conn, userId, branchId);
-            if (source == null) throw new IllegalStateException("Bạn cần đang trong ca để lập bàn giao.");
-            return resolveReceiver(conn, branchId, source);
+            if (source == null) return false;
+            if (handoverDao.existsForSourceAssignment(conn, source.getShiftAssignmentId())) return false;
+            try { resolveReceiver(conn, branchId, source); }
+            catch (IllegalStateException e) { return false; }
+            return true;
         }
     }
 
@@ -77,7 +118,8 @@ public class HandoverService {
                 for (ShiftAssignment assignment : receiver.assignments) handoverDao.insertRecipient(conn, id, assignment.getUserId(), assignment.getShiftAssignmentId(), "NEXT_SHIFT");
                 if (receiver.managerFallbackUserId != null) handoverDao.insertRecipient(conn, id, receiver.managerFallbackUserId, null, "MANAGER_FALLBACK");
                 for (String task : tasks) handoverDao.insertTask(conn, id, task);
-                if (clockOut) attendanceService.clockOut(conn, userId, branchId);
+                // Tan ca đúng ca vừa bàn giao; để clockOut dò lại theo ngày sẽ đóng nhầm ca khác khi có nhiều ca mở.
+                if (clockOut) attendanceService.clockOutAssignment(conn, source.getShiftAssignmentId());
                 conn.commit();
                 return id;
             } catch (SQLException | RuntimeException e) { conn.rollback(); throw e; }
@@ -111,10 +153,10 @@ public class HandoverService {
         }
     }
 
+    /** Chặn sửa bàn giao của chi nhánh khác qua POST giả mạo id. Kiểm bằng 1 truy vấn, không nạp cả danh sách. */
     private void ensureHandoverBranch(Connection conn, int handoverId, int branchId) throws SQLException {
-        // Reuse scoped lookup; this also avoids updating an id from another branch through crafted POST data.
-        for (ShiftHandover handover : handoverDao.findByBranch(conn, branchId, 0)) if (handover.getShiftHandoverId() == handoverId) return;
-        throw new IllegalArgumentException("Bàn giao không thuộc chi nhánh hiện tại.");
+        if (!handoverDao.existsInBranch(conn, handoverId, branchId))
+            throw new IllegalArgumentException("Bàn giao không thuộc chi nhánh hiện tại.");
     }
 
     private ReceiverPlan resolveReceiver(Connection conn, int branchId, ShiftAssignment source) throws SQLException {
@@ -136,21 +178,22 @@ public class HandoverService {
     }
 
     static LocalDateTime scheduledStart(ShiftAssignment a) { return LocalDateTime.of(a.getWorkDate(), a.getStartTime()); }
-    static LocalDateTime scheduledEnd(ShiftAssignment a) {
-        LocalDate endDate = a.getEndTime().isAfter(a.getStartTime()) ? a.getWorkDate() : a.getWorkDate().plusDays(1);
-        return LocalDateTime.of(endDate, a.getEndTime());
-    }
+    /** Một nguồn sự thật cho mốc kết thúc ca đêm, dùng chung với cửa sổ chấm công. */
+    static LocalDateTime scheduledEnd(ShiftAssignment a) { return ShiftWindow.scheduledEnd(a.getWorkDate(), a.getStartTime(), a.getEndTime()); }
     private static String labelFor(List<ShiftAssignment> assignments) {
         ShiftAssignment first = assignments.get(0);
         return first.getTemplateName() + " " + first.getStartTime() + "–" + first.getEndTime() + " · " + assignments.size() + " barista";
     }
+    /** Bỏ trùng: việc tồn tick chuyển tiếp rất dễ trùng với việc barista tự gõ lại, ca sau nhận hai dòng y hệt. */
     private static List<String> normalizeTasks(List<String> incoming) {
         List<String> result = new ArrayList<>();
         if (incoming == null) return result;
+        Set<String> seen = new HashSet<>();
         for (String raw : incoming) {
             String task = raw == null ? "" : raw.trim();
             if (task.isEmpty()) continue;
             if (task.length() > 500) throw new IllegalArgumentException("Mỗi việc bàn giao tối đa 500 ký tự.");
+            if (!seen.add(task.toLowerCase())) continue;
             if (result.size() == 10) throw new IllegalArgumentException("Tối đa 10 việc trong một bàn giao.");
             result.add(task);
         }
@@ -158,11 +201,6 @@ public class HandoverService {
     }
 
     public int countExpiredActivePrepBatches(int branchId) throws SQLException { return inventoryService.getExpiredActivePrepBatches(branchId).size(); }
-
-    public HandoverKpi getKpi(int branchId) throws SQLException {
-        LocalDateTime[] window = todayWindowUtc();
-        try (Connection conn = DBConnection.getConnection()) { long[] stats = orderItemDao.leadTimeStats(conn, branchId, window[0], window[1]); return new HandoverKpi(stats[0], stats[1]); }
-    }
 
     /** Giữ contract đọc danh sách ly đã pha của màn cũ và test tích hợp. */
     public List<OrderItem> getBrewHistory(int branchId) throws SQLException {
@@ -180,12 +218,35 @@ public class HandoverService {
     }
     private static LocalDateTime[] todayWindowUtc() { LocalDate today = LocalDate.now(VN_ZONE); return new LocalDateTime[]{today.atStartOfDay(VN_ZONE).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime(), today.plusDays(1).atStartOfDay(VN_ZONE).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime()}; }
 
+    /** Gói dữ liệu một lần mở màn bàn giao. Các trường phụ do {@link #loadBoard} gán sau khi dựng. */
+    public static class HandoverBoard {
+        private final HandoverPage page; private final HandoverSummary summary;
+        private ReceiverPlan receiver; private String receiverError; private boolean handoverRequired;
+        private List<ShiftHandoverTask> carryOverTasks = List.of();
+        HandoverBoard(HandoverPage page, HandoverSummary summary) { this.page = page; this.summary = summary; }
+        public HandoverPage getPage() { return page; }
+        public HandoverSummary getSummary() { return summary; }
+        public ReceiverPlan getReceiver() { return receiver; }
+        public String getReceiverError() { return receiverError; }
+        public boolean isHandoverRequired() { return handoverRequired; }
+        public List<ShiftHandoverTask> getCarryOverTasks() { return carryOverTasks; }
+    }
+
+    public static class HandoverSummary {
+        private final int pendingForMe, openTasksForMe, waitingReceipt;
+        HandoverSummary(int pendingForMe, int openTasksForMe, int waitingReceipt) { this.pendingForMe = pendingForMe; this.openTasksForMe = openTasksForMe; this.waitingReceipt = waitingReceipt; }
+        public int getPendingForMe() { return pendingForMe; }
+        public int getOpenTasksForMe() { return openTasksForMe; }
+        public int getWaitingReceipt() { return waitingReceipt; }
+    }
+
+    public static class HandoverPage { private final List<ShiftHandover> items; private final int total,page,pageSize; public HandoverPage(List<ShiftHandover> items,int total,int page,int pageSize){this.items=items;this.total=total;this.page=page;this.pageSize=pageSize;} public List<ShiftHandover> getItems(){return items;} public int getTotal(){return total;} public int getPage(){return page;} public int getPageSize(){return pageSize;} public int getTotalPages(){return Math.max(1,(int)Math.ceil((double)total/pageSize));} public boolean isHasPrevious(){return page>1;} public boolean isHasNext(){return page<getTotalPages();} public int getStartRow(){return total==0?0:(page-1)*pageSize+1;} public int getEndRow(){return Math.min(page*pageSize,total);} public List<Integer> getVisiblePages(){List<Integer> pages=new ArrayList<>();int start=Math.max(1,page-2),end=Math.min(getTotalPages(),start+4);start=Math.max(1,end-4);for(int i=start;i<=end;i++)pages.add(i);return pages;} }
+
     public static class ReceiverPlan {
         private final List<ShiftAssignment> assignments; private final Integer managerFallbackUserId; private final String label;
         ReceiverPlan(List<ShiftAssignment> assignments, Integer managerFallbackUserId, String label) { this.assignments = assignments; this.managerFallbackUserId = managerFallbackUserId; this.label = label; }
         public String getLabel() { return label; }
         public boolean isManagerFallback() { return managerFallbackUserId != null; }
     }
-    public static class HandoverKpi { private final long avgLeadSeconds, cupCount; public HandoverKpi(long avgLeadSeconds, long cupCount) { this.avgLeadSeconds=avgLeadSeconds; this.cupCount=cupCount; } public long getCupCount(){return cupCount;} public boolean isHasLead(){return avgLeadSeconds>=0;} public String getAvgLeadDisplay(){ if(avgLeadSeconds<0)return "—"; long m=avgLeadSeconds/60,s=avgLeadSeconds%60; return (m>0?m+" phút ":"")+s+" giây";} }
     public static class BrewHistoryPage { private final List<OrderItem> items; private final int total,page,pageSize; public BrewHistoryPage(List<OrderItem> items,int total,int page,int pageSize){this.items=items;this.total=total;this.page=page;this.pageSize=pageSize;} public List<OrderItem> getItems(){return items;} public int getTotal(){return total;} public int getPage(){return page;} public int getPageSize(){return pageSize;} public int getTotalPages(){return Math.max(1,(int)Math.ceil((double)total/pageSize));} public boolean isHasPrevious(){return page>1;} public boolean isHasNext(){return page<getTotalPages();} public int getStartRow(){return total==0?0:(page-1)*pageSize+1;} public int getEndRow(){return Math.min(page*pageSize,total);} public List<Integer> getVisiblePages(){List<Integer> pages=new ArrayList<>();int start=Math.max(1,page-2),end=Math.min(getTotalPages(),start+4);start=Math.max(1,end-4);for(int i=start;i<=end;i++)pages.add(i);return pages;} }
 }

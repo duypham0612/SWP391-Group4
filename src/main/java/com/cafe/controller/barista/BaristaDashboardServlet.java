@@ -37,8 +37,23 @@ public class BaristaDashboardServlet extends HttpServlet {
             throws ServletException, IOException {
         int branchId = InventoryDashboardServlet.branchId(req);
         try {
-            List<OrderItem> queue = kdsService.getQueue(branchId);
-            List<OrderItem> readyItems = kdsService.getReadyItems(branchId);
+            // Đếm theo ĐÚNG phạm vi của Quầy pha chế: ngày kinh doanh tính từ giờ mở cửa chi nhánh.
+            // Trước đây màn này dùng hàng chờ không cắt ngày nên hai màn cho hai con số "đang chờ"
+            // khác nhau ở cùng một thời điểm, không giải thích được cho người dùng.
+            com.cafe.model.Branch branch = kdsService.getBranch(branchId);
+            java.time.LocalDateTime dayStart = com.cafe.common.BusinessDay.startUtc(
+                    branch == null ? null : branch.getOpenTime());
+            List<OrderItem> workbench = kdsService.getWorkbenchQueue(branchId, dayStart);
+            java.util.Map<String, List<OrderItem>> board = KdsService.splitWorkbench(workbench);
+            // Giữ nguyên thứ tự pha của truy vấn (làm lại trước, rồi FIFO) để "Top món chờ lâu nhất"
+            // đúng là 5 dòng đầu barista sẽ pha, khớp thứ tự trên màn Quầy pha chế.
+            List<OrderItem> queue = new ArrayList<>();
+            for (OrderItem it : workbench) {
+                if ("WAITING".equals(it.getStatus()) || "MAKING".equals(it.getStatus())) queue.add(it);
+            }
+            List<OrderItem> readyItems = board.get("ready");
+            List<OrderItem> blocked = board.get("blocked");
+            List<OrderItem> staleItems = kdsService.getStaleItems(branchId, dayStart);
             WasteSummary wasteSummary = wasteService.getTodayWasteSummary(branchId);
             List<BranchInventory> lowStock = inventoryService.getLowStock(branchId);
             List<BranchMenuItem> menuItems = branchMenuService.getMenuAvailability(branchId);
@@ -69,6 +84,8 @@ public class BaristaDashboardServlet extends HttpServlet {
             req.setAttribute("wasteSummary", wasteSummary);
             req.setAttribute("queueCount", cupCount(queue));
             req.setAttribute("readyCount", cupCount(readyItems));
+            req.setAttribute("blockedCount", cupCount(blocked));
+            req.setAttribute("staleCount", cupCount(staleItems));
             req.setAttribute("lowStockCount", lowStock.size());
             req.setAttribute("eightySixCount", eightySixCount);
             req.setAttribute("oversoldCount", oversoldCount);

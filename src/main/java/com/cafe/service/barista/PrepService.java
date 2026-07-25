@@ -55,9 +55,14 @@ public class PrepService {
         inventoryService.createPrepBatches(branchId, lines, userId);
     }
 
-    /** Huỷ mẻ — hoàn kho qua txn bù (không hard-delete). */
-    public void cancelBatch(int branchId, int prepBatchId, int userId) throws SQLException {
-        inventoryService.cancelPrepBatch(branchId, prepBatchId, userId);
+    /** Huỷ mẻ — hoàn kho qua txn bù (không hard-delete). False nếu mẻ đã huỷ từ trước. */
+    public boolean cancelBatch(int branchId, int prepBatchId, int userId) throws SQLException {
+        return inventoryService.cancelPrepBatch(branchId, prepBatchId, userId);
+    }
+
+    /** Ghi hao hụt mẻ quá hạn + đóng vòng đời mẻ trong một transaction. Trả về WasteLogId. */
+    public int writeOffExpiredBatch(int branchId, int prepBatchId, java.math.BigDecimal qty, int userId) throws SQLException {
+        return inventoryService.writeOffExpiredPrepBatch(branchId, prepBatchId, qty, userId);
     }
 
     /** Sửa sản lượng mẻ — áp txn cho phần chênh lệch. */

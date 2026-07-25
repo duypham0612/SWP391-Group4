@@ -62,8 +62,18 @@ public class PrepServlet extends HttpServlet {
                 resp.sendRedirect(req.getContextPath() + "/barista/prep");
                 return;
             } else if ("cancelBatch".equals(action)) {
-                service.cancelBatch(branchId, Integer.parseInt(req.getParameter("prepBatchId")), userId);
-                req.getSession().setAttribute("flashOk", "Đã huỷ mẻ — tồn kho hoàn lại qua sổ cái (txn bù).");
+                boolean cancelled = service.cancelBatch(branchId, Integer.parseInt(req.getParameter("prepBatchId")), userId);
+                // Mẻ đã huỷ từ trước thì không có txn bù nào được ghi — đừng báo "đã hoàn kho" cho thao tác rỗng.
+                req.getSession().setAttribute("flashOk", cancelled
+                        ? "Đã huỷ mẻ — tồn kho hoàn lại qua sổ cái (txn bù)."
+                        : "Mẻ này đã được huỷ trước đó — tồn kho giữ nguyên.");
+            } else if ("writeOffExpired".equals(action)) {
+                int batchId = Integer.parseInt(req.getParameter("prepBatchId"));
+                String rawQty = req.getParameter("quantity");
+                if (blank(rawQty)) throw new BusinessException("Lượng hao hụt không hợp lệ.");
+                service.writeOffExpiredBatch(branchId, batchId, new BigDecimal(rawQty.trim()), userId);
+                req.getSession().setAttribute("flashOk",
+                        "Đã ghi hao hụt mẻ quá hạn — tồn kho trừ một lần và mẻ được đóng lại.");
             } else if ("updateBatch".equals(action)) {
                 int batchId = Integer.parseInt(req.getParameter("prepBatchId"));
                 String quantityProduced = req.getParameter("quantityProduced");
@@ -90,7 +100,8 @@ public class PrepServlet extends HttpServlet {
             if ("createBatch".equals(action)) {
                 forwardCreateError(req, resp, branchId, submittedRows, "Sản lượng không hợp lệ.");
             } else {
-                req.getSession().setAttribute("flashError", "Sản lượng không hợp lệ.");
+                req.getSession().setAttribute("flashError", "writeOffExpired".equals(action)
+                        ? "Lượng hao hụt không hợp lệ." : "Sản lượng không hợp lệ.");
                 resp.sendRedirect(req.getContextPath() + "/barista/prep");
             }
         } catch (SQLException e) {

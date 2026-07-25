@@ -1,5 +1,6 @@
 package com.cafe.service.shared;
 
+import com.cafe.common.QuantityFormat;
 import com.cafe.config.DBConnection;
 import com.cafe.dao.admin.CategoryDao;
 import com.cafe.dao.admin.HomeSettingDao;
@@ -199,6 +200,7 @@ public class CatalogReadService {
                         OptionImpactRow r = new OptionImpactRow();
                         r.groupName = g.getName();
                         r.optionName = o.getName();
+                        r.ingredientId = imp.getIngredientId();
                         r.ingredientName = imp.getIngredientName();
                         r.ingredientUnit = imp.getIngredientUnit();
                         r.qtyDelta = imp.getQtyDelta();
@@ -213,12 +215,38 @@ public class CatalogReadService {
     /** Dòng phẳng cho view tra cứu modifier (EL-friendly). */
     public static class OptionImpactRow {
         private String groupName, optionName, ingredientName, ingredientUnit;
+        private int ingredientId;
         private BigDecimal qtyDelta;
+        /** Nguyên liệu này có trong định mức chuẩn của món không — do caller gán, xem setter. */
+        private boolean inBaseRecipe;
+
         public String getGroupName() { return groupName; }
         public String getOptionName() { return optionName; }
+        public int getIngredientId() { return ingredientId; }
         public String getIngredientName() { return ingredientName; }
         public String getIngredientUnit() { return ingredientUnit; }
         public BigDecimal getQtyDelta() { return qtyDelta; }
+
+        public boolean isInBaseRecipe() { return inBaseRecipe; }
+
+        /**
+         * Modifier có thể trỏ tới nguyên liệu không nằm trong định mức chuẩn (vd. Cà phê sữa
+         * không có Đá/Đường trong công thức nhưng vẫn có option "Ít đá"). Caller đã đọc sẵn
+         * định mức nên gán cờ từ ngoài, tránh truy vấn lại trong service.
+         */
+        public void setInBaseRecipe(boolean inBaseRecipe) { this.inBaseRecipe = inBaseRecipe; }
+
+        /**
+         * Cho JSP — bỏ .000 thừa và gắn sẵn dấu +/-.
+         *
+         * In thẳng BigDecimal ra sẽ thành "+6.000 ml": theo quy ước số của VN dấu chấm
+         * là phân tách nghìn nên pha chế đọc nhầm thành 6000 ml. Dùng chung
+         * {@link QuantityFormat} với định mức gốc để hai bảng hiển thị nhất quán.
+         */
+        public String getQtyDeltaDisplay() {
+            String plain = QuantityFormat.plain(qtyDelta);
+            return qtyDelta != null && qtyDelta.signum() > 0 ? "+" + plain : plain;
+        }
     }
 
     private static boolean isChoiceGroup(String name) {

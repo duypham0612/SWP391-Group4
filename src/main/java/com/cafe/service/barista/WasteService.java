@@ -1,9 +1,6 @@
 package com.cafe.service.barista;
 
 import com.cafe.common.BusinessException;
-import com.cafe.config.DBConnection;
-import com.cafe.dao.shared.BranchMenuDao;
-import com.cafe.model.BranchMenuItem;
 import com.cafe.model.Ingredient;
 import com.cafe.model.ShiftClockStatus;
 import com.cafe.model.WasteLog;
@@ -14,17 +11,16 @@ import com.cafe.service.shared.InventoryService;
 import com.cafe.service.shared.WasteSummary;
 
 import java.math.BigDecimal;
-import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
 
-/** B5 · WasteService — màn hao hụt/làm lại, còn ghi tồn đi qua InventoryService + ledger. */
+/** B5 · WasteService — màn hao hụt nguyên liệu, còn ghi tồn đi qua InventoryService + ledger. */
 public class WasteService {
     private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final DateTimeFormatter DATE_TIME_FMT = DateTimeFormatter.ofPattern("HH:mm dd/MM");
@@ -33,7 +29,6 @@ public class WasteService {
     private final InventoryService inventoryService;
     private final IngredientService ingredientService;
     private final AttendanceService attendanceService;
-    private final BranchMenuDao branchMenuDao;
 
     public WasteService() {
         this(new InventoryService());
@@ -43,23 +38,17 @@ public class WasteService {
         this.inventoryService = inventoryService;
         this.ingredientService = new IngredientService();
         this.attendanceService = new AttendanceService();
-        this.branchMenuDao = new BranchMenuDao();
     }
 
     public List<Ingredient> getIngredients(int branchId) throws SQLException {
         return inventoryService.getActiveWasteIngredients(branchId);
     }
 
-    public List<BranchMenuItem> getRemakeProducts(int branchId) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            List<BranchMenuItem> out = new ArrayList<>();
-            for (BranchMenuItem item : branchMenuDao.listForBranch(conn, branchId)) {
-                if (item.isPublished()) out.add(item);
-            }
-            return out;
-        }
-    }
-
+    /**
+     * Phạm vi nhật ký hao hụt của người đang xem. Ưu tiên đúng ca của họ; không có ca nào thì rơi
+     * về NGÀY KINH DOANH của chi nhánh (mốc giờ mở cửa), không phải nửa đêm lịch — cắt theo nửa đêm
+     * thì ca đêm đang chạy bị đứt đôi lúc 00:00 và nửa đầu ca biến mất khỏi bảng.
+     */
     public WasteScope resolveScope(int userId, int branchId) throws SQLException {
         if (userId > 0) {
             ShiftClockStatus clock = attendanceService.getMyShiftStatus(userId, branchId, LocalDate.now(VN_ZONE));
@@ -70,7 +59,15 @@ public class WasteService {
                 return WasteScope.closedShift(clock.getCheckInAt(), clock.getCheckOutAt());
             }
         }
-        return WasteScope.today();
+        return WasteScope.businessDay(branchOpenTime(branchId));
+    }
+
+    /** Giờ mở cửa chi nhánh; chưa khai hoặc lỗi đọc thì để null → mốc lùi về nửa đêm như trước. */
+    private LocalTime branchOpenTime(int branchId) throws SQLException {
+        try (java.sql.Connection conn = com.cafe.config.DBConnection.getConnection()) {
+            com.cafe.model.Branch branch = new com.cafe.dao.admin.BranchDao().findById(conn, branchId);
+            return branch == null ? null : branch.getOpenTime();
+        }
     }
 
     public List<WasteLog> getWasteLogs(int branchId) throws SQLException {
@@ -116,24 +113,6 @@ public class WasteService {
         return inventoryService.logWaste(branchId, ingredientId, qty, wasteType, reason, userId);
     }
 
-    public int remakeProduct(int branchId, int productId, int qty, List<Integer> optionIds, String reason, int userId) throws SQLException {
-        return inventoryService.remakeProduct(branchId, productId, qty, optionIds, reason, userId);
-    }
-    public int remakeProduct(int branchId, int productId, int qty, List<Integer> optionIds, String reason, int userId, String requestId) throws SQLException {
-        return inventoryService.remakeProduct(branchId, productId, qty, optionIds, reason, userId, requestId);
-    }
-    public int remakeProduct(int branchId, int productId, int qty, List<Integer> optionIds, String reason,
-                             String causeCode, int userId, String requestId) throws SQLException {
-        return inventoryService.remakeProduct(branchId, productId, qty, optionIds, reason, causeCode, userId, requestId);
-    }
-
-    /** JSON tuỳ chọn (có tác động nguyên liệu) theo món cho form làm lại: {productId:[{id,name}]}. */
-    public String getRemakeModifiersJson(List<BranchMenuItem> products) throws SQLException {
-        List<Integer> ids = new ArrayList<>();
-        if (products != null) for (BranchMenuItem p : products) ids.add(p.getProductId());
-        return inventoryService.getRemakeModifiersJson(ids);
-    }
-
     /** Sửa dòng hao hụt nguyên liệu — áp txn cho phần chênh lệch. */
     public void updateWaste(int branchId, int wasteLogId, BigDecimal newQty, String wasteType, String reason, int userId) throws SQLException {
         inventoryService.updateWaste(branchId, wasteLogId, newQty, wasteType, reason, userId);
@@ -164,6 +143,17 @@ public class WasteService {
             return new WasteScope("TODAY", "Hôm nay", from, to);
         }
 
+        /**
+         * Ngày kinh doanh hiện tại của chi nhánh: từ giờ mở cửa gần nhất đã trôi qua tới 24h sau.
+         * Dùng chung mốc với Quầy pha chế ({@link com.cafe.common.BusinessDay#startUtc}) để hai màn
+         * không nói hai chuyện khác nhau về "hôm nay". openTime null → lùi về nửa đêm.
+         */
+        static WasteScope businessDay(LocalTime openTime) {
+            if (openTime == null) return today();
+            LocalDateTime from = com.cafe.common.BusinessDay.startUtc(openTime);
+            return new WasteScope("BUSINESS_DAY", "Ngày kinh doanh này", from, from.plusDays(1));
+        }
+
         static WasteScope openShift(LocalDateTime checkInUtc) {
             return new WasteScope("OPEN_SHIFT", "Ca đang mở", checkInUtc, null);
         }
@@ -180,6 +170,9 @@ public class WasteService {
         public String getWindowDisplay() {
             if ("TODAY".equals(kind)) {
                 return LocalDate.now(VN_ZONE).format(DATE_FMT);
+            }
+            if ("BUSINESS_DAY".equals(kind)) {
+                return formatUtc(fromUtc) + " - " + formatUtc(toUtc);
             }
             String from = formatUtc(fromUtc);
             if (toUtc == null) return "Từ " + from;

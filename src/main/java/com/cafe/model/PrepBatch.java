@@ -25,6 +25,9 @@ public class PrepBatch {
     private LocalDateTime expiresAt;
     private String status = "ACTIVE";   // ACTIVE | CANCELLED
     private LocalDateTime voidedAt;
+    /** Đã ghi hao hụt vì quá hạn — mẻ khép vòng đời, không gợi ý ghi thêm và không huỷ được nữa. */
+    private LocalDateTime writtenOffAt;
+    private Integer writeOffWasteLogId;
 
     // join
     private String preppedIngredientName;
@@ -60,6 +63,13 @@ public class PrepBatch {
 
     public LocalDateTime getVoidedAt() { return voidedAt; }
     public void setVoidedAt(LocalDateTime v) { this.voidedAt = v; }
+
+    public LocalDateTime getWrittenOffAt() { return writtenOffAt; }
+    public void setWrittenOffAt(LocalDateTime v) { this.writtenOffAt = v; }
+    public boolean isWrittenOff() { return writtenOffAt != null; }
+
+    public Integer getWriteOffWasteLogId() { return writeOffWasteLogId; }
+    public void setWriteOffWasteLogId(Integer v) { this.writeOffWasteLogId = v; }
 
     public String getPreppedIngredientName() { return preppedIngredientName; }
     public void setPreppedIngredientName(String v) { this.preppedIngredientName = v; }

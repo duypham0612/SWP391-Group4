@@ -56,51 +56,26 @@ public class BranchMenuService {
         }
     }
 
-    public void save(int branchId, int productId, boolean available, BigDecimal localPrice, boolean is86) throws SQLException {
+    /** Bật/tắt bán + giá riêng. Cờ 86 giữ nguyên — chỉ {@link #request86} / {@link #reopen86} được đổi. */
+    public void save(int branchId, int productId, boolean available, BigDecimal localPrice) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
-            try { dao.upsert(conn, branchId, productId, available, localPrice, is86); conn.commit(); }
+            try { dao.upsert(conn, branchId, productId, available, localPrice); conn.commit(); }
             catch (SQLException e) { conn.rollback(); throw e; }
             catch (RuntimeException e) { conn.rollback(); throw e; }
             finally { conn.setAutoCommit(true); }
         }
-    }
-
-    /** B3 · 86 board (Barista) — bật/tắt hết món; khoá món khỏi POS + QR menu. */
-    public void set86(int branchId, int productId, boolean is86) throws SQLException {
-        set86(branchId, productId, is86, null, null);
-    }
-
-    /** B3.F3 · 86 kèm ETA dự kiến có lại (NULL = chưa rõ); mở bán lại tự xoá ETA. */
-    public void set86(int branchId, int productId, boolean is86, java.time.LocalDateTime backInEta) throws SQLException {
-        set86(branchId, productId, is86, backInEta, null);
     }
 
     /**
-     * B3.F3 · 86 kèm ETA + AUDIT — ghi domain event {@code menu.86_changed} vào ops.OutboxEvent
-     * trong CÙNG tx (ai/khi nào bật-tắt + lên bus cho QR/KDS realtime). {@code userId} null = không rõ.
+     * B3 · Barista báo tạm hết: mở yêu cầu chờ duyệt + khoá món khỏi POS/QR trong CÙNG tx.
+     *
+     * <p>Đây là ĐƯỜNG DUY NHẤT bật cờ 86, cặp với {@link #reopen86} là đường duy nhất tắt. Cờ
+     * {@code BranchMenu.Is86} và yêu cầu còn mở trong {@code catalog.MenuBlockRequest} phải luôn khớp:
+     * unique index {@code UX_MenuBlockRequest_Open} chỉ cho mỗi món một yêu cầu mở, nên nếu có đường
+     * khác hạ cờ mà bỏ quên yêu cầu thì barista sẽ không báo hết món đó lại được nữa. Vì vậy
+     * {@link #save} và {@code BranchMenuDao.upsert} cố ý không ghi cột này.
      */
-    public void set86(int branchId, int productId, boolean is86,
-                      java.time.LocalDateTime backInEta, Integer userId) throws SQLException {
-        java.sql.Timestamp ts = backInEta == null ? null : java.sql.Timestamp.valueOf(backInEta);
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                if (dao.updateIs86(conn, branchId, productId, is86, ts) != 1) {
-                    throw new BusinessException("Món này không còn trong menu chi nhánh. Vui lòng tải lại.");
-                }
-                String payload = "{\"productId\":" + productId + ",\"is86\":" + is86
-                        + (backInEta == null ? "" : ",\"eta\":\"" + backInEta + "\"")
-                        + (userId == null ? "" : ",\"by\":" + userId) + "}";
-                EventPublisher.publish(conn, EventType.MENU_86_CHANGED, String.valueOf(productId), branchId, payload);
-                conn.commit();
-            }
-            catch (SQLException e) { conn.rollback(); throw e; }
-            catch (RuntimeException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
-    }
-
     public void request86(int branchId, int productId, String reasonCode, String note,
                           LocalDateTime backInEta, int userId) throws SQLException {
         if (userId <= 0) throw new BusinessException("Không xác định được người báo tạm hết.");
@@ -210,7 +185,7 @@ public class BranchMenuService {
             try {
                 for (BranchMenuItem it : dao.listForBranch(conn, branchId)) {
                     if (productIds.contains(it.getProductId()) && it.isAvailable()) {
-                        dao.upsert(conn, branchId, it.getProductId(), false, it.getLocalPrice(), it.isIs86());
+                        dao.upsert(conn, branchId, it.getProductId(), false, it.getLocalPrice());
                     }
                 }
                 conn.commit();
@@ -220,10 +195,19 @@ public class BranchMenuService {
         }
     }
 
+    /**
+     * Gỡ món khỏi menu chi nhánh. Xoá dòng BranchMenu là mất luôn cờ 86, nên yêu cầu báo hết còn mở
+     * phải đóng theo trong CÙNG tx — bỏ sót thì lần publish lại sau đó barista vướng
+     * {@code UX_MenuBlockRequest_Open} và không báo hết món này được nữa.
+     */
     public void remove(int branchId, int productId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
-            try { dao.remove(conn, branchId, productId); conn.commit(); }
+            try {
+                menuBlockDao.closeOpenByProduct(conn, branchId, productId, "Món đã gỡ khỏi menu chi nhánh");
+                dao.remove(conn, branchId, productId);
+                conn.commit();
+            }
             catch (SQLException e) { conn.rollback(); throw e; }
             catch (RuntimeException e) { conn.rollback(); throw e; }
             finally { conn.setAutoCommit(true); }

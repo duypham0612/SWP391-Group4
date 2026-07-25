@@ -3,6 +3,7 @@ package com.cafe.service.manager;
 import com.cafe.config.DBConnection;
 import com.cafe.common.BusinessDay;
 import com.cafe.common.ShiftHours;
+import com.cafe.common.ShiftWindow;
 import com.cafe.dao.manager.AttendanceDao;
 import com.cafe.dao.manager.PayrollDao;
 import com.cafe.model.Attendance;
@@ -17,9 +18,11 @@ import java.math.RoundingMode;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -88,9 +91,28 @@ public class AttendanceService {
     /** Trạng thái chấm công hôm nay của nhân viên đang đăng nhập. */
     public ShiftClockStatus getMyShiftStatus(int userId, int branchId, LocalDate date) throws SQLException {
         try (Connection c = DBConnection.getConnection()) {
-            List<ShiftAssignment> assignments = dao.findTodayAssignments(c, userId, branchId, date);
+            List<ShiftAssignment> assignments = clockableAssignments(c, userId, branchId, date, ShiftWindow.CLOCK_OUT_GRACE);
             return buildStatus(c, assignments, date);
         }
+    }
+
+    /**
+     * Ca còn hiệu lực chấm công lúc này: ca trong ngày kinh doanh, cộng ca đêm hôm trước chưa hết giờ.
+     * Chỉ lấy đúng ngày hôm nay thì ca đêm tan sau nửa đêm sẽ bị báo "chưa được xếp ca".
+     */
+    private List<ShiftAssignment> clockableAssignments(Connection c, int userId, int branchId,
+                                                       LocalDate businessDate, Duration grace) throws SQLException {
+        LocalDateTime nowVn = LocalDateTime.now(BusinessDay.VN_ZONE);
+        List<ShiftAssignment> out = new ArrayList<>();
+        for (ShiftAssignment a : dao.findClockAssignments(c, userId, branchId, businessDate)) {
+            if (ShiftWindow.isClockable(a.getWorkDate(), a.getStartTime(), a.getEndTime(), businessDate, nowVn, grace)) out.add(a);
+        }
+        return out;
+    }
+
+    /** Ca còn hiệu lực chấm công của một người — dùng chung cho màn trực ca của thu ngân. */
+    public List<ShiftAssignment> currentShiftAssignments(Connection c, int userId, int branchId) throws SQLException {
+        return clockableAssignments(c, userId, branchId, currentVnDate(), ShiftWindow.CLOCK_OUT_GRACE);
     }
 
     /** Lịch đi làm 1 tháng của chính nhân viên đang đăng nhập. */
@@ -103,6 +125,64 @@ public class AttendanceService {
                 r.setWorkHours(ShiftHours.worked(r.getCheckInAt(), r.getCheckOutAt()));
             }
             return rows;
+        }
+    }
+
+    /**
+     * Một trang lịch đi làm trong tháng — tìm kiếm, bộ lọc trạng thái và phân trang đều chạy ở database.
+     * Phần tổng hợp phía trên màn vẫn đọc cả tháng qua {@link #getMyMonthlyHistory} nên số liệu không
+     * đổi theo từ khoá đang gõ.
+     */
+    public MonthlyAttendancePage getMyMonthlyHistoryPage(int userId, int branchId, YearMonth ym,
+                                                          String query, String state,
+                                                          int requestedPage, int pageSize) throws SQLException {
+        LocalDate monthStart = ym.atDay(1);
+        LocalDate monthEndExclusive = ym.plusMonths(1).atDay(1);
+        try (Connection c = DBConnection.getConnection()) {
+            int total = dao.countMonthlyByUser(c, userId, branchId, monthStart, monthEndExclusive, query, state);
+            int totalPages = Math.max(1, (int) Math.ceil((double) total / pageSize));
+            int page = Math.max(1, Math.min(requestedPage, totalPages));
+            List<MonthlyAttendanceRow> rows = dao.findMonthlyPageByUser(c, userId, branchId,
+                    monthStart, monthEndExclusive, query, state, (page - 1) * pageSize, pageSize);
+            for (MonthlyAttendanceRow r : rows) {
+                r.setWorkHours(ShiftHours.worked(r.getCheckInAt(), r.getCheckOutAt()));
+            }
+            return new MonthlyAttendancePage(rows, total, page, pageSize);
+        }
+    }
+
+    public static class MonthlyAttendancePage {
+        private final List<MonthlyAttendanceRow> rows;
+        private final int total;
+        private final int page;
+        private final int pageSize;
+
+        public MonthlyAttendancePage(List<MonthlyAttendanceRow> rows, int total, int page, int pageSize) {
+            this.rows = rows;
+            this.total = total;
+            this.page = page;
+            this.pageSize = pageSize;
+        }
+
+        public List<MonthlyAttendanceRow> getRows() { return rows; }
+        public int getTotal() { return total; }
+        public int getPage() { return page; }
+        public int getPageSize() { return pageSize; }
+        public int getTotalPages() { return Math.max(1, (int) Math.ceil((double) total / pageSize)); }
+        public boolean isHasPrevious() { return page > 1; }
+        public boolean isHasNext() { return page < getTotalPages(); }
+        public int getStartRow() { return total == 0 ? 0 : (page - 1) * pageSize + 1; }
+        public int getEndRow() { return Math.min(page * pageSize, total); }
+
+        /** Tối đa 5 số trang quanh trang hiện tại để pager không phình khi tháng có nhiều ca. */
+        public List<Integer> getVisiblePages() {
+            List<Integer> pages = new ArrayList<>();
+            int totalPages = getTotalPages();
+            int start = Math.max(1, page - 2);
+            int end = Math.min(totalPages, start + 4);
+            start = Math.max(1, end - 4);
+            for (int value = start; value <= end; value++) pages.add(value);
+            return pages;
         }
     }
 
@@ -166,7 +246,8 @@ public class AttendanceService {
 
     /** Lõi vào ca chạy trong transaction của caller. */
     public void clockIn(Connection c, int userId, int branchId) throws SQLException {
-        List<ShiftAssignment> assignments = dao.findTodayAssignments(c, userId, branchId, currentVnDate());
+        // Vào ca không có biên trễ: ca đêm hôm trước chỉ tính khi còn đang chạy, tránh chấm nhầm vào ca đã qua.
+        List<ShiftAssignment> assignments = clockableAssignments(c, userId, branchId, currentVnDate(), Duration.ZERO);
         if (assignments.isEmpty()) throw new IllegalStateException("Hôm nay bạn chưa được xếp ca.");
 
         ShiftAssignment target = chooseForClockIn(c, assignments);
@@ -189,15 +270,40 @@ public class AttendanceService {
         txVoid(c -> clockOut(c, userId, branchId));
     }
 
+    /**
+     * Cửa sổ dò NGƯỢC chỉ để chọn đúng câu báo lỗi khi đã hết hạn chấm công — không cho phép
+     * tan ca muộn hơn {@link ShiftWindow#CLOCK_OUT_GRACE}.
+     */
+    private static final Duration LATE_CLOCK_OUT_LOOKBACK = Duration.ofDays(2);
+
     /** Lõi tan ca chạy trong transaction của caller. */
     public void clockOut(Connection c, int userId, int branchId) throws SQLException {
-        List<ShiftAssignment> assignments = dao.findTodayAssignments(c, userId, branchId, currentVnDate());
-        if (assignments.isEmpty()) throw new IllegalStateException("Hôm nay bạn chưa được xếp ca.");
+        LocalDate businessDate = currentVnDate();
+        List<ShiftAssignment> assignments = clockableAssignments(c, userId, branchId, businessDate, ShiftWindow.CLOCK_OUT_GRACE);
+        if (assignments.isEmpty()) {
+            // Ca CÓ tồn tại nhưng đã rơi khỏi cửa sổ chấm công: nói đúng vấn đề để nhân viên biết
+            // phải nhờ Quản lý chốt giờ, thay vì tưởng mình chưa từng được xếp ca.
+            if (!clockableAssignments(c, userId, branchId, businessDate, LATE_CLOCK_OUT_LOOKBACK).isEmpty()) {
+                throw new IllegalStateException(
+                        "Ca đã quá hạn chấm công. Bản ghi vẫn đang mở — nhờ Quản lý chốt giờ tan ca giúp bạn.");
+            }
+            throw new IllegalStateException("Hôm nay bạn chưa được xếp ca.");
+        }
 
         ShiftAssignment target = chooseOpenAssignment(c, assignments);
         if (target == null) throw new IllegalStateException("Bạn chưa vào ca.");
 
-        Attendance existing = dao.findByAssignment(c, target.getShiftAssignmentId());
+        clockOutAssignment(c, target.getShiftAssignmentId());
+    }
+
+    /**
+     * Tan ca cho đúng ca mà caller đã xác định (vd bàn giao ca đã chốt được ca nguồn).
+     * Không dò lại theo ngày nên không đóng nhầm sang ca khác khi một người có nhiều ca mở.
+     * Caller phải bảo đảm assignment thuộc về chính người đang thao tác.
+     */
+    public void clockOutAssignment(Connection c, int shiftAssignmentId) throws SQLException {
+        // Khoá dòng như clockIn: hai tab bấm tan ca cùng lúc thì tab sau đọc được CheckOutAt đã ghi và bị chặn.
+        Attendance existing = dao.findByAssignmentForUpdate(c, shiftAssignmentId);
         if (existing == null || existing.getCheckInAt() == null || existing.getCheckOutAt() != null) {
             throw new IllegalStateException("Bạn chưa vào ca.");
         }

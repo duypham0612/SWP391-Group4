@@ -61,17 +61,20 @@ public class ManagerMenuServlet extends HttpServlet {
             BranchMenuItem cur = findItem(branchId, productId);
             boolean available = cur != null && cur.isAvailable();
             BigDecimal localPrice = cur != null ? cur.getLocalPrice() : null;
-            boolean is86 = cur != null && cur.isIs86();
 
+            // Không có nhánh toggle86: mở bán lại món đang tạm hết phải đi qua panel "Món tạm hết"
+            // (/manager/menu-block) để yêu cầu của barista được đóng cùng lúc với cờ 86.
             if ("toggleAvailable".equals(action)) {
                 available = !available;
             } else if ("setLocalPrice".equals(action)) {
                 String lp = req.getParameter("localPrice");
                 localPrice = (lp == null || lp.isBlank()) ? null : new BigDecimal(lp.trim());
-            } else if ("toggle86".equals(action)) {
-                is86 = !is86;
+            } else {
+                req.getSession().setAttribute("flashError", "Thao tác không hợp lệ.");
+                resp.sendRedirect(req.getContextPath() + "/manager/menu");
+                return;
             }
-            service.save(branchId, productId, available, localPrice, is86);
+            service.save(branchId, productId, available, localPrice);
             resp.sendRedirect(req.getContextPath() + "/manager/menu");
         } catch (BusinessException e) {
             req.getSession().setAttribute("flashError", e.getMessage());

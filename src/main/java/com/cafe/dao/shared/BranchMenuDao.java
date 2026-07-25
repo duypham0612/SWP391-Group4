@@ -57,26 +57,31 @@ public class BranchMenuDao {
         }
     }
 
+    /**
+     * Cấu hình menu chi nhánh: bật/tắt bán + giá riêng. CỐ Ý không đụng {@code Is86}/{@code BackInEta} —
+     * cờ hết món chỉ do luồng báo hết ghi ({@code request86}/{@code reopen86}), vì nó phải khớp với
+     * yêu cầu còn mở trong {@code catalog.MenuBlockRequest}. Ghi từ hai đường sẽ làm lệch hai bên:
+     * món mở bán lại mà yêu cầu vẫn treo thì barista vướng unique index, không báo hết lại được.
+     */
     public void upsert(Connection conn, int branchId, int productId,
-                       boolean available, BigDecimal localPrice, boolean is86) throws SQLException {
+                       boolean available, BigDecimal localPrice) throws SQLException {
         if (exists(conn, branchId, productId)) {
-            final String sql = "UPDATE catalog.BranchMenu SET IsAvailable=?, LocalPrice=?, Is86=? WHERE BranchId=? AND ProductId=?";
+            final String sql = "UPDATE catalog.BranchMenu SET IsAvailable=?, LocalPrice=? WHERE BranchId=? AND ProductId=?";
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setBoolean(1, available);
                 if (localPrice == null) ps.setNull(2, Types.DECIMAL); else ps.setBigDecimal(2, localPrice);
-                ps.setBoolean(3, is86);
-                ps.setInt(4, branchId);
-                ps.setInt(5, productId);
+                ps.setInt(3, branchId);
+                ps.setInt(4, productId);
                 ps.executeUpdate();
             }
         } else {
-            final String sql = "INSERT INTO catalog.BranchMenu(BranchId, ProductId, IsAvailable, LocalPrice, Is86) VALUES (?,?,?,?,?)";
+            // Món vừa lên menu thì chưa hết — để cột Is86 dùng DEFAULT 0 của schema.
+            final String sql = "INSERT INTO catalog.BranchMenu(BranchId, ProductId, IsAvailable, LocalPrice) VALUES (?,?,?,?)";
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setInt(1, branchId);
                 ps.setInt(2, productId);
                 ps.setBoolean(3, available);
                 if (localPrice == null) ps.setNull(4, Types.DECIMAL); else ps.setBigDecimal(4, localPrice);
-                ps.setBoolean(5, is86);
                 ps.executeUpdate();
             }
         }

@@ -11,116 +11,106 @@
     <c:remove var="flashError" scope="session" />
 </c:if>
 
-<%-- Cao điểm: gom cảnh báo về MỘT dòng thay vì tô đỏ từng card. Lúc đông, ly nào cũng "trễ"
-     theo đồng hồ chờ song song — tô đỏ hết thì mất tác dụng phân loại; barista cần biết pha ly
-     nào trước (số thứ tự trên card), quản lý cần biết khách cuối còn đợi bao lâu. --%>
+<%-- Cao điểm đo bằng SỐ LY đang dồn, không dính đồng hồ. Việc cần làm khi đông vẫn là pha theo
+     đúng thứ tự trong danh sách, nên dòng này chỉ nhắc đúng một điều đó. --%>
 <c:if test="${peakMode}">
     <div class="kds-peak" role="status">
         <strong>Cao điểm</strong>
-        <span>${peakQueueCups} ly đang dồn · khách cuối đợi ~${peakEstLastMin} phút · pha theo số thứ tự trên card</span>
+        <span>${peakQueueCups} ly đang dồn · pha lần lượt theo số thứ tự đầu dòng</span>
     </div>
 </c:if>
 
-<%-- Một dải trạng thái gọn để giữ món đầu tiên trong tầm mắt. Số đếm theo số ly. --%>
-<section class="kds-summary kds-summary--${peakMode ? 'ok' : oldestTier}" aria-label="Trạng thái quầy pha chế">
+<%-- Dải trạng thái: chỉ đếm khối lượng việc theo số ly, không có số liệu thời gian nào. --%>
+<section class="kds-summary" aria-label="Trạng thái quầy pha chế">
     <div class="kds-stat"><span class="kds-stat__label">Chờ pha</span><strong class="kds-stat__num">${waitingCount}</strong><span class="kds-stat__unit">ly</span></div>
     <div class="kds-stat"><span class="kds-stat__label">Đang pha</span><strong class="kds-stat__num kds-stat__num--making">${makingCount}</strong><span class="kds-stat__unit">ly</span></div>
     <div class="kds-stat"><span class="kds-stat__label">Sẵn sàng</span><strong class="kds-stat__num kds-stat__num--ready">${readyCount}</strong><span class="kds-stat__unit">ly</span></div>
-    <div class="kds-stat"><span class="kds-stat__label">Trễ giờ</span><strong class="kds-stat__num ${overdueCount gt 0 ? 'kds-stat__num--over' : ''}">${overdueCount}</strong><span class="kds-stat__unit">ly</span></div>
+    <div class="kds-stat"><span class="kds-stat__label">Cần xử lý</span><strong class="kds-stat__num">${blockedCount}</strong><span class="kds-stat__unit">ly</span></div>
     <div class="kds-stat kds-stat--wide">
-        <span class="kds-stat__label">Chờ lâu nhất</span><strong class="kds-stat__num">${oldestDisplay}</strong>
-        <span class="kds-stat__context"><c:choose><c:when test="${oldestQty gt 0}"><c:out value="${oldestLocation}" /> · ${oldestQty}× <c:out value="${oldestProduct}" /></c:when><c:otherwise>Quầy đang thông thoáng</c:otherwise></c:choose></span>
+        <span class="kds-stat__label">Đơn đang mở</span><strong class="kds-stat__num">${openOrderCount}</strong>
+        <span class="kds-stat__context"><c:choose><c:when test="${waitingCount + makingCount gt 0}">${waitingCount + makingCount} ly còn phải pha</c:when><c:otherwise>Quầy đang thông thoáng</c:otherwise></c:choose></span>
     </div>
 </section>
 
-<%-- Master–detail theo bàn: danh sách bàn bên trái, chi tiết một bàn bên phải. Render TẤT CẢ
-     panel, CSS chỉ hiện panel active — cùng cơ chế "render all + toggle" của board lane cũ, để
-     polling swap nguyên khối và JS chỉ cần đổi cờ active. --%>
+<%-- Danh sách MỘT CỘT theo đúng thứ tự pha: món làm lại lên đầu, còn lại FIFO theo giờ đặt,
+     món đã pha xong dồn xuống cuối. Bàn là một cột ngay trên dòng nên không còn cần danh sách
+     bàn riêng bên trái — barista đọc từ trên xuống là ra việc tiếp theo. --%>
+<%-- Trang và bộ lọc mà máy chủ VỪA áp. kds-board.js đọc lại sau mỗi lần thay board để biết
+     đang đứng ở trang nào (làm mới / thao tác xong phải ở lại đúng trang đó). --%>
+<span id="kdsQueueState" hidden
+      data-page="${queuePage.page}" data-total-pages="${queuePage.totalPages}"
+      data-owner="${filterOwner}" data-station="${filterStation}" data-order-type="${filterOrderType}"></span>
+
 <c:choose>
-    <c:when test="${empty tableGroups}">
-        <div class="kds-tables-empty"><span>✓</span> Quầy đang thông thoáng — chưa có bàn nào cần pha.</div>
+    <c:when test="${queueTotal == 0}">
+        <div class="kds-tables-empty"><span>✓</span> Quầy đang thông thoáng — chưa có món nào cần pha.</div>
+    </c:when>
+    <c:when test="${queuePage.total == 0}">
+        <div class="kds-filter-empty">Không có món phù hợp bộ lọc — quầy vẫn còn ${queueTotal} món.</div>
     </c:when>
     <c:otherwise>
-        <div class="kds-tables" id="kdsTables">
-            <div class="kds-table-side">
-            <div class="kds-side-head"><span>Bàn cần pha</span><strong>${tableGroups.size()}</strong></div>
-            <div class="kds-table-search">
-                <input type="search" id="kdsTableSearch" class="kds-table-search__input" placeholder="Tìm bàn…" autocomplete="off" aria-label="Tìm nhanh bàn">
+        <div class="kds-queue" id="kdsQueue">
+            <div class="kds-queue__head" aria-hidden="true">
+                <span class="kds-qrow__seq">#</span>
+                <span class="kds-qrow__qty">SL</span>
+                <span class="kds-qrow__name">Món</span>
+                <span class="kds-qrow__table">Bàn</span>
+                <span class="kds-qrow__code">Đơn</span>
+                <span class="kds-qrow__state">Trạng thái</span>
+                <span class="kds-qrow__act"></span>
             </div>
-            <nav class="kds-table-list" role="tablist" aria-label="Danh sách bàn" aria-orientation="vertical">
-                <c:forEach var="tg" items="${tableGroups}" varStatus="st">
-                    <button type="button" role="tab" class="kds-table-tab kds-table-tab--${tg.badgeTier} ${st.first ? 'is-active' : ''} ${tg.done ? 'is-done' : ''}"
-                            data-table-tab data-table-key="<c:out value='${tg.key}' />"
-                            aria-selected="${st.first ? 'true' : 'false'}" tabindex="${st.first ? '0' : '-1'}">
-                        <span class="kds-table-tab__name"><c:out value="${tg.label}" /><c:if test="${tg.orderCount gt 1}"> <span class="kds-table-tab__ordn">${tg.orderCount} đơn</span></c:if></span>
-                        <span class="kds-table-tab__meta">
-                            <c:choose>
-                                <c:when test="${tg.openCups gt 0}"><span class="kds-table-tab__open">${tg.openCups} ly</span></c:when>
-                                <c:otherwise><span class="kds-table-tab__isdone">✓ đã xong</span></c:otherwise>
-                            </c:choose>
-                            <c:if test="${tg.hasBlocked}"><span class="kds-table-tab__flag">Cần xử lý</span></c:if>
-                        </span>
-                        <span class="kds-table-tab__dots" aria-hidden="true">
-                            <c:if test="${tg.waitingCups gt 0}"><span class="kds-dot kds-dot--waiting">${tg.waitingCups}</span></c:if>
-                            <c:if test="${tg.makingCups gt 0}"><span class="kds-dot kds-dot--making">${tg.makingCups}</span></c:if>
-                            <c:if test="${tg.readyCups gt 0}"><span class="kds-dot kds-dot--ready">${tg.readyCups}</span></c:if>
-                        </span>
-                    </button>
-                </c:forEach>
-            </nav>
-            </div>
+            <c:forEach var="item" items="${queuePage.items}">
+                <c:set var="cardItem" value="${item}" scope="request" />
+                <jsp:include page="_kdsQueueRow.jsp" />
+            </c:forEach>
+        </div>
 
-            <div class="kds-table-detail">
-                <c:forEach var="tg" items="${tableGroups}" varStatus="st">
-                    <section class="kds-table-panel ${st.first ? 'is-active' : ''}" role="tabpanel"
-                             data-table-panel data-table-key="<c:out value='${tg.key}' />"
-                             aria-label="Chi tiết ${tg.label}">
-                        <div class="kds-table-panel__head">
-                            <h2 class="kds-table-panel__name"><c:out value="${tg.label}" /></h2>
-                            <span class="kds-table-panel__sub">
-                                <c:if test="${tg.orderCount gt 1}">${tg.orderCount} đơn · </c:if>
-                                <c:if test="${tg.orderCount eq 1 and not empty tg.pickupCode}"><span class="kds-code"><c:out value="${tg.pickupCode}" /></span> · </c:if>
-                                <c:choose><c:when test="${tg.openCups gt 0}">${tg.openCups} ly đang mở</c:when><c:otherwise>Đã pha xong, chờ giao</c:otherwise></c:choose>
-                            </span>
-                        </div>
-
-                        <c:if test="${not empty tg.blocked}">
-                            <div class="kds-table-section kds-table-section--blocked">
-                                <div class="kds-table-section__head"><h3>Tạm dừng — cần xử lý</h3><span class="kds-sec-count">${tg.blockedCups} ly</span></div>
-                                <p class="kds-modal__hint">Khách vẫn đang đợi. Xử lý nguyên liệu hoặc thiết bị rồi trả món về hàng chờ; Thu ngân có thể huỷ nếu cần.</p>
-                                <div class="kds-table-section__body">
-                                    <c:forEach var="b" items="${tg.blockedBatches}"><div class="kds-batch"><div class="kds-batch__head"><span class="kds-batch__qty">${b.totalQty}×</span><span class="kds-batch__name"><c:out value="${b.productName}" /></span><c:if test="${b.orderCount gt 1}"><span class="kds-batch__n">${b.orderCount} đơn</span></c:if></div><c:forEach var="item" items="${b.items}"><c:set var="cardItem" value="${item}" scope="request" /><jsp:include page="_kdsBatchRow.jsp" /></c:forEach></div></c:forEach>
-                                </div>
-                            </div>
-                        </c:if>
-                        <c:if test="${not empty tg.waiting}">
-                            <div class="kds-table-section kds-table-section--waiting">
-                                <div class="kds-table-section__head"><h3>Chưa pha</h3><span class="kds-sec-count">${tg.waitingCups} ly</span></div>
-                                <div class="kds-table-section__body">
-                                    <c:forEach var="b" items="${tg.waitingBatches}"><div class="kds-batch"><div class="kds-batch__head"><span class="kds-batch__qty">${b.totalQty}×</span><span class="kds-batch__name"><c:out value="${b.productName}" /></span><c:if test="${b.orderCount gt 1}"><span class="kds-batch__n">${b.orderCount} đơn</span></c:if></div><c:forEach var="item" items="${b.items}"><c:set var="cardItem" value="${item}" scope="request" /><jsp:include page="_kdsBatchRow.jsp" /></c:forEach></div></c:forEach>
-                                </div>
-                            </div>
-                        </c:if>
-                        <c:if test="${not empty tg.making}">
-                            <div class="kds-table-section kds-table-section--making">
-                                <div class="kds-table-section__head"><h3>Đang pha</h3><span class="kds-sec-count">${tg.makingCups} ly</span></div>
-                                <div class="kds-table-section__body">
-                                    <c:forEach var="b" items="${tg.makingBatches}"><div class="kds-batch"><div class="kds-batch__head"><span class="kds-batch__qty">${b.totalQty}×</span><span class="kds-batch__name"><c:out value="${b.productName}" /></span><c:if test="${b.orderCount gt 1}"><span class="kds-batch__n">${b.orderCount} đơn</span></c:if></div><c:forEach var="item" items="${b.items}"><c:set var="cardItem" value="${item}" scope="request" /><jsp:include page="_kdsBatchRow.jsp" /></c:forEach></div></c:forEach>
-                                </div>
-                            </div>
-                        </c:if>
-                        <c:if test="${not empty tg.ready}">
-                            <div class="kds-table-section kds-table-section--ready">
-                                <div class="kds-table-section__head"><h3>Đã pha xong — chờ giao</h3><span class="kds-sec-count">${tg.readyCups} ly</span></div>
-                                <div class="kds-table-section__body">
-                                    <c:forEach var="b" items="${tg.readyBatches}"><div class="kds-batch"><div class="kds-batch__head"><span class="kds-batch__qty">${b.totalQty}×</span><span class="kds-batch__name"><c:out value="${b.productName}" /></span><c:if test="${b.orderCount gt 1}"><span class="kds-batch__n">${b.orderCount} đơn</span></c:if></div><c:forEach var="item" items="${b.items}"><c:set var="cardItem" value="${item}" scope="request" /><jsp:include page="_kdsBatchRow.jsp" /></c:forEach></div></c:forEach>
-                                </div>
-                            </div>
-                        </c:if>
-                        <div class="kds-filter-empty" hidden>Không có món phù hợp bộ lọc.</div>
-                    </section>
-                </c:forEach>
-            </div>
+        <%-- Chân bảng: bên trái là phạm vi đang xem, bên phải là pager. Giá trị bộ lọc đã qua
+             whitelist ở servlet nên ghép thẳng vào URL là an toàn. Pager vẫn là link thật để
+             chạy được cả khi JS hỏng; kds-board.js chặn click và nạp trang bằng AJAX. --%>
+        <c:set var="kdsPagerBase"
+               value="${ctx}/barista/kds?owner=${filterOwner}&amp;station=${filterStation}&amp;orderType=${filterOrderType}&amp;page=" />
+        <div class="kds-queue__foot" id="kdsQueueFoot">
+            <p class="kds-queue__range">
+                Đang xem <strong>${queuePage.startRow}–${queuePage.endRow}</strong> / ${queuePage.total} món<c:if test="${queuePage.total lt queueTotal}"> đã lọc (tổng ${queueTotal})</c:if>
+                <c:if test="${queuePage.totalPages gt 1}"> · Trang ${queuePage.page}/${queuePage.totalPages}</c:if>
+            </p>
+            <c:if test="${queuePage.totalPages gt 1}">
+                <nav class="pagination" aria-label="Phân trang hàng chờ pha chế">
+                    <a class="page" href="${kdsPagerBase}1" data-page="1"
+                       aria-disabled="${not queuePage.hasPrevious}" title="Trang đầu">«</a>
+                    <a class="page" href="${kdsPagerBase}${queuePage.page - 1}" data-page="${queuePage.page - 1}"
+                       aria-disabled="${not queuePage.hasPrevious}" title="Trang trước">‹</a>
+                    <c:forEach var="pageNumber" items="${queuePage.visiblePages}">
+                        <a class="page ${pageNumber == queuePage.page ? 'is-active' : ''}"
+                           href="${kdsPagerBase}${pageNumber}" data-page="${pageNumber}"
+                           aria-current="${pageNumber == queuePage.page ? 'page' : 'false'}">${pageNumber}</a>
+                    </c:forEach>
+                    <a class="page" href="${kdsPagerBase}${queuePage.page + 1}" data-page="${queuePage.page + 1}"
+                       aria-disabled="${not queuePage.hasNext}" title="Trang sau">›</a>
+                    <a class="page" href="${kdsPagerBase}${queuePage.totalPages}" data-page="${queuePage.totalPages}"
+                       aria-disabled="${not queuePage.hasNext}" title="Trang cuối">»</a>
+                </nav>
+            </c:if>
         </div>
     </c:otherwise>
 </c:choose>
+
+<%-- ĐƠN TREO: món còn dang dở từ ngày kinh doanh TRƯỚC. Bị cắt khỏi hàng chờ chính (và khỏi mọi
+     con số ở dải trạng thái) để rác cũ không làm lệch thống kê ca hôm nay, nhưng vẫn phải hiện —
+     khách đã đặt và vẫn đang chờ. Thao tác giữ nguyên như dòng thường: pha nốt, chặn, hoặc để
+     Thu ngân huỷ. Khu này vốn phải rỗng; có dòng nào là có việc phải chốt. --%>
+<c:if test="${not empty staleItems}">
+    <section class="kds-carryover" aria-labelledby="kdsCarryoverTitle">
+        <div class="kds-carryover__head">
+            <h2 id="kdsCarryoverTitle" class="kds-carryover__title">⚠ Đơn treo cần xử lý</h2>
+            <p class="kds-carryover__note">${staleCups} ly từ ngày kinh doanh trước còn dang dở — pha nốt, hoặc báo Thu ngân huỷ &amp; hoàn tiền.</p>
+        </div>
+        <div class="kds-carryover__list">
+            <c:forEach var="item" items="${staleItems}">
+                <c:set var="cardItem" value="${item}" scope="request" />
+                <jsp:include page="_kdsQueueRow.jsp" />
+            </c:forEach>
+        </div>
+    </section>
+</c:if>

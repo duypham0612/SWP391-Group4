@@ -46,11 +46,21 @@
                     </div>
                     <c:choose>
                         <c:when test="${b.hasSuggestedWaste}">
-                            <c:url var="expiredWasteUrl" value="/barista/waste">
-                                <c:param name="ingredientId" value="${b.preppedIngredientId}" />
-                                <c:param name="qty" value="${b.suggestedWasteQuantity}" />
-                            </c:url>
-                            <a class="btn btn-ghost btn-sm" href="${expiredWasteUrl}">Ghi hao hụt ${b.suggestedWasteQuantity} ${b.preppedIngredientUnit}</a>
+                            <%-- POST thẳng về màn Prep: trừ tồn và đóng mẻ trong cùng một transaction,
+                                 nên mẻ không quay lại danh sách này để bị ghi hao hụt lần thứ hai. --%>
+                            <form action="${ctx}/barista/prep" method="post" class="prep-expired__form"
+                                  onsubmit="return confirm('Ghi hao hụt cho mẻ quá hạn này? Tồn kho sẽ bị trừ và mẻ được đóng lại, không ghi thêm được nữa.');">
+                                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                <input type="hidden" name="action" value="writeOffExpired">
+                                <input type="hidden" name="prepBatchId" value="${b.prepBatchId}">
+                                <input type="hidden" name="quantity" value="${b.suggestedWasteQuantity}">
+                                <button type="submit" class="btn btn-ghost btn-sm">Ghi hao hụt ${b.suggestedWasteQuantity} ${b.preppedIngredientUnit}</button>
+                            </form>
+                        </c:when>
+                        <c:when test="${b.branchQuantityOnHand > 0}">
+                            <%-- Tồn ghi theo nguyên liệu chứ không theo mẻ, nên phần đang có đã được
+                                 phân cho mẻ hết hạn sớm hơn trong danh sách này. --%>
+                            <span class="muted">Tồn còn lại đã phân cho mẻ hết hạn sớm hơn — xử lý mẻ đó trước.</span>
                         </c:when>
                         <c:otherwise>
                             <span class="muted">Không đề xuất trừ thêm vì tồn hiện có không dương.</span>
@@ -142,7 +152,11 @@
     </div>
 </template>
 
-<%-- ===== Mẻ pha hôm nay ===== --%>
+</div><%-- /is-viewonly: hết phần ghi dữ liệu --%>
+
+<%-- ===== Mẻ pha hôm nay =====
+     Tra cứu là thao tác chỉ đọc nên vẫn tìm/lọc/lật trang được khi ngoài ca;
+     riêng cột Thao tác của từng mẻ vẫn bị khoá bên dưới. --%>
 <h3>Mẻ pha hôm nay</h3>
 <div>
     <form id="prepBatchFilters" class="table-toolbar" action="${ctx}/barista/prep" method="get">
@@ -218,11 +232,14 @@
                             <td>
                                 <c:choose>
                                     <c:when test="${b.status == 'CANCELLED'}"><span class="badge badge-cancelled">Đã huỷ</span></c:when>
+                                    <c:when test="${b.writtenOff}"><span class="badge badge-making">Đã ghi hao hụt</span></c:when>
                                     <c:otherwise><span class="badge badge-ready">Hiệu lực</span></c:otherwise>
                                 </c:choose>
                             </td>
-                            <td>
-                                <c:if test="${b.status == 'ACTIVE'}">
+                            <td class="${onShift ? '' : 'is-viewonly'}">
+                                <%-- Mẻ đã ghi hao hụt quá hạn thì tồn đã trừ xong: không mở lại Sửa/Huỷ
+                                     để khỏi trừ chồng (server cũng chặn, đây là chặn ở lớp hiển thị). --%>
+                                <c:if test="${b.status == 'ACTIVE' and not b.writtenOff}">
                                     <form action="${ctx}/barista/prep" method="post" class="prep-row-form"
                                           onsubmit="return confirm('Cập nhật sản lượng mẻ này? Chênh lệch sẽ ghi vào sổ cái tồn kho.');">
                                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
@@ -265,8 +282,7 @@
             </div>
         </c:if>
     </div>
-</div>
-</div><%-- /is-viewonly --%>
+</div><%-- /mẻ pha hôm nay --%>
 
 <script>
   (function(){
@@ -488,7 +504,17 @@
       if (firstBad){
         e.preventDefault();
         focusError(firstBad.row, firstBad.field);
+        return;
       }
+      // Khoá nút ngay khi form hợp lệ: bấm đúp sẽ gửi hai POST và tạo hai mẻ, trừ kho hai lần.
+      submit.disabled = true;
+      submit.textContent = 'Đang tạo…';
+    });
+
+    // Quay lại bằng nút Back lấy trang từ bfcache với nút vẫn đang khoá — mở lại cho lượt nhập mới.
+    window.addEventListener('pageshow', function(){
+      submit.textContent = 'Tạo mẻ';
+      syncSubmit();
     });
 
     if (Array.isArray(INITIAL_ROWS) && INITIAL_ROWS.length){

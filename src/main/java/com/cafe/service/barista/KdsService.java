@@ -1,8 +1,6 @@
 package com.cafe.service.barista;
-import com.cafe.service.shared.BranchMenuService;
 import com.cafe.service.shared.OrderService;
 
-import com.cafe.model.KdsTicket;
 import com.cafe.model.OrderItem;
 
 import java.sql.SQLException;
@@ -15,36 +13,8 @@ import java.util.Map;
 public class KdsService {
 
     private final OrderService orderService = new OrderService();
-    private final BranchMenuService branchMenuService = new BranchMenuService();
 
     public List<OrderItem> getQueue(int branchId) throws SQLException { return orderService.getKdsQueue(branchId); }
-
-    /**
-     * Board cũ hai cột, giữ để tương thích dashboard/test. Quầy mới dùng getWorkbenchBoard.
-     * Mỗi cột giữ thứ tự FIFO (getQueue đã sắp theo giờ vào đơn). Đơn có cả 2 loại món sẽ
-     * xuất hiện ở cả hai cột (mỗi cột chỉ chứa món đúng trạng thái của nó).
-     * Trả Map với khoá "waiting" và "making".
-     */
-    public Map<String, List<KdsTicket>> getQueueBoard(int branchId) throws SQLException {
-        Map<Integer, KdsTicket> waiting = new LinkedHashMap<>();
-        Map<Integer, KdsTicket> making = new LinkedHashMap<>();
-        Map<Integer, Integer> pendingByOrder = new LinkedHashMap<>();   // tổng WAITING+MAKING của mỗi đơn
-        for (OrderItem item : getQueue(branchId)) {
-            pendingByOrder.merge(item.getOrderId(), 1, Integer::sum);
-            Map<Integer, KdsTicket> target = "MAKING".equals(item.getStatus()) ? making : waiting;
-            KdsTicket ticket = target.get(item.getOrderId());
-            if (ticket == null) target.put(item.getOrderId(), new KdsTicket(item));
-            else ticket.addItem(item);
-        }
-        // Cùng orderId có thể có ticket ở CẢ hai cột → gắn tổng pending cả đơn cho mỗi ticket,
-        // để nút "Xong cả đơn" hiển thị đúng số món sẽ bị ảnh hưởng (gồm cả cột còn lại).
-        for (KdsTicket t : waiting.values()) t.setOrderPendingCount(pendingByOrder.getOrDefault(t.getOrderId(), t.getItemCount()));
-        for (KdsTicket t : making.values())  t.setOrderPendingCount(pendingByOrder.getOrDefault(t.getOrderId(), t.getItemCount()));
-        Map<String, List<KdsTicket>> board = new LinkedHashMap<>();
-        board.put("waiting", new ArrayList<>(waiting.values()));
-        board.put("making", new ArrayList<>(making.values()));
-        return board;
-    }
 
     /**
      * Board quầy pha chế, mỗi phần tử là một dòng món độc lập.
@@ -59,7 +29,17 @@ public class KdsService {
     public Map<String, List<OrderItem>> getWorkbenchBoard(int branchId,
                                                           java.time.LocalDateTime businessDayStartUtc)
             throws SQLException {
-        return splitWorkbench(orderService.getBaristaWorkbench(branchId, businessDayStartUtc));
+        return splitWorkbench(getWorkbenchQueue(branchId, businessDayStartUtc));
+    }
+
+    /**
+     * Hàng chờ PHẲNG theo đúng thứ tự pha mà truy vấn trả về: món làm lại lên đầu, phần còn lại
+     * FIFO theo giờ vào đơn. Màn quầy pha chế dựng danh sách một cột từ đây; các con số thống kê
+     * vẫn phân giỏ lại bằng {@link #splitWorkbench} trên chính danh sách này, không truy vấn lại.
+     */
+    public List<OrderItem> getWorkbenchQueue(int branchId, java.time.LocalDateTime businessDayStartUtc)
+            throws SQLException {
+        return orderService.getBaristaWorkbench(branchId, businessDayStartUtc);
     }
 
     /** Món dang dở từ ngày kinh doanh trước — khu "Đơn treo cần xử lý". */
@@ -102,7 +82,7 @@ public class KdsService {
     }
 
     /** Phân giỏ thuần theo trạng thái — tách khỏi truy vấn DB để test được. */
-    static Map<String, List<OrderItem>> splitWorkbench(List<OrderItem> items) {
+    public static Map<String, List<OrderItem>> splitWorkbench(List<OrderItem> items) {
         Map<String, List<OrderItem>> board = new LinkedHashMap<>();
         board.put("waiting", new ArrayList<>());
         board.put("inProgress", new ArrayList<>());
@@ -117,11 +97,91 @@ public class KdsService {
         return board;
     }
 
-    /** Món READY của chi nhánh — dùng cho thẻ tóm tắt "Sẵn giao" ở dashboard barista. */
-    public List<OrderItem> getReadyItems(int branchId) throws SQLException { return orderService.getReadyItems(branchId); }
+    /**
+     * Lọc hàng chờ theo bộ lọc của quầy (người phụ trách · quầy · loại đơn).
+     * Món BỊ CHẶN luôn được giữ lại: đó là cảnh báo an toàn, không được để bộ lọc giấu đi.
+     * Lọc ở đây (thay vì ẩn dòng bằng JS như trước) để phân trang đếm trên đúng tập đang xem —
+     * nếu không, bấm "Món của tôi" ở trang 1 sẽ trống trong khi món nằm ở trang 3.
+     */
+    public static List<OrderItem> filterWorkbench(List<OrderItem> items, String owner, String station,
+                                                  String orderType, Integer currentUserId) {
+        List<OrderItem> out = new ArrayList<>(items.size());
+        for (OrderItem item : items) {
+            if ("BLOCKED".equals(item.getStatus())
+                    || (ownerMatches(item, owner, currentUserId)
+                        && valueMatches(station, item.getStation())
+                        && valueMatches(orderType, item.getOrderType()))) {
+                out.add(item);
+            }
+        }
+        return out;
+    }
+
+    private static boolean valueMatches(String filter, String value) {
+        return filter == null || filter.isBlank() || "all".equals(filter) || filter.equals(value);
+    }
+
+    private static boolean ownerMatches(OrderItem item, String owner, Integer currentUserId) {
+        if (owner == null || owner.isBlank() || "all".equals(owner)) return true;
+        String status = item.getStatus();
+        if ("mine".equals(owner)) {
+            // Món của tôi = tôi đang pha, hoặc chính tôi vừa pha xong.
+            Integer holder = "MAKING".equals(status) ? item.getBaristaId()
+                    : "READY".equals(status) ? item.getPreparedBy() : null;
+            return currentUserId != null && currentUserId.equals(holder);
+        }
+        if ("unassigned".equals(owner)) return "WAITING".equals(status);
+        return true;
+    }
+
+    /**
+     * Cắt trang trên danh sách ĐÃ sắp thứ tự pha và ĐÃ đánh số thứ tự — số trên dòng vì thế là
+     * vị trí thật trong cả hàng chờ, không bị đánh lại theo từng trang. Số trang ngoài phạm vi
+     * được kéo về biên: sau mỗi thao tác hàng chờ ngắn đi, trang đang xem có thể không còn nữa.
+     */
+    public static QueuePage paginate(List<OrderItem> items, int page, int pageSize) {
+        return new QueuePage(items, page, pageSize);
+    }
+
+    /** Một trang của hàng chờ — thuần phép cắt danh sách, không truy vấn lại DB. */
+    public static class QueuePage {
+        private final List<OrderItem> items;
+        private final int total;
+        private final int page;
+        private final int pageSize;
+
+        QueuePage(List<OrderItem> all, int page, int pageSize) {
+            this.total = all.size();
+            this.pageSize = Math.max(1, pageSize);
+            int totalPages = Math.max(1, (int) Math.ceil((double) total / this.pageSize));
+            this.page = Math.min(Math.max(1, page), totalPages);
+            int from = Math.min((this.page - 1) * this.pageSize, total);
+            this.items = new ArrayList<>(all.subList(from, Math.min(from + this.pageSize, total)));
+        }
+
+        public List<OrderItem> getItems() { return items; }
+        public int getTotal() { return total; }
+        public int getPage() { return page; }
+        public int getPageSize() { return pageSize; }
+        public int getTotalPages() { return Math.max(1, (int) Math.ceil((double) total / pageSize)); }
+        public boolean isHasPrevious() { return page > 1; }
+        public boolean isHasNext() { return page < getTotalPages(); }
+        public int getStartRow() { return total == 0 ? 0 : (page - 1) * pageSize + 1; }
+        public int getEndRow() { return Math.min(page * pageSize, total); }
+
+        /** Tối đa 5 số trang quanh trang hiện tại để pager không phình khi hàng chờ dài. */
+        public List<Integer> getVisiblePages() {
+            List<Integer> pages = new ArrayList<>();
+            int totalPages = getTotalPages();
+            int start = Math.max(1, page - 2);
+            int end = Math.min(totalPages, start + 4);
+            start = Math.max(1, end - 4);
+            for (int value = start; value <= end; value++) pages.add(value);
+            return pages;
+        }
+    }
 
     public boolean startItem(int orderItemId, Integer userId, int branchId) throws SQLException { return orderService.startItem(orderItemId, userId, branchId); }
-    public void bump(int orderItemId, int branchId) throws SQLException { orderService.bumpItem(orderItemId, branchId); }
     public boolean markReady(int orderItemId, Integer userId, int branchId) throws SQLException { return orderService.markItemReady(orderItemId, userId, branchId); }
     public boolean markReady(int orderItemId, Integer userId, int branchId, String handoverLocation) throws SQLException { return orderService.markItemReady(orderItemId, userId, branchId, handoverLocation); }
 
@@ -169,10 +229,5 @@ public class KdsService {
 
     public boolean remakeItem(int orderItemId, String reason, Integer userId, int branchId) throws SQLException {
         return orderService.remakeItem(orderItemId, reason, userId, branchId);
-    }
-
-    /** Đánh dấu hết món (86) — khoá sản phẩm khỏi POS + QR ở chi nhánh; ghi audit ai bật 86. */
-    public void set86(int branchId, int productId, boolean is86, java.time.LocalDateTime backInEta, Integer userId) throws SQLException {
-        branchMenuService.set86(branchId, productId, is86, backInEta, userId);
     }
 }

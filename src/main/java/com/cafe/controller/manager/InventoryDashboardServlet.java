@@ -72,10 +72,20 @@ public class InventoryDashboardServlet extends HttpServlet {
         } catch (Exception e) { throw new ServletException(e); }
     }
 
+    /**
+     * Chi nhánh của user đăng nhập. ADMIN không gắn chi nhánh nên mới đọc tới tham số branchId;
+     * tham số hỏng thì lùi về chi nhánh mặc định thay vì ném NumberFormatException ra thành lỗi 500.
+     */
     public static int branchId(HttpServletRequest req) {
         User u = SessionUtil.currentUser(req);
         if (u != null && u.getBranchId() != null) return u.getBranchId();
         String p = req.getParameter("branchId");
-        return (p != null && !p.isBlank()) ? Integer.parseInt(p) : 1;
+        if (p == null || p.isBlank()) return 1;
+        try {
+            int parsed = Integer.parseInt(p.trim());
+            return parsed > 0 ? parsed : 1;
+        } catch (NumberFormatException e) {
+            return 1;
+        }
     }
 }

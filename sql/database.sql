@@ -441,6 +441,8 @@ CREATE TABLE inventory.PrepBatch (
     Status              VARCHAR(10) NOT NULL DEFAULT 'ACTIVE'   -- huỷ mẻ = ghi txn bù + đánh dấu CANCELLED (không hard-delete)
                         CONSTRAINT CK_PrepBatch_Status CHECK (Status IN ('ACTIVE','CANCELLED')),
     VoidedAt            DATETIME2 NULL,
+    WrittenOffAt        DATETIME2 NULL,              -- đã ghi hao hụt vì quá hạn: mẻ khép lại, không gợi ý ghi thêm
+    WriteOffWasteLogId  INT NULL,                    -- dòng hao hụt tương ứng (FK_PB_WriteOffWaste thêm sau khi WasteLog tồn tại)
     CONSTRAINT FK_PB_Branch  FOREIGN KEY (BranchId)            REFERENCES org.Branch(BranchId),
     CONSTRAINT FK_PB_Prepped FOREIGN KEY (PreppedIngredientId) REFERENCES catalog.Ingredient(IngredientId),
     CONSTRAINT FK_PB_User    FOREIGN KEY (MadeBy)              REFERENCES iam.[User](UserId)
@@ -1223,6 +1225,44 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'inventory
 IF NOT EXISTS (SELECT 1 FROM ops.SchemaVersion WHERE VersionCode = '20260722_waste_event_controls')
     INSERT INTO ops.SchemaVersion (VersionCode, Description)
     VALUES ('20260722_waste_event_controls', N'Bổ sung event, audit và đối soát hao hụt/remake.');
+
+COMMIT TRANSACTION;
+GO
+
+-- 20260725: Đóng vòng đời mẻ pha sẵn quá hạn + tra sổ cái theo chứng từ.
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+
+-- Mẻ quá hạn đã ghi hao hụt phải có dấu vết, nếu không nó ở lại danh sách "quá hạn" vĩnh viễn
+-- và barista có thể ghi hao hụt chồng lên, ăn nhầm tồn của mẻ khác còn hạn.
+IF COL_LENGTH(N'inventory.PrepBatch', N'WrittenOffAt') IS NULL
+    ALTER TABLE inventory.PrepBatch ADD WrittenOffAt DATETIME2 NULL;
+
+IF COL_LENGTH(N'inventory.PrepBatch', N'WriteOffWasteLogId') IS NULL
+    ALTER TABLE inventory.PrepBatch ADD WriteOffWasteLogId INT NULL;
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.foreign_keys
+    WHERE parent_object_id = OBJECT_ID(N'inventory.PrepBatch')
+      AND name = N'FK_PB_WriteOffWaste'
+)
+    ALTER TABLE inventory.PrepBatch WITH CHECK
+        ADD CONSTRAINT FK_PB_WriteOffWaste
+        FOREIGN KEY (WriteOffWasteLogId) REFERENCES inventory.WasteLog(WasteLogId);
+
+-- Huỷ/giảm mẻ đảo theo đúng lượng đã ghi sổ nên phải tra được sổ cái theo chứng từ nguồn.
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'inventory.InventoryTransaction') AND name = N'IX_InvTxn_Ref'
+)
+    CREATE INDEX IX_InvTxn_Ref
+        ON inventory.InventoryTransaction(BranchId, RefTable, RefId, TxnType)
+        INCLUDE (IngredientId, ChangeQty);
+
+IF NOT EXISTS (SELECT 1 FROM ops.SchemaVersion WHERE VersionCode = '20260725_prep_batch_writeoff')
+    INSERT INTO ops.SchemaVersion (VersionCode, Description)
+    VALUES ('20260725_prep_batch_writeoff', N'Đánh dấu mẻ pha sẵn quá hạn đã ghi hao hụt + index tra sổ cái theo chứng từ.');
 
 COMMIT TRANSACTION;
 GO

@@ -58,8 +58,9 @@ public class BranchMenuServlet extends HttpServlet {
             if ("remove".equals(action)) {
                 service.remove(branchId, productId);
             } else {
+                // Cờ 86 KHÔNG nhận từ form này: nó gắn với yêu cầu báo hết của barista
+                // (catalog.MenuBlockRequest) nên chỉ manager mở bán lại qua /manager/menu-block mới đổi được.
                 boolean available = req.getParameter("available") != null;
-                boolean is86 = req.getParameter("is86") != null;
                 BigDecimal localPrice = null;
                 String lp = req.getParameter("localPrice");
                 if (lp != null && !lp.isBlank()) {
@@ -76,8 +77,7 @@ public class BranchMenuServlet extends HttpServlet {
                         return;
                     }
                 }
-                if (!available) is86 = false;
-                service.save(branchId, productId, available, localPrice, is86);
+                service.save(branchId, productId, available, localPrice);
                 req.getSession().setAttribute("flashOk", "Đã lưu menu chi nhánh thành công.");
             }
             resp.sendRedirect(ctx + "/admin/branch-menu?branchId=" + branchId);
