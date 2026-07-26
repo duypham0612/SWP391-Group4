@@ -20,9 +20,10 @@ import java.util.Set;
 @WebServlet("/barista/recipe")
 public class RecipeLookupServlet extends HttpServlet {
 
-    // Màn tra cứu cần quét nhanh giữa lúc pha: menu 1 chi nhánh thường vài chục món,
-    // để 10 thì phải sang trang 2 mới thấy hết. Vẫn giữ phân trang cho chi nhánh menu lớn.
-    private static final int PAGE_SIZE = 50;
+    // Danh sách món nằm cạnh khung công thức nên chỉ chiếm nửa màn: 5 dòng/trang vừa hết
+    // khung, barista không phải cuộn trong lúc pha. Lọc + tìm theo tên vẫn là đường chính
+    // để thu hẹp danh sách, phân trang chỉ dùng khi duyệt lần lượt.
+    private static final int PAGE_SIZE = 5;
 
     private final CatalogReadService catalogReadService = new CatalogReadService();
 

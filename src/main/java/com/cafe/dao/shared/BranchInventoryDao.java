@@ -15,8 +15,8 @@ public class BranchInventoryDao {
 
     public List<BranchInventory> findByBranch(Connection conn, int branchId) throws SQLException {
         final String sql =
-            "SELECT bi.BranchId, bi.IngredientId, bi.QuantityOnHand, bi.MinThreshold, " +
-            "       i.Name AS IngredientName, i.Unit AS IngredientUnit, i.IngredientType " +
+            "SELECT bi.BranchId, bi.IngredientId, bi.QuantityOnHand, bi.MinThreshold, bi.PrepTargetQty, " +
+            "       i.Name AS IngredientName, i.Unit AS IngredientUnit, i.IngredientType, i.ShelfLifeMinutes " +
             "FROM inventory.BranchInventory bi JOIN catalog.Ingredient i ON bi.IngredientId = i.IngredientId " +
             "WHERE bi.BranchId = ? ORDER BY i.IngredientType, i.Name";
         List<BranchInventory> out = new ArrayList<>();
@@ -30,7 +30,7 @@ public class BranchInventoryDao {
     /** Danh sách chọn cho barista: chỉ nguyên liệu đang hoạt động và đã cấu hình tại chi nhánh. */
     public List<BranchInventory> findActiveByBranch(Connection conn, int branchId) throws SQLException {
         final String sql =
-            "SELECT bi.BranchId, bi.IngredientId, bi.QuantityOnHand, bi.MinThreshold, i.Name AS IngredientName, i.Unit AS IngredientUnit, i.IngredientType " +
+            "SELECT bi.BranchId, bi.IngredientId, bi.QuantityOnHand, bi.MinThreshold, bi.PrepTargetQty, i.Name AS IngredientName, i.Unit AS IngredientUnit, i.IngredientType, i.ShelfLifeMinutes " +
             "FROM inventory.BranchInventory bi JOIN catalog.Ingredient i ON bi.IngredientId=i.IngredientId " +
             "WHERE bi.BranchId=? AND i.IsActive=1 ORDER BY i.IngredientType,i.Name";
         List<BranchInventory> out=new ArrayList<>();
@@ -40,8 +40,8 @@ public class BranchInventoryDao {
 
     public List<BranchInventory> findLowStock(Connection conn, int branchId) throws SQLException {
         final String sql =
-            "SELECT bi.BranchId, bi.IngredientId, bi.QuantityOnHand, bi.MinThreshold, " +
-            "       i.Name AS IngredientName, i.Unit AS IngredientUnit, i.IngredientType " +
+            "SELECT bi.BranchId, bi.IngredientId, bi.QuantityOnHand, bi.MinThreshold, bi.PrepTargetQty, " +
+            "       i.Name AS IngredientName, i.Unit AS IngredientUnit, i.IngredientType, i.ShelfLifeMinutes " +
             "FROM inventory.BranchInventory bi JOIN catalog.Ingredient i ON bi.IngredientId = i.IngredientId " +
             "WHERE bi.BranchId = ? AND bi.QuantityOnHand <= bi.MinThreshold ORDER BY i.Name";
         List<BranchInventory> out = new ArrayList<>();
@@ -55,8 +55,8 @@ public class BranchInventoryDao {
     /** Tồn âm hiện tại. Outbox stock.oversold là audit trail; màn quản lý đọc số dư cache để phản ánh trạng thái đang còn lệch. */
     public List<BranchInventory> findOversold(Connection conn, int branchId) throws SQLException {
         final String sql =
-            "SELECT bi.BranchId, bi.IngredientId, bi.QuantityOnHand, bi.MinThreshold, " +
-            "       i.Name AS IngredientName, i.Unit AS IngredientUnit, i.IngredientType " +
+            "SELECT bi.BranchId, bi.IngredientId, bi.QuantityOnHand, bi.MinThreshold, bi.PrepTargetQty, " +
+            "       i.Name AS IngredientName, i.Unit AS IngredientUnit, i.IngredientType, i.ShelfLifeMinutes " +
             "FROM inventory.BranchInventory bi JOIN catalog.Ingredient i ON bi.IngredientId = i.IngredientId " +
             "WHERE bi.BranchId = ? AND bi.QuantityOnHand < 0 ORDER BY i.Name";
         List<BranchInventory> out = new ArrayList<>();
@@ -77,6 +77,20 @@ public class BranchInventoryDao {
                 if (rs.next()) return new BigDecimal[]{ rs.getBigDecimal(1), rs.getBigDecimal(2) };
                 return null;
             }
+        }
+    }
+
+    public BranchInventory findByBranchIngredient(Connection conn, int branchId, int ingredientId)
+            throws SQLException {
+        final String sql =
+                "SELECT bi.BranchId, bi.IngredientId, bi.QuantityOnHand, bi.MinThreshold, bi.PrepTargetQty, "
+              + "i.Name AS IngredientName, i.Unit AS IngredientUnit, i.IngredientType, i.ShelfLifeMinutes "
+              + "FROM inventory.BranchInventory bi JOIN catalog.Ingredient i ON i.IngredientId=bi.IngredientId "
+              + "WHERE bi.BranchId=? AND bi.IngredientId=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setInt(2, ingredientId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? map(rs) : null; }
         }
     }
 
@@ -150,15 +164,33 @@ public class BranchInventoryDao {
         }
     }
 
+    public void updatePrepPolicy(Connection conn, int branchId, int ingredientId,
+                                 BigDecimal threshold, BigDecimal target) throws SQLException {
+        final String upd = "UPDATE bi SET MinThreshold=?, PrepTargetQty=? "
+                + "FROM inventory.BranchInventory bi JOIN catalog.Ingredient i ON i.IngredientId=bi.IngredientId "
+                + "WHERE bi.BranchId=? AND bi.IngredientId=? AND i.IngredientType='PREPPED'";
+        try (PreparedStatement ps = conn.prepareStatement(upd)) {
+            ps.setBigDecimal(1, threshold);
+            ps.setBigDecimal(2, target);
+            ps.setInt(3, branchId);
+            ps.setInt(4, ingredientId);
+            if (ps.executeUpdate() != 1)
+                throw new com.cafe.common.BusinessException("Nguyên liệu pha sẵn không tồn tại tại chi nhánh.");
+        }
+    }
+
     private BranchInventory map(ResultSet rs) throws SQLException {
         BranchInventory bi = new BranchInventory();
         bi.setBranchId(rs.getInt("BranchId"));
         bi.setIngredientId(rs.getInt("IngredientId"));
         bi.setQuantityOnHand(rs.getBigDecimal("QuantityOnHand"));
         bi.setMinThreshold(rs.getBigDecimal("MinThreshold"));
+        bi.setPrepTargetQty(rs.getBigDecimal("PrepTargetQty"));
         bi.setIngredientName(rs.getString("IngredientName"));
         bi.setIngredientUnit(rs.getString("IngredientUnit"));
         bi.setIngredientType(rs.getString("IngredientType"));
+        int shelfLife = rs.getInt("ShelfLifeMinutes");
+        bi.setIngredientShelfLifeMinutes(rs.wasNull() ? null : shelfLife);
         return bi;
     }
 }

@@ -67,7 +67,7 @@ public class WasteServlet extends HttpServlet {
             resp.sendRedirect(req.getContextPath() + "/barista/waste");
             return;
         }
-        if (BaristaShift.guardWrite(req, resp, action, "/barista/waste")) return;   // vào ca / chặn ngoài ca
+        if (BaristaShift.guardWrite(req, resp, "/barista/waste")) return;   // ngoài ca → chặn ghi
         String editId = null;
 
         try {

@@ -79,6 +79,20 @@ public class IngredientServlet extends HttpServlet {
         i.setName(trim(req.getParameter("name")));
         i.setUnit(trim(req.getParameter("unit")));
         i.setIngredientType(trim(req.getParameter("ingredientType")));
+        if ("PREPPED".equals(i.getIngredientType())) {
+            String hours = trim(req.getParameter("shelfLifeHours"));
+            if (hours != null && !hours.isBlank()) {
+                try {
+                    java.math.BigDecimal hoursValue = new java.math.BigDecimal(hours);
+                    if (hoursValue.stripTrailingZeros().scale() > 0)
+                        throw new IllegalArgumentException("Shelf life must be whole hours.");
+                    java.math.BigDecimal minutes = hoursValue.multiply(java.math.BigDecimal.valueOf(60));
+                    i.setShelfLifeMinutes(minutes.intValueExact());
+                } catch (RuntimeException e) {
+                    i.setShelfLifeMinutes(-1);
+                }
+            }
+        }
         i.setActive(req.getParameter("active") != null);
         return i;
     }
@@ -88,6 +102,11 @@ public class IngredientServlet extends HttpServlet {
         if (i.getUnit() == null || i.getUnit().isBlank()) return "Đơn vị không được để trống.";
         if (i.getIngredientType() == null || !TYPES.contains(i.getIngredientType()))
             return "Loại nguyên liệu phải là RAW hoặc PREPPED.";
+        if ("PREPPED".equals(i.getIngredientType())
+                && (i.getShelfLifeMinutes() == null
+                || i.getShelfLifeMinutes() < 60 || i.getShelfLifeMinutes() > 43200))
+            return "Thời hạn bảo quản của nguyên liệu pha sẵn phải từ 1 đến 720 giờ.";
+        if ("RAW".equals(i.getIngredientType())) i.setShelfLifeMinutes(null);
         return null;
     }
 

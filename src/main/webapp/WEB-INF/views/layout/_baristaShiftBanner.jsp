@@ -1,6 +1,11 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
-<%-- Banner trực ca cho màn barista. Cần: onShift, clockStatus, clockPostUrl. --%>
+<%-- Banner trực ca cho màn barista. Cần: onShift, clockStatus.
+
+     Banner này KHÔNG tự chấm công. Vào ca là bước có ngữ cảnh: barista cần thấy ca mình
+     được xếp và bàn giao của ca trước đang chờ xác nhận trước khi nhận quầy — cả hai đều
+     nằm ở màn "Ca làm của tôi". Đặt nút chấm công ngay đây thì thao tác đó bị rút gọn
+     thành một cú bấm mù giữa lúc đang đứng máy. --%>
 <c:if test="${not onShift}">
     <div class="alert alert-warn barista-offshift">
         <%-- Một dòng: banner này nằm giữa header và danh sách món, mỗi dòng thừa đẩy việc
@@ -20,17 +25,15 @@
                 </c:otherwise>
             </c:choose>
         </div>
-        <c:choose>
-            <c:when test="${not empty clockStatus and clockStatus.canClockIn}">
-                <form action="${clockPostUrl}" method="post">
-                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                    <input type="hidden" name="action" value="clockIn">
-                    <button type="submit" class="btn btn-primary">Vào ca</button>
-                </form>
-            </c:when>
-            <c:when test="${not noAssignment}">
-                <a class="btn btn-ghost" href="${pageContext.request.contextPath}/barista/shift">Tới chấm công →</a>
-            </c:when>
-        </c:choose>
+        <%-- Chưa được xếp ca thì không có hành động nào để mời: người mở khoá được là Quản lý. --%>
+        <c:if test="${not noAssignment}">
+            <a class="btn ${clockStatus.canClockIn ? 'btn-primary' : 'btn-ghost'}"
+               href="${pageContext.request.contextPath}/barista/shift">
+                <c:choose>
+                    <c:when test="${clockStatus.canClockIn}">Vào ca tại Ca làm của tôi →</c:when>
+                    <c:otherwise>Tới Ca làm của tôi →</c:otherwise>
+                </c:choose>
+            </a>
+        </c:if>
     </div>
 </c:if>

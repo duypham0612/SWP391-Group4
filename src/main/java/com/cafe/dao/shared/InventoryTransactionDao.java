@@ -76,6 +76,18 @@ public class InventoryTransactionDao {
         return out;
     }
 
+    public boolean hasNegativeAfter(Connection conn, int branchId, int ingredientId,
+                                    java.time.LocalDateTime afterUtc) throws SQLException {
+        final String sql = "SELECT TOP (1) 1 FROM inventory.InventoryTransaction "
+                + "WHERE BranchId=? AND IngredientId=? AND ChangeQty<0 AND CreatedAt>?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setInt(2, ingredientId);
+            ps.setTimestamp(3, Timestamp.valueOf(afterUtc));
+            try (ResultSet rs = ps.executeQuery()) { return rs.next(); }
+        }
+    }
+
     private InventoryTransaction map(ResultSet rs) throws SQLException {
         InventoryTransaction t = new InventoryTransaction();
         t.setInventoryTxnId(rs.getLong("InventoryTxnId"));

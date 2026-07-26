@@ -27,4 +27,30 @@ class BaristaWritePolicyTest {
         assertFalse(BaristaWritePolicy.isHandoverAction("clockOut"));
         assertFalse(BaristaWritePolicy.isShiftAction("create"));
     }
+
+    /**
+     * Chấm công là bước có ngữ cảnh (thấy ca được xếp + bàn giao đang chờ) nên chỉ màn
+     * "Ca làm của tôi" nhận. Màn vận hành chỉ trỏ sang đó, và chốt nằm ở server chứ không
+     * phải chỉ ẩn nút — POST tự soạn tới các màn này phải bị từ chối.
+     */
+    @Test
+    void operational_surfaces_reject_clock_actions() {
+        for (String action : new String[]{"clockIn", "clockOut"}) {
+            assertFalse(BaristaWritePolicy.isKdsAction(action), "KDS phải từ chối " + action);
+            assertFalse(BaristaWritePolicy.isPrepAction(action), "Prep phải từ chối " + action);
+            assertFalse(BaristaWritePolicy.isWasteAction(action), "Waste phải từ chối " + action);
+            assertFalse(BaristaWritePolicy.isEightySixAction(action), "86 phải từ chối " + action);
+            assertFalse(BaristaWritePolicy.isHandoverAction(action), "Handover phải từ chối " + action);
+
+            assertTrue(BaristaWritePolicy.isShiftAction(action), "Ca làm của tôi phải nhận " + action);
+        }
+    }
+
+    @Test
+    void prep_surface_no_longer_accepts_direct_edit_or_cancel() {
+        assertFalse(BaristaWritePolicy.isPrepAction("updateBatch"));
+        assertFalse(BaristaWritePolicy.isPrepAction("cancelBatch"));
+        assertTrue(BaristaWritePolicy.isPrepAction("createBatch"));
+        assertTrue(BaristaWritePolicy.isPrepAction("writeOffExpired"));
+    }
 }

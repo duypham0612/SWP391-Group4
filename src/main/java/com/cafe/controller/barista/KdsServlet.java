@@ -75,9 +75,7 @@ public class KdsServlet extends HttpServlet {
             rejectInvalidAction(req, resp, branchId);
             return;
         }
-        // Vào ca / tan ca vẫn đi lối redirect thường (nút chấm công nằm ngoài khung bảng, post bình thường).
-        String clockRedirect = BaristaShift.handleClock(req, action, "/barista/kds");
-        if (clockRedirect != null) { resp.sendRedirect(req.getContextPath() + clockRedirect); return; }
+        // Chấm công KHÔNG nhận ở màn này — banner ngoài ca chỉ trỏ sang "Ca làm của tôi".
         // Ngoài ca thì chặn ghi, nhưng trả lời bằng ĐÚNG định dạng client đang chờ (fragment khi AJAX)
         // thay vì redirect — xem BaristaShift.blockedOffShift.
         if (BaristaShift.blockedOffShift(req)) {
