@@ -396,7 +396,10 @@
     body.append('station', filters.station);
     body.append('orderType', filters.orderType);
     try {
-      var response = await fetch(form.action, {
+      // getAttribute('action') chứ KHÔNG phải form.action: mọi form thao tác ở queue-row.jsp đều có
+      // <input name="action">, mà control trùng tên che thuộc tính cùng tên của form — form.action
+      // trả về thẻ input nên fetch dựng URL "[object HTMLInputElement]" và thao tác không tới server.
+      var response = await fetch(form.getAttribute('action'), {
         method: 'POST', body: body, credentials: 'same-origin',
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
       });
