@@ -1,5 +1,6 @@
 package com.cafe.config;
 
+import com.microsoft.sqlserver.jdbc.SQLServerDriver;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
@@ -47,6 +48,26 @@ public final class DBConnection {
 
     public static Connection getConnection() throws SQLException {
         return DS.getConnection();
+    }
+
+    /**
+     * Đóng pool khi webapp bị undeploy/redeploy. Nếu không đóng, Hikari housekeeper và
+     * timer của JDBC driver vẫn sống trong classloader cũ, khiến Tomcat cảnh báo memory
+     * leak và tích luỹ thread sau mỗi lần deploy.
+     */
+    public static void close() {
+        if (DS != null && !DS.isClosed()) {
+            DS.close();
+        }
+        // Microsoft JDBC starts a shared timer per classloader. Explicit deregistration
+        // lets Tomcat release that timer during a hot redeploy instead of reporting a leak.
+        try {
+            if (SQLServerDriver.isRegistered()) {
+                SQLServerDriver.deregister();
+            }
+        } catch (SQLException ignored) {
+            // Tomcat will still force-unregister the driver if the vendor cleanup fails.
+        }
     }
 
     private static int parseInt(String v, int def) {

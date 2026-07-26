@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Contract transaction quan trọng nhất của quầy pha chế, chạy với SQL Server thật. */
-class BaristaTransactionIT extends SqlServerIntegrationSupport {
+public class BaristaTransactionIT extends SqlServerIntegrationSupport {
 
     @Test
     void simultaneous_claim_allows_exactly_one_barista() throws Exception {

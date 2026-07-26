@@ -43,6 +43,15 @@ public class SeedPasswordListener implements ServletContextListener {
         }
     }
 
+    @Override
+    public void contextDestroyed(ServletContextEvent sce) {
+        try {
+            DBConnection.close();
+        } finally {
+            log(sce, "[DB] Đã đóng HikariCP/JDBC khi ứng dụng dừng/redeploy.");
+        }
+    }
+
     private void log(ServletContextEvent sce, String msg) {
         sce.getServletContext().log(msg);
     }
