@@ -1,0 +1,128 @@
+package com.cafe.dao.shared;
+
+import com.cafe.common.EventType;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/**
+ * Đọc ops.OutboxEvent (EventPublisher là điểm ghi duy nhất).
+ * Dùng cho tín hiệu khách → quầy: yêu cầu mở bàn quét từ QR.
+ */
+public class OutboxEventDao {
+
+    /**
+     * Bàn đang có yêu cầu mở (chưa xử lý) của chi nhánh → thời điểm yêu cầu SỚM NHẤT.
+     * Khách bấm nhiều lần chỉ tính là một bàn đang chờ; giữ mốc sớm nhất để quầy thấy chờ bao lâu.
+     */
+    public Map<Integer, LocalDateTime> findPendingOpenRequests(Connection conn, int branchId) throws SQLException {
+        final String sql =
+            "SELECT AggregateId, MIN(CreatedAt) AS FirstAt FROM ops.OutboxEvent " +
+            "WHERE EventType=? AND BranchId=? AND ProcessedAt IS NULL " +
+            "GROUP BY AggregateId ORDER BY MIN(CreatedAt)";
+        Map<Integer, LocalDateTime> out = new LinkedHashMap<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, EventType.TABLE_OPEN_REQUESTED.wire());
+            ps.setInt(2, branchId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Integer tableId = parseTableId(rs.getString("AggregateId"));
+                    if (tableId == null) continue;
+                    Timestamp at = rs.getTimestamp("FirstAt");
+                    out.put(tableId, at == null ? null : at.toLocalDateTime());
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Có yêu cầu mở đang chờ cho bàn này không (dùng để tránh ghi trùng khi khách bấm lại). */
+    public boolean hasPendingOpenRequest(Connection conn, int tableId) throws SQLException {
+        final String sql = "SELECT TOP(1) 1 FROM ops.OutboxEvent " +
+                           "WHERE EventType=? AND AggregateId=? AND ProcessedAt IS NULL";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, EventType.TABLE_OPEN_REQUESTED.wire());
+            ps.setString(2, String.valueOf(tableId));
+            try (ResultSet rs = ps.executeQuery()) { return rs.next(); }
+        }
+    }
+
+    /** Đóng mọi yêu cầu mở còn treo của bàn — gọi trong cùng tx với lúc thu ngân mở bàn. */
+    public int markOpenRequestsProcessed(Connection conn, int tableId) throws SQLException {
+        final String sql = "UPDATE ops.OutboxEvent SET ProcessedAt=SYSUTCDATETIME() " +
+                           "WHERE EventType=? AND AggregateId=? AND ProcessedAt IS NULL";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, EventType.TABLE_OPEN_REQUESTED.wire());
+            ps.setString(2, String.valueOf(tableId));
+            return ps.executeUpdate();
+        }
+    }
+
+    /**
+     * Tín hiệu khách chưa được tiếp nhận theo bàn. AggregateId của hai event là sessionId;
+     * ưu tiên "xin thanh toán" nếu một bàn đồng thời có cả hai tín hiệu.
+     */
+    public Map<Integer, String> findPendingSignals(Connection conn, int branchId) throws SQLException {
+        final String sql =
+            "SELECT oe.AggregateId, oe.EventType, dt.DiningTableId " +
+            "FROM ops.OutboxEvent oe " +
+            "JOIN sales.TableSession ts ON ts.TableSessionId=TRY_CONVERT(INT, oe.AggregateId) " +
+            "JOIN sales.DiningTable dt ON dt.DiningTableId=ts.DiningTableId " +
+            "WHERE oe.EventType IN (?,?) AND oe.ProcessedAt IS NULL " +
+            "  AND ts.Status='OPEN' AND ts.BranchId=? AND dt.BranchId=? " +
+            "ORDER BY CASE WHEN oe.EventType=? THEN 0 ELSE 1 END, oe.CreatedAt";
+        Map<Integer, String> out = new LinkedHashMap<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, EventType.SERVICE_CALL.wire());
+            ps.setString(2, EventType.BILL_REQUESTED.wire());
+            ps.setInt(3, branchId);
+            ps.setInt(4, branchId);
+            ps.setString(5, EventType.BILL_REQUESTED.wire());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    int tableId = rs.getInt("DiningTableId");
+                    out.putIfAbsent(tableId, rs.getString("EventType"));
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Đánh dấu cả gọi nhân viên và xin thanh toán đã được thu ngân tiếp nhận. */
+    public int markSignalsProcessed(Connection conn, int sessionId) throws SQLException {
+        final String sql =
+            "UPDATE ops.OutboxEvent SET ProcessedAt=SYSUTCDATETIME() " +
+            "WHERE EventType IN (?,?) AND AggregateId=? AND ProcessedAt IS NULL";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, EventType.SERVICE_CALL.wire());
+            ps.setString(2, EventType.BILL_REQUESTED.wire());
+            ps.setString(3, String.valueOf(sessionId));
+            return ps.executeUpdate();
+        }
+    }
+
+    /** Thanh toán xong tự hạ riêng tín hiệu xin thanh toán của phiên, cùng transaction payBill. */
+    public int markBillRequestProcessed(Connection conn, int sessionId) throws SQLException {
+        final String sql =
+            "UPDATE ops.OutboxEvent SET ProcessedAt=SYSUTCDATETIME() " +
+            "WHERE EventType=? AND AggregateId=? AND ProcessedAt IS NULL";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, EventType.BILL_REQUESTED.wire());
+            ps.setString(2, String.valueOf(sessionId));
+            return ps.executeUpdate();
+        }
+    }
+
+    /** AggregateId là VARCHAR dùng chung cho mọi loại event — bỏ qua bản ghi không phải id bàn. */
+    private static Integer parseTableId(String aggregateId) {
+        if (aggregateId == null) return null;
+        try { return Integer.valueOf(aggregateId.trim()); }
+        catch (NumberFormatException e) { return null; }
+    }
+}

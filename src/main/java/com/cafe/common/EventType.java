@@ -14,6 +14,7 @@ public enum EventType {
     ITEM_REMAKE_REQUESTED("item.remake_requested"),
     ITEM_PICKED_UP("item.picked_up"),
     SERVICE_CALL("service.call"),
+    TABLE_OPEN_REQUESTED("table.open_requested"), // Khách quét QR ở bàn chưa mở — xin quầy mở bàn
     BILL_REQUESTED("bill.requested"),
     BILL_VOIDED("bill.voided"),
     BILL_REFUNDED("bill.refunded");
