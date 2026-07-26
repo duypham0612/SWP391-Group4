@@ -59,7 +59,7 @@ public class MyShiftServlet extends HttpServlet {
             req.setAttribute("historyQuery", query);
             req.setAttribute("historyState", state);
             req.setAttribute("pageTitle", "Ca làm của tôi");
-            req.getRequestDispatcher("/WEB-INF/views/barista/shift/list.jsp").forward(req, resp);
+            req.getRequestDispatcher("/WEB-INF/views/barista/shift.jsp").forward(req, resp);
         } catch (Exception e) { throw new ServletException(e); }
     }
 

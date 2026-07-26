@@ -8,9 +8,8 @@
 <c:if test="${not empty sessionScope.flashError}"><div class="alert alert-error">${sessionScope.flashError}</div><c:remove var="flashError" scope="session" /></c:if>
 <c:if test="${not empty sessionScope.flashOk}"><div class="alert alert-success">${sessionScope.flashOk}</div><c:remove var="flashOk" scope="session" /></c:if>
 
-<%-- Ca quá hạn chấm công vẫn lập được bàn giao, lúc đó banner "Ngoài ca — chỉ xem" nói ngược với
-     form đang mở ngay bên dưới. Trường hợp đó để thẻ tạo bàn giao tự giải thích. --%>
-<c:if test="${not canCreateHandover}"><jsp:include page="/WEB-INF/views/layout/_baristaShiftBanner.jsp" /></c:if>
+<%-- Ngoài ca chỉ được xem lịch sử; mọi POST bàn giao đều bị chặn lại ở server. --%>
+<c:if test="${not onShift}"><jsp:include page="/WEB-INF/views/layout/_baristaShiftBanner.jsp" /></c:if>
 
 <%-- Ba con số mở đầu: việc của tôi trước, tình hình chi nhánh sau. --%>
 <section class="card-grid">
@@ -98,9 +97,6 @@
           <div class="muted" style="margin-top:6px">Tối đa 10 việc (tính cả việc tồn đã tick). Mỗi việc sẽ được ca nhận theo dõi riêng.</div>
         </div>
         <div class="form-group"><label for="handoverNote">Ghi chú chung <span class="muted">(không bắt buộc)</span></label><textarea id="handoverNote" name="note" class="form-control" rows="3" maxlength="1000" placeholder="Bối cảnh chung cho ca nhận..."></textarea></div>
-        <%-- Quá hạn chấm công thì chỉ còn lưu bàn giao: giờ tan ca phải do Quản lý chốt, nhưng việc
-             tồn thì vẫn phải sang được ca sau ngay bây giờ. --%>
-        <c:if test="${not canClockOutHandover}"><div class="alert alert-warn">Ca của bạn đã quá hạn bấm tan ca. Bạn vẫn lưu được bàn giao cho ca sau; giờ tan ca nhờ Quản lý chốt giúp.</div></c:if>
         <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="submit" name="action" value="create" class="btn ${canClockOutHandover ? 'btn-ghost' : 'btn-primary'}">Lưu bàn giao</button><c:if test="${canClockOutHandover}"><button type="submit" name="action" value="createAndClockOut" class="btn btn-primary">Lưu bàn giao &amp; Tan ca</button></c:if></div>
       </form></c:if>
     </div>

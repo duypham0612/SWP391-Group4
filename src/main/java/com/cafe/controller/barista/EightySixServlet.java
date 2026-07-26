@@ -50,7 +50,7 @@ public class EightySixServlet extends HttpServlet {
             req.setAttribute("etaMax", now.plusDays(Constants.MENU86_ETA_MAX_DAYS).format(HTML_DT));
             req.setAttribute("pageTitle", "Báo hết món");
             BaristaShift.expose(req, "/barista/eightysix");   // trực ca: banner + khoá thao tác khi ngoài ca
-            req.getRequestDispatcher("/WEB-INF/views/barista/eightysix/list.jsp").forward(req, resp);
+            req.getRequestDispatcher("/WEB-INF/views/barista/eightysix.jsp").forward(req, resp);
         } catch (Exception e) { throw new ServletException(e); }
     }
 

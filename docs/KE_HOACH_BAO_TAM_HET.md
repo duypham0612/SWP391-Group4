@@ -227,7 +227,7 @@ req.setAttribute("reasons", Reason86.values());
 
 ---
 
-## 6. Barista — `views/barista/eightysix/list.jsp`
+## 6. Barista — `views/barista/eightysix.jsp`
 
 **Cột thao tác, 3 trạng thái:**
 

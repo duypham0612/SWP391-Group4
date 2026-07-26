@@ -44,7 +44,7 @@
 </div>
 
 <div id="kdsBoard" class="kds-board" data-endpoint="${ctx}/barista/kds" aria-busy="false">
-<jsp:include page="cards.jsp" />
+        <jsp:include page="/WEB-INF/fragments/barista/kds/cards.jsp" />
 </div>
 <div id="kdsLiveNotice" class="kds-live-notice" role="status" aria-live="assertive" hidden></div>
 

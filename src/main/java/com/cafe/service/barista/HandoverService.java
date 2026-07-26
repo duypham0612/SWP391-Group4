@@ -78,12 +78,13 @@ public class HandoverService {
                     recipientDao.countClaimableInBranch(
                             conn, branchId, userId, ShiftHandover.CLAIM_AFTER_HOURS)));
 
-            // Quyền lập bàn giao bám theo "còn ca đang mở", KHÔNG theo cửa sổ chấm công: ca đã quá
-            // hạn bấm tan ca vẫn phải giao được việc tồn cho ca sau — giờ công thì nhờ Quản lý chốt.
             ShiftAssignment source = assignmentDao.findOpenByUserAndBranch(conn, userId, branchId);
-            if (source == null) { board.receiverError = "Bạn cần đang trong ca để lập bàn giao."; return board; }
+            if (source == null || !onShift) {
+                board.receiverError = "Bạn cần đang trong ca để lập bàn giao.";
+                return board;
+            }
             board.canCreate = true;
-            board.canClockOut = onShift;
+            board.canClockOut = true;
             board.receiver = resolveReceiver(conn, branchId, source);
             // Đã có bàn giao cho ca này thì tan ca không còn bị chặn nữa — không nhắc lại cảnh báo.
             board.handoverRequired = !handoverDao.existsForSourceAssignment(conn, source.getShiftAssignmentId());
@@ -189,15 +190,14 @@ public class HandoverService {
             try {
                 ShiftAssignment source = assignmentDao.findOpenByUserAndBranch(conn, userId, branchId);
                 if (source == null) throw new IllegalStateException("Bạn cần đang trong ca để lập bàn giao.");
+                // Kiểm lại trong chính transaction để chặn POST bypass và race ở ranh giới hết ca.
+                if (!withinClockOutWindow(source)) {
+                    throw new IllegalStateException("Bạn cần đang trong ca để lập bàn giao.");
+                }
                 // Cổng tan ca thứ hai: nút "Lưu bàn giao & Tan ca" chấm công thẳng ở đây, KHÔNG đi qua
                 // BaristaShift.handleClock — chỉ chặn một bên là barista vẫn tan ca được kèm ly đang pha,
                 // và ly đó khoá cứng dưới tên người đã về. Kiểm trước khi ghi để không sinh dữ liệu thừa.
                 if (clockOut) {
-                    // Ca đã rơi khỏi cửa sổ chấm công thì chỉ lưu bàn giao, không tự đóng giờ công:
-                    // clockOutAssignment không tự kiểm cửa sổ nên thiếu chỗ này là nút "Lưu bàn giao
-                    // & Tan ca" trở thành đường vòng chấm công trễ vô hạn, qua mặt CLOCK_OUT_GRACE.
-                    if (!withinClockOutWindow(source)) throw new IllegalStateException(
-                            "Ca đã quá hạn chấm công. Bấm “Lưu bàn giao” để giao việc cho ca sau, rồi nhờ Quản lý chốt giờ tan ca giúp bạn.");
                     int pending = orderItemDao.countMakingByBarista(conn, branchId, userId);
                     if (pending > 0) throw new IllegalStateException("Bạn còn " + pending
                             + " ly đang pha — bấm “Xong” hoặc “Trả lại chờ” cho từng ly ở Quầy pha chế rồi mới tan ca được.");
@@ -365,7 +365,7 @@ public class HandoverService {
         public ReceiverPlan getReceiver() { return receiver; }
         public String getReceiverError() { return receiverError; }
         public boolean isHandoverRequired() { return handoverRequired; }
-        /** Còn ca đang mở nên lập được bàn giao — kể cả khi đã quá hạn bấm tan ca. */
+        /** Đang trong ca và còn attendance mở nên được lập bàn giao. */
         public boolean isCanCreate() { return canCreate; }
         /** Ca còn trong cửa sổ chấm công nên nút "Lưu bàn giao & Tan ca" mới có tác dụng. */
         public boolean isCanClockOut() { return canClockOut; }

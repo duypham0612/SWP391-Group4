@@ -100,7 +100,7 @@ public class PrepServlet extends HttpServlet {
         req.setAttribute("clientRequestId", java.util.UUID.randomUUID().toString());
         req.setAttribute("pageTitle", "Pha sẵn nguyên liệu");
         BaristaShift.expose(req, "/barista/prep");   // trực ca: banner + khoá thao tác
-        req.getRequestDispatcher("/WEB-INF/views/barista/prep/list.jsp").forward(req, resp);
+            req.getRequestDispatcher("/WEB-INF/views/barista/prep.jsp").forward(req, resp);
     }
 
     private static boolean blank(String s) { return s == null || s.isBlank(); }

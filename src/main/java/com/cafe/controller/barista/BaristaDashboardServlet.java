@@ -95,7 +95,7 @@ public class BaristaDashboardServlet extends HttpServlet {
             req.setAttribute("suggest86Count", branchMenuService.getSuggested86(branchId).size());
             req.setAttribute("alertCount", lowStock.size() + eightySixCount);
             req.setAttribute("pageTitle", "Bảng điều khiển ca");
-            req.getRequestDispatcher("/WEB-INF/views/barista/dashboard.jsp").forward(req, resp);
+        req.getRequestDispatcher("/WEB-INF/views/dashboard/barista.jsp").forward(req, resp);
         } catch (Exception e) {
             throw new ServletException(e);
         }

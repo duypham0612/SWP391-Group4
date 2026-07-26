@@ -8,6 +8,7 @@ import java.time.LocalTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Luật chọn ca nhận phải đúng cả với ca nối đuôi, nhiều người và ca qua đêm. */
@@ -22,6 +23,14 @@ class HandoverReceiverTimeTest {
     void overnightShiftEndsOnFollowingDate() {
         ShiftAssignment shift = shift(LocalDate.of(2026, 7, 22), "22:00", "06:00");
         assertEquals("2026-07-23T06:00", HandoverService.scheduledEnd(shift).toString());
+    }
+
+    @Test
+    void expiredShiftIsOutsideTheHandoverWindow() {
+        ShiftAssignment shift = shift(LocalDate.now(com.cafe.common.BusinessDay.VN_ZONE).minusDays(1),
+                "07:00", "12:00");
+
+        assertFalse(HandoverService.withinClockOutWindow(shift));
     }
 
     @Test

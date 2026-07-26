@@ -42,14 +42,14 @@ public class KdsServlet extends HttpServlet {
                 // không để NumberFormatException đội lên thành trang lỗi 500.
                 req.setAttribute("recipeLines", productId == null
                         ? java.util.List.of() : service.getRecipeIngredients(productId));
-            req.getRequestDispatcher("/WEB-INF/views/barista/kds/_ingredient-picker.jsp").forward(req, resp);
+            req.getRequestDispatcher("/WEB-INF/fragments/barista/kds/ingredient-picker.jsp").forward(req, resp);
                 return;
             }
             if ("depleted".equals(req.getParameter("partial"))) {
                 Integer productId = optionalIntParam(req, "productId");
                 req.setAttribute("depletedLines", productId == null
                         ? java.util.List.of() : service.getDepletedRecipeIngredients(branchId, productId));
-            req.getRequestDispatcher("/WEB-INF/views/barista/kds/_recount-picker.jsp").forward(req, resp);
+            req.getRequestDispatcher("/WEB-INF/fragments/barista/kds/recount-picker.jsp").forward(req, resp);
                 return;
             }
             loadBoard(req, branchId);
@@ -57,8 +57,8 @@ public class KdsServlet extends HttpServlet {
             boolean partial = "1".equals(req.getParameter("partial"));
             BaristaShift.expose(req, "/barista/kds", !partial);
             String view = partial
-                ? "/WEB-INF/views/barista/kds/cards.jsp"
-                : "/WEB-INF/views/barista/kds/board.jsp";
+                ? "/WEB-INF/fragments/barista/kds/cards.jsp"
+                : "/WEB-INF/views/barista/kds.jsp";
             req.getRequestDispatcher(view).forward(req, resp);
         } catch (Exception e) { throw new ServletException(e); }
     }
@@ -189,7 +189,7 @@ public class KdsServlet extends HttpServlet {
         if ("1".equals(req.getParameter("ajax"))) {
             loadBoard(req, branchId);
             BaristaShift.expose(req, "/barista/kds", false);
-            req.getRequestDispatcher("/WEB-INF/views/barista/kds/cards.jsp").forward(req, resp);
+            req.getRequestDispatcher("/WEB-INF/fragments/barista/kds/cards.jsp").forward(req, resp);
         } else {
             resp.sendRedirect(req.getContextPath() + "/barista/kds");
         }

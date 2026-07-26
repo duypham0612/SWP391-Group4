@@ -216,11 +216,10 @@ class BaristaTransactionIT extends SqlServerIntegrationSupport {
     }
 
     @Test
-    void late_shift_can_save_handover_for_the_adjacent_shift_but_cannot_clock_out() throws Exception {
+    void late_shift_cannot_create_handover_or_clock_out() throws Exception {
         Fixture f = fixture(false);
         LocalDate yesterday = LocalDate.now(com.cafe.common.BusinessDay.VN_ZONE).minusDays(1);
         int sourceAssignmentId;
-        int receiverAssignmentId;
         try (Connection conn = connection(); Statement st = conn.createStatement()) {
             st.executeUpdate("INSERT hr.ShiftTemplate(BranchId,Name,StartTime,EndTime) VALUES (" + f.branchId
                     + ",N'IT source','07:00','12:00'),(" + f.branchId + ",N'IT receiver','12:00','17:00')");
@@ -229,18 +228,15 @@ class BaristaTransactionIT extends SqlServerIntegrationSupport {
             st.executeUpdate("INSERT hr.ShiftAssignment(ShiftTemplateId,UserId,WorkDate) VALUES (" + sourceAssignmentId
                     + "," + f.baristaOneId + ",'" + yesterday + "'),(" + receiverTemplateId + "," + f.baristaTwoId + ",'" + yesterday + "')");
             sourceAssignmentId = id(conn, "SELECT ShiftAssignmentId FROM hr.ShiftAssignment WHERE ShiftTemplateId=? AND UserId=?", sourceAssignmentId, f.baristaOneId);
-            receiverAssignmentId = id(conn, "SELECT ShiftAssignmentId FROM hr.ShiftAssignment WHERE ShiftTemplateId=? AND UserId=?", receiverTemplateId, f.baristaTwoId);
             st.executeUpdate("INSERT hr.Attendance(ShiftAssignmentId,CheckInAt) VALUES (" + sourceAssignmentId + ",SYSUTCDATETIME())");
         }
 
         HandoverService handover = new HandoverService();
-        int handoverId = handover.createHandover(f.branchId, f.baristaOneId, "IT late handover", List.of("Kiểm tra máy xay"));
-
-        assertEquals(receiverAssignmentId, scalarInt(
-                "SELECT RecipientShiftAssignmentId FROM hr.ShiftHandoverRecipient WHERE ShiftHandoverId=?", handoverId));
+        assertThrows(IllegalStateException.class, () -> handover.createHandover(
+                f.branchId, f.baristaOneId, "IT late handover", List.of("Kiểm tra máy xay")));
         assertThrows(IllegalStateException.class, () -> handover.createHandoverAndClockOut(
                 f.branchId, f.baristaOneId, "IT must not clock out late", List.of("Việc khác")));
-        assertEquals(1, scalarInt("SELECT COUNT(*) FROM hr.ShiftHandover WHERE SourceShiftAssignmentId=?", sourceAssignmentId));
+        assertEquals(0, scalarInt("SELECT COUNT(*) FROM hr.ShiftHandover WHERE SourceShiftAssignmentId=?", sourceAssignmentId));
         assertEquals(0, scalarInt("SELECT COUNT(*) FROM hr.Attendance WHERE ShiftAssignmentId=? AND CheckOutAt IS NOT NULL", sourceAssignmentId));
     }
 
