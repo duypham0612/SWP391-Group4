@@ -15,7 +15,7 @@ public final class BaristaWritePolicy {
             "start", "startOrder", "markReady", "markOrderReady", "reclaim", "returnQueue",
             "reportIssue", "unblock", "remake");
     private static final Set<String> PREP = Set.of(
-            "createBatch", "cancelBatch", "writeOffExpired", "updateBatch");
+            "createBatch", "writeOffExpired");
     private static final Set<String> WASTE = Set.of(
             "createIngredientWaste", "create", "update", "void");
     private static final Set<String> EIGHTY_SIX = Set.of("report86", "askReopen");
@@ -25,11 +25,20 @@ public final class BaristaWritePolicy {
     private BaristaWritePolicy() { }
 
     public static boolean isClockAction(String action) { return contains(CLOCK, action); }
-    public static boolean isKdsAction(String action) { return contains(KDS, action) || isClockAction(action); }
-    public static boolean isPrepAction(String action) { return contains(PREP, action) || isClockAction(action); }
-    public static boolean isWasteAction(String action) { return contains(WASTE, action) || isClockAction(action); }
-    public static boolean isEightySixAction(String action) { return contains(EIGHTY_SIX, action) || isClockAction(action); }
+    public static boolean isKdsAction(String action) { return contains(KDS, action); }
+    public static boolean isPrepAction(String action) { return contains(PREP, action); }
+    public static boolean isWasteAction(String action) { return contains(WASTE, action); }
+    public static boolean isEightySixAction(String action) { return contains(EIGHTY_SIX, action); }
     public static boolean isHandoverAction(String action) { return contains(HANDOVER, action); }
+
+    /**
+     * Chấm công chỉ nhận ở màn "Ca làm của tôi" — không màn vận hành nào khác.
+     *
+     * <p>Vào ca là bước có ngữ cảnh: barista phải thấy ca được xếp và bàn giao ca trước đang
+     * chờ xác nhận rồi mới nhận quầy. Trước đây mọi màn đều nhận clockIn/clockOut nên thao
+     * tác đó rút gọn thành một cú bấm giữa lúc đứng máy, bỏ qua toàn bộ ngữ cảnh. Giới hạn ở
+     * đây là chốt thật phía server, không chỉ là chuyện ẩn nút trên giao diện.
+     */
     public static boolean isShiftAction(String action) { return isClockAction(action); }
 
     public static String invalidActionMessage() {

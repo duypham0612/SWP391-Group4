@@ -94,7 +94,13 @@
                             </c:url>
                             <a class="page" href="${prevUrl}">Trước</a>
                         </c:if>
-                        <c:forEach var="pnum" begin="1" end="${totalPages}">
+                        <%-- 5 món/trang nên số trang có thể lên hàng chục: chỉ hiện cửa sổ 5 số
+                             quanh trang hiện tại, hai đầu đã có nút Trước/Sau. --%>
+                        <c:set var="winStart" value="${page - 2 lt 1 ? 1 : page - 2}" />
+                        <c:set var="winStart" value="${winStart + 4 gt totalPages ? (totalPages - 4 lt 1 ? 1 : totalPages - 4) : winStart}" />
+                        <c:set var="winEnd" value="${winStart + 4 gt totalPages ? totalPages : winStart + 4}" />
+                        <c:if test="${winStart gt 1}"><span class="muted" style="align-self:center">…</span></c:if>
+                        <c:forEach var="pnum" begin="${winStart}" end="${winEnd}">
                             <c:choose>
                                 <c:when test="${pnum == page}">
                                     <span class="page is-active" aria-current="page">${pnum}</span>
@@ -114,6 +120,7 @@
                                 </c:otherwise>
                             </c:choose>
                         </c:forEach>
+                        <c:if test="${winEnd lt totalPages}"><span class="muted" style="align-self:center">…</span></c:if>
                         <span class="muted" style="align-self:center">· ${total} món</span>
                         <c:if test="${page < totalPages}">
                             <c:url var="nextUrl" value="/barista/recipe">

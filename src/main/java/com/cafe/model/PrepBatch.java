@@ -28,6 +28,7 @@ public class PrepBatch {
     /** Đã ghi hao hụt vì quá hạn — mẻ khép vòng đời, không gợi ý ghi thêm và không huỷ được nữa. */
     private LocalDateTime writtenOffAt;
     private Integer writeOffWasteLogId;
+    private String clientRequestId;
 
     // join
     private String preppedIngredientName;
@@ -70,6 +71,8 @@ public class PrepBatch {
 
     public Integer getWriteOffWasteLogId() { return writeOffWasteLogId; }
     public void setWriteOffWasteLogId(Integer v) { this.writeOffWasteLogId = v; }
+    public String getClientRequestId() { return clientRequestId; }
+    public void setClientRequestId(String v) { this.clientRequestId = v; }
 
     public String getPreppedIngredientName() { return preppedIngredientName; }
     public void setPreppedIngredientName(String v) { this.preppedIngredientName = v; }

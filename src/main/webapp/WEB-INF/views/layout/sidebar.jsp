@@ -77,6 +77,7 @@
             <c:when test="${u.roleCode == 'BRANCH_MANAGER'}">
                 <li class="nav-section">Kho</li>
                 <li><a class="${curPath == ctx.concat('/manager/inventory') ? 'active' : ''}" href="${ctx}/manager/inventory"><svg class="ic"><use href="#ic-box"/></svg>Tồn kho</a></li>
+                <li><a class="${curPath == ctx.concat('/manager/prep') ? 'active' : ''}" href="${ctx}/manager/prep"><svg class="ic"><use href="#ic-beaker"/></svg>Mẻ pha sẵn</a></li>
                 <li><a class="${curPath == ctx.concat('/manager/receipt') ? 'active' : ''}" href="${ctx}/manager/receipt"><svg class="ic"><use href="#ic-truck"/></svg>Nhập kho</a></li>
                 <li><a class="${curPath == ctx.concat('/manager/supplier') ? 'active' : ''}" href="${ctx}/manager/supplier"><svg class="ic"><use href="#ic-store"/></svg>Nhà cung cấp</a></li>
                 <li><a class="${curPath == ctx.concat('/manager/reconciliation') or curPath == ctx.concat('/manager/waste') ? 'active' : ''}" href="${ctx}/manager/reconciliation"><svg class="ic"><use href="#ic-scale"/></svg>Đối soát &amp; hao hụt</a></li>

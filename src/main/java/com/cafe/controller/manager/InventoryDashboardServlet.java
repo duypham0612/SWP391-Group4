@@ -61,6 +61,13 @@ public class InventoryDashboardServlet extends HttpServlet {
                 int ingredientId = Integer.parseInt(req.getParameter("ingredientId"));
                 BigDecimal th = new BigDecimal(req.getParameter("threshold").trim());
                 inventoryService.setMinThreshold(branchId, ingredientId, th);
+                req.getSession().setAttribute("flashOk", "Đã cập nhật ngưỡng cảnh báo.");
+            } else if ("setPrepPolicy".equals(req.getParameter("action"))) {
+                int ingredientId = Integer.parseInt(req.getParameter("ingredientId"));
+                BigDecimal threshold = new BigDecimal(req.getParameter("threshold").trim());
+                BigDecimal target = new BigDecimal(req.getParameter("target").trim());
+                inventoryService.setPrepPolicy(branchId, ingredientId, threshold, target);
+                req.getSession().setAttribute("flashOk", "Đã cập nhật ngưỡng và mức tồn mục tiêu.");
             }
             resp.sendRedirect(req.getContextPath() + "/manager/inventory");
         } catch (BusinessException e) {

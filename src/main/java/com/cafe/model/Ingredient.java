@@ -6,6 +6,7 @@ public class Ingredient {
     private String name;
     private String unit;            // g, ml, cái, kg, L...
     private String ingredientType;  // RAW | PREPPED
+    private Integer shelfLifeMinutes;
     private boolean active = true;
 
     public int getIngredientId() { return ingredientId; }
@@ -19,6 +20,15 @@ public class Ingredient {
 
     public String getIngredientType() { return ingredientType; }
     public void setIngredientType(String ingredientType) { this.ingredientType = ingredientType; }
+
+    public Integer getShelfLifeMinutes() { return shelfLifeMinutes; }
+    public void setShelfLifeMinutes(Integer shelfLifeMinutes) { this.shelfLifeMinutes = shelfLifeMinutes; }
+    public String getShelfLifeHoursDisplay() {
+        if (shelfLifeMinutes == null || shelfLifeMinutes < 0) return "";
+        return java.math.BigDecimal.valueOf(shelfLifeMinutes)
+                .divide(java.math.BigDecimal.valueOf(60), 2, java.math.RoundingMode.HALF_UP)
+                .stripTrailingZeros().toPlainString();
+    }
 
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }

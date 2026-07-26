@@ -35,7 +35,12 @@ public final class BaristaShift {
 
     private BaristaShift() {}
 
-    /** Nạp trạng thái chấm công cho JSP: clockStatus, onShift, clockPostUrl (nút Vào ca post về đây), handoverUrl. */
+    /**
+     * Nạp trạng thái chấm công cho JSP: clockStatus, onShift, clockPostUrl, handoverUrl.
+     *
+     * <p>clockPostUrl chỉ có tác dụng ở màn "Ca làm của tôi" — nơi duy nhất còn form chấm công.
+     * Các màn vận hành chỉ dùng clockStatus/onShift để dựng banner trỏ sang màn đó.
+     */
     public static void expose(HttpServletRequest req, String selfPath) throws SQLException {
         expose(req, selfPath, true);
     }
@@ -69,22 +74,19 @@ public final class BaristaShift {
     }
 
     /**
-     * Chốt chặn ghi cho doPost. Trả về true nếu request đã được xử lý xong (caller phải return ngay):
-     * - action là clockIn/clockOut → chấm công rồi redirect (tan ca thiếu bàn giao → sang màn bàn giao).
-     * - ngoài ca → chặn, flashError, redirect.
-     * Trả về false nghĩa là được phép thao tác tiếp.
+     * Chốt chặn ghi cho doPost của các màn vận hành: ngoài ca → flashError rồi redirect về chính màn đó.
+     *
+     * <p>KHÔNG xử lý chấm công. Chấm công chỉ diễn ra ở màn "Ca làm của tôi" (xem
+     * {@link BaristaWritePolicy#isShiftAction}), nơi barista thấy đủ ca được xếp và bàn giao
+     * đang chờ trước khi nhận quầy.
+     *
+     * @return true nếu request đã được xử lý xong — caller phải return ngay.
      */
-    public static boolean guardWrite(HttpServletRequest req, HttpServletResponse resp,
-                                     String action, String selfPath) throws IOException {
-        String self = req.getContextPath() + selfPath;
-        String clockRedirect = handleClock(req, action, selfPath);
-        if (clockRedirect != null) {
-            resp.sendRedirect(req.getContextPath() + clockRedirect);
-            return true;
-        }
+    public static boolean guardWrite(HttpServletRequest req, HttpServletResponse resp, String selfPath)
+            throws IOException {
         if (!onShift(req)) {
             req.getSession().setAttribute("flashError", OFF_SHIFT_MESSAGE);
-            resp.sendRedirect(self);
+            resp.sendRedirect(req.getContextPath() + selfPath);
             return true;
         }
         return false;

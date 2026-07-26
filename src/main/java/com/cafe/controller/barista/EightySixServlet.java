@@ -65,7 +65,7 @@ public class EightySixServlet extends HttpServlet {
             resp.sendRedirect(redirect);
             return;
         }
-        if (BaristaShift.guardWrite(req, resp, action, "/barista/eightysix")) return;   // vào ca / chặn ngoài ca
+        if (BaristaShift.guardWrite(req, resp, "/barista/eightysix")) return;   // ngoài ca → chặn ghi
         int branchId = InventoryDashboardServlet.branchId(req);
         User u = SessionUtil.currentUser(req);
         int userId = u != null ? u.getUserId() : 0;

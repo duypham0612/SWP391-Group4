@@ -216,6 +216,7 @@ CREATE TABLE catalog.Ingredient (
     Unit            NVARCHAR(20)  NOT NULL,      -- g, ml, cái, kg, L...
     IngredientType  VARCHAR(10)   NOT NULL
                     CONSTRAINT CK_Ingredient_Type CHECK (IngredientType IN ('RAW','PREPPED')),
+    ShelfLifeMinutes INT NULL,                    -- chỉ PREPPED; hệ thống tự tính hạn dùng khi tạo mẻ
     IsActive        BIT NOT NULL DEFAULT 1
 );
 END
@@ -384,6 +385,7 @@ CREATE TABLE inventory.BranchInventory (
     IngredientId   INT NOT NULL,
     QuantityOnHand DECIMAL(12,3) NOT NULL DEFAULT 0,
     MinThreshold   DECIMAL(12,3) NOT NULL DEFAULT 0,   -- ngưỡng cảnh báo min-stock
+    PrepTargetQty  DECIMAL(12,3) NULL,                 -- mức tồn mục tiêu, chỉ PREPPED
     UpdatedAt      DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT PK_BranchInventory PRIMARY KEY (BranchId, IngredientId),
     CONSTRAINT FK_BI_Branch     FOREIGN KEY (BranchId)     REFERENCES org.Branch(BranchId),
@@ -443,6 +445,7 @@ CREATE TABLE inventory.PrepBatch (
     VoidedAt            DATETIME2 NULL,
     WrittenOffAt        DATETIME2 NULL,              -- đã ghi hao hụt vì quá hạn: mẻ khép lại, không gợi ý ghi thêm
     WriteOffWasteLogId  INT NULL,                    -- dòng hao hụt tương ứng (FK_PB_WriteOffWaste thêm sau khi WasteLog tồn tại)
+    ClientRequestId     VARCHAR(36) NULL,             -- idempotency key chống retry tạo trùng mẻ
     CONSTRAINT FK_PB_Branch  FOREIGN KEY (BranchId)            REFERENCES org.Branch(BranchId),
     CONSTRAINT FK_PB_Prepped FOREIGN KEY (PreppedIngredientId) REFERENCES catalog.Ingredient(IngredientId),
     CONSTRAINT FK_PB_User    FOREIGN KEY (MadeBy)              REFERENCES iam.[User](UserId)
@@ -1272,6 +1275,57 @@ IF NOT EXISTS (SELECT 1 FROM ops.SchemaVersion WHERE VersionCode = '20260725_pre
 COMMIT TRANSACTION;
 GO
 
+-- 20260726: Prep theo mức tồn mục tiêu, hạn dùng tự động và chống tạo trùng.
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+
+IF COL_LENGTH(N'catalog.Ingredient', N'ShelfLifeMinutes') IS NULL
+    ALTER TABLE catalog.Ingredient ADD ShelfLifeMinutes INT NULL;
+
+IF COL_LENGTH(N'inventory.BranchInventory', N'PrepTargetQty') IS NULL
+    ALTER TABLE inventory.BranchInventory ADD PrepTargetQty DECIMAL(12,3) NULL;
+
+IF COL_LENGTH(N'inventory.PrepBatch', N'ClientRequestId') IS NULL
+    ALTER TABLE inventory.PrepBatch ADD ClientRequestId VARCHAR(36) NULL;
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.check_constraints
+    WHERE parent_object_id = OBJECT_ID(N'catalog.Ingredient')
+      AND name = N'CK_Ingredient_ShelfLife'
+)
+    ALTER TABLE catalog.Ingredient WITH CHECK
+        ADD CONSTRAINT CK_Ingredient_ShelfLife
+        CHECK (
+            (IngredientType='RAW' AND ShelfLifeMinutes IS NULL)
+            OR (IngredientType='PREPPED' AND (ShelfLifeMinutes IS NULL OR ShelfLifeMinutes BETWEEN 60 AND 43200))
+        );
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.check_constraints
+    WHERE parent_object_id = OBJECT_ID(N'inventory.BranchInventory')
+      AND name = N'CK_BranchInventory_PrepTarget'
+)
+    ALTER TABLE inventory.BranchInventory WITH CHECK
+        ADD CONSTRAINT CK_BranchInventory_PrepTarget
+        CHECK (PrepTargetQty IS NULL OR PrepTargetQty > MinThreshold);
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'inventory.PrepBatch')
+      AND name = N'UX_PrepBatch_ClientRequest'
+)
+    CREATE UNIQUE INDEX UX_PrepBatch_ClientRequest
+        ON inventory.PrepBatch(BranchId, ClientRequestId)
+        WHERE ClientRequestId IS NOT NULL;
+
+IF NOT EXISTS (SELECT 1 FROM ops.SchemaVersion WHERE VersionCode = '20260726_prep_worklist')
+    INSERT INTO ops.SchemaVersion (VersionCode, Description)
+    VALUES ('20260726_prep_worklist', N'Mức tồn mục tiêu, hạn dùng tự động và idempotency cho mẻ pha sẵn.');
+
+COMMIT TRANSACTION;
+GO
+
 /* ===========================================================================
    8. SEED DATA (dữ liệu mẫu để chạy thử)
    =========================================================================== */
@@ -1327,6 +1381,11 @@ INSERT INTO catalog.Ingredient(Name, Unit, IngredientType) VALUES
     (N'Syrup Đào',  N'ml', 'PREPPED'),   -- 7 (pha sẵn từ đào + đường)
     (N'Trân châu',  N'g',  'RAW'),       -- 8
     (N'Kem cheese', N'g',  'RAW');       -- 9
+GO
+
+UPDATE catalog.Ingredient SET ShelfLifeMinutes =
+    CASE Name WHEN N'Cold Brew' THEN 1440 WHEN N'Syrup Đào' THEN 1680 ELSE ShelfLifeMinutes END
+WHERE IngredientType='PREPPED';
 GO
 
 -- Công thức pha sẵn: Cold Brew từ cà phê hạt; Syrup đào từ đào + đường
@@ -1994,6 +2053,10 @@ FROM inventory.InventoryTransaction GROUP BY BranchId,IngredientId;
 -- Ngưỡng mặc định + ép low-stock cho đồ PHA SẴN (Cold Brew/Syrup) ở mọi chi nhánh
 UPDATE inventory.BranchInventory SET MinThreshold = 3000;
 UPDATE bi SET MinThreshold = bi.QuantityOnHand + 3000
+FROM inventory.BranchInventory bi
+JOIN catalog.Ingredient i ON i.IngredientId=bi.IngredientId
+WHERE i.IngredientType='PREPPED';
+UPDATE bi SET PrepTargetQty = bi.QuantityOnHand + 5000
 FROM inventory.BranchInventory bi
 JOIN catalog.Ingredient i ON i.IngredientId=bi.IngredientId
 WHERE i.IngredientType='PREPPED';

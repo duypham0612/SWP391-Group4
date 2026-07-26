@@ -4,6 +4,7 @@ import com.cafe.service.shared.OrderService;
 import com.cafe.service.shared.InventoryService;
 import com.cafe.service.barista.HandoverService;
 import com.cafe.common.BusinessException;
+import com.cafe.common.TxnType;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -116,6 +117,105 @@ class BaristaTransactionIT extends SqlServerIntegrationSupport {
     }
 
     @Test
+    void suggested_prep_is_idempotent_and_derives_expiry_from_ingredient() throws Exception {
+        Fixture f = fixture(false);
+        InventoryService inventory = new InventoryService();
+        String requestId = UUID.randomUUID().toString();
+
+        int first = inventory.createSuggestedPrepBatch(f.branchId, f.preppedIngredientId,
+                new BigDecimal("100"), f.baristaOneId, requestId);
+        int retry = inventory.createSuggestedPrepBatch(f.branchId, f.preppedIngredientId,
+                new BigDecimal("100"), f.baristaOneId, requestId);
+
+        assertEquals(first, retry);
+        assertEquals(1, scalarInt(
+                "SELECT COUNT(*) FROM inventory.PrepBatch WHERE PrepBatchId=?", first));
+        assertEquals(new BigDecimal("100.000"), scalarDecimal(
+                "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction "
+                        + "WHERE RefTable='PrepBatch' AND RefId=? AND TxnType='PREP_IN'", first));
+        assertEquals(new BigDecimal("-10.000"), scalarDecimal(
+                "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction "
+                        + "WHERE RefTable='PrepBatch' AND RefId=? AND TxnType='PREP_OUT'", first));
+        assertEquals(1, scalarInt(
+                "SELECT CASE WHEN ExpiresAt IS NULL THEN 0 ELSE 1 END FROM inventory.PrepBatch WHERE PrepBatchId=?",
+                first));
+    }
+
+    @Test
+    void suggested_prep_rejects_incomplete_admin_or_manager_configuration() throws Exception {
+        Fixture f = fixture(false);
+        InventoryService inventory = new InventoryService();
+
+        execute("UPDATE catalog.Ingredient SET ShelfLifeMinutes=NULL WHERE IngredientId=?",
+                f.preppedIngredientId);
+        assertThrows(BusinessException.class, () -> inventory.createSuggestedPrepBatch(
+                f.branchId, f.preppedIngredientId, new BigDecimal("100"), f.baristaOneId,
+                UUID.randomUUID().toString()));
+
+        execute("UPDATE catalog.Ingredient SET ShelfLifeMinutes=1440 WHERE IngredientId=?",
+                f.preppedIngredientId);
+        execute("UPDATE inventory.BranchInventory SET PrepTargetQty=NULL WHERE BranchId=? AND IngredientId=?",
+                f.branchId, f.preppedIngredientId);
+        assertThrows(BusinessException.class, () -> inventory.createSuggestedPrepBatch(
+                f.branchId, f.preppedIngredientId, new BigDecimal("100"), f.baristaOneId,
+                UUID.randomUUID().toString()));
+
+        execute("UPDATE inventory.BranchInventory SET PrepTargetQty=1000 WHERE BranchId=? AND IngredientId=?",
+                f.branchId, f.preppedIngredientId);
+        execute("DELETE FROM catalog.PrepRecipe WHERE PreppedIngredientId=?", f.preppedIngredientId);
+        assertThrows(BusinessException.class, () -> inventory.createSuggestedPrepBatch(
+                f.branchId, f.preppedIngredientId, new BigDecimal("100"), f.baristaOneId,
+                UUID.randomUUID().toString()));
+    }
+
+    @Test
+    void simultaneous_prep_requests_cannot_make_raw_inventory_negative() throws Exception {
+        Fixture f = fixture(false);
+        execute("UPDATE inventory.BranchInventory SET QuantityOnHand=15 WHERE BranchId=? AND IngredientId=?",
+                f.branchId, f.rawIngredientId);
+
+        Callable<Boolean> first = () -> createPrepOrReject(f, f.baristaOneId);
+        Callable<Boolean> second = () -> createPrepOrReject(f, f.baristaTwoId);
+        List<Boolean> results = concurrently(first, second);
+
+        assertEquals(1, results.stream().filter(Boolean::booleanValue).count());
+        assertEquals(new BigDecimal("5.000"), scalarDecimal(
+                "SELECT QuantityOnHand FROM inventory.BranchInventory WHERE BranchId="
+                        + f.branchId + " AND IngredientId=?", f.rawIngredientId));
+    }
+
+    @Test
+    void manager_can_cancel_unconsumed_batch_but_not_after_prepped_consumption() throws Exception {
+        Fixture reversible = fixture(false);
+        InventoryService inventory = new InventoryService();
+        int reversibleBatch = inventory.createSuggestedPrepBatch(
+                reversible.branchId, reversible.preppedIngredientId, new BigDecimal("100"),
+                reversible.baristaOneId, UUID.randomUUID().toString());
+        assertTrue(inventory.cancelPrepBatchByManager(
+                reversible.branchId, reversibleBatch, reversible.baristaOneId));
+        assertEquals(new BigDecimal("0.000"), scalarDecimal(
+                "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction "
+                        + "WHERE RefTable='PrepBatch' AND RefId=?", reversibleBatch));
+
+        Fixture consumed = fixture(false);
+        int consumedBatch = inventory.createSuggestedPrepBatch(
+                consumed.branchId, consumed.preppedIngredientId, new BigDecimal("100"),
+                consumed.baristaOneId, UUID.randomUUID().toString());
+        try (Connection conn = connection()) {
+            conn.setAutoCommit(false);
+            inventory.applyTxn(conn, consumed.branchId, consumed.preppedIngredientId,
+                    new BigDecimal("-10"), TxnType.DEDUCT, "OrderItem",
+                    (long) consumed.orderItemId, consumed.baristaOneId);
+            conn.commit();
+        }
+
+        assertThrows(BusinessException.class, () -> inventory.cancelPrepBatchByManager(
+                consumed.branchId, consumedBatch, consumed.baristaOneId));
+        assertEquals("ACTIVE", scalarString(
+                "SELECT Status FROM inventory.PrepBatch WHERE PrepBatchId=?", consumedBatch));
+    }
+
+    @Test
     void late_shift_can_save_handover_for_the_adjacent_shift_but_cannot_clock_out() throws Exception {
         Fixture f = fixture(false);
         LocalDate yesterday = LocalDate.now(com.cafe.common.BusinessDay.VN_ZONE).minusDays(1);
@@ -157,6 +257,17 @@ class BaristaTransactionIT extends SqlServerIntegrationSupport {
         } finally { executor.shutdownNow(); }
     }
 
+    private static boolean createPrepOrReject(Fixture fixture, int userId) throws Exception {
+        try {
+            new InventoryService().createSuggestedPrepBatch(
+                    fixture.branchId, fixture.preppedIngredientId, new BigDecimal("100"),
+                    userId, UUID.randomUUID().toString());
+            return true;
+        } catch (BusinessException expected) {
+            return false;
+        }
+    }
+
     private Fixture fixture(boolean withModifier) throws Exception {
         String key = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         try (Connection conn = connection(); Statement st = conn.createStatement()) {
@@ -172,12 +283,14 @@ class BaristaTransactionIT extends SqlServerIntegrationSupport {
             int category = id(conn, "SELECT MAX(CategoryId) FROM catalog.Category");
             st.executeUpdate("INSERT catalog.Product(CategoryId,Name,BasePrice) VALUES (" + category + ",N'IT Drink',10000)");
             int product = id(conn, "SELECT MAX(ProductId) FROM catalog.Product");
-            st.executeUpdate("INSERT catalog.Ingredient(Name,Unit,IngredientType) VALUES (N'IT Raw " + key + "',N'g','RAW'),(N'IT Prepped " + key + "',N'ml','PREPPED')");
+            st.executeUpdate("INSERT catalog.Ingredient(Name,Unit,IngredientType,ShelfLifeMinutes) VALUES "
+                    + "(N'IT Raw " + key + "',N'g','RAW',NULL),(N'IT Prepped " + key + "',N'ml','PREPPED',1440)");
             int ingredient = id(conn, "SELECT IngredientId FROM catalog.Ingredient WHERE Name=?", "IT Raw " + key);
             int prepped = id(conn, "SELECT IngredientId FROM catalog.Ingredient WHERE Name=?", "IT Prepped " + key);
             st.executeUpdate("INSERT catalog.ProductRecipe(ProductId,IngredientId,Quantity) VALUES (" + product + "," + ingredient + ",10)");
             st.executeUpdate("INSERT catalog.PrepRecipe(PreppedIngredientId,RawIngredientId,Quantity,YieldQty) VALUES (" + prepped + "," + ingredient + ",10,100)");
-            st.executeUpdate("INSERT inventory.BranchInventory(BranchId,IngredientId,QuantityOnHand) VALUES (" + branchId + "," + ingredient + ",1000),(" + branchId + "," + prepped + ",0)");
+            st.executeUpdate("INSERT inventory.BranchInventory(BranchId,IngredientId,QuantityOnHand,MinThreshold,PrepTargetQty) "
+                    + "VALUES (" + branchId + "," + ingredient + ",1000,0,NULL),(" + branchId + "," + prepped + ",0,300,1000)");
             st.executeUpdate("INSERT sales.Orders(BranchId,Source,OrderType,Status,CreatedBy) VALUES (" + branchId + ",'COUNTER','TAKEAWAY','ACTIVE'," + one + ")");
             int orderId = id(conn, "SELECT MAX(OrderId) FROM sales.Orders");
             st.executeUpdate("INSERT sales.OrderItem(OrderId,ProductId,Quantity,UnitPrice,Status) VALUES (" + orderId + "," + product + ",2,10000,'WAITING')");
@@ -203,6 +316,13 @@ class BaristaTransactionIT extends SqlServerIntegrationSupport {
 
     private static int scalarInt(String sql, int id) throws Exception {
         try (Connection conn = connection()) { return id(conn, sql, id); }
+    }
+
+    private static void execute(String sql, Object... values) throws Exception {
+        try (Connection conn = connection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (int i = 0; i < values.length; i++) ps.setObject(i + 1, values[i]);
+            ps.executeUpdate();
+        }
     }
     private static String scalarString(String sql, int id) throws Exception {
         try (Connection conn = connection(); PreparedStatement ps = conn.prepareStatement(sql)) { ps.setInt(1, id); try (ResultSet rs = ps.executeQuery()) { rs.next(); return rs.getString(1); } }
