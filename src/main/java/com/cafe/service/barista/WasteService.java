@@ -65,7 +65,7 @@ public class WasteService {
     /** Giờ mở cửa chi nhánh; chưa khai hoặc lỗi đọc thì để null → mốc lùi về nửa đêm như trước. */
     private LocalTime branchOpenTime(int branchId) throws SQLException {
         try (java.sql.Connection conn = com.cafe.config.DBConnection.getConnection()) {
-            com.cafe.model.Branch branch = new com.cafe.dao.admin.BranchDao().findById(conn, branchId);
+            com.cafe.model.Branch branch = new com.cafe.dao.shared.BranchDao().findById(conn, branchId);
             return branch == null ? null : branch.getOpenTime();
         }
     }

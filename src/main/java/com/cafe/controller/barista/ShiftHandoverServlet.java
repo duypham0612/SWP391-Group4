@@ -50,7 +50,7 @@ public class ShiftHandoverServlet extends HttpServlet {
             req.setAttribute("filterQuery", query);
             req.setAttribute("expiredPrepBatchCount", service.countExpiredActivePrepBatches(branchId));
             req.setAttribute("pageTitle", "Bàn giao ca");
-            req.getRequestDispatcher("/WEB-INF/views/barista/handover.jsp").forward(req, resp);
+            req.getRequestDispatcher("/WEB-INF/views/barista/handover/list.jsp").forward(req, resp);
         } catch (Exception e) { throw new ServletException(e); }
     }
 

@@ -138,6 +138,19 @@ public class PrepBatchDao {
         return out;
     }
 
+    /** Count-only variant for dashboard badges; avoids loading and mapping the full batch list. */
+    public int countExpiredActive(Connection conn, int branchId) throws SQLException {
+        final String sql = "SELECT COUNT(*) FROM inventory.PrepBatch "
+                + "WHERE BranchId=? AND Status='ACTIVE' AND WrittenOffAt IS NULL "
+                + "AND ExpiresAt<SYSUTCDATETIME()";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        }
+    }
+
     /** Đánh dấu trạng thái (CANCELLED kèm VoidedAt). KHÔNG hard-delete — tồn hoàn qua txn bù. */
     public int updateStatus(Connection conn, int prepBatchId, String status) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(

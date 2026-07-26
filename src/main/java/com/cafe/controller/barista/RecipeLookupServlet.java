@@ -93,7 +93,7 @@ public class RecipeLookupServlet extends HttpServlet {
             }
 
             req.setAttribute("pageTitle", "Tra cứu công thức");
-            req.getRequestDispatcher("/WEB-INF/views/barista/recipe.jsp").forward(req, resp);
+            req.getRequestDispatcher("/WEB-INF/views/barista/recipe/list.jsp").forward(req, resp);
         } catch (Exception e) {
             throw new ServletException(e);
         }

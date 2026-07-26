@@ -1,4 +1,4 @@
-package com.cafe.dao.manager;
+package com.cafe.dao.shared;
 
 import com.cafe.model.ShiftAssignment;
 
@@ -84,6 +84,26 @@ public class ShiftAssignmentDao {
         try (PreparedStatement ps = conn.prepareStatement(SELECT + "WHERE sa.ShiftAssignmentId=?")) {
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) { return rs.next() ? map(rs) : null; }
+        }
+    }
+
+    /**
+     * Ca đã check-in nhưng chưa check-out của nhân viên tại chi nhánh.
+     * Query trả về ShiftAssignment nên thuộc DAO sở hữu hr.ShiftAssignment.
+     */
+    public ShiftAssignment findOpenByUserAndBranch(Connection conn, int userId, int branchId)
+            throws SQLException {
+        final String sql = SELECT
+                + "JOIN hr.Attendance a ON a.ShiftAssignmentId=sa.ShiftAssignmentId "
+                + "WHERE sa.UserId=? AND st.BranchId=? "
+                + "AND a.CheckInAt IS NOT NULL AND a.CheckOutAt IS NULL "
+                + "ORDER BY a.AttendanceId DESC";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            ps.setInt(2, branchId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? map(rs) : null;
+            }
         }
     }
 

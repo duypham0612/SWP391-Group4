@@ -1,4 +1,4 @@
-package com.cafe.dao.manager;
+package com.cafe.dao.shared;
 
 import org.junit.jupiter.api.Test;
 

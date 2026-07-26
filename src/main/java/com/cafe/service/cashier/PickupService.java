@@ -1,4 +1,4 @@
-package com.cafe.service.barista;
+package com.cafe.service.cashier;
 
 import com.cafe.model.OrderItem;
 import com.cafe.model.PickupTicket;

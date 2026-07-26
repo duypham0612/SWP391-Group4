@@ -13,6 +13,17 @@ import java.util.List;
 
 public class OrderItemDao {
 
+    /** Aggregate read model derived from sales.OrderItem for the Barista dashboard. */
+    public record PreparationMetrics(
+            int myMakingCups,
+            int myCompletedCups,
+            long myAveragePreparationSeconds,
+            int branchWaitingCups,
+            int branchMakingCups,
+            int branchReadyCups,
+            int branchBlockedCups) {
+    }
+
     private static final String SELECT =
         "SELECT oi.OrderItemId, oi.OrderId, oi.ProductId, oi.Quantity, oi.UnitPrice, oi.Note, oi.Status, " +
         "       oi.StartedAt, oi.DoneAt, oi.ServedAt, oi.BaristaId, oi.PreparedBy, " +
@@ -34,6 +45,48 @@ public class OrderItemDao {
         "LEFT JOIN sales.DiningTable  dt ON dt.DiningTableId=ts.DiningTableId " +
         "LEFT JOIN iam.[User] bu ON bu.UserId=oi.BaristaId " +
         "LEFT JOIN iam.[User] cu ON cu.UserId=oi.PreparedBy ";
+
+    /**
+     * Dashboard preparation metrics. Keeping this query here preserves one DAO owner for
+     * sales.OrderItem instead of introducing a role-specific metrics DAO over the same table.
+     */
+    public PreparationMetrics loadPreparationMetrics(Connection conn, int branchId, int userId,
+                                                      java.time.LocalDateTime businessDayStartUtc)
+            throws SQLException {
+        final String sql = "SELECT "
+            + "COALESCE(SUM(CASE WHEN oi.Status='MAKING' AND oi.BaristaId=? THEN oi.Quantity ELSE 0 END),0) AS MyMakingCups, "
+            + "COALESCE(SUM(CASE WHEN oi.PreparedBy=? AND oi.DoneAt>=? THEN oi.Quantity ELSE 0 END),0) AS MyCompletedCups, "
+            + "COALESCE(AVG(CASE WHEN oi.PreparedBy=? AND oi.DoneAt>=? AND oi.StartedAt IS NOT NULL "
+            + "THEN CONVERT(BIGINT,DATEDIFF(SECOND, oi.StartedAt, oi.DoneAt)) END),0) AS MyAvgPrepSeconds, "
+            + "COALESCE(SUM(CASE WHEN o.Status='ACTIVE' AND oi.Status='WAITING' THEN oi.Quantity ELSE 0 END),0) AS WaitingCups, "
+            + "COALESCE(SUM(CASE WHEN o.Status='ACTIVE' AND oi.Status='MAKING' THEN oi.Quantity ELSE 0 END),0) AS MakingCups, "
+            + "COALESCE(SUM(CASE WHEN o.Status='ACTIVE' AND oi.Status='READY' THEN oi.Quantity ELSE 0 END),0) AS ReadyCups, "
+            + "COALESCE(SUM(CASE WHEN o.Status='ACTIVE' AND oi.Status='BLOCKED' THEN oi.Quantity ELSE 0 END),0) AS BlockedCups "
+            + "FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId "
+            + "WHERE o.BranchId=? AND o.CreatedAt>=? "
+            + "AND oi.Status IN ('WAITING','MAKING','READY','PICKED_UP','SERVED','BLOCKED')";
+        Timestamp from = Timestamp.valueOf(businessDayStartUtc);
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            ps.setInt(2, userId);
+            ps.setTimestamp(3, from);
+            ps.setInt(4, userId);
+            ps.setTimestamp(5, from);
+            ps.setInt(6, branchId);
+            ps.setTimestamp(7, from);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return new PreparationMetrics(0, 0, 0, 0, 0, 0, 0);
+                return new PreparationMetrics(
+                    rs.getInt("MyMakingCups"),
+                    rs.getInt("MyCompletedCups"),
+                    rs.getLong("MyAvgPrepSeconds"),
+                    rs.getInt("WaitingCups"),
+                    rs.getInt("MakingCups"),
+                    rs.getInt("ReadyCups"),
+                    rs.getInt("BlockedCups"));
+            }
+        }
+    }
 
     public int insert(Connection conn, OrderItem it) throws SQLException {
         final String sql = "INSERT INTO sales.OrderItem(OrderId, ProductId, Quantity, UnitPrice, Note, Status) " +

@@ -2,7 +2,7 @@
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%@ taglib prefix="fn" uri="jakarta.tags.functions" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
-<jsp:include page="../layout/header.jsp" />
+<jsp:include page="/WEB-INF/views/layout/header.jsp" />
 
 <div class="page-header"><div><div class="eyebrow">Pha chế</div><h1>Bàn giao ca</h1><p>Giao việc còn lại cho đúng ca tiếp theo và theo dõi đến khi hoàn tất.</p></div></div>
 <c:if test="${not empty sessionScope.flashError}"><div class="alert alert-error">${sessionScope.flashError}</div><c:remove var="flashError" scope="session" /></c:if>
@@ -10,7 +10,7 @@
 
 <%-- Ca quá hạn chấm công vẫn lập được bàn giao, lúc đó banner "Ngoài ca — chỉ xem" nói ngược với
      form đang mở ngay bên dưới. Trường hợp đó để thẻ tạo bàn giao tự giải thích. --%>
-<c:if test="${not canCreateHandover}"><jsp:include page="../layout/_baristaShiftBanner.jsp" /></c:if>
+<c:if test="${not canCreateHandover}"><jsp:include page="/WEB-INF/views/layout/_baristaShiftBanner.jsp" /></c:if>
 
 <%-- Ba con số mở đầu: việc của tôi trước, tình hình chi nhánh sau. --%>
 <section class="card-grid">
@@ -40,6 +40,9 @@
 <%-- Bàn giao mồ côi hoặc quá hạn chưa ai xác nhận: ai đang trực thì có thể nhận thay. Link bỏ
      bộ lọc vì bàn giao mồ côi không nằm trong phạm vi "Gửi cho tôi". --%>
 <c:if test="${summary.claimable > 0}"><div class="alert alert-warn"><strong>Có ${summary.claimable} bàn giao ca trước để lại chưa ai tiếp nhận.</strong> <a href="${ctx}/barista/handover?pageSize=${handoverPage.pageSize}">Xem toàn bộ bàn giao chi nhánh</a> rồi bấm “Tiếp nhận” để nhận việc về mình.</div></c:if>
+
+<%-- Đến từ nút tan ca: ca chưa bàn giao nên chưa được tan, nói rõ việc cần làm để tan ca. --%>
+<c:if test="${handoverRequired}"><div class="alert alert-warn"><strong>Ca của bạn chưa được bàn giao nên chưa thể tan ca.</strong> Ghi việc cần bàn giao cho ca sau rồi bấm “Lưu bàn giao &amp; Tan ca”.</div></c:if>
 
 <c:choose>
   <c:when test="${canCreateHandover}">
@@ -289,4 +292,4 @@
   });
 })();
 </script>
-<jsp:include page="../layout/footer.jsp" />
+<jsp:include page="/WEB-INF/views/layout/footer.jsp" />

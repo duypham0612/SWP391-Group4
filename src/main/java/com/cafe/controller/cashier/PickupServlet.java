@@ -4,7 +4,7 @@ import com.cafe.controller.manager.InventoryDashboardServlet;
 import com.cafe.common.CsrfUtil;
 import com.cafe.common.SessionUtil;
 import com.cafe.model.User;
-import com.cafe.service.barista.PickupService;
+import com.cafe.service.cashier.PickupService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -29,8 +29,8 @@ public class PickupServlet extends HttpServlet {
             req.setAttribute("pageTitle", "Sẵn sàng bàn giao");
             boolean partial = "1".equals(req.getParameter("partial"));
             String view = partial
-                    ? "/WEB-INF/views/barista/pickup_cards.jsp"
-                    : "/WEB-INF/views/barista/pickup.jsp";
+                    ? "/WEB-INF/views/cashier/handoff/cards.jsp"
+                    : "/WEB-INF/views/cashier/handoff/index.jsp";
             req.getRequestDispatcher(view).forward(req, resp);
         } catch (Exception e) { throw new ServletException(e); }
     }
@@ -66,7 +66,7 @@ public class PickupServlet extends HttpServlet {
             throws SQLException, ServletException, IOException {
         if ("1".equals(req.getParameter("ajax"))) {
             loadBoard(req, branchId);
-            req.getRequestDispatcher("/WEB-INF/views/barista/pickup_cards.jsp").forward(req, resp);
+            req.getRequestDispatcher("/WEB-INF/views/cashier/handoff/cards.jsp").forward(req, resp);
         } else {
             resp.sendRedirect(req.getContextPath() + "/cashier/handoff");
         }

@@ -3,7 +3,7 @@
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <%@ taglib prefix="fn" uri="jakarta.tags.functions" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
-<jsp:include page="../layout/header.jsp" />
+<jsp:include page="/WEB-INF/views/layout/header.jsp" />
 
 <div class="page-header">
     <div><div class="eyebrow">Pha chế</div><h1>Ca làm của tôi</h1><p>Chấm công và giờ làm của bạn</p></div>
@@ -18,7 +18,7 @@
     <c:remove var="flashOk" scope="session" />
 </c:if>
 
-<jsp:include page="../layout/_shiftClockCard.jsp" />
+<jsp:include page="/WEB-INF/views/layout/_shiftClockCard.jsp" />
 
 <c:if test="${handoverRequired}">
     <div class="alert alert-info" style="margin-top:var(--s4)">
@@ -26,7 +26,7 @@
     </div>
 </c:if>
 
-<jsp:include page="../layout/_handoverPendingAlert.jsp" />
+<jsp:include page="/WEB-INF/views/layout/_handoverPendingAlert.jsp" />
 
 <c:if test="${not empty monthSummary}">
     <div class="page-header" style="margin-top:var(--s6)">
@@ -253,4 +253,4 @@
 })();
 </script>
 
-<jsp:include page="../layout/footer.jsp" />
+<jsp:include page="/WEB-INF/views/layout/footer.jsp" />

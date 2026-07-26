@@ -167,7 +167,7 @@ public class WasteServlet extends HttpServlet {
                 req.setAttribute("flashError", "Bản ghi cần sửa không hợp lệ.");
             }
         }
-        req.getRequestDispatcher("/WEB-INF/views/barista/waste.jsp").forward(req, resp);
+        req.getRequestDispatcher("/WEB-INF/views/barista/waste/list.jsp").forward(req, resp);
     }
 
     private int currentUserId(HttpServletRequest req) {

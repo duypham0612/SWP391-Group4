@@ -1,4 +1,4 @@
-package com.cafe.dao.admin;
+package com.cafe.dao.shared;
 
 import com.cafe.model.Branch;
 

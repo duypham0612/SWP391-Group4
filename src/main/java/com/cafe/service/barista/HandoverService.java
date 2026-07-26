@@ -2,9 +2,11 @@ package com.cafe.service.barista;
 
 import com.cafe.common.ShiftWindow;
 import com.cafe.config.DBConnection;
-import com.cafe.dao.admin.BranchDao;
-import com.cafe.dao.manager.ShiftAssignmentDao;
-import com.cafe.dao.manager.ShiftHandoverDao;
+import com.cafe.dao.shared.BranchDao;
+import com.cafe.dao.shared.ShiftAssignmentDao;
+import com.cafe.dao.shared.ShiftHandoverDao;
+import com.cafe.dao.shared.ShiftHandoverRecipientDao;
+import com.cafe.dao.shared.ShiftHandoverTaskDao;
 import com.cafe.dao.shared.OrderItemDao;
 import com.cafe.model.Branch;
 import com.cafe.model.OrderItem;
@@ -33,6 +35,8 @@ public class HandoverService {
     private static final int CARRY_OVER_LIMIT = 20;
     private static final int MANAGER_FALLBACK_LIMIT = 50;
     private final ShiftHandoverDao handoverDao = new ShiftHandoverDao();
+    private final ShiftHandoverRecipientDao recipientDao = new ShiftHandoverRecipientDao();
+    private final ShiftHandoverTaskDao taskDao = new ShiftHandoverTaskDao();
     private final ShiftAssignmentDao assignmentDao = new ShiftAssignmentDao();
     private final BranchDao branchDao = new BranchDao();
     private final OrderItemDao orderItemDao = new OrderItemDao();
@@ -41,7 +45,12 @@ public class HandoverService {
 
     /** Bàn giao gửi tới quản lý — chặn trên bằng số dòng, tránh nạp cả lịch sử chi nhánh. */
     public List<ShiftHandover> getManagerFallbacks(int branchId, int managerUserId) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) { return handoverDao.findManagerFallbacks(conn, branchId, managerUserId, MANAGER_FALLBACK_LIMIT); }
+        try (Connection conn = DBConnection.getConnection()) {
+            List<ShiftHandover> handovers = handoverDao.findManagerFallbacks(
+                    conn, branchId, managerUserId, MANAGER_FALLBACK_LIMIT);
+            hydrateHandovers(conn, handovers, managerUserId);
+            return handovers;
+        }
     }
 
     /**
@@ -56,25 +65,29 @@ public class HandoverService {
             int total = handoverDao.countByFilter(conn, branchId, userId, scope, status, query);
             int totalPages = Math.max(1, (int) Math.ceil((double) total / safePageSize));
             int page = Math.max(1, Math.min(requestedPage, totalPages));
-            HandoverPage pageData = new HandoverPage(
-                handoverDao.findPage(conn, branchId, userId, scope, status, query, (page - 1) * safePageSize, safePageSize),
-                total, page, safePageSize);
-            int[] counts = handoverDao.summaryCounts(conn, branchId, userId);
+            List<ShiftHandover> handovers = handoverDao.findPage(
+                    conn, branchId, userId, scope, status, query,
+                    (page - 1) * safePageSize, safePageSize);
+            hydrateHandovers(conn, handovers, userId);
+            HandoverPage pageData = new HandoverPage(handovers, total, page, safePageSize);
+            int pendingForMe = recipientDao.countUnacknowledgedForUser(conn, branchId, userId);
+            int openTasksForMe = taskDao.countOpenForUser(conn, branchId, userId);
+            int waitingReceipt = handoverDao.countWaitingReceiptInBranch(conn, branchId);
             HandoverBoard board = new HandoverBoard(pageData,
-                new HandoverSummary(counts[0], counts[1], counts[2],
-                    handoverDao.countClaimableInBranch(
+                new HandoverSummary(pendingForMe, openTasksForMe, waitingReceipt,
+                    recipientDao.countClaimableInBranch(
                             conn, branchId, userId, ShiftHandover.CLAIM_AFTER_HOURS)));
 
             // Quyền lập bàn giao bám theo "còn ca đang mở", KHÔNG theo cửa sổ chấm công: ca đã quá
             // hạn bấm tan ca vẫn phải giao được việc tồn cho ca sau — giờ công thì nhờ Quản lý chốt.
-            ShiftAssignment source = handoverDao.findOpenSourceAssignment(conn, userId, branchId);
+            ShiftAssignment source = assignmentDao.findOpenByUserAndBranch(conn, userId, branchId);
             if (source == null) { board.receiverError = "Bạn cần đang trong ca để lập bàn giao."; return board; }
             board.canCreate = true;
             board.canClockOut = onShift;
             board.receiver = resolveReceiver(conn, branchId, source);
             // Đã có bàn giao cho ca này thì tan ca không còn bị chặn nữa — không nhắc lại cảnh báo.
             board.handoverRequired = !handoverDao.existsForSourceAssignment(conn, source.getShiftAssignmentId());
-            board.carryOverTasks = handoverDao.findOpenTasksForUser(conn, branchId, userId, CARRY_OVER_LIMIT);
+            board.carryOverTasks = taskDao.findOpenForUser(conn, branchId, userId, CARRY_OVER_LIMIT);
             board.brewTasks = brewSuggestions(conn, branchId);
             return board;
         }
@@ -115,7 +128,9 @@ public class HandoverService {
     }
 
     public int countUnacknowledgedForUser(int branchId, int userId) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) { return handoverDao.countUnacknowledgedForUser(conn, branchId, userId); }
+        try (Connection conn = DBConnection.getConnection()) {
+            return recipientDao.countUnacknowledgedForUser(conn, branchId, userId);
+        }
     }
 
     /**
@@ -128,7 +143,7 @@ public class HandoverService {
      */
     public boolean requiresHandoverBeforeClockOut(int branchId, int userId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            ShiftAssignment source = handoverDao.findOpenSourceAssignment(conn, userId, branchId);
+            ShiftAssignment source = assignmentDao.findOpenByUserAndBranch(conn, userId, branchId);
             if (source == null) return false;
             return !handoverDao.existsForSourceAssignment(conn, source.getShiftAssignmentId());
         }
@@ -142,13 +157,13 @@ public class HandoverService {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
             try {
-                ShiftAssignment mine = handoverDao.findOpenSourceAssignment(conn, userId, branchId);
+                ShiftAssignment mine = assignmentDao.findOpenByUserAndBranch(conn, userId, branchId);
                 if (mine == null) throw new IllegalStateException("Bạn cần đang trong ca để tiếp nhận bàn giao này.");
-                if (!handoverDao.claimStale(conn, handoverId, branchId, userId,
+                if (!recipientDao.claimStale(conn, handoverId, branchId, userId,
                         mine.getShiftAssignmentId(), ShiftHandover.CLAIM_AFTER_HOURS))
                     throw new IllegalStateException(
                             "Bàn giao này đã được tiếp nhận, chưa quá hạn hoặc không thuộc chi nhánh của bạn.");
-                handoverDao.refreshOverallStatus(conn, handoverId);
+                refreshOverallStatus(conn, handoverId);
                 conn.commit();
             } catch (SQLException | RuntimeException e) { conn.rollback(); throw e; }
             finally { conn.setAutoCommit(true); }
@@ -172,7 +187,7 @@ public class HandoverService {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
             try {
-                ShiftAssignment source = handoverDao.findOpenSourceAssignment(conn, userId, branchId);
+                ShiftAssignment source = assignmentDao.findOpenByUserAndBranch(conn, userId, branchId);
                 if (source == null) throw new IllegalStateException("Bạn cần đang trong ca để lập bàn giao.");
                 // Cổng tan ca thứ hai: nút "Lưu bàn giao & Tan ca" chấm công thẳng ở đây, KHÔNG đi qua
                 // BaristaShift.handleClock — chỉ chặn một bên là barista vẫn tan ca được kèm ly đang pha,
@@ -189,9 +204,15 @@ public class HandoverService {
                 }
                 ReceiverPlan receiver = resolveReceiver(conn, branchId, source);
                 int id = handoverDao.insert(conn, branchId, safeNote, userId, source.getShiftAssignmentId());
-                for (ShiftAssignment assignment : receiver.assignments) handoverDao.insertRecipient(conn, id, assignment.getUserId(), assignment.getShiftAssignmentId(), "NEXT_SHIFT");
-                if (receiver.managerFallbackUserId != null) handoverDao.insertRecipient(conn, id, receiver.managerFallbackUserId, null, "MANAGER_FALLBACK");
-                for (String task : tasks) handoverDao.insertTask(conn, id, task);
+                for (ShiftAssignment assignment : receiver.assignments) {
+                    recipientDao.insert(conn, id, assignment.getUserId(),
+                            assignment.getShiftAssignmentId(), "NEXT_SHIFT");
+                }
+                if (receiver.managerFallbackUserId != null) {
+                    recipientDao.insert(conn, id, receiver.managerFallbackUserId,
+                            null, "MANAGER_FALLBACK");
+                }
+                for (String task : tasks) taskDao.insert(conn, id, task);
                 // Tan ca đúng ca vừa bàn giao; để clockOut dò lại theo ngày sẽ đóng nhầm ca khác khi có nhiều ca mở.
                 if (clockOut) attendanceService.clockOutAssignment(conn, source.getShiftAssignmentId());
                 conn.commit();
@@ -206,8 +227,8 @@ public class HandoverService {
             conn.setAutoCommit(false);
             try {
                 ensureHandoverBranch(conn, handoverId, branchId);
-                if (!handoverDao.acknowledge(conn, handoverId, userId)) throw new IllegalStateException("Bàn giao này đã nhận hoặc không được gửi cho bạn.");
-                handoverDao.refreshOverallStatus(conn, handoverId); conn.commit();
+                if (!recipientDao.acknowledge(conn, handoverId, userId)) throw new IllegalStateException("Bàn giao này đã nhận hoặc không được gửi cho bạn.");
+                refreshOverallStatus(conn, handoverId); conn.commit();
             } catch (SQLException | RuntimeException e) { conn.rollback(); throw e; }
             finally { conn.setAutoCommit(true); }
         }
@@ -219,9 +240,9 @@ public class HandoverService {
             conn.setAutoCommit(false);
             try {
                 ensureHandoverBranch(conn, handoverId, branchId);
-                if (!handoverDao.isAcknowledgedRecipient(conn, handoverId, userId)) throw new IllegalStateException("Bạn cần xác nhận đã nhận bàn giao trước.");
-                if (!handoverDao.updateTaskStatus(conn, taskId, handoverId, status, userId)) throw new IllegalArgumentException("Việc bàn giao không tồn tại.");
-                handoverDao.refreshOverallStatus(conn, handoverId); conn.commit();
+                if (!recipientDao.isAcknowledged(conn, handoverId, userId)) throw new IllegalStateException("Bạn cần xác nhận đã nhận bàn giao trước.");
+                if (!taskDao.updateStatus(conn, taskId, handoverId, status, userId)) throw new IllegalArgumentException("Việc bàn giao không tồn tại.");
+                refreshOverallStatus(conn, handoverId); conn.commit();
             } catch (SQLException | RuntimeException e) { conn.rollback(); throw e; }
             finally { conn.setAutoCommit(true); }
         }
@@ -231,6 +252,22 @@ public class HandoverService {
     private void ensureHandoverBranch(Connection conn, int handoverId, int branchId) throws SQLException {
         if (!handoverDao.existsInBranch(conn, handoverId, branchId))
             throw new IllegalArgumentException("Bàn giao không thuộc chi nhánh hiện tại.");
+    }
+
+    private void hydrateHandovers(Connection conn, List<ShiftHandover> handovers, int currentUserId)
+            throws SQLException {
+        recipientDao.attachTo(conn, handovers, currentUserId);
+        taskDao.attachTo(conn, handovers);
+        for (ShiftHandover handover : handovers) handover.applyViewer(currentUserId);
+    }
+
+    private void refreshOverallStatus(Connection conn, int handoverId) throws SQLException {
+        handoverDao.updateOverallStatus(
+                conn,
+                handoverId,
+                recipientDao.countAcknowledged(conn, handoverId),
+                taskDao.countByHandover(conn, handoverId),
+                taskDao.countDoneByHandover(conn, handoverId));
     }
 
     private ReceiverPlan resolveReceiver(Connection conn, int branchId, ShiftAssignment source) throws SQLException {

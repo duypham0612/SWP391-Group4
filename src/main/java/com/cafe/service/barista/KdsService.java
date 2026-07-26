@@ -58,7 +58,7 @@ public class KdsService {
     /** Chi nhánh (giờ mở cửa + ngưỡng cao điểm) — nạp một lần cho cả board. */
     public com.cafe.model.Branch getBranch(int branchId) throws SQLException {
         try (java.sql.Connection conn = com.cafe.config.DBConnection.getConnection()) {
-            return new com.cafe.dao.admin.BranchDao().findById(conn, branchId);
+            return new com.cafe.dao.shared.BranchDao().findById(conn, branchId);
         }
     }
 

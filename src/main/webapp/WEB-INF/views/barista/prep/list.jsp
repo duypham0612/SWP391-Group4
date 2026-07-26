@@ -2,7 +2,7 @@
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%@ taglib prefix="fn" uri="jakarta.tags.functions" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
-<jsp:include page="../layout/header.jsp" />
+<jsp:include page="/WEB-INF/views/layout/header.jsp" />
 
 <div class="page-header">
     <div>
@@ -24,8 +24,8 @@
     <c:remove var="flashOk" scope="session" />
 </c:if>
 
-<jsp:include page="../layout/_baristaShiftBanner.jsp" />
-<jsp:include page="../layout/_handoverPendingAlert.jsp" />
+<jsp:include page="/WEB-INF/views/layout/_baristaShiftBanner.jsp" />
+<jsp:include page="/WEB-INF/views/layout/_handoverPendingAlert.jsp" />
 
 <div class="${onShift ? '' : 'is-viewonly'}">
 <%-- ===== Mẻ pha sẵn quá hạn: cắt theo ExpiresAt, không theo MadeAt ===== --%>
@@ -550,4 +550,4 @@
     });
   })();
 </script>
-<jsp:include page="../layout/footer.jsp" />
+<jsp:include page="/WEB-INF/views/layout/footer.jsp" />

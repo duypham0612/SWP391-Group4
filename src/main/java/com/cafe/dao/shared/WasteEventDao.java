@@ -5,6 +5,31 @@ import java.sql.*;
 
 /** DAO event cấp nghiệp vụ cho hao hụt/remake. */
 public class WasteEventDao {
+    /** Aggregate read model owned by inventory.WasteEvent. */
+    public record EventMetrics(int myRemakes, int myIngredientWastes, int branchRemakes) {
+    }
+
+    public EventMetrics loadMetrics(Connection conn, int branchId, int userId,
+                                    java.time.LocalDateTime businessDayStartUtc) throws SQLException {
+        final String sql = "SELECT "
+                + "COALESCE(SUM(CASE WHEN EventKind='REMAKE' AND CreatedBy=? THEN 1 ELSE 0 END),0) AS MyRemakes, "
+                + "COALESCE(SUM(CASE WHEN EventKind='INGREDIENT_WASTE' AND CreatedBy=? THEN 1 ELSE 0 END),0) AS MyWastes, "
+                + "COALESCE(SUM(CASE WHEN EventKind='REMAKE' THEN 1 ELSE 0 END),0) AS BranchRemakes "
+                + "FROM inventory.WasteEvent WHERE BranchId=? AND CreatedAt>=? "
+                + "AND EventKind IN ('REMAKE','INGREDIENT_WASTE')";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            ps.setInt(2, userId);
+            ps.setInt(3, branchId);
+            ps.setTimestamp(4, Timestamp.valueOf(businessDayStartUtc));
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return new EventMetrics(0, 0, 0);
+                return new EventMetrics(rs.getInt("MyRemakes"), rs.getInt("MyWastes"),
+                        rs.getInt("BranchRemakes"));
+            }
+        }
+    }
+
     public long insert(Connection c, WasteEvent e) throws SQLException {
         String sql="INSERT INTO inventory.WasteEvent(BranchId,EventKind,Source,ProductId,OrderItemId,CupQuantity,CauseCode,CauseDetail,ShiftAssignmentId,CreatedBy,ClientRequestId) VALUES (?,?,?,?,?,?,?,?,?,?,?)";
         try(PreparedStatement ps=c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){

@@ -52,7 +52,7 @@ public class OrderService {
     private final BillDao billDao = new BillDao();
     private final BillItemDao billItemDao = new BillItemDao();
     private final ProductRecipeDao productRecipeDao = new ProductRecipeDao();
-    private final com.cafe.dao.admin.BranchDao branchDao = new com.cafe.dao.admin.BranchDao();
+    private final com.cafe.dao.shared.BranchDao branchDao = new com.cafe.dao.shared.BranchDao();
     private final InventoryService inventoryService = new InventoryService();
 
     /** Một dòng giỏ hàng từ POS/QR. */

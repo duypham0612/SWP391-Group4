@@ -3,11 +3,11 @@
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <c:set var="wideLayout" value="true" scope="request" />
 <c:set var="bodyClass" value="page-kds" scope="request" />
-<jsp:include page="../layout/header.jsp" />
+<jsp:include page="/WEB-INF/views/layout/header.jsp" />
 <h1 class="visually-hidden">Quầy pha chế</h1>
 
-<jsp:include page="../layout/_baristaShiftBanner.jsp" />
-<jsp:include page="../layout/_handoverPendingAlert.jsp" />
+<jsp:include page="/WEB-INF/views/layout/_baristaShiftBanner.jsp" />
+<jsp:include page="/WEB-INF/views/layout/_handoverPendingAlert.jsp" />
 
 <div class="kds-toolbar">
     <div class="kds-filters" id="kdsOwnerFilters" role="group" aria-label="Lọc theo người phụ trách">
@@ -44,7 +44,7 @@
 </div>
 
 <div id="kdsBoard" class="kds-board" data-endpoint="${ctx}/barista/kds" aria-busy="false">
-    <jsp:include page="kds_cards.jsp" />
+<jsp:include page="cards.jsp" />
 </div>
 <div id="kdsLiveNotice" class="kds-live-notice" role="status" aria-live="assertive" hidden></div>
 
@@ -94,5 +94,5 @@
     </div>
 </div>
 
-<script src="${ctx}/assets/js/kds-board.js?v=${applicationScope.assetVersion}" defer></script>
-<jsp:include page="../layout/footer.jsp" />
+<script src="${ctx}/assets/js/barista/kds-board.js?v=${applicationScope.assetVersion}" defer></script>
+<jsp:include page="/WEB-INF/views/layout/footer.jsp" />

@@ -61,7 +61,7 @@
             </div>
             <c:forEach var="item" items="${queuePage.items}">
                 <c:set var="cardItem" value="${item}" scope="request" />
-                <jsp:include page="_kdsQueueRow.jsp" />
+  <jsp:include page="_queue-row.jsp" />
             </c:forEach>
         </div>
 

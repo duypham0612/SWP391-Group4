@@ -4,7 +4,7 @@ import com.cafe.common.BusinessException;
 import com.cafe.common.ShiftConflict;
 import com.cafe.common.ShiftHours;
 import com.cafe.config.DBConnection;
-import com.cafe.dao.manager.ShiftAssignmentDao;
+import com.cafe.dao.shared.ShiftAssignmentDao;
 import com.cafe.dao.manager.ShiftTemplateDao;
 import com.cafe.model.ShiftAssignment;
 import com.cafe.model.ShiftTemplate;

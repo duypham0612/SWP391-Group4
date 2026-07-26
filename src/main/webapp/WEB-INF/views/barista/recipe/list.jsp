@@ -1,7 +1,7 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
-<jsp:include page="../layout/header.jsp" />
+<jsp:include page="/WEB-INF/views/layout/header.jsp" />
 
 <div class="page-header">
     <div><div class="eyebrow">Pha chế</div><h1>Tra cứu công thức</h1><p>Xem định mức nguyên liệu thô / nguyên liệu pha sẵn &amp; tác động của modifier — chỉ đọc</p></div>
@@ -436,4 +436,4 @@
 })();
 </script>
 
-<jsp:include page="../layout/footer.jsp" />
+<jsp:include page="/WEB-INF/views/layout/footer.jsp" />

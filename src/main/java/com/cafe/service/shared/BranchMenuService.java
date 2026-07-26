@@ -17,6 +17,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -175,6 +176,61 @@ public class BranchMenuService {
     /** Danh sách món của chi nhánh (cho 86 board). */
     public List<BranchMenuItem> getMenuAvailability(int branchId) throws SQLException {
         return listForBranch(branchId);
+    }
+
+    /** Barista 86 board: filtering, counting and slicing all happen in the database. */
+    public MenuAvailabilityPage getMenuAvailabilityPage(int branchId, String query, String state,
+                                                        int requestedPage, int pageSize) throws SQLException {
+        String safeQuery = query == null ? "" : query.trim();
+        String safeState = normalizeAvailabilityState(state);
+        int safePageSize = Math.min(100, Math.max(1, pageSize));
+        try (Connection conn = DBConnection.getConnection()) {
+            int total = dao.countAvailability(conn, branchId, safeQuery, safeState);
+            int totalPages = Math.max(1, (int) Math.ceil((double) total / safePageSize));
+            int page = Math.min(Math.max(1, requestedPage), totalPages);
+            List<BranchMenuItem> items = dao.findAvailabilityPage(
+                    conn, branchId, safeQuery, safeState, (page - 1) * safePageSize, safePageSize);
+            return new MenuAvailabilityPage(items, total, page, safePageSize);
+        }
+    }
+
+    private static String normalizeAvailabilityState(String state) {
+        if ("out".equalsIgnoreCase(state)) return "out";
+        if ("available".equalsIgnoreCase(state)) return "available";
+        return "";
+    }
+
+    public static class MenuAvailabilityPage {
+        private final List<BranchMenuItem> items;
+        private final int total;
+        private final int page;
+        private final int pageSize;
+
+        MenuAvailabilityPage(List<BranchMenuItem> items, int total, int page, int pageSize) {
+            this.items = items == null ? List.of() : items;
+            this.total = Math.max(0, total);
+            this.pageSize = Math.max(1, pageSize);
+            this.page = Math.min(Math.max(1, page), getTotalPages());
+        }
+
+        public List<BranchMenuItem> getItems() { return items; }
+        public int getTotal() { return total; }
+        public int getPage() { return page; }
+        public int getPageSize() { return pageSize; }
+        public int getTotalPages() { return Math.max(1, (int) Math.ceil((double) total / pageSize)); }
+        public boolean isHasPrevious() { return page > 1; }
+        public boolean isHasNext() { return page < getTotalPages(); }
+        public int getStartRow() { return total == 0 ? 0 : (page - 1) * pageSize + 1; }
+        public int getEndRow() { return Math.min(page * pageSize, total); }
+
+        public List<Integer> getVisiblePages() {
+            List<Integer> pages = new ArrayList<>();
+            int start = Math.max(1, page - 2);
+            int end = Math.min(getTotalPages(), start + 4);
+            start = Math.max(1, end - 4);
+            for (int value = start; value <= end; value++) pages.add(value);
+            return pages;
+        }
     }
 
     /** M8 · Ẩn (ngừng bán) nhiều món cùng lúc — giữ nguyên giá địa phương & cờ 86, trong 1 transaction. */
