@@ -1,6 +1,19 @@
 /* ===========================================================================
    fixture_demo_hoi_dong.sql — Dữ liệu trình diễn cho buổi bảo vệ đồ án.
 
+   DỰNG LẠI TỪ ĐẦU TRÊN MÁY MỚI (4 bước — dữ liệu cũ sẽ mất, sao lưu trước nếu cần):
+
+     1) Tạo bản database.sql có bật seed (KHÔNG sửa file gốc, deploy luôn cần @SeedDemo = 0):
+          sed 's/DECLARE @SeedDemo BIT = 0;/DECLARE @SeedDemo BIT = 1;/' \
+              sql/database.sql > /tmp/database-seed-demo.sql
+     2) Dừng Tomcat để nhả kết nối, rồi xoá database cũ:
+          sqlcmd -S <host> -U sa -P '<pass>' -N disable -Q \
+            "ALTER DATABASE CafeChain SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE CafeChain;"
+     3) Dựng schema + dữ liệu seed (script tự CREATE DATABASE và USE):
+          sqlcmd -S <host> -U sa -P '<pass>' -N disable -i /tmp/database-seed-demo.sql
+     4) Chạy file này để dọn main flow và bơm dữ liệu trình diễn:
+          sqlcmd -S <host> -U sa -P '<pass>' -N disable -d CafeChain -i sql/fixture_demo_hoi_dong.sql
+
    Chạy SAU sql/database.sql (bản đã bật @SeedDemo = 1).
    IDEMPOTENT: chạy lại nhiều lần không nhân bản — mọi bản ghi do file này sinh ra
    đều mang tiền tố 'HĐ:' và được kiểm tra trước khi chèn.
@@ -282,6 +295,20 @@ UPDATE bi SET PrepTargetQty = bi.QuantityOnHand + 5000
  WHERE i.IngredientType = 'PREPPED';
 GO
 
+/* ---------------------------------------------------------------------------
+   7) ẢNH MÓN DÙNG FILE TRONG REPO, KHÔNG HOTLINK
+   Seed để ImageUrl trỏ thẳng Unsplash. Lúc bảo vệ mà phòng máy mất mạng hoặc wifi
+   chậm là 15 ảnh trắng cùng lúc. Ảnh đã tải sẵn vào assets/img/products/p<id>.jpg
+   và đi kèm repo, nên trỏ về đường dẫn nội bộ để không phụ thuộc internet.
+   JSP tự nối contextPath cho đường dẫn không bắt đầu bằng http.
+   --------------------------------------------------------------------------- */
+PRINT N'[7] Ảnh món → file nội bộ...';
+
+UPDATE catalog.Product
+   SET ImageUrl = '/assets/img/products/p' + CAST(ProductId AS VARCHAR(10)) + '.jpg'
+ WHERE ImageUrl LIKE 'http%';
+GO
+
 PRINT N'=== XONG. Kiểm tra nhanh: ===';
 SELECT N'Bàn chưa trống'     = (SELECT COUNT(*) FROM sales.DiningTable  WHERE Status <> 'EMPTY'),
        N'Phiên còn mở'       = (SELECT COUNT(*) FROM sales.TableSession WHERE Status = 'OPEN'),
@@ -291,5 +318,6 @@ SELECT N'Bàn chưa trống'     = (SELECT COUNT(*) FROM sales.DiningTable  WHER
        N'Phiếu nhập'         = (SELECT COUNT(*) FROM inventory.StockReceipt),
        N'Mẻ pha sẵn'         = (SELECT COUNT(*) FROM inventory.PrepBatch),
        N'Dòng hao hụt'       = (SELECT COUNT(*) FROM inventory.WasteLog),
-       N'Tồn <= 0'           = (SELECT COUNT(*) FROM inventory.BranchInventory WHERE QuantityOnHand <= 0);
+       N'Tồn <= 0'           = (SELECT COUNT(*) FROM inventory.BranchInventory WHERE QuantityOnHand <= 0),
+       N'Ảnh còn hotlink'    = (SELECT COUNT(*) FROM catalog.Product WHERE ImageUrl LIKE 'http%');
 GO
