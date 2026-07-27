@@ -16,11 +16,14 @@ import java.util.List;
 public class StockReceiptDao {
 
     private static final String SELECT =
-        "SELECT r.StockReceiptId, r.BranchId, r.SupplierId, r.ReceivedBy, r.ReceiptDate, r.Status, r.TotalCost, r.Note, " +
+        "SELECT r.StockReceiptId, r.BranchId, r.SupplierId, r.ReceivedBy, r.ReceiptDate, r.Status, " +
+        "       CASE WHEN costs.LineCount > 0 THEN costs.DetailTotal ELSE r.TotalCost END AS TotalCost, r.Note, " +
         "       s.Name AS SupplierName, u.FullName AS ReceivedByName " +
         "FROM inventory.StockReceipt r " +
         "LEFT JOIN inventory.Supplier s ON r.SupplierId = s.SupplierId " +
-        "LEFT JOIN iam.[User] u ON r.ReceivedBy = u.UserId ";
+        "LEFT JOIN iam.[User] u ON r.ReceivedBy = u.UserId " +
+        "OUTER APPLY (SELECT COUNT(*) AS LineCount, COALESCE(SUM(d.Quantity*d.UnitCost),0) AS DetailTotal " +
+        "             FROM inventory.StockReceiptDetail d WHERE d.StockReceiptId=r.StockReceiptId) costs ";
 
     public List<StockReceipt> findByBranch(Connection conn, int branchId) throws SQLException {
         List<StockReceipt> out = new ArrayList<>();

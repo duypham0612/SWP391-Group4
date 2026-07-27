@@ -87,6 +87,31 @@ public class ShiftAssignmentDao {
         }
     }
 
+    public int countByTemplate(Connection conn, int templateId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT COUNT(*) FROM hr.ShiftAssignment WHERE ShiftTemplateId=?")) {
+            ps.setInt(1, templateId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getInt(1) : 0; }
+        }
+    }
+
+    public boolean hasAttendance(Connection conn, int assignmentId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT CASE WHEN EXISTS (SELECT 1 FROM hr.Attendance WHERE ShiftAssignmentId=?) THEN 1 ELSE 0 END")) {
+            ps.setInt(1, assignmentId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() && rs.getInt(1) == 1; }
+        }
+    }
+
+    public boolean hasOpenAttendance(Connection conn, int assignmentId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT CASE WHEN EXISTS (SELECT 1 FROM hr.Attendance " +
+                "WHERE ShiftAssignmentId=? AND CheckInAt IS NOT NULL AND CheckOutAt IS NULL) THEN 1 ELSE 0 END")) {
+            ps.setInt(1, assignmentId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() && rs.getInt(1) == 1; }
+        }
+    }
+
     /**
      * Ca đã check-in nhưng chưa check-out của nhân viên tại chi nhánh.
      * Query trả về ShiftAssignment nên thuộc DAO sở hữu hr.ShiftAssignment.
@@ -118,10 +143,10 @@ public class ShiftAssignmentDao {
         }
     }
 
-    public void delete(Connection conn, int id) throws SQLException {
+    public int delete(Connection conn, int id) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement("DELETE FROM hr.ShiftAssignment WHERE ShiftAssignmentId=?")) {
             ps.setInt(1, id);
-            ps.executeUpdate();
+            return ps.executeUpdate();
         }
     }
 

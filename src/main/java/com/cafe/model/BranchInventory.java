@@ -33,7 +33,7 @@ public class BranchInventory {
     public void setPrepTargetQty(BigDecimal prepTargetQty) { this.prepTargetQty = prepTargetQty; }
 
     /** Cho JSP — bỏ .000 thừa. So sánh/tính toán vẫn dùng getter BigDecimal ở trên. */
-    public String getQuantityOnHandDisplay() { return QuantityFormat.plain(quantityOnHand); }
+    public String getQuantityOnHandDisplay() { return QuantityFormat.groupedVi(quantityOnHand); }
     public String getMinThresholdDisplay() { return QuantityFormat.plain(minThreshold); }
     public String getPrepTargetQtyDisplay() { return QuantityFormat.plain(prepTargetQty); }
 

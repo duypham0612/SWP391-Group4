@@ -47,9 +47,12 @@ public final class Constants {
 
     // Payroll
     public static final BigDecimal MIN_HOURLY_RATE = new BigDecimal("25000");
+    public static final BigDecimal MIN_WORKED_HOURS_EXCLUSIVE = new BigDecimal("5");
+    public static final BigDecimal WORKED_HOURS_STEP = new BigDecimal("5");
 
     // Demo VietQR account for offline QR rendering.
+    public static final String VIETQR_BANK_NAME = "MBBank";
     public static final String VIETQR_BANK_BIN = "970422";
-    public static final String VIETQR_ACCOUNT_NO = "1234567890";
-    public static final String VIETQR_ACCOUNT_NAME = "CAFE CHAIN";
+    public static final String VIETQR_ACCOUNT_NO = "0338025819";
+    public static final String VIETQR_ACCOUNT_NAME = "PHAM KHUONG DUY";
 }

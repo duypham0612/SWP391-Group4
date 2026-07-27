@@ -13,6 +13,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 
@@ -30,8 +31,20 @@ public class ShiftService {
         return tx(c -> templateDao.insert(c, t));
     }
 
-    public void deleteShiftTemplate(int templateId) throws SQLException {
-        txVoid(c -> templateDao.delete(c, templateId));
+    public void deleteShiftTemplate(int templateId, int branchId) throws SQLException {
+        txVoid(c -> {
+            ShiftTemplate template = templateDao.findById(c, templateId);
+            if (template == null || template.getBranchId() != branchId) {
+                throw new BusinessException("Không tìm thấy ca làm trong chi nhánh.");
+            }
+            int assignments = assignmentDao.countByTemplate(c, templateId);
+            if (assignments > 0) {
+                throw new BusinessException(
+                        "Không thể xóa ca làm vì đã có " + assignments
+                        + " lịch phân công nhân viên. Hãy gỡ các lịch hợp lệ trước.");
+            }
+            templateDao.delete(c, templateId);
+        });
     }
 
     public List<ShiftAssignment> getWeekSchedule(int branchId, LocalDate weekStart) throws SQLException {
@@ -60,6 +73,11 @@ public class ShiftService {
         return tx(c -> {
             ShiftTemplate target = templateDao.findById(c, templateId);
             if (target == null) throw new ShiftConflictException("Ca làm không tồn tại.");
+            LocalDate today = LocalDate.now();
+            if (date.isBefore(today)
+                    || (date.equals(today) && !LocalDateTime.now().isBefore(LocalDateTime.of(date, target.getStartTime())))) {
+                throw new ShiftConflictException("Không thể xếp nhân viên vào ca đã bắt đầu hoặc đã diễn ra.");
+            }
 
             List<ShiftAssignment> sameDay = assignmentDao.findByUserAndDate(c, userId, date);
             ShiftAssignment conflict = detectConflict(target, sameDay);
@@ -87,8 +105,33 @@ public class ShiftService {
         });
     }
 
-    public void unassignShift(int assignmentId) throws SQLException {
-        txVoid(c -> assignmentDao.delete(c, assignmentId));
+    public void unassignShift(int assignmentId, int branchId) throws SQLException {
+        txVoid(c -> {
+            ShiftAssignment assignment = assignmentDao.findById(c, assignmentId);
+            if (assignment == null) throw new BusinessException("Lịch phân công không tồn tại.");
+            ShiftTemplate template = templateDao.findById(c, assignment.getShiftTemplateId());
+            if (template == null || template.getBranchId() != branchId) {
+                throw new BusinessException("Lịch phân công không thuộc chi nhánh hiện tại.");
+            }
+
+            LocalDate today = LocalDate.now();
+            if (assignment.getWorkDate().isBefore(today)) {
+                throw new BusinessException("Không thể gỡ nhân viên vì ca làm đã diễn ra.");
+            }
+            if (assignmentDao.hasOpenAttendance(c, assignmentId)) {
+                throw new BusinessException("Nhân viên đang có mặt trong ca làm, không thể gỡ khỏi ca.");
+            }
+            if (assignmentDao.hasAttendance(c, assignmentId)) {
+                throw new BusinessException("Nhân viên đã chấm công cho ca này, không thể gỡ khỏi ca.");
+            }
+            LocalDateTime shiftStart = LocalDateTime.of(assignment.getWorkDate(), assignment.getStartTime());
+            if (!LocalDateTime.now().isBefore(shiftStart)) {
+                throw new BusinessException("Ca làm đã bắt đầu hoặc đã diễn ra, không thể gỡ nhân viên.");
+            }
+            if (assignmentDao.delete(c, assignmentId) == 0) {
+                throw new BusinessException("Không tìm thấy lịch phân công cần gỡ.");
+            }
+        });
     }
 
     /** Báo lỗi nghiệp vụ khi xung đột ca — servlet bắt để hiển thị. */

@@ -110,6 +110,15 @@
     </div>
 </div>
 
+<c:if test="${sessionClosed}">
+<script>
+window.addEventListener('DOMContentLoaded', function () {
+  window.alert('Thanh toán thành công!');
+  window.location.replace('${ctx}/home');
+});
+</script>
+</c:if>
+
 <c:if test="${not sessionClosed}">
 <script>
 const STATUS_LABELS={
@@ -155,7 +164,9 @@ async function pollStatuses(){
     });
     if(!response.ok)return;
     if(response.headers.get('X-Session-Closed')==='true'){
-      window.location.reload();
+      window.clearInterval(statusTimer);
+      window.alert('Thanh toán thành công!');
+      window.location.replace('${ctx}/home');
       return;
     }
     const items=await response.json();

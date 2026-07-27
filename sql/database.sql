@@ -1734,11 +1734,15 @@ OPEN cB; FETCH NEXT FROM cB INTO @curB,@curMgr,@curBar,@curSup;
 WHILE @@FETCH_STATUS=0
 BEGIN
     INSERT INTO inventory.StockReceipt(BranchId,SupplierId,ReceivedBy,Status,TotalCost,Note,ReceiptDate)
-    VALUES(@curB,@curSup,@curMgr,'CONFIRMED',@openQty*0.05,N'Nhập đầu kỳ (demo)',DATEADD(DAY,-31,@now));
+    VALUES(@curB,@curSup,@curMgr,'CONFIRMED',0,N'Nhập đầu kỳ (demo)',DATEADD(DAY,-31,@now));
     SET @rid = SCOPE_IDENTITY();
     INSERT INTO inventory.StockReceiptDetail(StockReceiptId,IngredientId,Quantity,UnitCost,Unit)
     SELECT @rid, i.IngredientId, @openQty, 0.05, NULL
     FROM catalog.Ingredient i WHERE i.IngredientType='RAW' AND i.IsActive=1;
+    UPDATE inventory.StockReceipt
+    SET TotalCost=(SELECT COALESCE(SUM(d.Quantity*d.UnitCost),0)
+                   FROM inventory.StockReceiptDetail d WHERE d.StockReceiptId=@rid)
+    WHERE StockReceiptId=@rid;
     INSERT INTO inventory.InventoryTransaction(BranchId,IngredientId,ChangeQty,TxnType,RefTable,RefId,CreatedBy,CreatedAt)
     SELECT @curB, i.IngredientId, @openQty, 'RECEIPT','StockReceipt',@rid,@curMgr,DATEADD(DAY,-31,@now)
     FROM catalog.Ingredient i WHERE i.IngredientType='RAW' AND i.IsActive=1;

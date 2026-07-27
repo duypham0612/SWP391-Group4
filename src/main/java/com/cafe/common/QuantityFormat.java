@@ -1,6 +1,9 @@
 package com.cafe.common;
 
 import java.math.BigDecimal;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.util.Locale;
 
 /**
  * Hiển thị SỐ LƯỢNG (tồn kho, công thức, hao hụt) — bỏ số 0 thừa sau dấu thập phân.
@@ -20,5 +23,14 @@ public final class QuantityFormat {
     /** 70310.000 → "70310" · 21.600 → "21.6" · null → "". */
     public static String plain(BigDecimal value) {
         return value == null ? "" : value.stripTrailingZeros().toPlainString();
+    }
+
+    /** 69769.000 → "69.769" · 21600 → "21.600" · 21.600 → "21,6". */
+    public static String groupedVi(BigDecimal value) {
+        if (value == null) return "";
+        DecimalFormatSymbols symbols = DecimalFormatSymbols.getInstance(Locale.forLanguageTag("vi-VN"));
+        DecimalFormat format = new DecimalFormat("#,##0.###", symbols);
+        format.setParseBigDecimal(true);
+        return format.format(value.stripTrailingZeros());
     }
 }
