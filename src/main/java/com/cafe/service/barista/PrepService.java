@@ -50,14 +50,39 @@ public class PrepService {
         return inventoryService.createPrepBatch(branchId, preppedIngredientId, qtyProduced, expiresAt, userId);
     }
 
+    public int createSuggestedBatch(int branchId, int preppedIngredientId, BigDecimal qtyProduced,
+                                    int userId, String clientRequestId) throws SQLException {
+        return inventoryService.createSuggestedPrepBatch(branchId, preppedIngredientId, qtyProduced,
+                userId, clientRequestId);
+    }
+
     /** Tạo nhiều mẻ một lần — tất cả-hoặc-không (một transaction). */
     public void createBatches(int branchId, List<PrepBatchLine> lines, int userId) throws SQLException {
         inventoryService.createPrepBatches(branchId, lines, userId);
     }
 
-    /** Huỷ mẻ — hoàn kho qua txn bù (không hard-delete). */
-    public void cancelBatch(int branchId, int prepBatchId, int userId) throws SQLException {
-        inventoryService.cancelPrepBatch(branchId, prepBatchId, userId);
+    /** Huỷ mẻ — hoàn kho qua txn bù (không hard-delete). False nếu mẻ đã huỷ từ trước. */
+    public boolean cancelBatch(int branchId, int prepBatchId, int userId) throws SQLException {
+        return inventoryService.cancelPrepBatch(branchId, prepBatchId, userId);
+    }
+
+    /** Ghi hao hụt mẻ quá hạn + đóng vòng đời mẻ trong một transaction. Trả về WasteLogId. */
+    public int writeOffExpiredBatch(int branchId, int prepBatchId, java.math.BigDecimal qty, int userId) throws SQLException {
+        return inventoryService.writeOffExpiredPrepBatch(branchId, prepBatchId, qty, userId);
+    }
+
+    public int writeOffExpiredBatchSuggested(int branchId, int prepBatchId, int userId) throws SQLException {
+        for (PrepBatch batch : inventoryService.getExpiredActivePrepBatches(branchId)) {
+            if (batch.getPrepBatchId() == prepBatchId && batch.isHasSuggestedWaste()) {
+                return writeOffExpiredBatch(branchId, prepBatchId, batch.getSuggestedWasteQuantity(), userId);
+            }
+        }
+        throw new com.cafe.common.BusinessException(
+                "Mẻ này không còn tồn để loại bỏ hoặc đã được xử lý. Vui lòng tải lại.");
+    }
+
+    public List<PrepBatch> getRecentBatches(int branchId) throws SQLException {
+        return inventoryService.getRecentPrepBatches(branchId, 5);
     }
 
     /** Sửa sản lượng mẻ — áp txn cho phần chênh lệch. */
@@ -111,6 +136,9 @@ public class PrepService {
     }
 
     private static String esc(String s) {
-        return s == null ? "" : s.replace("\\", "\\\\").replace("\"", "\\\"");
+        return s == null ? "" : s.replace("\\", "\\\\").replace("\"", "\\\"")
+                .replace("<", "\\u003C").replace(">", "\\u003E")
+                .replace("&", "\\u0026").replace("'", "\\u0027")
+                .replace("\n", "\\n").replace("\r", "\\r");
     }
 }

@@ -10,6 +10,9 @@
 <c:if test="${not empty sessionScope.flashError}">
     <div class="alert alert-error">${sessionScope.flashError}</div><c:remove var="flashError" scope="session" />
 </c:if>
+<c:if test="${not empty sessionScope.flashOk}">
+    <div class="alert alert-success">${sessionScope.flashOk}</div><c:remove var="flashOk" scope="session" />
+</c:if>
 
 <c:if test="${not empty oversoldStock}">
     <div class="alert alert-error">
@@ -31,8 +34,11 @@
         <div class="card empty-state"><div class="icon">∅</div><p>Chưa có tồn kho. Hãy tạo phiếu nhập kho và xác nhận.</p></div>
     </c:when>
     <c:otherwise>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:var(--s3)">
+            <a class="btn btn-ghost" href="${ctx}/manager/prep">Quản lý mẻ pha sẵn →</a>
+        </div>
         <table class="table">
-            <thead><tr><th>Nguyên liệu</th><th style="width:110px">Loại</th><th style="width:150px">Tồn hiện tại</th><th style="width:220px">Ngưỡng cảnh báo</th><th style="width:120px">Sổ cái</th></tr></thead>
+            <thead><tr><th>Nguyên liệu</th><th style="width:110px">Loại</th><th style="width:140px">Tồn hiện tại</th><th style="width:320px">Chính sách tồn</th><th style="width:120px">Sổ cái</th></tr></thead>
             <tbody>
                 <c:forEach var="bi" items="${inventory}">
                     <tr>
@@ -45,11 +51,18 @@
                         <td><c:choose><c:when test="${bi.ingredientType == 'RAW'}"><span class="badge badge-making">Thô</span></c:when><c:otherwise><span class="badge badge-ready">Pha sẵn</span></c:otherwise></c:choose></td>
                         <td><strong>${bi.quantityOnHandDisplay}</strong> ${bi.ingredientUnit}</td>
                         <td>
-                            <form action="${ctx}/manager/inventory" method="post" style="display:flex;gap:6px;align-items:center;margin:0">
+                            <form action="${ctx}/manager/inventory" method="post" style="display:flex;gap:6px;align-items:end;margin:0;flex-wrap:wrap">
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                                <input type="hidden" name="action" value="setThreshold">
+                                <input type="hidden" name="action" value="${bi.ingredientType == 'PREPPED' ? 'setPrepPolicy' : 'setThreshold'}">
                                 <input type="hidden" name="ingredientId" value="${bi.ingredientId}">
-                                <input type="number" name="threshold" class="form-control" style="width:110px" step="0.001" value="${bi.minThresholdDisplay}">
+                                <label style="font-size:var(--fs-xs)">Cảnh báo
+                                    <input type="number" name="threshold" class="form-control" style="width:105px" min="0" step="0.001" value="${bi.minThresholdDisplay}" required>
+                                </label>
+                                <c:if test="${bi.ingredientType == 'PREPPED'}">
+                                    <label style="font-size:var(--fs-xs)">Mục tiêu
+                                        <input type="number" name="target" class="form-control" style="width:105px" min="0.001" step="0.001" value="${bi.prepTargetQtyDisplay}" required>
+                                    </label>
+                                </c:if>
                                 <button type="submit" class="btn btn-ghost btn-sm">Lưu</button>
                             </form>
                         </td>

@@ -27,6 +27,7 @@ public class ManagerHandoverServlet extends HttpServlet {
             int handoverId = number(req, "handoverId");
             if ("acknowledge".equals(req.getParameter("action"))) service.acknowledge(branchId, handoverId, user.getUserId());
             else if ("updateTask".equals(req.getParameter("action"))) service.updateTaskStatus(branchId, handoverId, number(req, "taskId"), req.getParameter("status"), user.getUserId());
+            else throw new IllegalArgumentException("Thao tác bàn giao không hợp lệ.");
             req.getSession().setAttribute("flashOk", "Đã cập nhật bàn giao.");
         } catch (IllegalArgumentException | IllegalStateException e) { req.getSession().setAttribute("flashError", e.getMessage()); }
         catch (Exception e) { throw new ServletException(e); }

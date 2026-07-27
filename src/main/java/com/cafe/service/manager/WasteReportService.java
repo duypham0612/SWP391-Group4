@@ -19,6 +19,8 @@ public class WasteReportService {
     /** Nạp cả khoảng vào RAM để tổng hợp nên phải chặn khoảng vô hạn. */
     private static final int MAX_DAYS = 92;
     private static final int DEFAULT_DAYS = 7;
+    /** Nhật ký đính chính hiển thị nguyên khối (không phân trang) nên phải có trần. */
+    public static final int MAX_CORRECTIONS = 100;
 
     private final InventoryService inventoryService = new InventoryService();
 
@@ -59,6 +61,11 @@ public class WasteReportService {
 
     public java.util.List<com.cafe.model.WasteReview> openReviews(int branchId) throws SQLException {
         return inventoryService.getOpenWasteReviews(branchId);
+    }
+
+    /** Nhật ký đính chính (sửa/huỷ) trong khoảng đang xem — chặn số dòng để màn không phình vô hạn. */
+    public java.util.List<com.cafe.model.WasteAuditEntry> corrections(int branchId, Range range) throws SQLException {
+        return inventoryService.getWasteCorrections(branchId, range.getFromUtc(), range.getToUtc(), MAX_CORRECTIONS);
     }
 
     public boolean resolveReview(int branchId, long reviewId, int managerId, String note) throws SQLException {

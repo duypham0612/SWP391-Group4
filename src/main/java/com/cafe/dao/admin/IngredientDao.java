@@ -13,7 +13,7 @@ import java.util.List;
 public class IngredientDao {
 
     public List<Ingredient> findAll(Connection conn) throws SQLException {
-        final String sql = "SELECT IngredientId, Name, Unit, IngredientType, IsActive " +
+        final String sql = "SELECT IngredientId, Name, Unit, IngredientType, ShelfLifeMinutes, IsActive " +
                 "FROM catalog.Ingredient ORDER BY IngredientType, Name";
         List<Ingredient> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql);
@@ -24,7 +24,7 @@ public class IngredientDao {
     }
 
     public List<Ingredient> findByType(Connection conn, String type) throws SQLException {
-        final String sql = "SELECT IngredientId, Name, Unit, IngredientType, IsActive " +
+        final String sql = "SELECT IngredientId, Name, Unit, IngredientType, ShelfLifeMinutes, IsActive " +
                 "FROM catalog.Ingredient WHERE IngredientType = ? AND IsActive = 1 ORDER BY Name";
         List<Ingredient> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -37,7 +37,7 @@ public class IngredientDao {
     }
 
     public Ingredient findById(Connection conn, int id) throws SQLException {
-        final String sql = "SELECT IngredientId, Name, Unit, IngredientType, IsActive " +
+        final String sql = "SELECT IngredientId, Name, Unit, IngredientType, ShelfLifeMinutes, IsActive " +
                 "FROM catalog.Ingredient WHERE IngredientId = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, id);
@@ -48,12 +48,14 @@ public class IngredientDao {
     }
 
     public int insert(Connection conn, Ingredient i) throws SQLException {
-        final String sql = "INSERT INTO catalog.Ingredient(Name, Unit, IngredientType, IsActive) VALUES (?,?,?,?)";
+        final String sql = "INSERT INTO catalog.Ingredient(Name, Unit, IngredientType, ShelfLifeMinutes, IsActive) VALUES (?,?,?,?,?)";
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, i.getName());
             ps.setString(2, i.getUnit());
             ps.setString(3, i.getIngredientType());
-            ps.setBoolean(4, i.isActive());
+            if (i.getShelfLifeMinutes() == null) ps.setNull(4, java.sql.Types.INTEGER);
+            else ps.setInt(4, i.getShelfLifeMinutes());
+            ps.setBoolean(5, i.isActive());
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 return keys.next() ? keys.getInt(1) : 0;
@@ -62,13 +64,15 @@ public class IngredientDao {
     }
 
     public void update(Connection conn, Ingredient i) throws SQLException {
-        final String sql = "UPDATE catalog.Ingredient SET Name=?, Unit=?, IngredientType=?, IsActive=? WHERE IngredientId=?";
+        final String sql = "UPDATE catalog.Ingredient SET Name=?, Unit=?, IngredientType=?, ShelfLifeMinutes=?, IsActive=? WHERE IngredientId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, i.getName());
             ps.setString(2, i.getUnit());
             ps.setString(3, i.getIngredientType());
-            ps.setBoolean(4, i.isActive());
-            ps.setInt(5, i.getIngredientId());
+            if (i.getShelfLifeMinutes() == null) ps.setNull(4, java.sql.Types.INTEGER);
+            else ps.setInt(4, i.getShelfLifeMinutes());
+            ps.setBoolean(5, i.isActive());
+            ps.setInt(6, i.getIngredientId());
             ps.executeUpdate();
         }
     }
@@ -86,6 +90,8 @@ public class IngredientDao {
         i.setName(rs.getString("Name"));
         i.setUnit(rs.getString("Unit"));
         i.setIngredientType(rs.getString("IngredientType"));
+        int shelfLife = rs.getInt("ShelfLifeMinutes");
+        i.setShelfLifeMinutes(rs.wasNull() ? null : shelfLife);
         i.setActive(rs.getBoolean("IsActive"));
         return i;
     }

@@ -27,13 +27,21 @@
 <body>
 <div class="qr-app">
     <div class="qr-top">
-        <h1>Đơn của bạn</h1>
-        <div class="sub">${session.tableNumber} · bấm "Làm mới" để xem trạng thái mới nhất</div>
+        <h1>${sessionClosed ? 'Cảm ơn quý khách' : 'Đơn của bạn'}</h1>
+        <div class="sub">${session.tableNumber} · ${sessionClosed ? 'đã thanh toán xong' : 'trạng thái tự cập nhật mỗi 10 giây'}</div>
     </div>
     <div class="qr-body">
         <c:if test="${not empty sessionScope.qrFlash}">
             <div class="alert alert-success">${sessionScope.qrFlash}</div>
             <c:remove var="qrFlash" scope="session" />
+        </c:if>
+
+        <c:if test="${sessionClosed}">
+            <div class="qr-card" style="text-align:center;padding:28px 18px">
+                <div style="font-size:2.4rem">☕</div>
+                <h2>Cảm ơn quý khách — đã thanh toán xong</h2>
+                <p class="muted">Hẹn gặp lại quý khách lần sau.</p>
+            </div>
         </c:if>
 
         <div class="qr-card">
@@ -43,7 +51,7 @@
                     <c:otherwise>
                         <%-- Nhãn hướng tới KHÁCH (thân thiện, không jargon). --%>
                         <c:forEach var="it" items="${items}">
-                            <div class="qr-item">
+                            <div class="qr-item" data-status="${it.status}">
                                 <span>${it.quantity}× ${it.productName}</span>
                                 <c:choose>
                                     <c:when test="${it.status == 'WAITING'}"><span class="badge badge-waiting">Chờ pha</span></c:when>
@@ -63,11 +71,11 @@
             </div>
         </div>
 
-        <c:if test="${not empty cancellableOrders}">
+        <c:if test="${not sessionClosed and not empty cancellableOrders}">
             <div class="qr-card">
                 <p class="muted" style="margin:0 0 8px">Đơn chưa pha — có thể huỷ:</p>
                 <c:forEach var="o" items="${cancellableOrders}">
-                    <form action="${ctx}/qr/track" method="post" style="margin-bottom:8px"
+                    <form class="cancel-order-form" action="${ctx}/qr/track" method="post" style="margin-bottom:8px"
                           onsubmit="return confirm('Huỷ đơn #${o.orderId}?');">
                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                         <input type="hidden" name="action" value="cancel">
@@ -79,25 +87,93 @@
             </div>
         </c:if>
 
-        <div class="qr-actions">
-            <form action="${ctx}/qr/track" method="post">
-                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                <input type="hidden" name="action" value="callStaff">
-                <input type="hidden" name="sessionId" value="${sessionId}">
-                <button type="submit" class="btn btn-ghost">Gọi nhân viên</button>
-            </form>
-            <form action="${ctx}/qr/track" method="post">
-                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                <input type="hidden" name="action" value="requestBill">
-                <input type="hidden" name="sessionId" value="${sessionId}">
-                <button type="submit" class="btn btn-primary">Xin thanh toán</button>
-            </form>
-        </div>
-        <div style="margin-top:12px;text-align:center">
-            <a class="btn btn-ghost btn-sm" href="${ctx}/qr/track?s=${sessionId}">Làm mới</a>
-        </div>
+        <c:if test="${not sessionClosed}">
+            <div class="qr-actions">
+                <form action="${ctx}/qr/track" method="post">
+                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                    <input type="hidden" name="action" value="callStaff">
+                    <input type="hidden" name="sessionId" value="${sessionId}">
+                    <button type="submit" class="btn btn-ghost">Gọi nhân viên</button>
+                </form>
+                <form action="${ctx}/qr/track" method="post">
+                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                    <input type="hidden" name="action" value="requestBill">
+                    <input type="hidden" name="sessionId" value="${sessionId}">
+                    <button type="submit" class="btn btn-primary">Xin thanh toán</button>
+                </form>
+            </div>
+            <div style="margin-top:12px;text-align:center;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+                <a class="btn btn-primary btn-sm" href="${ctx}/qr/menu">Gọi thêm món</a>
+                <a class="btn btn-ghost btn-sm" href="${ctx}/qr/track?s=${sessionId}">Làm mới</a>
+            </div>
+        </c:if>
     </div>
 </div>
 
+<c:if test="${not sessionClosed}">
+<script>
+const STATUS_LABELS={
+  WAITING:['Chờ pha','badge-waiting'],
+  MAKING:['Đang pha','badge-making'],
+  READY:['Đã pha xong','badge-ready'],
+  PICKED_UP:['Nhân viên đang mang ra','badge-ready'],
+  SERVED:['Đã phục vụ','badge-served'],
+  BLOCKED:['Tạm chưa làm được','badge-waiting'],
+  REMAKE:['Đang làm lại','badge-waiting'],
+  CANCELLED:['Đã huỷ','badge-cancelled']
+};
+function renderStatuses(items){
+  const list=document.getElementById('trackList');
+  list.innerHTML='';
+  if(!items.length){
+    const empty=document.createElement('p');
+    empty.className='muted';
+    empty.textContent='Chưa có món nào.';
+    list.appendChild(empty);
+    return;
+  }
+  items.forEach(item=>{
+    const row=document.createElement('div');
+    row.className='qr-item';
+    const name=document.createElement('span');
+    name.textContent=item.qty+'× '+item.name;
+    const badge=document.createElement('span');
+    const meta=STATUS_LABELS[item.status]||['Đang cập nhật','badge-served'];
+    badge.className='badge '+meta[1];
+    badge.textContent=meta[0];
+    row.append(name,badge);
+    list.appendChild(row);
+  });
+}
+let lastStatuses=Array.from(document.querySelectorAll('#trackList .qr-item'))
+  .map(row=>row.dataset.status||'');
+async function pollStatuses(){
+  try{
+    const response=await fetch('${ctx}/qr/track?action=status&s=${sessionId}',{
+      headers:{'Accept':'application/json'},
+      cache:'no-store'
+    });
+    if(!response.ok)return;
+    if(response.headers.get('X-Session-Closed')==='true'){
+      window.location.reload();
+      return;
+    }
+    const items=await response.json();
+    const nextStatuses=items.map(item=>item.status||'');
+    const cancellationTransition=nextStatuses.some((status,index)=>
+      lastStatuses[index]==='WAITING' && status!=='WAITING');
+    lastStatuses=nextStatuses;
+    if(cancellationTransition && document.querySelector('.cancel-order-form')){
+      window.location.reload();
+      return;
+    }
+    renderStatuses(items);
+  }catch(error){
+    // Giữ trạng thái gần nhất khi mạng chập chờn; lượt polling sau sẽ thử lại.
+  }
+}
+const statusTimer=window.setInterval(pollStatuses,10000);
+</script>
+</c:if>
 </body>
 </html>

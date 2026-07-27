@@ -4,21 +4,21 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Nhân sự</h1><p>iam.[User]</p></div>
+    <div><h1>Nhân sự</h1><p>Quản lý tài khoản, vai trò và chi nhánh làm việc.</p></div>
     <a class="btn btn-primary" href="${ctx}/admin/user?action=new">+ Thêm nhân sự</a>
 </div>
 
 <c:if test="${not empty sessionScope.flashError}">
-    <div class="alert alert-error">${sessionScope.flashError}</div><c:remove var="flashError" scope="session" />
+    <div class="alert alert-error"><c:out value="${sessionScope.flashError}"/></div><c:remove var="flashError" scope="session" />
 </c:if>
 <c:if test="${not empty sessionScope.flashOk}">
-    <div class="alert alert-success">${sessionScope.flashOk}</div><c:remove var="flashOk" scope="session" />
+    <div class="alert alert-success"><c:out value="${sessionScope.flashOk}"/></div><c:remove var="flashOk" scope="session" />
 </c:if>
 
-<form id="staffFilterForm" method="get" action="${ctx}/admin/user" class="card" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;padding:14px;margin-bottom:16px">
+<form id="staffFilterForm" method="get" action="${ctx}/admin/user" class="table-toolbar">
     <div class="form-group" style="margin:0">
         <label for="fRole">Vai trò</label>
-        <select id="fRole" name="roleId" class="form-control" style="min-width:180px">
+        <select id="fRole" name="roleId" class="form-control tt-filter">
             <option value="">— Tất cả vai trò —</option>
             <c:forEach var="r" items="${roles}">
                 <option value="${r.roleId}" <c:if test="${fRoleId == r.roleId}">selected</c:if>>${r.name}</option>
@@ -27,16 +27,16 @@
     </div>
     <div class="form-group" style="margin:0">
         <label for="fBranch">Chi nhánh</label>
-        <select id="fBranch" name="branchId" class="form-control" style="min-width:180px">
+        <select id="fBranch" name="branchId" class="form-control tt-filter">
             <option value="">— Tất cả chi nhánh —</option>
             <c:forEach var="b" items="${branches}">
                 <option value="${b.branchId}" <c:if test="${fBranchId == b.branchId}">selected</c:if>>${b.name}</option>
             </c:forEach>
         </select>
     </div>
-    <div class="form-group" style="margin:0">
+    <div class="form-group table-search" style="margin:0">
         <label for="q">Tìm kiếm</label>
-        <input id="q" name="q" class="form-control" style="min-width:220px"
+        <input id="q" name="q" class="form-control"
                placeholder="Tên, tài khoản, email, SĐT..." value="${q}">
     </div>
     <button type="submit" class="btn btn-ghost">Lọc</button>
@@ -49,15 +49,20 @@
             <div class="card empty-state"><div class="icon">📭</div><p>Chưa có nhân sự nào.</p></div>
         </c:when>
         <c:otherwise>
-            <table class="table">
+            <table class="table admin-user-table">
                 <thead><tr>
-                    <th style="width:60px">#</th><th>Tên đăng nhập</th><th>Họ tên</th><th>Vai trò</th>
-                    <th>Chi nhánh</th><th style="width:110px">Trạng thái</th><th style="width:90px">Thao tác</th>
+                    <th style="width:52px">#</th>
+                    <th style="width:150px">Tên đăng nhập</th>
+                    <th>Họ tên</th>
+                    <th style="width:180px">Vai trò</th>
+                    <th style="width:220px">Chi nhánh</th>
+                    <th style="width:120px">Trạng thái</th>
+                    <th style="width:150px">Thao tác</th>
                 </tr></thead>
                 <tbody>
-                    <c:forEach var="s" items="${staffList}">
+                    <c:forEach var="s" items="${staffList}" varStatus="st">
                         <tr>
-                            <td>${s.userId}</td>
+                            <td>${rowStart + st.index + 1}</td>
                             <td>${s.username}</td>
                             <td>${s.fullName}</td>
                             <td>${s.roleName}</td>
@@ -66,9 +71,10 @@
                             <td>
                                 <c:choose>
                                     <c:when test="${s.roleCode == 'ADMIN'}">
-                                        <span class="muted" title="Tài khoản Admin hệ thống — không thể sửa/khoá">🔒 Admin hệ thống</span>
+                                        <span class="badge badge-served" title="Tài khoản Admin hệ thống không thể sửa hoặc khoá">Admin</span>
                                     </c:when>
                                     <c:otherwise>
+                                        <div class="row-actions">
                                         <a class="btn btn-ghost btn-sm" href="${ctx}/admin/user?action=edit&id=${s.userId}">Sửa</a>
                                         <form action="${ctx}/admin/user" method="post" style="display:inline"
                                               onsubmit="return confirm('Đổi trạng thái tài khoản này?');">
@@ -80,6 +86,7 @@
                                                 <c:choose><c:when test="${s.status == 'ACTIVE'}">Khoá</c:when><c:otherwise>Mở khoá</c:otherwise></c:choose>
                                             </button>
                                         </form>
+                                        </div>
                                     </c:otherwise>
                                 </c:choose>
                             </td>
@@ -88,7 +95,7 @@
                 </tbody>
             </table>
             <c:if test="${totalPages > 1}">
-                <div class="pagination" style="display:flex;gap:6px;justify-content:center;margin-top:16px">
+                <div class="pagination" style="margin-top:16px">
                     <c:if test="${page > 1}">
                         <c:url var="prevUrl" value="/admin/user">
                             <c:if test="${not empty fRoleId}"><c:param name="roleId" value="${fRoleId}" /></c:if>
@@ -96,7 +103,7 @@
                             <c:if test="${not empty q}"><c:param name="q" value="${q}" /></c:if>
                             <c:param name="page" value="${page - 1}" />
                         </c:url>
-                        <a class="btn btn-ghost btn-sm" href="${prevUrl}">Trước</a>
+                        <a class="page" href="${prevUrl}">‹</a>
                     </c:if>
                     <span class="muted" style="align-self:center">Trang ${page}/${totalPages} · ${total} tài khoản</span>
                     <c:if test="${page < totalPages}">
@@ -106,7 +113,7 @@
                             <c:if test="${not empty q}"><c:param name="q" value="${q}" /></c:if>
                             <c:param name="page" value="${page + 1}" />
                         </c:url>
-                        <a class="btn btn-ghost btn-sm" href="${nextUrl}">Sau</a>
+                        <a class="page" href="${nextUrl}">›</a>
                     </c:if>
                 </div>
             </c:if>

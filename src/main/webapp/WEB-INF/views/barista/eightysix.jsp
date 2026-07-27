@@ -1,13 +1,14 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
-<jsp:include page="../layout/header.jsp" />
+<jsp:include page="/WEB-INF/views/layout/header.jsp" />
 
 <div class="page-header">
     <div><div class="eyebrow">Pha chế</div><h1>Báo hết món</h1><p>Chỉ dùng cho <strong>sự cố</strong> (máy hỏng, lỗi chất lượng…). Hết nguyên liệu thì kho tự ẩn/hiện món; đồ hỏng thì ghi ở Hao hụt.</p></div>
 </div>
 
-<jsp:include page="../layout/_baristaShiftBanner.jsp" />
+<jsp:include page="/WEB-INF/views/layout/_baristaShiftBanner.jsp" />
+<jsp:include page="/WEB-INF/views/layout/_handoverPendingAlert.jsp" />
 
 <c:if test="${not empty sessionScope.flashOk}">
     <div class="alert alert-success">${sessionScope.flashOk}</div><c:remove var="flashOk" scope="session" />
@@ -31,25 +32,40 @@
     </div>
 </c:if>
 
+<form action="${ctx}/barista/eightysix" method="get" class="list-toolbar" id="e86FilterForm">
+    <input type="search" name="q" class="form-control list-toolbar__search"
+           value="<c:out value='${filterQuery}'/>" placeholder="Tìm món…" autocomplete="off" aria-label="Tìm món">
+    <div class="form-group" style="margin:0;min-width:150px">
+        <label for="e86State">Trạng thái</label>
+        <select id="e86State" name="state" class="form-control">
+            <option value="" ${empty filterState ? 'selected' : ''}>Tất cả</option>
+            <option value="available" ${filterState == 'available' ? 'selected' : ''}>Còn bán</option>
+            <option value="out" ${filterState == 'out' ? 'selected' : ''}>Đã hết</option>
+        </select>
+    </div>
+    <div class="form-group" style="margin:0;min-width:110px">
+        <label for="e86PageSize">Hiển thị</label>
+        <select id="e86PageSize" name="pageSize" class="form-control">
+            <option value="10" ${menuPage.pageSize == 10 ? 'selected' : ''}>10</option>
+            <option value="20" ${menuPage.pageSize == 20 ? 'selected' : ''}>20</option>
+            <option value="50" ${menuPage.pageSize == 50 ? 'selected' : ''}>50</option>
+        </select>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">Lọc</button>
+    <c:if test="${not empty filterQuery or not empty filterState or menuPage.pageSize != 10}">
+        <a class="btn btn-ghost btn-sm" href="${ctx}/barista/eightysix">Xóa lọc</a>
+    </c:if>
+    <span class="list-count"><strong>${menuPage.total}</strong> món</span>
+</form>
+
 <c:choose>
     <c:when test="${empty items}">
-        <div class="card empty-state"><div class="icon">∅</div><p>Chi nhánh chưa có món nào trên menu.</p></div>
+        <div class="card empty-state"><div class="icon">∅</div><p>Không tìm thấy món phù hợp.</p></div>
     </c:when>
     <c:otherwise>
-        <div class="list-toolbar">
-            <input type="search" id="e86Search" class="form-control list-toolbar__search"
-                   placeholder="Tìm món…" autocomplete="off" aria-label="Tìm món">
-            <div class="seg" role="group" aria-label="Lọc trạng thái">
-                <button type="button" class="seg__btn is-active" data-filter="all">Tất cả</button>
-                <button type="button" class="seg__btn" data-filter="available">Còn bán</button>
-                <button type="button" class="seg__btn" data-filter="out">Đã hết</button>
-            </div>
-            <span class="list-count"><strong id="e86Count">0</strong> món</span>
-        </div>
-
         <table class="table">
             <thead><tr><th>Món</th><th style="width:190px">Trạng thái</th><th style="width:420px">Thao tác</th></tr></thead>
-            <tbody id="e86Body">
+            <tbody>
                 <c:forEach var="m" items="${items}">
                     <c:if test="${m.published}">
                         <c:set var="imgSrc" value="${empty m.imageUrl ? ctx.concat('/assets/img/products/_placeholder.svg') : (m.imageUrl.startsWith('http') ? m.imageUrl : ctx.concat(m.imageUrl))}" />
@@ -86,6 +102,10 @@
                                                     <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                                     <input type="hidden" name="action" value="askReopen">
                                                     <input type="hidden" name="productId" value="${m.productId}">
+                                                    <input type="hidden" name="q" value="<c:out value='${filterQuery}'/>">
+                                                    <input type="hidden" name="state" value="${filterState}">
+                                                    <input type="hidden" name="page" value="${menuPage.page}">
+                                                    <input type="hidden" name="pageSize" value="${menuPage.pageSize}">
                                                     <button type="submit" class="btn btn-sm btn-primary" ${onShift ? '' : 'disabled'}>Xin mở bán lại</button>
                                                 </form>
                                             </c:otherwise>
@@ -98,6 +118,10 @@
                                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                                 <input type="hidden" name="action" value="report86">
                                                 <input type="hidden" name="productId" value="${m.productId}">
+                                                <input type="hidden" name="q" value="<c:out value='${filterQuery}'/>">
+                                                <input type="hidden" name="state" value="${filterState}">
+                                                <input type="hidden" name="page" value="${menuPage.page}">
+                                                <input type="hidden" name="pageSize" value="${menuPage.pageSize}">
                                                 <select name="reasonCode" class="form-control reason-select" required ${onShift ? '' : 'disabled'}>
                                                     <option value="">Chọn lý do</option>
                                                     <c:forEach var="r" items="${reasons}">
@@ -118,13 +142,46 @@
                         </tr>
                     </c:if>
                 </c:forEach>
-                <tr id="e86NoResult" style="display:none">
-                    <td colspan="3" style="text-align:center;padding:26px" class="muted">Không tìm thấy món phù hợp.</td>
-                </tr>
             </tbody>
         </table>
 
-        <div class="pager" id="e86Pager"></div>
+        <div class="table-tools-foot">
+            <span class="tt-summary" aria-live="polite">
+                ${menuPage.startRow}-${menuPage.endRow} / ${menuPage.total} món · trang ${menuPage.page}/${menuPage.totalPages}
+            </span>
+            <c:if test="${menuPage.totalPages > 1}">
+                <div class="pagination" aria-label="Phân trang danh sách món">
+                    <c:url var="firstE86PageUrl" value="/barista/eightysix">
+                        <c:param name="q" value="${filterQuery}" /><c:param name="state" value="${filterState}" />
+                        <c:param name="pageSize" value="${menuPage.pageSize}" /><c:param name="page" value="1" />
+                    </c:url>
+                    <c:url var="previousE86PageUrl" value="/barista/eightysix">
+                        <c:param name="q" value="${filterQuery}" /><c:param name="state" value="${filterState}" />
+                        <c:param name="pageSize" value="${menuPage.pageSize}" /><c:param name="page" value="${menuPage.page - 1}" />
+                    </c:url>
+                    <a class="page" href="${firstE86PageUrl}" aria-disabled="${not menuPage.hasPrevious}" title="Trang đầu">«</a>
+                    <a class="page" href="${previousE86PageUrl}" aria-disabled="${not menuPage.hasPrevious}" title="Trang trước">‹</a>
+                    <c:forEach var="pageNumber" items="${menuPage.visiblePages}">
+                        <c:url var="e86PageUrl" value="/barista/eightysix">
+                            <c:param name="q" value="${filterQuery}" /><c:param name="state" value="${filterState}" />
+                            <c:param name="pageSize" value="${menuPage.pageSize}" /><c:param name="page" value="${pageNumber}" />
+                        </c:url>
+                        <a class="page ${pageNumber == menuPage.page ? 'is-active' : ''}" href="${e86PageUrl}"
+                           aria-current="${pageNumber == menuPage.page ? 'page' : 'false'}">${pageNumber}</a>
+                    </c:forEach>
+                    <c:url var="nextE86PageUrl" value="/barista/eightysix">
+                        <c:param name="q" value="${filterQuery}" /><c:param name="state" value="${filterState}" />
+                        <c:param name="pageSize" value="${menuPage.pageSize}" /><c:param name="page" value="${menuPage.page + 1}" />
+                    </c:url>
+                    <c:url var="lastE86PageUrl" value="/barista/eightysix">
+                        <c:param name="q" value="${filterQuery}" /><c:param name="state" value="${filterState}" />
+                        <c:param name="pageSize" value="${menuPage.pageSize}" /><c:param name="page" value="${menuPage.totalPages}" />
+                    </c:url>
+                    <a class="page" href="${nextE86PageUrl}" aria-disabled="${not menuPage.hasNext}" title="Trang sau">›</a>
+                    <a class="page" href="${lastE86PageUrl}" aria-disabled="${not menuPage.hasNext}" title="Trang cuối">»</a>
+                </div>
+            </c:if>
+        </div>
 
         <style>
           .report86 summary{display:inline-flex;list-style:none;cursor:pointer}
@@ -174,92 +231,9 @@
               renderChips(box);
             });
 
-            var PAGE_SIZE = 10;
-            var body = document.getElementById('e86Body');
-            if (!body) return;
-            var search = document.getElementById('e86Search');
-            var pager = document.getElementById('e86Pager');
-            var countEl = document.getElementById('e86Count');
-            var noRes = document.getElementById('e86NoResult');
-            var segBtns = Array.prototype.slice.call(document.querySelectorAll('.seg__btn[data-filter]'));
-            var rows = Array.prototype.slice.call(body.querySelectorAll('tr[data-name]'));
-            var page = 1, filter = 'all', query = '';
-
-            function norm(s){
-              return (s || '').toLowerCase().normalize('NFD')
-                     .replace(/[\u0300-\u036f]/g, '').replace(/\u0111/g, 'd');
-            }
-            rows.forEach(function(r){ r._n = norm(r.getAttribute('data-name')); });
-
-            function matches(r){
-              if (filter !== 'all' && r.getAttribute('data-state') !== filter) return false;
-              if (query && r._n.indexOf(query) === -1) return false;
-              return true;
-            }
-
-            function pageWindow(cur, pages){
-              if (pages <= 7){ var a=[]; for (var i=1;i<=pages;i++) a.push(i); return a; }
-              var out = [1];
-              if (cur > 3) out.push('…');
-              for (var p = Math.max(2, cur-1); p <= Math.min(pages-1, cur+1); p++) out.push(p);
-              if (cur < pages-2) out.push('…');
-              out.push(pages);
-              return out;
-            }
-
-            function renderPager(pages){
-              pager.innerHTML = '';
-              if (pages <= 1) return;
-              function btn(label, target, o){
-                o = o || {};
-                if (label === '…'){
-                  var g = document.createElement('span'); g.className = 'pager__gap'; g.textContent = '…';
-                  pager.appendChild(g); return;
-                }
-                var b = document.createElement('button');
-                b.type = 'button';
-                b.className = 'pager__btn' + (o.active ? ' is-active' : '');
-                b.textContent = label;
-                if (o.disabled) b.disabled = true;
-                else b.addEventListener('click', function(){ page = target; render(); });
-                pager.appendChild(b);
-              }
-              btn('‹', page - 1, {disabled: page === 1});
-              pageWindow(page, pages).forEach(function(p){
-                if (p === '…') btn('…');
-                else btn(String(p), p, {active: p === page});
-              });
-              btn('›', page + 1, {disabled: page === pages});
-            }
-
-            function render(){
-              var matched = rows.filter(matches);
-              var total = matched.length;
-              var pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-              if (page > pages) page = pages;
-              var start = (page - 1) * PAGE_SIZE, end = start + PAGE_SIZE;
-              rows.forEach(function(r){ r.style.display = 'none'; });
-              matched.forEach(function(r, i){ if (i >= start && i < end) r.style.display = ''; });
-              if (noRes) noRes.style.display = total === 0 ? '' : 'none';
-              if (countEl) countEl.textContent = total;
-              renderPager(pages);
-            }
-
-            if (search) search.addEventListener('input', function(){
-              query = norm(this.value.trim()); page = 1; render();
-            });
-            segBtns.forEach(function(b){
-              b.addEventListener('click', function(){
-                segBtns.forEach(function(x){ x.classList.remove('is-active'); });
-                b.classList.add('is-active');
-                filter = b.getAttribute('data-filter'); page = 1; render();
-              });
-            });
-
-            render();
           })();
         </script>
     </c:otherwise>
 </c:choose>
 
-<jsp:include page="../layout/footer.jsp" />
+<jsp:include page="/WEB-INF/views/layout/footer.jsp" />

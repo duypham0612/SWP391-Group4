@@ -1,19 +1,21 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
+<%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Công thức: ${product.name}</h1><p>catalog.ProductRecipe · định mức cho 1 phần</p></div>
+    <div><h1>Công thức: ${product.name}</h1><p>Định mức nguyên liệu cho một phần.</p></div>
     <a class="btn btn-ghost" href="${ctx}/admin/recipe">← Chọn sản phẩm khác</a>
 </div>
 
 <c:if test="${not empty errorMsg}"><div class="alert alert-error">${errorMsg}</div></c:if>
-
-<div class="alert alert-info">
-    Định mức ở đây áp dụng khi Barista bấm "Đã pha xong". Nguyên liệu pha sẵn đã gộp nguyên liệu thô lúc tạo mẻ pha sẵn —
-    khai báo đúng nguyên liệu công thức tham chiếu, <strong>không khai trùng nguyên liệu thô + nguyên liệu pha sẵn</strong> cho cùng một thành phần.
-</div>
+<c:if test="${not empty sessionScope.flashError}">
+    <div class="alert alert-error"><c:out value="${sessionScope.flashError}"/></div><c:remove var="flashError" scope="session" />
+</c:if>
+<c:if test="${not empty sessionScope.flashOk}">
+    <div class="alert alert-success"><c:out value="${sessionScope.flashOk}"/></div><c:remove var="flashOk" scope="session" />
+</c:if>
 
 <div class="card" style="margin-bottom:18px">
     <h3 style="margin-top:0">Thêm nguyên liệu vào công thức</h3>
@@ -47,6 +49,7 @@
             <thead><tr><th>Nguyên liệu</th><th style="width:120px">Loại</th><th style="width:230px">Định mức</th><th style="width:90px">Xoá</th></tr></thead>
             <tbody>
                 <c:forEach var="l" items="${lines}">
+                    <fmt:formatNumber var="recipeQty" value="${l.quantity}" groupingUsed="false" maxFractionDigits="3" />
                     <tr>
                         <td>${l.ingredientName}</td>
                         <td><c:choose><c:when test="${l.ingredientType == 'RAW'}"><span class="badge badge-making">Thô</span></c:when><c:otherwise><span class="badge badge-ready">Pha sẵn</span></c:otherwise></c:choose></td>
@@ -56,7 +59,7 @@
                                 <input type="hidden" name="action" value="updateLine">
                                 <input type="hidden" name="productId" value="${product.productId}">
                                 <input type="hidden" name="lineId" value="${l.productRecipeId}">
-                                <input type="number" name="quantity" class="form-control" style="width:100px" min="0.001" step="0.001" value="${l.quantityDisplay}" required>
+                                <input type="number" name="quantity" class="form-control" style="width:100px" min="0.001" step="0.001" value="${recipeQty}" required>
                                 <span class="muted">${l.ingredientUnit}</span>
                                 <button type="submit" class="btn btn-ghost btn-sm">Lưu</button>
                             </form>

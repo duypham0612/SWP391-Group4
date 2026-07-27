@@ -109,6 +109,25 @@ public class MenuBlockRequestDao {
         }
     }
 
+    /**
+     * Đóng yêu cầu còn mở của một món khi món bị gỡ khỏi menu chi nhánh (cờ 86 mất theo dòng BranchMenu).
+     * Không có người duyệt nên {@code ReviewedBy} để NULL — panel lịch sử hiển thị "Hệ thống".
+     */
+    public int closeOpenByProduct(Connection conn, int branchId, int productId, String reviewNote)
+            throws SQLException {
+        final String sql =
+            "UPDATE catalog.MenuBlockRequest SET Status='RESOLVED', ReviewedAt=SYSDATETIME(), " +
+            "       ReviewNote=?, ClosedAt=SYSDATETIME() " +
+            "WHERE BranchId=? AND ProductId=? AND ClosedAt IS NULL";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            if (reviewNote == null || reviewNote.isBlank()) ps.setNull(1, Types.NVARCHAR);
+            else ps.setString(1, reviewNote.trim());
+            ps.setInt(2, branchId);
+            ps.setInt(3, productId);
+            return ps.executeUpdate();
+        }
+    }
+
     public int review(Connection conn, int requestId, int branchId, String newStatus,
                       int reviewerId, String reviewNote, boolean close) throws SQLException {
         final String sql =

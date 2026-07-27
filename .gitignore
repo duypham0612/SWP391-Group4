@@ -1,3 +1,11 @@
 target/
 *.class
 .DS_Store
+.tomcat-run/
+.tomcat-local/
+.idea/
+output/
+.playwright-cli/
+
+# Sao lưu DB cục bộ + bản database.sql bật @SeedDemo (chỉ dùng ở máy dev)
+backup/

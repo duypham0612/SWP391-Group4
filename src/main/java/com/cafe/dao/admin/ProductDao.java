@@ -17,6 +17,17 @@ public class ProductDao {
         "p.ShowOnHome, p.HomeSortOrder, p.PrepSeconds, c.Name AS CategoryName " +
         "FROM catalog.Product p JOIN catalog.Category c ON p.CategoryId = c.CategoryId ";
 
+    /**
+     * Bản SELECT cho màn tra cứu công thức: kèm cờ đã khai báo định mức hay chưa.
+     * Tách riêng khỏi {@link #SELECT} để các màn khác không phải gánh subquery này.
+     */
+    private static final String SELECT_LOOKUP =
+        "SELECT p.ProductId, p.CategoryId, p.Name, p.BasePrice, p.ImageUrl, p.IsActive, " +
+        "p.ShowOnHome, p.HomeSortOrder, p.PrepSeconds, c.Name AS CategoryName, " +
+        "CASE WHEN EXISTS (SELECT 1 FROM catalog.ProductRecipe pr WHERE pr.ProductId = p.ProductId) " +
+        "THEN 1 ELSE 0 END AS HasRecipe " +
+        "FROM catalog.Product p JOIN catalog.Category c ON p.CategoryId = c.CategoryId ";
+
     public List<Product> findAll(Connection conn) throws SQLException {
         List<Product> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(SELECT + "ORDER BY c.SortOrder, p.Name");
@@ -111,7 +122,7 @@ public class ProductDao {
     public List<Product> findForRecipeLookup(Connection conn, String q, Integer categoryId,
                                              String recipeState, Integer branchId,
                                              int offset, int limit) throws SQLException {
-        StringBuilder sql = new StringBuilder(SELECT + "WHERE p.IsActive = 1");
+        StringBuilder sql = new StringBuilder(SELECT_LOOKUP + "WHERE p.IsActive = 1");
         appendRecipeWhere(sql, q, categoryId, recipeState, branchId);
         sql.append(" ORDER BY c.SortOrder, p.Name, p.ProductId OFFSET ? ROWS FETCH NEXT ? ROWS ONLY");
         List<Product> out = new ArrayList<>();
@@ -120,7 +131,7 @@ public class ProductDao {
             ps.setInt(i++, Math.max(0, offset));
             ps.setInt(i, Math.max(1, limit));
             try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) out.add(map(rs));
+                while (rs.next()) out.add(mapLookup(rs));
             }
         }
         return out;
@@ -150,13 +161,13 @@ public class ProductDao {
                                            Integer categoryId, String recipeState,
                                            Integer branchId) throws SQLException {
         StringBuilder sql = new StringBuilder(
-                SELECT + "WHERE p.ProductId = ? AND p.IsActive = 1");
+                SELECT_LOOKUP + "WHERE p.ProductId = ? AND p.IsActive = 1");
         appendRecipeWhere(sql, q, categoryId, recipeState, branchId);
         try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
             ps.setInt(1, productId);
             bindRecipeFilters(ps, 2, q, categoryId, recipeState, branchId);
             try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() ? map(rs) : null;
+                return rs.next() ? mapLookup(rs) : null;
             }
         }
     }
@@ -223,6 +234,13 @@ public class ProductDao {
         p.setHomeSortOrder(rs.getInt("HomeSortOrder"));
         p.setPrepSeconds(rs.getInt("PrepSeconds"));
         p.setCategoryName(rs.getString("CategoryName"));
+        return p;
+    }
+
+    /** map() + cờ HasRecipe — chỉ dùng cho ResultSet của {@link #SELECT_LOOKUP}. */
+    private Product mapLookup(ResultSet rs) throws SQLException {
+        Product p = map(rs);
+        p.setHasRecipe(rs.getInt("HasRecipe") == 1);
         return p;
     }
 }

@@ -23,4 +23,14 @@ public class WasteReview {
     public LocalDateTime getResolvedAt(){return resolvedAt;} public void setResolvedAt(LocalDateTime v){resolvedAt=v;}
     public String getResolutionNote(){return resolutionNote;} public void setResolutionNote(String v){resolutionNote=v;}
     public boolean isOpen(){return "OPEN".equals(status) || "ACKNOWLEDGED".equals(status);}
+    /** Nhãn tiếng Việt theo đúng CK_WR_Type; JSP không tự so chuỗi để khỏi lệch với schema. */
+    public String getReviewTypeLabel(){
+        if ("SOFT_NEGATIVE".equals(reviewType)) return "Tồn âm nhẹ";
+        if ("HARD_NEGATIVE".equals(reviewType)) return "Tồn âm vượt ngưỡng";
+        if ("LATE_CORRECTION".equals(reviewType)) return "Đính chính trễ";
+        if ("MANAGER_VOID".equals(reviewType)) return "Quản lý huỷ dòng";
+        return "Cần kiểm tra";
+    }
+    /** Tồn âm vượt ngưỡng cần xử lý trước — dùng để tô đậm dòng trên màn đối soát. */
+    public boolean isUrgent(){return "HARD_NEGATIVE".equals(reviewType);}
 }

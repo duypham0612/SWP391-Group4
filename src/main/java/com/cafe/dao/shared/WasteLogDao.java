@@ -143,6 +143,30 @@ public class WasteLogDao {
         return value != null && !value.isBlank();
     }
 
+    /**
+     * Các dòng WASTE của LẦN LÀM LẠI GẦN NHẤT trên một dòng món (event REMAKE có id lớn nhất).
+     * Chỉ lần gần nhất mới có thể đang giữ chỗ nguyên liệu cho lượt pha kế tiếp — các event trước
+     * đó đã ứng với những lượt pha thật sự tiêu hao rồi, hoàn lại là ghi thiếu.
+     */
+    public List<WasteLog> findActiveRemakeLinesOfLatestEvent(Connection conn, int branchId, int orderItemId)
+            throws SQLException {
+        final String sql = SELECT
+                + "WHERE wl.BranchId=? AND wl.Status='ACTIVE' AND wl.WasteType='REMAKE' "
+                + "  AND wl.WasteEventId=(SELECT MAX(e.WasteEventId) FROM inventory.WasteEvent e "
+                + "                       WHERE e.BranchId=? AND e.OrderItemId=? AND e.EventKind='REMAKE') "
+                + "ORDER BY wl.WasteLogId";
+        List<WasteLog> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setInt(2, branchId);
+            ps.setInt(3, orderItemId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) out.add(map(rs));
+            }
+        }
+        return out;
+    }
+
     public WasteLog findById(Connection conn, int wasteLogId) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(SELECT + "WHERE wl.WasteLogId=?")) {
             ps.setInt(1, wasteLogId);

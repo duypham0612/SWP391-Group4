@@ -3,11 +3,12 @@ package com.cafe.controller.barista;
 import com.cafe.controller.manager.InventoryDashboardServlet;
 import com.cafe.model.BranchInventory;
 import com.cafe.model.BranchMenuItem;
+import com.cafe.model.BaristaOpsSnapshot;
 import com.cafe.model.OrderItem;
-import com.cafe.service.barista.HandoverService;
 import com.cafe.common.SessionUtil;
 import com.cafe.model.User;
 import com.cafe.service.barista.KdsService;
+import com.cafe.service.barista.BaristaMetricsService;
 import com.cafe.service.barista.WasteService;
 import com.cafe.service.shared.BranchMenuService;
 import com.cafe.service.shared.InventoryService;
@@ -27,7 +28,7 @@ import java.util.List;
 public class BaristaDashboardServlet extends HttpServlet {
 
     private final KdsService kdsService = new KdsService();
-    private final HandoverService handoverService = new HandoverService();
+    private final BaristaMetricsService metricsService = new BaristaMetricsService();
     private final WasteService wasteService = new WasteService();
     private final InventoryService inventoryService = new InventoryService();
     private final BranchMenuService branchMenuService = new BranchMenuService();
@@ -37,12 +38,29 @@ public class BaristaDashboardServlet extends HttpServlet {
             throws ServletException, IOException {
         int branchId = InventoryDashboardServlet.branchId(req);
         try {
-            List<OrderItem> queue = kdsService.getQueue(branchId);
-            List<OrderItem> readyItems = kdsService.getReadyItems(branchId);
+            // Đếm theo ĐÚNG phạm vi của Quầy pha chế: ngày kinh doanh tính từ giờ mở cửa chi nhánh.
+            // Trước đây màn này dùng hàng chờ không cắt ngày nên hai màn cho hai con số "đang chờ"
+            // khác nhau ở cùng một thời điểm, không giải thích được cho người dùng.
+            com.cafe.model.Branch branch = kdsService.getBranch(branchId);
+            java.time.LocalDateTime dayStart = com.cafe.common.BusinessDay.startUtc(
+                    branch == null ? null : branch.getOpenTime());
+            List<OrderItem> workbench = kdsService.getWorkbenchQueue(branchId, dayStart);
+            java.util.Map<String, List<OrderItem>> board = KdsService.splitWorkbench(workbench);
+            // Giữ nguyên thứ tự pha của truy vấn (làm lại trước, rồi FIFO) để "Top món chờ lâu nhất"
+            // đúng là 5 dòng đầu barista sẽ pha, khớp thứ tự trên màn Quầy pha chế.
+            List<OrderItem> queue = new ArrayList<>();
+            for (OrderItem it : workbench) {
+                if ("WAITING".equals(it.getStatus()) || "MAKING".equals(it.getStatus())) queue.add(it);
+            }
+            List<OrderItem> readyItems = board.get("ready");
+            List<OrderItem> blocked = board.get("blocked");
             WasteSummary wasteSummary = wasteService.getTodayWasteSummary(branchId);
             List<BranchInventory> lowStock = inventoryService.getLowStock(branchId);
             List<BranchMenuItem> menuItems = branchMenuService.getMenuAvailability(branchId);
             User currentUser = SessionUtil.currentUser(req);
+            BaristaOpsSnapshot ops = currentUser == null
+                    ? new BaristaOpsSnapshot()
+                    : metricsService.load(branchId, currentUser.getUserId(), dayStart);
             BaristaShift.expose(req, MyShiftServlet.PATH);
 
             int eightySixCount = 0;
@@ -67,18 +85,17 @@ public class BaristaDashboardServlet extends HttpServlet {
             req.setAttribute("lowStock", lowStock);
             req.setAttribute("lowStockPreview", firstItems(lowStock, 5));
             req.setAttribute("wasteSummary", wasteSummary);
+            req.setAttribute("baristaOps", ops);
             req.setAttribute("queueCount", cupCount(queue));
             req.setAttribute("readyCount", cupCount(readyItems));
+            req.setAttribute("blockedCount", cupCount(blocked));
             req.setAttribute("lowStockCount", lowStock.size());
             req.setAttribute("eightySixCount", eightySixCount);
             req.setAttribute("oversoldCount", oversoldCount);
             req.setAttribute("suggest86Count", branchMenuService.getSuggested86(branchId).size());
             req.setAttribute("alertCount", lowStock.size() + eightySixCount);
-            if (currentUser != null && BaristaShift.onShift(req)) {
-                req.setAttribute("pendingHandoverCount", handoverService.countUnacknowledgedForUser(branchId, currentUser.getUserId()));
-            }
             req.setAttribute("pageTitle", "Bảng điều khiển ca");
-            req.getRequestDispatcher("/WEB-INF/views/barista/dashboard.jsp").forward(req, resp);
+        req.getRequestDispatcher("/WEB-INF/views/dashboard/barista.jsp").forward(req, resp);
         } catch (Exception e) {
             throw new ServletException(e);
         }

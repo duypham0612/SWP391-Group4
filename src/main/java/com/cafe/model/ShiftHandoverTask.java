@@ -12,6 +12,8 @@ public class ShiftHandoverTask {
     private Integer updatedBy;
     private LocalDateTime updatedAt;
     private String updatedByName;
+    /** Chỉ dùng cho danh sách việc tồn: nhãn "bàn giao gốc" để barista biết việc này từ đâu tới. */
+    private String sourceLabel;
 
     public int getShiftHandoverTaskId() { return shiftHandoverTaskId; }
     public void setShiftHandoverTaskId(int value) { this.shiftHandoverTaskId = value; }
@@ -25,6 +27,8 @@ public class ShiftHandoverTask {
     public void setUpdatedAt(LocalDateTime value) { this.updatedAt = value; }
     public String getUpdatedByName() { return updatedByName; }
     public void setUpdatedByName(String value) { this.updatedByName = value; }
+    public String getSourceLabel() { return sourceLabel; }
+    public void setSourceLabel(String value) { this.sourceLabel = value; }
     public String getUpdatedDisplay() { return BusinessDay.fmtDateTimeVn(updatedAt); }
     public String getStatusLabel() {
         if ("IN_PROGRESS".equals(status)) return "Đang xử lý";

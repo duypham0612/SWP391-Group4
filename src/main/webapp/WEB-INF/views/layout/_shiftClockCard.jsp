@@ -55,6 +55,10 @@
                         <button type="submit" class="btn btn-primary">Vào ca</button>
                     </form>
                 </c:when>
+                <c:when test="${clockStatus.canClockOut and handoverRequired}">
+                    <%-- Chưa bàn giao ca: đưa sang màn bàn giao thay vì tan ca thẳng. --%>
+                    <a class="btn btn-primary" href="${handoverUrl}">Bàn giao &amp; Tan ca</a>
+                </c:when>
                 <c:when test="${clockStatus.canClockOut}">
                     <form action="${clockPostUrl}" method="post">
                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">

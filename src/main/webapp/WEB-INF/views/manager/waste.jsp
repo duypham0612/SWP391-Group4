@@ -48,18 +48,29 @@
 <c:url var="todayUrl" value="/manager/reconciliation">
     <c:param name="from" value="${todayDate}" />
     <c:param name="to" value="${todayDate}" />
+    <c:param name="q" value="${wasteLogQuery}" /><c:param name="wasteType" value="${wasteLogWasteType}" />
+    <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" />
 </c:url>
 <c:url var="last7Url" value="/manager/reconciliation">
     <c:param name="from" value="${last7FromDate}" />
     <c:param name="to" value="${todayDate}" />
+    <c:param name="q" value="${wasteLogQuery}" /><c:param name="wasteType" value="${wasteLogWasteType}" />
+    <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" />
 </c:url>
 <c:url var="last30Url" value="/manager/reconciliation">
     <c:param name="from" value="${last30FromDate}" />
     <c:param name="to" value="${todayDate}" />
+    <c:param name="q" value="${wasteLogQuery}" /><c:param name="wasteType" value="${wasteLogWasteType}" />
+    <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" />
 </c:url>
 
 <form class="table-toolbar" action="${ctx}/manager/reconciliation" method="get">
     <input type="hidden" name="page" value="1">
+    <%-- Đổi khoảng ngày thì giữ nguyên bộ lọc và số dòng/trang đang xem. --%>
+    <input type="hidden" name="q" value="${fn:escapeXml(wasteLogQuery)}">
+    <input type="hidden" name="wasteType" value="${wasteLogWasteType}">
+    <input type="hidden" name="status" value="${wasteLogStatus}">
+    <input type="hidden" name="pageSize" value="${wasteLogPage.pageSize}">
     <div class="form-group">
         <label for="fromDate">Từ ngày</label>
         <input id="fromDate" class="form-control" type="date" name="from" value="${range.fromDate}">
@@ -121,9 +132,35 @@
     <div class="waste-card__head"><div><h3>Ngoại lệ cần xử lý</h3><p>Kiểm tra các trường hợp tồn bị âm sau khi ghi nhận hao hụt, sau đó kiểm kê và điều chỉnh nếu cần.</p></div><strong>${fn:length(openReviews)} trường hợp</strong></div>
     <c:choose><c:when test="${empty openReviews}"><p class="muted">Không có ngoại lệ đang chờ xử lý.</p></c:when><c:otherwise>
         <div class="table-scroll"><table class="table"><thead><tr><th>Loại</th><th>Nguyên liệu</th><th>Tồn trước → sau</th><th>Ghi chú</th><th></th></tr></thead><tbody>
-        <c:forEach var="r" items="${openReviews}"><tr><td><c:choose><c:when test="${r.reviewType == 'NEGATIVE_STOCK'}">Tồn kho âm</c:when><c:otherwise>Cần kiểm tra</c:otherwise></c:choose></td><td>${r.ingredientName}</td><td>${r.qtyBefore} → ${r.qtyAfter}</td><td><c:out value="${r.note}" /></td><td><form action="${ctx}/manager/waste" method="post"><input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="resolveReview"><input type="hidden" name="reviewId" value="${r.wasteReviewId}"><input class="form-control" name="note" maxlength="255" placeholder="Ghi chú cách xử lý" required><button class="btn btn-primary btn-sm" type="submit">Đánh dấu đã xử lý</button></form></td></tr></c:forEach>
+        <c:forEach var="r" items="${openReviews}"><tr><td><span class="badge ${r.urgent ? 'badge-cancelled' : 'badge-making'}">${r.reviewTypeLabel}</span></td><td>${r.ingredientName}</td><td>${r.qtyBefore} → ${r.qtyAfter}</td><td><c:out value="${r.note}" /></td><td><form action="${ctx}/manager/waste" method="post"><input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="resolveReview"><input type="hidden" name="reviewId" value="${r.wasteReviewId}"><input type="hidden" name="from" value="${range.fromDate}"><input type="hidden" name="to" value="${range.toDate}"><input type="hidden" name="q" value="${fn:escapeXml(wasteLogQuery)}"><input type="hidden" name="wasteType" value="${wasteLogWasteType}"><input type="hidden" name="status" value="${wasteLogStatus}"><input type="hidden" name="pageSize" value="${wasteLogPage.pageSize}"><input type="hidden" name="page" value="${wasteLogPage.page}"><input class="form-control" name="note" maxlength="255" placeholder="Ghi chú cách xử lý" required><button class="btn btn-primary btn-sm" type="submit">Đánh dấu đã xử lý</button></form></td></tr></c:forEach>
         </tbody></table></div>
     </c:otherwise></c:choose>
+</section>
+
+<section class="card waste-review-card">
+    <div class="waste-card__head">
+        <div><h3>Nhật ký đính chính</h3><p>Các lần sửa số lượng hoặc huỷ dòng hao hụt trong khoảng ${range.label}. Huỷ dòng đồng nghĩa tồn kho đã được hoàn lại.</p></div>
+        <strong>${fn:length(corrections)} thao tác</strong>
+    </div>
+    <c:choose>
+        <c:when test="${empty corrections}"><p class="muted">Chưa có ai sửa hay huỷ dòng hao hụt nào trong khoảng này.</p></c:when>
+        <c:otherwise>
+            <div class="table-scroll"><table class="table">
+                <thead><tr><th style="width:110px">Thời gian</th><th style="width:130px">Thao tác</th><th>Nguyên liệu</th><th style="width:150px">Số lượng</th><th>Lý do</th><th>Người thực hiện</th></tr></thead>
+                <tbody><c:forEach var="a" items="${corrections}"><tr>
+                    <td>${a.performedAtDisplay}</td>
+                    <td><span class="badge ${a.voidAction ? 'badge-cancelled' : 'badge-making'}">${a.actionLabel}</span></td>
+                    <td><strong>${a.ingredientName}</strong></td>
+                    <td>${a.changeDisplay} ${a.ingredientUnit}</td>
+                    <td><c:out value="${a.reason}" /></td>
+                    <td>${a.performedByName}</td>
+                </tr></c:forEach></tbody>
+            </table></div>
+            <c:if test="${fn:length(corrections) >= correctionsLimit}">
+                <p class="muted">Chỉ hiển thị ${correctionsLimit} thao tác gần nhất — thu hẹp khoảng ngày để xem phần còn lại.</p>
+            </c:if>
+        </c:otherwise>
+    </c:choose>
 </section>
 
 <c:if test="${summary.missingCostCount > 0}">
@@ -156,6 +193,15 @@
             <option value="">Tất cả</option>
             <option value="ACTIVE" ${wasteLogStatus == 'ACTIVE' ? 'selected' : ''}>Hiệu lực</option>
             <option value="VOIDED" ${wasteLogStatus == 'VOIDED' ? 'selected' : ''}>Đã huỷ</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="wasteLogPageSize">Hiển thị</label>
+        <select id="wasteLogPageSize" name="pageSize" class="form-control tt-size">
+            <option value="10" ${wasteLogPage.pageSize == 10 ? 'selected' : ''}>10</option>
+            <option value="20" ${wasteLogPage.pageSize == 20 ? 'selected' : ''}>20</option>
+            <option value="50" ${wasteLogPage.pageSize == 50 ? 'selected' : ''}>50</option>
+            <option value="100" ${wasteLogPage.pageSize == 100 ? 'selected' : ''}>100</option>
         </select>
     </div>
 </form>
@@ -207,18 +253,23 @@
 </div>
 
 <div class="table-tools-foot">
-    <span class="tt-summary" aria-live="polite">${wasteLogPage.startRow}-${wasteLogPage.endRow} / ${wasteLogPage.total}</span>
+    <span class="tt-summary" aria-live="polite">
+        <c:choose>
+            <c:when test="${wasteLogPage.total == 0}">0 dòng</c:when>
+            <c:otherwise>${wasteLogPage.startRow}-${wasteLogPage.endRow} / ${wasteLogPage.total} dòng · trang ${wasteLogPage.page}/${wasteLogPage.totalPages}</c:otherwise>
+        </c:choose>
+    </span>
     <c:if test="${wasteLogPage.totalPages > 1}">
         <div class="pagination" aria-label="Phân trang nhật ký hao hụt">
             <c:url var="firstWasteLogPageUrl" value="/manager/reconciliation">
                 <c:param name="from" value="${range.fromDate}" /><c:param name="to" value="${range.toDate}" />
                 <c:param name="q" value="${wasteLogQuery}" /><c:param name="wasteType" value="${wasteLogWasteType}" />
-                <c:param name="status" value="${wasteLogStatus}" /><c:param name="page" value="1" />
+                <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" /><c:param name="page" value="1" />
             </c:url>
             <c:url var="previousWasteLogPageUrl" value="/manager/reconciliation">
                 <c:param name="from" value="${range.fromDate}" /><c:param name="to" value="${range.toDate}" />
                 <c:param name="q" value="${wasteLogQuery}" /><c:param name="wasteType" value="${wasteLogWasteType}" />
-                <c:param name="status" value="${wasteLogStatus}" /><c:param name="page" value="${wasteLogPage.page - 1}" />
+                <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" /><c:param name="page" value="${wasteLogPage.page - 1}" />
             </c:url>
             <a class="page" href="${firstWasteLogPageUrl}" aria-disabled="${not wasteLogPage.hasPrevious}">«</a>
             <a class="page" href="${previousWasteLogPageUrl}" aria-disabled="${not wasteLogPage.hasPrevious}">‹</a>
@@ -226,19 +277,19 @@
                 <c:url var="wasteLogPageUrl" value="/manager/reconciliation">
                     <c:param name="from" value="${range.fromDate}" /><c:param name="to" value="${range.toDate}" />
                     <c:param name="q" value="${wasteLogQuery}" /><c:param name="wasteType" value="${wasteLogWasteType}" />
-                    <c:param name="status" value="${wasteLogStatus}" /><c:param name="page" value="${pageNumber}" />
+                    <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" /><c:param name="page" value="${pageNumber}" />
                 </c:url>
                 <a class="page ${pageNumber == wasteLogPage.page ? 'is-active' : ''}" href="${wasteLogPageUrl}" aria-current="${pageNumber == wasteLogPage.page ? 'page' : 'false'}">${pageNumber}</a>
             </c:forEach>
             <c:url var="nextWasteLogPageUrl" value="/manager/reconciliation">
                 <c:param name="from" value="${range.fromDate}" /><c:param name="to" value="${range.toDate}" />
                 <c:param name="q" value="${wasteLogQuery}" /><c:param name="wasteType" value="${wasteLogWasteType}" />
-                <c:param name="status" value="${wasteLogStatus}" /><c:param name="page" value="${wasteLogPage.page + 1}" />
+                <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" /><c:param name="page" value="${wasteLogPage.page + 1}" />
             </c:url>
             <c:url var="lastWasteLogPageUrl" value="/manager/reconciliation">
                 <c:param name="from" value="${range.fromDate}" /><c:param name="to" value="${range.toDate}" />
                 <c:param name="q" value="${wasteLogQuery}" /><c:param name="wasteType" value="${wasteLogWasteType}" />
-                <c:param name="status" value="${wasteLogStatus}" /><c:param name="page" value="${wasteLogPage.totalPages}" />
+                <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" /><c:param name="page" value="${wasteLogPage.totalPages}" />
             </c:url>
             <a class="page" href="${nextWasteLogPageUrl}" aria-disabled="${not wasteLogPage.hasNext}">›</a>
             <a class="page" href="${lastWasteLogPageUrl}" aria-disabled="${not wasteLogPage.hasNext}">»</a>
@@ -250,8 +301,39 @@
 (function(){
   var form = document.getElementById('wasteLogFilters');
   if (!form) return;
-  form.querySelectorAll('.tt-filter').forEach(function(select){
-    select.addEventListener('change', function(){ form.submit(); });
+  var search = document.getElementById('wasteLogSearch');
+  var page = form.querySelector('input[name="page"]');
+  var timer;
+
+  function submitFromFirstPage(){
+    if (page) page.value = '1';
+    if (form.requestSubmit) form.requestSubmit();
+    else form.submit();
+  }
+
+  // Lọc chạy ở server nên mỗi lần gõ là một lần tải lại trang; ghi cờ để trả lại con trỏ cho ô tìm kiếm.
+  var FOCUS_KEY = 'managerWasteLogSearchFocus';
+  if (search) {
+    try {
+      if (window.sessionStorage && sessionStorage.getItem(FOCUS_KEY)) {
+        sessionStorage.removeItem(FOCUS_KEY);
+        search.focus();
+        search.setSelectionRange(search.value.length, search.value.length);
+      }
+    } catch (e) { /* storage bị chặn thì bỏ qua, tìm kiếm vẫn chạy bình thường */ }
+
+    search.addEventListener('input', function(){
+      window.clearTimeout(timer);
+      timer = window.setTimeout(function(){
+        try { if (window.sessionStorage) sessionStorage.setItem(FOCUS_KEY, '1'); } catch (e) { /* storage bị chặn */ }
+        submitFromFirstPage();
+      }, 350);
+    });
+  }
+
+  // Bắt mọi select (gồm cả ô "Hiển thị"), không chỉ .tt-filter.
+  Array.prototype.forEach.call(form.querySelectorAll('select'), function(control){
+    control.addEventListener('change', submitFromFirstPage);
   });
 })();
 </script>

@@ -12,13 +12,18 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /** B6 · RecipeLookupServlet → /barista/recipe. Tra cứu công thức + tác động modifier (read-only). */
 @WebServlet("/barista/recipe")
 public class RecipeLookupServlet extends HttpServlet {
 
-    private static final int PAGE_SIZE = 10;
+    // Danh sách món nằm cạnh khung công thức nên chỉ chiếm nửa màn: 5 dòng/trang vừa hết
+    // khung, barista không phải cuộn trong lúc pha. Lọc + tìm theo tên vẫn là đường chính
+    // để thu hẹp danh sách, phân trang chỉ dùng khi duyệt lần lượt.
+    private static final int PAGE_SIZE = 5;
 
     private final CatalogReadService catalogReadService = new CatalogReadService();
 
@@ -59,10 +64,18 @@ public class RecipeLookupServlet extends HttpServlet {
                         req.setAttribute("selected", selected);
                         List<ProductRecipe> recipe = catalogReadService.getRecipeForProduct(productId);
                         req.setAttribute("recipe", recipe);
-                        // Định mức pha sẵn cho từng nguyên liệu PREPPED trong công thức.
                         List<CatalogReadService.OptionImpactRow> impacts =
                                 catalogReadService.getModifierImpactsForProduct(productId);
+                        Set<Integer> baseIngredientIds = new HashSet<>();
+                        for (ProductRecipe r : recipe) baseIngredientIds.add(r.getIngredientId());
+                        boolean hasExtraIngredient = false;
+                        for (CatalogReadService.OptionImpactRow im : impacts) {
+                            im.setInBaseRecipe(baseIngredientIds.contains(im.getIngredientId()));
+                            if (!im.isInBaseRecipe()) hasExtraIngredient = true;
+                        }
                         req.setAttribute("impacts", impacts);
+                        req.setAttribute("hasExtraIngredient", hasExtraIngredient);
+                        // Định mức pha sẵn cho từng nguyên liệu PREPPED trong công thức.
                         List<PrepSection> preps = new ArrayList<>();
                         for (ProductRecipe r : recipe) {
                             if ("PREPPED".equalsIgnoreCase(r.getIngredientType())) {
@@ -125,5 +138,22 @@ public class RecipeLookupServlet extends HttpServlet {
         public String getName() { return name; }
         public String getUnit() { return unit; }
         public List<com.cafe.model.PrepRecipe> getLines() { return lines; }
+
+        /**
+         * Sản lượng 1 mẻ để hiển thị ở đầu thẻ thay vì lặp lại trên từng dòng nguyên liệu.
+         *
+         * YieldQty được lưu theo từng dòng PrepRecipe và schema không ràng buộc các dòng của
+         * cùng một nguyên liệu PREPPED phải bằng nhau. Nếu dữ liệu lệch nhau thì trả null để
+         * view giữ lại cột "Sản lượng" — thà hiển thị lặp còn hơn hiển thị sai một con số.
+         */
+        public String getSharedYieldDisplay() {
+            if (lines == null || lines.isEmpty()) return null;
+            java.math.BigDecimal first = lines.get(0).getYieldQty();
+            if (first == null) return null;
+            for (com.cafe.model.PrepRecipe l : lines) {
+                if (l.getYieldQty() == null || first.compareTo(l.getYieldQty()) != 0) return null;
+            }
+            return lines.get(0).getYieldDisplay();
+        }
     }
 }

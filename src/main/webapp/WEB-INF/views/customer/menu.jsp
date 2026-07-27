@@ -37,7 +37,10 @@
 <body>
 <div class="qr-app">
     <div class="qr-top">
-        <h1>Cà Phê Chain</h1>
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
+            <h1>Cà Phê Chain</h1>
+            <a href="${ctx}/qr/track?s=${sessionId}" style="color:#fff;font-size:.86rem">Xem đơn đã gọi</a>
+        </div>
         <div class="sub">${table.tableNumber} · Quét QR đặt món tại bàn</div>
     </div>
     <div class="qr-body">
@@ -57,7 +60,7 @@
                     <div class="qr-grp" data-group-name="${g.name}" data-required="${g.required}" data-min="${g.minSelect}" data-max="${g.maxSelect}">
                         <div class="lbl">${g.name}</div>
                         <c:forEach var="o" items="${g.options}">
-                            <c:set var="isDefault" value="${(g.name == 'Size' and o.name == 'Size M') or ((g.name == 'Đá' or g.name == 'Đường') and o.name == 'Bình thường')}" />
+                            <c:set var="isDefault" value="${(g.name == 'Size' and o.name == 'Size S') or ((g.name == 'Đá' or g.name == 'Đường') and o.name == 'Bình thường')}" />
                             <label><input type="${g.maxSelect == 1 ? 'radio' : 'checkbox'}" name="g-${m.productId}-${g.groupId}"
                                           class="pos-opt" data-option-id="${o.modifierOptionId}" data-delta="${o.priceDelta}" data-name="${o.name}"
                                           data-default="${isDefault}" ${isDefault ? 'checked' : ''}>

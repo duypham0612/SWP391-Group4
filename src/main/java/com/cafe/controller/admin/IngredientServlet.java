@@ -12,7 +12,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Set;
 
-/** A4 · IngredientServlet → /admin/ingredient (cờ RAW/PREPPED). */
+/** Admin ingredient management. */
 @WebServlet("/admin/ingredient")
 public class IngredientServlet extends HttpServlet {
 
@@ -49,6 +49,7 @@ public class IngredientServlet extends HttpServlet {
         try {
             if ("delete".equals(action)) {
                 service.deleteIngredient(Integer.parseInt(req.getParameter("id")));
+                req.getSession().setAttribute("flashOk", "Đã xoá nguyên liệu thành công.");
                 resp.sendRedirect(ctx + "/admin/ingredient");
                 return;
             }
@@ -60,7 +61,13 @@ public class IngredientServlet extends HttpServlet {
                 forwardForm(req, resp, i.getIngredientId() == 0 ? "Thêm nguyên liệu" : "Sửa nguyên liệu");
                 return;
             }
-            if (i.getIngredientId() == 0) service.createIngredient(i); else service.updateIngredient(i);
+            if (i.getIngredientId() == 0) {
+                service.createIngredient(i);
+                req.getSession().setAttribute("flashOk", "Đã thêm nguyên liệu thành công.");
+            } else {
+                service.updateIngredient(i);
+                req.getSession().setAttribute("flashOk", "Đã cập nhật nguyên liệu thành công.");
+            }
             resp.sendRedirect(ctx + "/admin/ingredient");
         } catch (Exception e) { throw new ServletException(e); }
     }
@@ -72,6 +79,20 @@ public class IngredientServlet extends HttpServlet {
         i.setName(trim(req.getParameter("name")));
         i.setUnit(trim(req.getParameter("unit")));
         i.setIngredientType(trim(req.getParameter("ingredientType")));
+        if ("PREPPED".equals(i.getIngredientType())) {
+            String hours = trim(req.getParameter("shelfLifeHours"));
+            if (hours != null && !hours.isBlank()) {
+                try {
+                    java.math.BigDecimal hoursValue = new java.math.BigDecimal(hours);
+                    if (hoursValue.stripTrailingZeros().scale() > 0)
+                        throw new IllegalArgumentException("Shelf life must be whole hours.");
+                    java.math.BigDecimal minutes = hoursValue.multiply(java.math.BigDecimal.valueOf(60));
+                    i.setShelfLifeMinutes(minutes.intValueExact());
+                } catch (RuntimeException e) {
+                    i.setShelfLifeMinutes(-1);
+                }
+            }
+        }
         i.setActive(req.getParameter("active") != null);
         return i;
     }
@@ -81,6 +102,11 @@ public class IngredientServlet extends HttpServlet {
         if (i.getUnit() == null || i.getUnit().isBlank()) return "Đơn vị không được để trống.";
         if (i.getIngredientType() == null || !TYPES.contains(i.getIngredientType()))
             return "Loại nguyên liệu phải là RAW hoặc PREPPED.";
+        if ("PREPPED".equals(i.getIngredientType())
+                && (i.getShelfLifeMinutes() == null
+                || i.getShelfLifeMinutes() < 60 || i.getShelfLifeMinutes() > 43200))
+            return "Thời hạn bảo quản của nguyên liệu pha sẵn phải từ 1 đến 720 giờ.";
+        if ("RAW".equals(i.getIngredientType())) i.setShelfLifeMinutes(null);
         return null;
     }
 

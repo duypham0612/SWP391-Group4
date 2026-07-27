@@ -9,6 +9,7 @@ import com.cafe.dao.cashier.BillDao;
 import com.cafe.dao.cashier.BillItemDao;
 import com.cafe.dao.cashier.DiningTableDao;
 import com.cafe.dao.shared.OrderItemDao;
+import com.cafe.dao.shared.OutboxEventDao;
 import com.cafe.dao.cashier.TableSessionDao;
 import com.cafe.dao.shared.VoucherDao;
 import com.cafe.dao.cashier.VoucherRedemptionDao;
@@ -37,6 +38,7 @@ public class BillingService {
     private final TableSessionDao sessionDao = new TableSessionDao();
     private final DiningTableDao tableDao = new DiningTableDao();
     private final VoucherService voucherService = new VoucherService();
+    private final OutboxEventDao outboxEventDao = new OutboxEventDao();
 
     /**
      * Dựng/đồng bộ bill cho phiên: đảm bảo mọi dòng đơn (chưa thuộc bill nào, không CANCELLED)
@@ -129,6 +131,12 @@ public class BillingService {
         return null;
     }
 
+    public String validateBillVoucher(int billId, int branchId) throws SQLException {
+        Bill bill = getBill(billId);
+        if (bill == null || bill.getVoucherId() == null) return null;
+        return voucherService.validateVoucherById(bill.getVoucherId(), branchId, bill.getSubtotal());
+    }
+
     public void removeVoucher(int billId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
@@ -149,6 +157,11 @@ public class BillingService {
             try {
                 Bill bill = billDao.findById(c, billId);
                 if (bill == null) { c.rollback(); return false; }
+                if (bill.getVoucherId() != null) {
+                    Voucher voucher = voucherDao.findById(c, bill.getVoucherId());
+                    String voucherError = VoucherService.validateVoucherRecord(voucher, bill.getBranchId(), bill.getSubtotal());
+                    if (voucherError != null) { c.rollback(); return false; }
+                }
                 if (billItemDao.countByBill(c, billId) == 0
                         || bill.getTotalAmount() == null
                         || bill.getTotalAmount().compareTo(BigDecimal.ZERO) <= 0) {
@@ -173,6 +186,7 @@ public class BillingService {
                         sessionDao.updateStatus(c, s.getTableSessionId(), "CLOSED", true);
                         tableDao.updateStatus(c, s.getDiningTableId(), "EMPTY");
                     }
+                    outboxEventDao.markBillRequestProcessed(c, bill.getTableSessionId());
                 }
                 c.commit();
                 return true;

@@ -22,13 +22,16 @@ public class QrTrackServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        String sid = req.getParameter("s");
-        if (sid == null || sid.isBlank()) { resp.sendError(400); return; }
-        int sessionId = Integer.parseInt(sid);
+        Integer sessionId = ownSessionId(req, req.getParameter("s"));
+        if (sessionId == null) { resp.sendError(403, "Phiên không hợp lệ — vui lòng quét lại mã QR tại bàn."); return; }
         try {
+            TableSession session = qrService.getSession(sessionId);
+            if (session == null) { resp.sendError(404); return; }
+            boolean sessionClosed = !"OPEN".equals(session.getStatus());
             if ("status".equals(req.getParameter("action"))) {
                 // AJAX polling — trả JSON nhẹ
                 resp.setContentType("application/json;charset=UTF-8");
+                resp.setHeader("X-Session-Closed", String.valueOf(sessionClosed));
                 StringBuilder sb = new StringBuilder("[");
                 List<OrderItem> items = qrService.getSessionStatuses(sessionId);
                 for (int i = 0; i < items.size(); i++) {
@@ -42,10 +45,9 @@ public class QrTrackServlet extends HttpServlet {
                 resp.getWriter().write(sb.toString());
                 return;
             }
-            TableSession session = qrService.getSession(sessionId);
-            if (session == null) { resp.sendError(404); return; }
             CsrfUtil.getToken(req);   // seed token cho nút gọi NV / xin bill / huỷ đơn
             req.setAttribute("session", session);
+            req.setAttribute("sessionClosed", sessionClosed);
             req.setAttribute("sessionId", sessionId);
             req.setAttribute("items", qrService.getSessionStatuses(sessionId));
             req.setAttribute("cancellableOrders", qrService.getCancellableOrders(sessionId));   // R5
@@ -57,10 +59,17 @@ public class QrTrackServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
-        int sessionId = Integer.parseInt(req.getParameter("sessionId"));
+        Integer own = ownSessionId(req, req.getParameter("sessionId"));
+        if (own == null) { resp.sendError(403, "Phiên không hợp lệ — vui lòng quét lại mã QR tại bàn."); return; }
+        int sessionId = own;
         String action = req.getParameter("action");
         try {
             TableSession session = qrService.getSession(sessionId);
+            if (session == null || !"OPEN".equals(session.getStatus())) {
+                req.getSession().setAttribute("qrFlash", "Phiên bàn đã kết thúc.");
+                resp.sendRedirect(req.getContextPath() + "/qr/track?s=" + sessionId);
+                return;
+            }
             int branchId = session != null ? session.getBranchId() : 0;
             if ("callStaff".equals(action)) {
                 qrService.callStaff(sessionId, branchId);
@@ -70,13 +79,19 @@ public class QrTrackServlet extends HttpServlet {
                 req.getSession().setAttribute("qrFlash", "Đã gửi yêu cầu thanh toán tới quầy.");
             } else if ("cancel".equals(action)) {
                 String oid = req.getParameter("orderId");
-                boolean ok = oid != null && qrService.cancelOrder(Integer.parseInt(oid));
+                boolean ok = oid != null && qrService.cancelOrder(sessionId, Integer.parseInt(oid));
                 req.getSession().setAttribute("qrFlash", ok
                         ? "Đã huỷ đơn (các món chưa pha)."
                         : "Không thể huỷ — đơn đã được pha. Vui lòng gọi nhân viên.");
             }
             resp.sendRedirect(req.getContextPath() + "/qr/track?s=" + sessionId);
         } catch (Exception e) { throw new ServletException(e); }
+    }
+
+    /** Phiên bàn mà HTTP session của khách này đang gắn (do quét QR ở /qr/menu) — xem QrSessionPolicy. */
+    private static Integer ownSessionId(HttpServletRequest req, String requested) {
+        jakarta.servlet.http.HttpSession s = req.getSession(false);
+        return QrSessionPolicy.resolve(s == null ? null : s.getAttribute("qrSessionId"), requested);
     }
 
     private String esc(String s) { return s == null ? "" : s.replace("\"", "'"); }

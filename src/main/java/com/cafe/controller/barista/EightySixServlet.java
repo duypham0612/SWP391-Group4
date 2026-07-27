@@ -15,6 +15,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -30,8 +32,16 @@ public class EightySixServlet extends HttpServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         int branchId = InventoryDashboardServlet.branchId(req);
+        String query = textParam(req, "q", 100);
+        String state = normalizeState(req.getParameter("state"));
+        int pageSize = normalizePageSize(positiveIntParam(req, "pageSize", 10));
         try {
-            req.setAttribute("items", service.getMenuAvailability(branchId));
+            BranchMenuService.MenuAvailabilityPage menuPage = service.getMenuAvailabilityPage(
+                    branchId, query, state, positiveIntParam(req, "page", 1), pageSize);
+            req.setAttribute("menuPage", menuPage);
+            req.setAttribute("items", menuPage.getItems());
+            req.setAttribute("filterQuery", query);
+            req.setAttribute("filterState", state);
             req.setAttribute("suggest86", service.getSuggested86(branchId));   // gợi ý 86 (soft): nguyên liệu đã cạn
             req.setAttribute("openRequests", service.getOpenRequestsMap(branchId));
             req.setAttribute("reasons", Reason86.selectableValues());   // chỉ nhóm "sự cố" — kho tự lo phần hết tồn
@@ -49,11 +59,16 @@ public class EightySixServlet extends HttpServlet {
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
         String action = req.getParameter("action");
-        if (BaristaShift.guardWrite(req, resp, action, "/barista/eightysix")) return;   // vào ca / chặn ngoài ca
+        String redirect = returnUrl(req);
+        if (!BaristaWritePolicy.isEightySixAction(action)) {
+            req.getSession().setAttribute("flashError", BaristaWritePolicy.invalidActionMessage());
+            resp.sendRedirect(redirect);
+            return;
+        }
+        if (BaristaShift.guardWrite(req, resp, "/barista/eightysix")) return;   // ngoài ca → chặn ghi
         int branchId = InventoryDashboardServlet.branchId(req);
         User u = SessionUtil.currentUser(req);
         int userId = u != null ? u.getUserId() : 0;
-        String redirect = req.getContextPath() + "/barista/eightysix";
         try {
             if ("report86".equals(action)) {
                 int productId = Integer.parseInt(req.getParameter("productId"));
@@ -82,5 +97,49 @@ public class EightySixServlet extends HttpServlet {
     private LocalDateTime parseEta(String raw) {
         if (raw == null || raw.isBlank()) return null;
         return LocalDateTime.parse(raw);
+    }
+
+    static String normalizeState(String value) {
+        if ("available".equalsIgnoreCase(value)) return "available";
+        if ("out".equalsIgnoreCase(value)) return "out";
+        return "";
+    }
+
+    static int normalizePageSize(int value) {
+        return value == 20 || value == 50 ? value : 10;
+    }
+
+    private static int positiveIntParam(HttpServletRequest req, String name, int fallback) {
+        try {
+            int value = Integer.parseInt(req.getParameter(name));
+            return value > 0 ? value : fallback;
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    private static String textParam(HttpServletRequest req, String name, int maxLength) {
+        String value = req.getParameter(name);
+        if (value == null || value.isBlank()) return "";
+        value = value.trim();
+        return value.length() <= maxLength ? value : value.substring(0, maxLength);
+    }
+
+    private static String returnUrl(HttpServletRequest req) {
+        StringBuilder url = new StringBuilder(req.getContextPath()).append("/barista/eightysix");
+        appendQueryParam(url, "q", textParam(req, "q", 100));
+        appendQueryParam(url, "state", normalizeState(req.getParameter("state")));
+        int page = positiveIntParam(req, "page", 1);
+        if (page > 1) appendQueryParam(url, "page", String.valueOf(page));
+        int pageSize = normalizePageSize(positiveIntParam(req, "pageSize", 10));
+        if (pageSize != 10) appendQueryParam(url, "pageSize", String.valueOf(pageSize));
+        return url.toString();
+    }
+
+    private static void appendQueryParam(StringBuilder url, String name, String value) {
+        if (value == null || value.isBlank()) return;
+        url.append(url.indexOf("?") >= 0 ? '&' : '?')
+                .append(name).append('=')
+                .append(URLEncoder.encode(value, StandardCharsets.UTF_8));
     }
 }
