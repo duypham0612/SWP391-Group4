@@ -58,6 +58,7 @@ public class SupplierServlet extends HttpServlet {
             String err = null;
             if (s.getName() == null || s.getName().isBlank()) err = "Tên nhà cung cấp không được để trống.";
             else if (s.getPhone() == null || s.getPhone().isBlank()) err = "Số điện thoại không được để trống.";
+            else if (!s.getPhone().matches("0\\d{9}")) err = "Số điện thoại không hợp lệ. Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng 0.";
             else if (s.getAddress() == null || s.getAddress().isBlank()) err = "Địa chỉ không được để trống.";
             if (err != null) {
                 req.setAttribute("supplier", s);

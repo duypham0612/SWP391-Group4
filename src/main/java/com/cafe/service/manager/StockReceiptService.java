@@ -1,6 +1,7 @@
 package com.cafe.service.manager;
 import com.cafe.service.shared.InventoryService;
 
+import com.cafe.common.BusinessException;
 import com.cafe.config.DBConnection;
 import com.cafe.dao.manager.StockReceiptDao;
 import com.cafe.dao.shared.StockReceiptDetailDao;
@@ -43,6 +44,7 @@ public class StockReceiptService {
     }
 
     public void addReceiptLine(int receiptId, int ingredientId, BigDecimal qty, BigDecimal unitCost, String unit) throws SQLException {
+        validateLine(qty, unitCost);
         StockReceiptDetail d = new StockReceiptDetail();
         d.setStockReceiptId(receiptId);
         d.setIngredientId(ingredientId);
@@ -59,6 +61,7 @@ public class StockReceiptService {
     /** Thêm nhiều dòng cùng lúc (tickbox chọn nhiều nguyên liệu) — 1 transaction. */
     public void addReceiptLines(int receiptId, List<StockReceiptDetail> lines) throws SQLException {
         if (lines == null || lines.isEmpty()) return;
+        for (StockReceiptDetail line : lines) validateLine(line.getQuantity(), line.getUnitCost());
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
             try {
@@ -108,6 +111,15 @@ public class StockReceiptService {
                 for (Integer id : receiptIds) if (id != null) receiptDao.cancel(c, id);
                 c.commit();
             } catch (SQLException e){ c.rollback(); throw e; } finally { c.setAutoCommit(true); }
+        }
+    }
+
+    static void validateLine(BigDecimal quantity, BigDecimal unitCost) {
+        if (quantity == null || quantity.signum() <= 0) {
+            throw new BusinessException("Số lượng nhập phải lớn hơn 0.");
+        }
+        if (unitCost == null || unitCost.signum() <= 0) {
+            throw new BusinessException("Đơn giá nhập phải lớn hơn 0.");
         }
     }
 }
