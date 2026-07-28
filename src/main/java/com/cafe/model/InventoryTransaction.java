@@ -31,6 +31,9 @@ public class InventoryTransaction {
 
     public BigDecimal getChangeQty() { return changeQty; }
     public void setChangeQty(BigDecimal changeQty) { this.changeQty = changeQty; }
+    public String getChangeQtyDisplay() {
+        return com.cafe.common.QuantityFormat.groupedVi(changeQty);
+    }
 
     public String getTxnType() { return txnType; }
     public void setTxnType(String txnType) { this.txnType = txnType; }

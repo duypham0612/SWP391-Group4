@@ -40,9 +40,9 @@ public class StockAdjustment {
     public void setDiffQty(BigDecimal diffQty) { this.diffQty = diffQty; }
 
     /** Cho JSP — bỏ .000 thừa. */
-    public String getSystemQtyDisplay() { return com.cafe.common.QuantityFormat.plain(systemQty); }
-    public String getActualQtyDisplay() { return com.cafe.common.QuantityFormat.plain(actualQty); }
-    public String getDiffQtyDisplay() { return com.cafe.common.QuantityFormat.plain(diffQty); }
+    public String getSystemQtyDisplay() { return com.cafe.common.QuantityFormat.groupedVi(systemQty); }
+    public String getActualQtyDisplay() { return com.cafe.common.QuantityFormat.groupedVi(actualQty); }
+    public String getDiffQtyDisplay() { return com.cafe.common.QuantityFormat.groupedVi(diffQty); }
 
     public String getReason() { return reason; }
     public void setReason(String reason) { this.reason = reason; }

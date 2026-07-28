@@ -34,8 +34,8 @@ public class BranchInventory {
 
     /** Cho JSP — bỏ .000 thừa. So sánh/tính toán vẫn dùng getter BigDecimal ở trên. */
     public String getQuantityOnHandDisplay() { return QuantityFormat.groupedVi(quantityOnHand); }
-    public String getMinThresholdDisplay() { return QuantityFormat.plain(minThreshold); }
-    public String getPrepTargetQtyDisplay() { return QuantityFormat.plain(prepTargetQty); }
+    public String getMinThresholdDisplay() { return QuantityFormat.groupedVi(minThreshold); }
+    public String getPrepTargetQtyDisplay() { return QuantityFormat.groupedVi(prepTargetQty); }
 
     public boolean isLow() {
         return quantityOnHand != null && minThreshold != null && quantityOnHand.compareTo(minThreshold) <= 0;

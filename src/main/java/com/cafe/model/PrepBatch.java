@@ -93,6 +93,9 @@ public class PrepBatch {
     // ----- Hiển thị -----
     public String getMadeAtDisplay() { return fmt(madeAt); }
     public String getExpiresAtDisplay() { return fmt(expiresAt); }
+    public String getQuantityProducedDisplay() {
+        return com.cafe.common.QuantityFormat.groupedVi(quantityProduced);
+    }
 
     /** Trạng thái hạn dùng (so với now UTC): none | ok | soon (≤2h) | expired. Chỉ tính cho mẻ ACTIVE. */
     public String getExpiryTier() {

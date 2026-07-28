@@ -34,7 +34,7 @@
                             <c:otherwise>Thay đổi khác</c:otherwise>
                         </c:choose></span></td>
                         <td style="font-weight:600;color:${t.changeQty.signum() < 0 ? 'var(--st-cancelled)' : 'var(--st-ready)'}">
-                            <c:if test="${t.changeQty.signum() > 0}">+</c:if>${t.changeQty} ${t.ingredientUnit}
+                            <c:if test="${t.changeQty.signum() > 0}">+</c:if>${t.changeQtyDisplay} ${t.ingredientUnit}
                         </td>
                         <td><c:choose>
                             <c:when test="${t.refTable == 'StockReceipt'}">Phiếu nhập</c:when>
