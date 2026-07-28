@@ -3,6 +3,7 @@ package com.cafe.controller.auth;
 import com.cafe.common.Constants;
 import com.cafe.common.CsrfUtil;
 import com.cafe.common.SessionUtil;
+import com.cafe.common.BusinessException;
 import com.cafe.model.User;
 import com.cafe.service.auth.AuthService;
 import jakarta.servlet.ServletException;
@@ -74,6 +75,8 @@ public class AuthServlet extends HttpServlet {
             HttpSession session = req.getSession(true);
             session.setAttribute(Constants.SESSION_USER, u);
             resp.sendRedirect(req.getContextPath() + "/dashboard");
+        } catch (BusinessException e) {
+            fail(req, resp, e.getMessage());
         } catch (Exception e) {
             fail(req, resp, "Lỗi hệ thống: " + e.getMessage());
         }

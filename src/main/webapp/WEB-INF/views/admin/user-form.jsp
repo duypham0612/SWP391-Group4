@@ -2,11 +2,12 @@
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <c:set var="editing" value="${staff.userId > 0}" />
+<c:set var="assigning" value="${assignmentMode}" />
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1><c:choose><c:when test="${editing}">Sửa nhân sự</c:when><c:otherwise>Thêm nhân sự</c:otherwise></c:choose></h1><p>Cập nhật thông tin tài khoản và phân quyền làm việc.</p></div>
-    <a class="btn btn-ghost" href="${ctx}/admin/user">← Quay lại</a>
+    <div><h1><c:choose><c:when test="${editing}">Sửa nhân sự</c:when><c:when test="${assigning}">Phân công quản lý</c:when><c:otherwise>Thêm nhân sự</c:otherwise></c:choose></h1><p>Cập nhật thông tin tài khoản và phân quyền làm việc.</p></div>
+    <a class="btn btn-ghost" href="${ctx}${assigning ? '/admin/branch' : '/admin/user'}">← Quay lại</a>
 </div>
 
 <c:if test="${not empty errorMsg}"><div class="alert alert-error">${errorMsg}</div></c:if>
@@ -15,6 +16,9 @@
     <form action="${ctx}/admin/user" method="post">
         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
         <input type="hidden" name="userId" value="${staff.userId}">
+        <c:if test="${assigning}">
+            <input type="hidden" name="assignmentBranchId" value="${assignmentBranch.branchId}">
+        </c:if>
 
         <div class="form-group">
             <label for="username">Tên đăng nhập *</label>
@@ -32,8 +36,8 @@
         <div class="form-group">
             <label for="email">Email *</label>
             <input id="email" type="email" name="email" class="form-control" maxlength="120"
-                   pattern="[^@\s]+@[^@\s]+"
-                   title="Email phải có ký tự @"
+                   pattern="[A-Za-z0-9.!#$%&amp;'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+"
+                   title="Nhập đúng định dạng email, ví dụ: ten@congty.vn"
                    value="${staff.email}" required>
         </div>
         <div class="form-group">
@@ -44,20 +48,28 @@
         </div>
         <div class="form-group">
             <label for="roleId">Vai trò *</label>
-            <select id="roleId" name="roleId" class="form-control" required>
-                <option value="">-- Chọn vai trò --</option>
-                <c:forEach var="r" items="${roles}">
-                    <option value="${r.roleId}" <c:if test="${r.roleId == staff.roleId}">selected</c:if>>${r.name}</option>
-                </c:forEach>
-            </select>
+            <c:choose>
+                <c:when test="${assigning}">
+                    <div class="form-control form-control-readonly">${assignmentRole.name}</div>
+                    <input id="roleId" type="hidden" name="roleId" value="${assignmentRole.roleId}">
+                </c:when>
+                <c:otherwise>
+                    <select id="roleId" name="roleId" class="form-control" required>
+                        <option value="">-- Chọn vai trò --</option>
+                        <c:forEach var="r" items="${roles}">
+                            <option value="${r.roleId}" <c:if test="${r.roleId == staff.roleId}">selected</c:if>>${r.name}</option>
+                        </c:forEach>
+                    </select>
+                </c:otherwise>
+            </c:choose>
         </div>
         <div class="form-group">
             <label for="branchId">Chi nhánh *</label>
             <c:choose>
-                <c:when test="${editing}">
-                    <div class="form-control" style="background:var(--surface-2);color:var(--ink-soft)">${staff.branchName}</div>
+                <c:when test="${editing or assigning}">
+                    <div class="form-control form-control-readonly">${staff.branchName}</div>
                     <input id="branchId" type="hidden" name="branchId" value="${staff.branchId}">
-                    <small class="muted">Chi nhánh làm việc được cố định sau khi tạo nhân sự.</small>
+                    <small class="muted"><c:choose><c:when test="${assigning}">Quản lý sẽ được phân công cố định cho chi nhánh này.</c:when><c:otherwise>Chi nhánh làm việc được cố định sau khi tạo nhân sự.</c:otherwise></c:choose></small>
                 </c:when>
                 <c:otherwise>
                     <select id="branchId" name="branchId" class="form-control" required>

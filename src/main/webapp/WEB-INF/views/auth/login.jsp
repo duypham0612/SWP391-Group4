@@ -63,6 +63,10 @@
             <c:if test="${not empty errorMsg}">
                 <div class="alert alert-error">${errorMsg}</div>
             </c:if>
+            <c:if test="${not empty sessionScope.flashError}">
+                <div class="alert alert-error"><c:out value="${sessionScope.flashError}"/></div>
+                <c:remove var="flashError" scope="session" />
+            </c:if>
             <c:if test="${not empty sessionScope.flashOk}">
                 <div class="alert alert-success">${sessionScope.flashOk}</div>
                 <c:remove var="flashOk" scope="session" />

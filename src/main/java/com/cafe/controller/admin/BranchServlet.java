@@ -48,7 +48,19 @@ public class BranchServlet extends HttpServlet {
         String action = req.getParameter("action");
         try {
             if ("toggleActive".equals(action)) {
-                service.toggleActive(Integer.parseInt(req.getParameter("id")));
+                int id = Integer.parseInt(req.getParameter("id"));
+                Branch branch = service.getBranch(id);
+                if (branch == null) {
+                    resp.sendError(HttpServletResponse.SC_NOT_FOUND);
+                    return;
+                }
+                if (branch.getManagerUserId() == null) {
+                    req.getSession().setAttribute("flashError",
+                            "Vui lòng phân công quản lý trước khi thay đổi trạng thái chi nhánh.");
+                    resp.sendRedirect(ctx + "/admin/branch");
+                    return;
+                }
+                service.toggleActive(id);
                 req.getSession().setAttribute("flashOk", "Đã cập nhật trạng thái chi nhánh.");
                 resp.sendRedirect(ctx + "/admin/branch");
                 return;
