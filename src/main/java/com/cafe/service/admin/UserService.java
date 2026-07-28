@@ -1,7 +1,9 @@
 package com.cafe.service.admin;
 
+import com.cafe.common.BusinessException;
 import com.cafe.common.PasswordHasher;
 import com.cafe.config.DBConnection;
+import com.cafe.dao.admin.BranchDao;
 import com.cafe.dao.admin.UserDao;
 import com.cafe.model.User;
 
@@ -16,6 +18,7 @@ import java.util.List;
 public class UserService {
 
     private final UserDao dao = new UserDao();
+    private final BranchDao branchDao = new BranchDao();
 
     public List<User> getUserList() throws SQLException {
         try (Connection conn = DBConnection.getConnection()) { return dao.findAll(conn); }
@@ -53,14 +56,36 @@ public class UserService {
         }
     }
 
+    public boolean isBranchManagerRole(int roleId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            return dao.hasRoleCode(conn, roleId, "BRANCH_MANAGER");
+        }
+    }
+
+    public boolean branchHasOtherManager(int branchId, int userId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            Integer managerId = branchDao.findManagerUserIdForUpdate(conn, branchId);
+            return managerId != null && managerId != userId;
+        }
+    }
+
+    public boolean isAssignedBranchManager(int userId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            return branchDao.isManagerAssigned(conn, userId);
+        }
+    }
+
     public int createUser(User u, String rawPassword) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
             try {
+                boolean manager = dao.hasRoleCode(conn, u.getRoleId(), "BRANCH_MANAGER");
+                ensureManagerSlot(conn, manager, u.getBranchId(), 0);
                 int id = dao.insert(conn, u, PasswordHasher.hashPassword(rawPassword));
+                if (manager) branchDao.updateManager(conn, u.getBranchId(), id);
                 conn.commit();
                 return id;
-            } catch (SQLException e) { conn.rollback(); throw e; }
+            } catch (SQLException | RuntimeException e) { conn.rollback(); throw e; }
             finally { conn.setAutoCommit(true); }
         }
     }
@@ -68,9 +93,26 @@ public class UserService {
     public void updateUser(User u) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
-            try { dao.update(conn, u); conn.commit(); }
-            catch (SQLException e) { conn.rollback(); throw e; }
+            try {
+                boolean manager = dao.hasRoleCode(conn, u.getRoleId(), "BRANCH_MANAGER");
+                ensureManagerSlot(conn, manager, u.getBranchId(), u.getUserId());
+                dao.update(conn, u);
+                branchDao.clearManagerByUser(conn, u.getUserId());
+                if (manager) branchDao.updateManager(conn, u.getBranchId(), u.getUserId());
+                conn.commit();
+            }
+            catch (SQLException | RuntimeException e) { conn.rollback(); throw e; }
             finally { conn.setAutoCommit(true); }
+        }
+    }
+
+    private void ensureManagerSlot(Connection conn, boolean manager, Integer branchId, int userId)
+            throws SQLException {
+        if (!manager) return;
+        if (branchId == null) throw new BusinessException("Quản lý phải thuộc một chi nhánh.");
+        Integer currentManagerId = branchDao.findManagerUserIdForUpdate(conn, branchId);
+        if (currentManagerId != null && currentManagerId != userId) {
+            throw new BusinessException("Chi nhánh đã có quản lý phụ trách.");
         }
     }
 

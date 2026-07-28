@@ -51,12 +51,7 @@
                 </div>
             </div>
         </section>
-        <div class="form-group">
-            <label for="prepMinutes">Thời gian pha chuẩn (phút) *</label>
-            <input id="prepMinutes" type="number" name="prepMinutes" class="form-control" min="1" step="1"
-                   value="${product.prepMinutes}" required>
-            <small class="muted">Dùng để tô màu hàng chờ ở Quầy pha chế — món chờ quá mốc này mới báo trễ.</small>
-        </div>
+        <input type="hidden" name="prepMinutes" value="${product.prepMinutes}">
         <div class="form-group">
             <label for="imageUrl">Ảnh (URL)</label>
             <input id="imageUrl" type="text" name="imageUrl" class="form-control" maxlength="255" value="${product.imageUrl}"

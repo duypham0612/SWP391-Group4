@@ -1,4 +1,4 @@
-<%@ page contentType="text/html;charset=UTF-8" %>
+<%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
@@ -45,7 +45,7 @@
                 </div>
                 <div class="form-group">
                     <label for="voucherStatusFilter">Trạng thái</label>
-                    <select id="voucherStatusFilter" class="form-control tt-filter" data-tt-filter data-tt-col="6">
+                    <select id="voucherStatusFilter" class="form-control tt-filter" data-tt-filter data-tt-col="7">
                         <option value="">Tất cả</option>
                         <option value="UPCOMING">Sắp diễn ra</option>
                         <option value="RUNNING">Đang diễn ra</option>
@@ -61,13 +61,15 @@
                     <th data-tt-nosearch>Đơn tối thiểu</th>
                     <th data-tt-nosearch>Phạm vi</th>
                     <th data-tt-nosearch>Đã dùng</th>
+                    <th style="width:190px" data-tt-nosearch>Thời gian áp dụng</th>
                     <th style="width:140px" data-tt-nosearch>Trạng thái</th>
+                    <th style="width:115px" data-tt-nosearch>Kích hoạt</th>
                     <th style="width:170px" data-tt-nosearch>Thao tác</th>
                 </tr></thead>
                 <tbody>
                     <c:forEach var="v" items="${vouchers}">
                         <tr>
-                            <td><strong>${v.code}</strong></td>
+                            <td><strong><c:out value="${v.code}"/></strong></td>
                             <td>${v.discountType}</td>
                             <td>
                                 <c:choose>
@@ -78,22 +80,36 @@
                             <td><fmt:formatNumber value="${v.minOrderAmount}" maxFractionDigits="0"/> ₫</td>
                             <td data-tt-val="${v.scope}">
                                 <c:choose>
-                                    <c:when test="${v.scope == 'BRANCH'}">${v.branchName}</c:when>
+                                    <c:when test="${v.scope == 'BRANCH'}"><c:out value="${v.branchName}"/></c:when>
                                     <c:otherwise>Toàn chuỗi</c:otherwise>
                                 </c:choose>
                             </td>
                             <td>${v.usedCount}<c:if test="${not empty v.usageLimit}">/${v.usageLimit}</c:if></td>
+                            <td>
+                                <div><span class="muted">Bắt đầu:</span> ${v.startDisplay}</div>
+                                <div><span class="muted">Kết thúc:</span> ${v.endDisplay}</div>
+                            </td>
                             <td data-tt-val="${v.lifecycleStatusCode}">
                                 <span class="badge ${v.lifecycleBadgeClass}">${v.lifecycleStatusLabel}</span>
                             </td>
                             <td>
-                                <a class="btn btn-ghost btn-sm" href="${ctx}/admin/voucher?action=edit&id=${v.voucherId}">Sửa</a>
-                                <form action="${ctx}/admin/voucher" method="post" style="display:inline" onsubmit="return confirm('Đổi trạng thái voucher này?');">
-                                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                                    <input type="hidden" name="action" value="toggleActive">
-                                    <input type="hidden" name="id" value="${v.voucherId}">
-                                    <button type="submit" class="btn btn-ghost btn-sm">${v.active ? 'Tắt' : 'Bật'}</button>
-                                </form>
+                                <c:choose>
+                                    <c:when test="${v.lifecycleStatusCode == 'RUNNING'}">
+                                        <span class="badge ${v.active ? 'badge-ready' : 'badge-cancelled'}">${v.active ? 'Đang bật' : 'Đang tắt'}</span>
+                                    </c:when>
+                                    <c:otherwise><span class="muted">—</span></c:otherwise>
+                                </c:choose>
+                            </td>
+                            <td>
+                                <a class="btn btn-ghost btn-sm" href="${ctx}/admin/voucher?action=edit&amp;id=${v.voucherId}">Sửa</a>
+                                <c:if test="${v.lifecycleStatusCode == 'RUNNING'}">
+                                    <form action="${ctx}/admin/voucher" method="post" style="display:inline" onsubmit="return confirm('Đổi trạng thái voucher này?');">
+                                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                        <input type="hidden" name="action" value="toggleActive">
+                                        <input type="hidden" name="id" value="${v.voucherId}">
+                                        <button type="submit" class="btn btn-ghost btn-sm">${v.active ? 'Tắt' : 'Bật'}</button>
+                                    </form>
+                                </c:if>
                             </td>
                         </tr>
                     </c:forEach>

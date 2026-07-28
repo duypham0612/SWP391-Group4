@@ -1,5 +1,6 @@
 package com.cafe.controller.admin;
 
+import com.cafe.common.BusinessException;
 import com.cafe.common.Constants;
 import com.cafe.common.CsrfUtil;
 import com.cafe.model.Role;
@@ -15,10 +16,15 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
+import java.util.regex.Pattern;
 
 /** Admin staff accounts. */
 @WebServlet("/admin/user")
 public class UserServlet extends HttpServlet {
+
+    private static final Pattern USERNAME_PATTERN =
+            Pattern.compile("[a-z][a-z0-9._-]{3,59}");
 
     private final UserService service = new UserService();
     private final RoleService roleService = new RoleService();
@@ -86,7 +92,13 @@ public class UserServlet extends HttpServlet {
                     resp.sendRedirect(ctx + "/admin/user");
                     return;
                 }
-                String to = "LOCKED".equals(req.getParameter("current")) ? "ACTIVE" : "LOCKED";
+                String to = target != null && "LOCKED".equals(target.getStatus()) ? "ACTIVE" : "LOCKED";
+                if ("LOCKED".equals(to) && service.isAssignedBranchManager(id)) {
+                    req.getSession().setAttribute("flashError",
+                            "Không thể khoá quản lý đang phụ trách chi nhánh.");
+                    resp.sendRedirect(ctx + "/admin/user");
+                    return;
+                }
                 service.setUserStatus(id, to);
                 req.getSession().setAttribute("flashOk", "Đã cập nhật trạng thái nhân sự.");
                 resp.sendRedirect(ctx + "/admin/user");
@@ -121,11 +133,21 @@ public class UserServlet extends HttpServlet {
                 return;
             }
             if (creating) {
-                service.createUser(u, password);
-                req.getSession().setAttribute("flashOk", "Đã thêm nhân sự thành công.");
+                try {
+                    service.createUser(u, password);
+                    req.getSession().setAttribute("flashOk", "Đã thêm nhân sự thành công.");
+                } catch (BusinessException e) {
+                    showSaveError(req, resp, u, e.getMessage(), true);
+                    return;
+                }
             } else {
-                service.updateUser(u);
-                req.getSession().setAttribute("flashOk", "Đã cập nhật nhân sự thành công.");
+                try {
+                    service.updateUser(u);
+                    req.getSession().setAttribute("flashOk", "Đã cập nhật nhân sự thành công.");
+                } catch (BusinessException e) {
+                    showSaveError(req, resp, u, e.getMessage(), false);
+                    return;
+                }
             }
             resp.sendRedirect(ctx + "/admin/user");
         } catch (Exception e) { throw new ServletException(e); }
@@ -135,7 +157,7 @@ public class UserServlet extends HttpServlet {
         User u = new User();
         String id = req.getParameter("userId");
         if (id != null && !id.isBlank()) u.setUserId(Integer.parseInt(id));
-        u.setUsername(trim(req.getParameter("username")));
+        u.setUsername(normalizeUsername(req.getParameter("username")));
         u.setFullName(trim(req.getParameter("fullName")));
         u.setEmail(trim(req.getParameter("email")));
         u.setPhone(trim(req.getParameter("phone")));
@@ -149,6 +171,10 @@ public class UserServlet extends HttpServlet {
 
     private String validate(User u, String password, boolean creating) throws Exception {
         if (u.getUsername() == null || u.getUsername().isBlank()) return "Tên đăng nhập không được để trống.";
+        if (u.getUsername().length() < 4 || u.getUsername().length() > 60)
+            return "Tên đăng nhập phải có từ 4 đến 60 ký tự.";
+        if (!USERNAME_PATTERN.matcher(u.getUsername()).matches())
+            return "Tên đăng nhập phải bắt đầu bằng chữ cái và chỉ gồm chữ không dấu, số, dấu chấm, gạch dưới hoặc gạch ngang.";
         if (u.getFullName() == null || u.getFullName().isBlank()) return "Họ tên không được để trống.";
         if (u.getEmail() == null || u.getEmail().isBlank()) return "Email không được để trống.";
         if (!u.getEmail().contains("@")) return "Email phải có ký tự @.";
@@ -158,6 +184,9 @@ public class UserServlet extends HttpServlet {
         if (u.getBranchId() == null) return "Vui lòng chọn chi nhánh.";
         if (creating && (password == null || password.length() < 6)) return "Mật khẩu tối thiểu 6 ký tự.";
         if (service.usernameTaken(u.getUsername(), u.getUserId())) return "Tên đăng nhập đã tồn tại.";
+        if (service.isBranchManagerRole(u.getRoleId())
+                && service.branchHasOtherManager(u.getBranchId(), u.getUserId()))
+            return "Chi nhánh đã có quản lý phụ trách.";
         if (!"ACTIVE".equals(u.getStatus()) && !"LOCKED".equals(u.getStatus())) return "Trạng thái không hợp lệ.";
         return null;
     }
@@ -183,9 +212,24 @@ public class UserServlet extends HttpServlet {
 
     private String trim(String s) { return s == null ? null : s.trim(); }
 
+    private String normalizeUsername(String value) {
+        String username = trim(value);
+        return username == null ? null : username.toLowerCase(Locale.ROOT);
+    }
+
     private void applyLockedFields(User target, User source) {
         target.setUsername(source.getUsername());
         target.setStatus(source.getStatus());
+        target.setBranchId(source.getBranchId());
+        target.setBranchName(source.getBranchName());
+    }
+
+    private void showSaveError(HttpServletRequest req, HttpServletResponse resp, User user,
+                               String message, boolean creating)
+            throws ServletException, IOException {
+        req.setAttribute("staff", user);
+        req.setAttribute("errorMsg", message);
+        forwardForm(req, resp, creating ? "Thêm nhân sự" : "Sửa nhân sự");
     }
 
     private Integer parseFilter(String s) {
