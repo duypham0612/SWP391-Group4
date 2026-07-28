@@ -205,7 +205,10 @@ function submitOrder(){
   fetch(CTX + '/cashier/pos?_csrf=' + encodeURIComponent(CSRF), {
     method: 'POST', headers: {'Content-Type':'application/json','Accept':'application/json'}, body: JSON.stringify(payload)
   }).then(r => r.json().then(j => ({ok:r.ok, j}))).then(({ok,j}) => {
-    if(ok){ msg.innerHTML = '<span style="color:var(--st-ready)">✓ Đã gửi đơn #' + j.orderId + ' tới bếp.</span>'; cart=[]; renderCart(); }
+    if(ok){
+      msg.innerHTML = '<span style="color:var(--st-ready)">✓ Đã gửi đơn #' + j.orderId + ' tới bếp.</span>';
+      cart=[]; renderCart();
+    }
     else { msg.innerHTML = '<span style="color:var(--st-cancelled)">Lỗi: ' + (j.error||'không xác định') + '</span>'; }
   }).catch(e => { msg.innerHTML = '<span style="color:var(--st-cancelled)">Lỗi mạng.</span>'; });
 }

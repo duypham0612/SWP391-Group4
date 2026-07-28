@@ -59,7 +59,7 @@
                                 <c:otherwise><span class="badge badge-waiting">Chưa thu</span></c:otherwise>
                             </c:choose>
                         </td>
-                        <td>${b.paidAt != null ? b.paidAt : b.createdAt}</td>
+                        <td>${b.transactionAtDisplay}</td>
                         <td><a class="btn btn-ghost btn-sm" href="${ctx}/cashier/history?action=view&billId=${b.billId}">Xem</a></td>
                     </tr>
                 </c:forEach>

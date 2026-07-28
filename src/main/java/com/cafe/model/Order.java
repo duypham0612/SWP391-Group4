@@ -1,5 +1,7 @@
 package com.cafe.model;
 
+import com.cafe.common.BusinessDay;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -50,6 +52,7 @@ public class Order {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime v) { this.createdAt = v; }
+    public String getCreatedAtDisplay() { return BusinessDay.fmtFullDateTimeVn(createdAt); }
 
     public String getPickupCode() { return pickupCode; }
     public void setPickupCode(String v) { this.pickupCode = v; }

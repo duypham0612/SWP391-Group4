@@ -45,6 +45,8 @@ public final class BusinessDay {
     private static final DateTimeFormatter DATE_TIME_VN = DateTimeFormatter.ofPattern("HH:mm dd/MM");
     /** Ngày trước giờ — đơn treo nhiều ngày, mắt đọc theo trục ngày nhanh hơn. */
     private static final DateTimeFormatter STAMP_VN = DateTimeFormatter.ofPattern("dd/MM HH:mm");
+    /** Ngày, tháng, năm và giờ — lịch sử giao dịch/ca làm cần một mốc đầy đủ. */
+    private static final DateTimeFormatter FULL_DATE_TIME_VN = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     /** UTC (như DB lưu) → giờ Việt Nam để hiển thị. */
     public static LocalDateTime toVn(LocalDateTime utc) {
@@ -62,6 +64,10 @@ public final class BusinessDay {
 
     public static String fmtStampVn(LocalDateTime utc) {
         return utc == null ? "—" : toVn(utc).format(STAMP_VN);
+    }
+
+    public static String fmtFullDateTimeVn(LocalDateTime utc) {
+        return utc == null ? "—" : toVn(utc).format(FULL_DATE_TIME_VN);
     }
 
     /** Đầu ngày VN (00:00) quy về UTC, để so với cột DATETIME2 lưu UTC. */

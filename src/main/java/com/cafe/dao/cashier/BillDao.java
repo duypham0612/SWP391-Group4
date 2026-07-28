@@ -61,6 +61,20 @@ public class BillDao {
         return out;
     }
 
+    /** Các bill chứa món của một đơn, dùng cho đơn mang đi không có TableSession. */
+    public List<Bill> findByOrder(Connection conn, int orderId) throws SQLException {
+        List<Bill> out = new ArrayList<>();
+        final String sql = SELECT +
+                "WHERE EXISTS (SELECT 1 FROM payment.BillItem bi " +
+                "JOIN sales.OrderItem oi ON oi.OrderItemId=bi.OrderItemId " +
+                "WHERE bi.BillId=b.BillId AND oi.OrderId=?) ORDER BY b.BillId";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, orderId);
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
+        }
+        return out;
+    }
+
     /** Lịch sử bill của chi nhánh (mới nhất trước). */
     public List<Bill> findByBranch(Connection conn, int branchId, int limit) throws SQLException {
         List<Bill> out = new ArrayList<>();
@@ -103,6 +117,19 @@ public class BillDao {
         return out;
     }
 
+    /** Status bill gắn trực tiếp với các món của đơn mang đi. */
+    public List<String> findStatusesByOrder(Connection conn, int orderId) throws SQLException {
+        List<String> out = new ArrayList<>();
+        final String sql = "SELECT DISTINCT b.Status FROM payment.Bill b " +
+                "JOIN payment.BillItem bi ON bi.BillId=b.BillId " +
+                "JOIN sales.OrderItem oi ON oi.OrderItemId=bi.OrderItemId WHERE oi.OrderId=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, orderId);
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(rs.getString(1)); }
+        }
+        return out;
+    }
+
     /** Lịch sử bill trong 1 ca thu ngân (mới nhất trước) — C6 lọc theo ca. */
     public List<Bill> findByShift(Connection conn, int shiftId, int limit) throws SQLException {
         List<Bill> out = new ArrayList<>();
@@ -130,12 +157,14 @@ public class BillDao {
     }
 
     /** Thanh toán: chỉ chuyển UNPAID→PAID (chống double-pay bằng WHERE Status). Trả số dòng đổi. */
-    public int markPaid(Connection conn, int billId, String method) throws SQLException {
-        final String sql = "UPDATE payment.Bill SET Status='PAID', PaymentMethod=?, PaidAt=SYSUTCDATETIME() " +
+    public int markPaid(Connection conn, int billId, String method, int shiftId) throws SQLException {
+        final String sql = "UPDATE payment.Bill SET Status='PAID', PaymentMethod=?, " +
+                "CashierShiftId=?, PaidAt=SYSUTCDATETIME() " +
                 "WHERE BillId=? AND Status='UNPAID'";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, method);
-            ps.setInt(2, billId);
+            ps.setInt(2, shiftId);
+            ps.setInt(3, billId);
             return ps.executeUpdate();
         }
     }
@@ -143,15 +172,6 @@ public class BillDao {
     public int markVoid(Connection conn, int billId) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
                 "UPDATE payment.Bill SET Status='VOID' WHERE BillId=? AND Status<>'PAID'")) {
-            ps.setInt(1, billId);
-            return ps.executeUpdate();
-        }
-    }
-
-    /** Hoàn hoá đơn ĐÃ thanh toán: chỉ PAID→REFUND (chống hoàn 2 lần bằng WHERE Status). */
-    public int markRefund(Connection conn, int billId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE payment.Bill SET Status='REFUND' WHERE BillId=? AND Status='PAID'")) {
             ps.setInt(1, billId);
             return ps.executeUpdate();
         }

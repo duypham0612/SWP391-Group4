@@ -54,6 +54,28 @@ public class OrderDao {
     }
 
     /**
+     * Đơn mang đi chưa thanh toán: chưa có bill hoặc đang có bill UNPAID.
+     * Giữ đơn trong danh sách checkout cả khi Cashier đã mở bill rồi rời màn hình.
+     */
+    public List<Order> findTakeawayAwaitingPaymentByBranch(Connection conn, int branchId) throws SQLException {
+        List<Order> out = new ArrayList<>();
+        final String sql = SELECT +
+                "WHERE o.BranchId=? AND o.OrderType='TAKEAWAY' AND o.Status<>'CANCELLED' " +
+                "AND (NOT EXISTS (SELECT 1 FROM sales.OrderItem oi " +
+                "JOIN payment.BillItem bi ON bi.OrderItemId=oi.OrderItemId WHERE oi.OrderId=o.OrderId) " +
+                "OR EXISTS (SELECT 1 FROM sales.OrderItem oi " +
+                "JOIN payment.BillItem bi ON bi.OrderItemId=oi.OrderItemId " +
+                "JOIN payment.Bill b ON b.BillId=bi.BillId " +
+                "WHERE oi.OrderId=o.OrderId AND b.Status='UNPAID')) " +
+                "ORDER BY o.CreatedAt DESC";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
+        }
+        return out;
+    }
+
+    /**
      * Đơn đang xử lý (ACTIVE) của chi nhánh — cho Order Inbox (Cashier monitor).
      *
      * <p>Đơn TREO (tạo trước mốc đầu ngày kinh doanh) xếp lên ĐẦU, phần còn lại giữ mới-trước như cũ.

@@ -23,16 +23,7 @@ public class PickupServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
-        try {
-            loadBoard(req, branchId);
-            req.setAttribute("pageTitle", "Sẵn sàng bàn giao");
-            boolean partial = "1".equals(req.getParameter("partial"));
-            String view = partial
-                    ? "/WEB-INF/views/cashier/handoff/cards.jsp"
-                    : "/WEB-INF/views/cashier/handoff/index.jsp";
-            req.getRequestDispatcher(view).forward(req, resp);
-        } catch (Exception e) { throw new ServletException(e); }
+        resp.sendRedirect(req.getContextPath() + "/cashier/inbox#handoff");
     }
 
     @Override
@@ -68,7 +59,7 @@ public class PickupServlet extends HttpServlet {
             loadBoard(req, branchId);
             req.getRequestDispatcher("/WEB-INF/views/cashier/handoff/cards.jsp").forward(req, resp);
         } else {
-            resp.sendRedirect(req.getContextPath() + "/cashier/handoff");
+            resp.sendRedirect(req.getContextPath() + "/cashier/inbox#handoff");
         }
     }
 

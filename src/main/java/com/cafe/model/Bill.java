@@ -1,5 +1,7 @@
 package com.cafe.model;
 
+import com.cafe.common.BusinessDay;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -64,6 +66,9 @@ public class Bill {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime v) { this.createdAt = v; }
+    public String getTransactionAtDisplay() {
+        return BusinessDay.fmtFullDateTimeVn(paidAt != null ? paidAt : createdAt);
+    }
 
     public String getTableNumber() { return tableNumber; }
     public void setTableNumber(String v) { this.tableNumber = v; }
@@ -73,4 +78,13 @@ public class Bill {
 
     public List<BillItem> getItems() { return items; }
     public void setItems(List<BillItem> v) { this.items = v; }
+
+    /** Chỉ được thu tiền sau khi mọi dòng trên bill đã hoàn tất bước bàn giao khách. */
+    public boolean isReadyForPayment() {
+        if (items == null || items.isEmpty()) return false;
+        for (BillItem item : items) {
+            if (!"SERVED".equals(item.getStatus())) return false;
+        }
+        return true;
+    }
 }

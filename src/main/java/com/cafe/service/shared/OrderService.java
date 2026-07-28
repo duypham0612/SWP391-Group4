@@ -891,8 +891,9 @@ public class OrderService {
                 o.setItems(items);
                 o.setStale(o.getCreatedAt() != null && dayStart != null && o.getCreatedAt().isBefore(dayStart));
                 // R3 · trạng thái thanh toán tổng đơn (suy từ các bill của phiên bàn)
-                o.setPaymentStatus(o.getTableSessionId() == null ? "PAYING"
-                        : paymentStatusFor(billDao.findStatusesBySession(conn, o.getTableSessionId())));
+                o.setPaymentStatus(paymentStatusFor(o.getTableSessionId() == null
+                        ? billDao.findStatusesByOrder(conn, o.getOrderId())
+                        : billDao.findStatusesBySession(conn, o.getTableSessionId())));
             }
             return orders;
         }

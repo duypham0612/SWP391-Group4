@@ -38,8 +38,8 @@ public class SeedPasswordListener implements ServletContextListener {
             }
             log(sce, "[SeedPassword] Đã set mật khẩu mặc định ('" + DEFAULT_SEED_PASSWORD
                     + "') cho " + pending.size() + " tài khoản seed.");
-        } catch (Exception e) {
-            log(sce, "[SeedPassword] Bỏ qua (DB chưa sẵn sàng?): " + e.getMessage());
+        } catch (Throwable t) {
+            log(sce, "[SeedPassword] Bỏ qua (DB chưa sẵn sàng?): " + t.getMessage());
         }
     }
 
