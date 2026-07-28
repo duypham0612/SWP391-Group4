@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-/** C6 · BillHistoryServlet → /cashier/history. list (lọc theo ca) | view | void (kèm lý do + log). */
+/** C6 · BillHistoryServlet → /cashier/history. list (lọc theo ca) | view | void bill chưa thu. */
 @WebServlet("/cashier/history")
 public class BillHistoryServlet extends HttpServlet {
 
@@ -60,28 +60,20 @@ public class BillHistoryServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
-        User u = SessionUtil.currentUser(req);
-        Integer userId = u != null ? u.getUserId() : null;
+        User user = SessionUtil.currentUser(req);
+        Integer userId = user != null ? user.getUserId() : null;
         try {
             String action = req.getParameter("action");
-            if ("void".equals(action) || "refund".equals(action)) {
+            if ("void".equals(action)) {
                 String reason = req.getParameter("reason");
                 if (reason == null || reason.isBlank()) {
-                    req.getSession().setAttribute("flashError", "Phải nhập lý do khi huỷ/hoàn hoá đơn.");
+                    req.getSession().setAttribute("flashError", "Phải nhập lý do khi huỷ hoá đơn.");
                 } else {
                     int billId = Integer.parseInt(req.getParameter("billId"));
-                    boolean refund = "refund".equals(action);
-                    boolean ok = refund
-                            ? service.refundBill(billId, reason.trim(), userId)
-                            : service.voidBill(billId, reason.trim(), userId);
-                    if (refund) {
-                        req.getSession().setAttribute(ok ? "flashOk" : "flashError",
-                                ok ? "Đã hoàn hoá đơn đã thanh toán (đã ghi log lý do)."
-                                   : "Không hoàn được (hoá đơn chưa thanh toán hoặc đã hoàn?).");
-                    } else {
-                        req.getSession().setAttribute(ok ? "flashOk" : "flashError",
-                                ok ? "Đã huỷ hoá đơn (đã ghi log lý do)." : "Không huỷ được (đã thanh toán?).");
-                    }
+                    boolean ok = service.voidBill(billId, reason.trim(), userId);
+                    req.getSession().setAttribute(ok ? "flashOk" : "flashError",
+                            ok ? "Đã huỷ hoá đơn (đã ghi log lý do)."
+                               : "Không huỷ được (hoá đơn đã thanh toán?).");
                 }
             }
             resp.sendRedirect(req.getContextPath() + "/cashier/history");

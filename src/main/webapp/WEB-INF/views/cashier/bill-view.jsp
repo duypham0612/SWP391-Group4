@@ -11,7 +11,7 @@
 
 <div class="page-header">
     <div><div class="eyebrow">Hoá đơn #${bill.billId}</div><h1>Chi tiết hoá đơn</h1>
-        <p><c:if test="${not empty bill.tableNumber}">${bill.tableNumber} · </c:if>${bill.paidAt != null ? bill.paidAt : bill.createdAt}</p></div>
+        <p><c:if test="${not empty bill.tableNumber}">${bill.tableNumber} · </c:if>${bill.transactionAtDisplay}</p></div>
     <span>
         <button type="button" class="btn btn-ghost no-print" onclick="window.print()">In / Tái in</button>
         <a class="btn btn-ghost" href="${ctx}/cashier/history">← Lịch sử</a>
@@ -52,19 +52,6 @@
                 <input type="text" name="reason" class="form-control" maxlength="255" required placeholder="VD: khách đổi món, nhập sai...">
             </div>
             <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--st-cancelled)">Huỷ hoá đơn</button>
-        </form>
-    </c:if>
-    <c:if test="${bill.status == 'PAID'}">
-        <form action="${ctx}/cashier/history" method="post" class="no-print" style="margin-top:10px;display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap"
-              onsubmit="return confirm('Hoàn tiền hoá đơn ĐÃ thanh toán này?');">
-            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-            <input type="hidden" name="action" value="refund">
-            <input type="hidden" name="billId" value="${bill.billId}">
-            <div class="form-group" style="margin:0;flex:1;min-width:200px">
-                <label>Lý do hoàn tiền (bắt buộc)</label>
-                <input type="text" name="reason" class="form-control" maxlength="255" required placeholder="VD: khách trả món, tính nhầm...">
-            </div>
-            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--st-cancelled)">Hoàn hoá đơn</button>
         </form>
     </c:if>
 </div>
