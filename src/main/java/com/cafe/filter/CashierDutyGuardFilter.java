@@ -21,6 +21,8 @@ import java.sql.SQLException;
 public class CashierDutyGuardFilter implements Filter {
 
     private static final String MESSAGE = "Bạn cần bắt đầu ca trước khi thao tác.";
+    private static final String DUTY_DENIED_HEADER = "X-Cashier-Duty-Denied";
+    private static final String DUTY_REDIRECT_HEADER = "X-Cashier-Duty-Redirect";
 
     private final CashierDutyService dutyService = new CashierDutyService();
 
@@ -53,9 +55,11 @@ public class CashierDutyGuardFilter implements Filter {
             return;
         }
 
-        if (wantsJson(req)) {
+        if (isAsyncRequest(req)) {
             resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
             resp.setContentType("application/json;charset=UTF-8");
+            resp.setHeader(DUTY_DENIED_HEADER, "true");
+            resp.setHeader(DUTY_REDIRECT_HEADER, ctx + "/cashier/shift");
             resp.getWriter().write("{\"error\":\"" + MESSAGE + "\"}");
             return;
         }
@@ -70,12 +74,13 @@ public class CashierDutyGuardFilter implements Filter {
                 || path.equals("/cashier/dashboard");
     }
 
-    private boolean wantsJson(HttpServletRequest req) {
+    private boolean isAsyncRequest(HttpServletRequest req) {
         String contentType = req.getContentType();
         String accept = req.getHeader("Accept");
         String requestedWith = req.getHeader("X-Requested-With");
         return (contentType != null && contentType.toLowerCase().contains("application/json"))
                 || (accept != null && accept.toLowerCase().contains("application/json"))
-                || "XMLHttpRequest".equalsIgnoreCase(requestedWith);
+                || "XMLHttpRequest".equalsIgnoreCase(requestedWith)
+                || "1".equals(req.getParameter("ajax"));
     }
 }

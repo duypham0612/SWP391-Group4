@@ -9,7 +9,7 @@
 // getAttribute('action') chứ KHÔNG phải f.action: các form ở cards.jsp có <input name="action">,
 // mà control trùng tên sẽ che thuộc tính cùng tên của form → f.action trả về thẻ input, fetch dựng
 // thành URL "[object HTMLInputElement]" và mọi thao tác rơi xuống fallback submit (reload cả trang).
-async function post(f){if(f.dataset.busy)return;f.dataset.busy='1';f.querySelectorAll('button').forEach(function(x){x.disabled=true;x.classList.add('is-loading')});var d=new FormData(f);d.append('ajax','1');var r=await fetch(f.getAttribute('action'),{method:'POST',body:d,credentials:'same-origin'});if(!r.ok)throw new Error();b.innerHTML=await r.text();}
+async function post(f){if(f.dataset.busy)return;f.dataset.busy='1';f.querySelectorAll('button').forEach(function(x){x.disabled=true;x.classList.add('is-loading')});var d=new FormData(f);d.append('ajax','1');var r=await fetch(f.getAttribute('action'),{method:'POST',body:d,credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest'}});if(r.headers.get('X-Cashier-Duty-Denied')==='true'){window.location.assign(r.headers.get('X-Cashier-Duty-Redirect')||ctx+'/cashier/shift');return}if(!r.ok)throw new Error();b.innerHTML=await r.text();}
 b.addEventListener('submit',function(e){var f=e.target.closest('form');if(!f)return;e.preventDefault();if(f.dataset.confirm&&!confirm(f.dataset.confirm))return;post(f).catch(function(){f.submit()});});
 // Không tự động làm mới nữa — bảng cập nhật sau mỗi thao tác, hoặc khi bấm "Làm mới".
 async function reload(){if(busy)return;busy=true;try{var r=await fetch(ctx+'/cashier/handoff?partial=1',{credentials:'same-origin'});if(r.ok)b.innerHTML=await r.text();}finally{busy=false}}
