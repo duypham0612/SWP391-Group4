@@ -5,7 +5,8 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Thu ngân</div><h1>Đơn đến (Inbox)</h1><p>Giám sát đơn quầy + QR đang xử lý — huỷ đơn sai (không chặn luồng vào bếp)</p></div>
+    <div><div class="eyebrow">Thu ngân</div><h1>Đơn đến &amp; Bàn giao</h1><p>Theo dõi đơn, nhận món đã pha và xác nhận giao khách trên cùng một màn hình.</p></div>
+    <a class="btn btn-ghost btn-sm" href="${ctx}/cashier/inbox#handoff">↻ Làm mới</a>
 </div>
 
 <c:if test="${not empty sessionScope.flashOk}">
@@ -17,13 +18,23 @@
     <c:remove var="flashError" scope="session" />
 </c:if>
 
+<section id="handoff" style="scroll-margin-top:20px;margin-bottom:24px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px">
+        <h2 style="margin:0">Món sẵn bàn giao</h2>
+        <span class="badge badge-ready">${tickets.size() + pickedUpItems.size()} nhóm đang chờ</span>
+    </div>
+    <jsp:include page="handoff/cards.jsp" />
+</section>
+
+<h2 id="orders" style="scroll-margin-top:20px">Đơn đang xử lý</h2>
+
 <%-- Đơn treo từ ngày kinh doanh trước: quán đã đóng cửa nhiều giờ trước mốc cắt ngày nên khách của
-     những đơn này đã về — quầy pha chế không nhận nữa, chỉ Thu ngân chốt được (huỷ & hoàn tiền).
+     những đơn này đã về — quầy pha chế không nhận nữa, chỉ Thu ngân còn theo dõi và chốt được.
      Chúng đã được xếp lên đầu danh sách; dòng nhắc này để không phải đếm bằng mắt. --%>
 <c:if test="${staleOrderCount > 0}">
     <div class="alert alert-error">
         <strong>${staleOrderCount} đơn treo từ ngày kinh doanh trước</strong> — nằm ở đầu danh sách.
-        Huỷ món chưa pha &amp; hoàn tiền cho khách, hoặc giao nốt món đã pha xong ở màn Bàn giao.
+        Huỷ món chưa pha, hoặc giao nốt món đã pha xong ở khu vực Bàn giao phía trên.
     </div>
 </c:if>
 
@@ -49,9 +60,13 @@
                             <c:when test="${o.paymentStatus == 'ERROR'}"><span class="badge badge-cancelled">Lỗi thanh toán</span></c:when>
                             <c:otherwise><span class="badge badge-waiting">Đang thanh toán</span></c:otherwise>
                         </c:choose>
-                        <br><small style="color:var(--muted)">${o.createdAt} · ${o.items.size()} món · Tổng <fmt:formatNumber value="${o.total}" type="number"/>đ</small>
+                        <br><small style="color:var(--muted)">${o.createdAtDisplay} · ${o.items.size()} món · Tổng <fmt:formatNumber value="${o.total}" type="number"/>đ</small>
                     </div>
-                    <c:choose>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+                        <c:if test="${o.orderType == 'TAKEAWAY' and o.paymentStatus != 'PAID'}">
+                            <a class="btn btn-primary btn-sm" href="${ctx}/cashier/checkout?orderId=${o.orderId}">Thanh toán</a>
+                        </c:if>
+                        <c:choose>
                         <c:when test="${o.cancellable}">
                             <form action="${ctx}/cashier/inbox" method="post" onsubmit="return confirm('Huỷ đơn #${o.orderId}? Các món chưa pha sẽ bị huỷ.');">
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
@@ -63,7 +78,8 @@
                         <c:otherwise>
                             <small style="color:var(--muted)">Đang/đã pha — không thể huỷ</small>
                         </c:otherwise>
-                    </c:choose>
+                        </c:choose>
+                    </div>
                 </div>
                 <table class="table" style="margin-top:10px">
                     <thead><tr><th>Món</th><th style="width:70px">SL</th><th style="width:120px">Trạng thái</th><th>Ghi chú</th><th style="width:110px">Thao tác</th></tr></thead>
@@ -94,5 +110,13 @@
         </c:forEach>
     </c:otherwise>
 </c:choose>
+
+<script>
+document.querySelectorAll('#handoff form[data-confirm]').forEach(function(form) {
+    form.addEventListener('submit', function(event) {
+        if (!window.confirm(form.dataset.confirm)) event.preventDefault();
+    });
+});
+</script>
 
 <jsp:include page="../layout/footer.jsp" />
