@@ -1,5 +1,5 @@
 package com.cafe.service.customer;
-import com.cafe.service.cashier.TableSessionService;
+import com.cafe.dao.shared.OutboxEventDao;
 import com.cafe.service.shared.OrderService;
 import com.cafe.service.shared.CatalogReadService;
 
@@ -27,20 +27,78 @@ public class QrOrderService {
 
     private final DiningTableDao tableDao = new DiningTableDao();
     private final TableSessionDao sessionDao = new TableSessionDao();
-    private final TableSessionService tableSessionService = new TableSessionService();
+    private final OutboxEventDao outboxDao = new OutboxEventDao();
     private final CatalogReadService catalogReadService = new CatalogReadService();
     private final OrderService orderService = new OrderService();
 
-    /** Nhận diện bàn từ mã QR → mở/lấy phiên ẩn danh (OpenedBy=null). null nếu QR sai. */
-    public TableSession identifyTable(String qrCode) throws SQLException {
-        if (qrCode == null || qrCode.isBlank()) return null;
-        DiningTable t;
-        try (Connection c = DBConnection.getConnection()) {
-            t = tableDao.findByQrCode(c, qrCode);
+    /** Kết quả quét QR: bàn nhận ra được chưa, và phiên bàn đã được THU NGÂN mở chưa. */
+    public static class ScanResult {
+        public enum Status { INVALID_QR, TABLE_NOT_OPEN, OK }
+
+        private final Status status;
+        private final DiningTable table;
+        private final TableSession session;
+
+        private ScanResult(Status status, DiningTable table, TableSession session) {
+            this.status = status; this.table = table; this.session = session;
         }
-        if (t == null) return null;
-        int sessionId = tableSessionService.openSession(t.getBranchId(), t.getDiningTableId(), null);
-        return getSession(sessionId);
+        static ScanResult invalid()                       { return new ScanResult(Status.INVALID_QR, null, null); }
+        static ScanResult notOpen(DiningTable t)          { return new ScanResult(Status.TABLE_NOT_OPEN, t, null); }
+        static ScanResult ok(DiningTable t, TableSession s){ return new ScanResult(Status.OK, t, s); }
+
+        public Status getStatus()      { return status; }
+        public DiningTable getTable()  { return table; }
+        public TableSession getSession() { return session; }
+        public boolean isOk()          { return status == Status.OK; }
+    }
+
+    /**
+     * Nhận diện bàn từ mã QR và GẮN khách vào phiên bàn đang mở.
+     *
+     * Nghiệp vụ (Contract #3 — Cashier sở hữu order entry): khách quét QR KHÔNG mở được bàn.
+     * Thu ngân phải mở bàn trước (/cashier/table → openTable) thì QR mới đặt món được; nếu không,
+     * người đi ngang hoặc ảnh chụp mã QR cũng tạo được phiên và đẩy bàn sang OCCUPIED,
+     * làm sơ đồ bàn của quầy sai và sinh phiên rác không ai chịu trách nhiệm.
+     */
+    public ScanResult scan(String qrCode) throws SQLException {
+        if (qrCode == null || qrCode.isBlank()) return ScanResult.invalid();
+        try (Connection c = DBConnection.getConnection()) {
+            DiningTable t = tableDao.findByQrCode(c, qrCode);
+            if (t == null) return ScanResult.invalid();
+            TableSession open = sessionDao.findOpenByTable(c, t.getDiningTableId());
+            return open == null ? ScanResult.notOpen(t) : ScanResult.ok(t, open);
+        }
+    }
+
+    /**
+     * Phiên còn nhận đơn của khách không. Chặn đặt món vào phiên thu ngân đã chốt bill/đóng bàn
+     * trong lúc tab QR của khách vẫn mở.
+     */
+    public boolean isSessionOrderable(int sessionId) throws SQLException {
+        TableSession s = getSession(sessionId);
+        return s != null && "OPEN".equals(s.getStatus());
+    }
+
+    /**
+     * Khách xin quầy mở bàn (bàn chưa có phiên). Ghi ops.OutboxEvent để hiện lên sơ đồ bàn thu ngân.
+     * Idempotent: đã có yêu cầu treo cho bàn thì không ghi thêm.
+     */
+    public void requestTableOpen(int branchId, int tableId, String tableNumber) throws SQLException {
+        try (Connection c = DBConnection.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                if (!outboxDao.hasPendingOpenRequest(c, tableId)) {
+                    EventPublisher.publish(c, EventType.TABLE_OPEN_REQUESTED, String.valueOf(tableId), branchId,
+                            "{\"tableId\":" + tableId + ",\"tableNumber\":\"" + esc(tableNumber) + "\"}");
+                }
+                c.commit();
+            } catch (SQLException e) { c.rollback(); throw e; }
+            finally { c.setAutoCommit(true); }
+        }
+    }
+
+    private static String esc(String s) {
+        return s == null ? "" : s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     public TableSession getSession(int sessionId) throws SQLException {
@@ -69,9 +127,17 @@ public class QrOrderService {
         return out;
     }
 
-    /** R5 · Khách huỷ đơn — uỷ thác OrderService.voidOrder (cùng guard: chỉ huỷ khi chưa pha). */
-    public boolean cancelOrder(int orderId) throws SQLException {
-        return orderService.voidOrder(orderId, null);
+    /**
+     * R5 · Khách huỷ đơn — uỷ thác OrderService.voidOrder (cùng guard: chỉ huỷ khi chưa pha).
+     * Bắt buộc truyền sessionId của chính khách: đơn phải thuộc phiên đó, nếu không khách bàn này
+     * huỷ được đơn bàn khác chỉ bằng cách đổi orderId.
+     */
+    public boolean cancelOrder(int sessionId, int orderId) throws SQLException {
+        boolean owned = false;
+        for (Order o : orderService.getSessionOrders(sessionId)) {
+            if (o.getOrderId() == orderId) { owned = true; break; }
+        }
+        return owned && orderService.voidOrder(orderId, null);
     }
 
     public void callStaff(int sessionId, int branchId) throws SQLException {

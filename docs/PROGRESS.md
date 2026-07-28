@@ -386,3 +386,10 @@ Quyết định user: **giữ `com.cafe` layer-based**, đổi tên/route đúng
 
 - **2026-07-19** — **DB · Gộp về một file schema duy nhất:** `sql/database.sql` giờ là nguồn sự thật duy nhất. Đã fold 3 cột của đợt migration KDS vào định nghĩa bảng gốc (`org.Branch.PeakThresholdCups`, `catalog.Product.PrepSeconds`, `sales.Orders.PickupCode`) và đưa demo Hao hụt & Làm lại (28 dòng CN01) thành **PART D** ở cuối file. Xoá 5 file rời: `migration_barista_workbench.sql` (nội dung đã có sẵn trong schema), `migration_kds_business.sql`, `migration_orderitem_preparedby.sql`, `migration_orderitem_servedat.sql` (đều là tập con), `seed_waste_log_demo.sql`.
   - ⚠️ **DB đang chạy:** file gộp là script dựng mới (DROP/CREATE). Ai đã chạy các migration cũ thì DB hiện tại vẫn đúng, không cần làm gì. Ai chưa chạy `migration_kds_business.sql` thì phải dựng lại DB từ `database.sql` (hoặc tự `ALTER TABLE` thêm 3 cột trên) — nếu không, query KDS sẽ lỗi thiếu cột.
+
+- **2026-07-27** — **T1 QR khách:** thêm trang chỉ-GET `/cashier/table-qr`, cho sửa base URL trước khi in, render QR theo từng bàn và unit test `QrLink`.
+- **2026-07-27** — **T2 QR khách:** nối hai chiều menu ↔ theo dõi và cho gọi thêm món bằng phiên QR đang mở trong HTTP session.
+- **2026-07-27** — **T3 QR khách:** chặn đóng bàn thủ công khi còn món chưa huỷ, giữ phiên/bàn nguyên trạng và dẫn thu ngân tới Đơn đến.
+- **2026-07-27** — **T4 QR khách:** hiện tín hiệu Gọi NV/Xin thanh toán đúng bàn, có xác nhận CSRF và tự hạ yêu cầu thanh toán trong transaction thu tiền.
+- **2026-07-27** — **T5 QR khách:** polling trạng thái món mỗi 10 giây, tự chuyển sang lời cảm ơn và dừng thao tác/polling khi phiên đã đóng.
+- **2026-07-27** — **QR khách · follow-up security/UX:** branch-scope cho `setStatus` và `merge`, dọn tín hiệu khi đóng/gộp phiên, dùng `QrLink.menuUrl` trong URL thực tế, guard thư viện QR và tự làm mới nút huỷ khi món bắt đầu pha.

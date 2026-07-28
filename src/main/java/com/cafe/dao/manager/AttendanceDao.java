@@ -32,8 +32,15 @@ public class AttendanceDao {
         "JOIN org.Branch b          ON b.BranchId = st.BranchId " +
         "LEFT JOIN iam.[User] ap    ON ap.UserId = a.ApprovedBy ";
 
-    /** Các ca hôm nay của chính nhân viên, đã scope theo chi nhánh. */
-    public List<ShiftAssignment> findTodayAssignments(Connection conn, int userId, int branchId, LocalDate workDate) throws SQLException {
+    /**
+     * Ca dùng để chấm công: thêm ca hôm trước vì ca đêm chỉ kết thúc vào sáng hôm sau.
+     * Service lọc tiếp bằng {@link com.cafe.common.ShiftWindow} nên ca cũ đã hết giờ không lọt vào.
+     */
+    public List<ShiftAssignment> findClockAssignments(Connection conn, int userId, int branchId, LocalDate businessDate) throws SQLException {
+        return findAssignmentsBetween(conn, userId, branchId, businessDate.minusDays(1), businessDate);
+    }
+
+    private List<ShiftAssignment> findAssignmentsBetween(Connection conn, int userId, int branchId, LocalDate from, LocalDate to) throws SQLException {
         List<ShiftAssignment> out = new ArrayList<>();
         final String sql =
             "SELECT sa.ShiftAssignmentId, sa.ShiftTemplateId, sa.UserId, sa.WorkDate, " +
@@ -41,12 +48,13 @@ public class AttendanceDao {
             "FROM hr.ShiftAssignment sa " +
             "JOIN hr.ShiftTemplate st ON st.ShiftTemplateId = sa.ShiftTemplateId " +
             "JOIN iam.[User] u        ON u.UserId = sa.UserId " +
-            "WHERE sa.UserId=? AND st.BranchId=? AND sa.WorkDate=? " +
-            "ORDER BY st.StartTime";
+            "WHERE sa.UserId=? AND st.BranchId=? AND sa.WorkDate BETWEEN ? AND ? " +
+            "ORDER BY sa.WorkDate, st.StartTime";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, userId);
             ps.setInt(2, branchId);
-            ps.setDate(3, Date.valueOf(workDate));
+            ps.setDate(3, Date.valueOf(from));
+            ps.setDate(4, Date.valueOf(to));
             try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(mapAssignment(rs)); }
         }
         return out;
@@ -88,6 +96,25 @@ public class AttendanceDao {
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, branchId);
             ps.setString(2, status);
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
+        }
+        return out;
+    }
+
+    /**
+     * Chấm công CHƯA tan ca của chi nhánh quanh ngày kinh doanh — nguồn để biết ai còn đang trực.
+     * Lấy cả ca hôm trước vì ca đêm chỉ kết thúc vào sáng hôm sau; service lọc tiếp bằng
+     * {@link com.cafe.common.ShiftWindow#onDuty} nên ca đã quá giờ tan không được tính là còn trực.
+     */
+    public List<Attendance> findOpenByBranch(Connection conn, int branchId, LocalDate businessDate)
+            throws SQLException {
+        List<Attendance> out = new ArrayList<>();
+        final String sql = SELECT + "WHERE st.BranchId=? AND a.CheckOutAt IS NULL "
+                + "AND sa.WorkDate >= ? AND sa.WorkDate <= ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setDate(2, Date.valueOf(businessDate.minusDays(1)));
+            ps.setDate(3, Date.valueOf(businessDate));
             try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
         }
         return out;
@@ -203,34 +230,118 @@ public class AttendanceDao {
         return out;
     }
 
+    private static final String MONTHLY_SELECT =
+        "SELECT sa.WorkDate, st.Name AS TemplateName, st.StartTime, st.EndTime, " +
+        "       a.CheckInAt, a.CheckOutAt, a.Status ";
+
+    private static final String MONTHLY_FROM =
+        "FROM hr.ShiftAssignment sa " +
+        "JOIN hr.ShiftTemplate st ON st.ShiftTemplateId = sa.ShiftTemplateId " +
+        "OUTER APPLY ( " +
+        "    SELECT TOP 1 att.CheckInAt, att.CheckOutAt, att.Status " +
+        "    FROM hr.Attendance att " +
+        "    WHERE att.ShiftAssignmentId = sa.ShiftAssignmentId " +
+        "    ORDER BY att.AttendanceId DESC " +
+        ") a ";
+
+    /** Ca mới nhất trước; ShiftAssignmentId chốt thứ tự để OFFSET/FETCH không trả trùng hoặc sót dòng. */
+    private static final String MONTHLY_ORDER = "ORDER BY sa.WorkDate DESC, st.StartTime, sa.ShiftAssignmentId ";
+
     /** Lịch đi làm 1 tháng của CHÍNH nhân viên — gồm cả ngày được xếp ca mà không đi. */
     public List<MonthlyAttendanceRow> findMonthlyByUser(Connection conn, int userId, int branchId,
                                                          LocalDate monthStart, LocalDate monthEndExclusive)
             throws SQLException {
         List<MonthlyAttendanceRow> out = new ArrayList<>();
-        final String sql =
-            "SELECT sa.WorkDate, st.Name AS TemplateName, st.StartTime, st.EndTime, " +
-            "       a.CheckInAt, a.CheckOutAt, a.Status " +
-            "FROM hr.ShiftAssignment sa " +
-            "JOIN hr.ShiftTemplate st ON st.ShiftTemplateId = sa.ShiftTemplateId " +
-            "OUTER APPLY ( " +
-            "    SELECT TOP 1 att.CheckInAt, att.CheckOutAt, att.Status " +
-            "    FROM hr.Attendance att " +
-            "    WHERE att.ShiftAssignmentId = sa.ShiftAssignmentId " +
-            "    ORDER BY att.AttendanceId DESC " +
-            ") a " +
-            "WHERE sa.UserId=? AND st.BranchId=? AND sa.WorkDate>=? AND sa.WorkDate<? " +
-            "ORDER BY sa.WorkDate DESC, st.StartTime";
+        final String sql = MONTHLY_SELECT + MONTHLY_FROM + monthlyWhere(null, null) + MONTHLY_ORDER;
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, userId);
-            ps.setInt(2, branchId);
-            ps.setDate(3, Date.valueOf(monthStart));
-            ps.setDate(4, Date.valueOf(monthEndExclusive));
+            bindMonthlyFilters(ps, 1, userId, branchId, monthStart, monthEndExclusive, null);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) out.add(mapMonthly(rs));
             }
         }
         return out;
+    }
+
+    /** Một trang lịch đi làm đã tìm/lọc tại DB — màn ca làm không tải cả tháng về trình duyệt. */
+    public List<MonthlyAttendanceRow> findMonthlyPageByUser(Connection conn, int userId, int branchId,
+                                                             LocalDate monthStart, LocalDate monthEndExclusive,
+                                                             String query, String state,
+                                                             int offset, int pageSize) throws SQLException {
+        List<MonthlyAttendanceRow> out = new ArrayList<>();
+        final String sql = MONTHLY_SELECT + MONTHLY_FROM + monthlyWhere(query, state) + MONTHLY_ORDER
+                + "OFFSET ? ROWS FETCH NEXT ? ROWS ONLY";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = bindMonthlyFilters(ps, 1, userId, branchId, monthStart, monthEndExclusive, query);
+            ps.setInt(idx++, Math.max(0, offset));
+            ps.setInt(idx, Math.max(1, pageSize));
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) out.add(mapMonthly(rs));
+            }
+        }
+        return out;
+    }
+
+    public int countMonthlyByUser(Connection conn, int userId, int branchId,
+                                  LocalDate monthStart, LocalDate monthEndExclusive,
+                                  String query, String state) throws SQLException {
+        final String sql = "SELECT COUNT(*) " + MONTHLY_FROM + monthlyWhere(query, state);
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            bindMonthlyFilters(ps, 1, userId, branchId, monthStart, monthEndExclusive, query);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getInt(1) : 0; }
+        }
+    }
+
+    private static String monthlyWhere(String query, String state) {
+        StringBuilder where = new StringBuilder(
+                "WHERE sa.UserId=? AND st.BranchId=? AND sa.WorkDate>=? AND sa.WorkDate<? ");
+        if (hasText(query)) {
+            // Tìm theo tên ca hoặc theo đúng ngày người dùng đang đọc trên bảng (dd/MM/yyyy).
+            where.append("AND (st.Name LIKE ? ESCAPE '\\' ")
+                 .append("OR CONVERT(varchar(10), sa.WorkDate, 103) LIKE ? ESCAPE '\\') ");
+        }
+        where.append(monthlyStateCondition(state));
+        return where.toString();
+    }
+
+    /** Ca đã chốt giờ — điều kiện chung của ba trạng thái duyệt. */
+    private static final String MONTHLY_CLOSED = "AND a.CheckInAt IS NOT NULL AND a.CheckOutAt IS NOT NULL ";
+
+    /**
+     * Trạng thái hiển thị suy ra từ mốc chấm công chứ không chỉ từ Attendance.Status, nên bộ lọc phải
+     * lặp đúng thứ tự ưu tiên của {@link MonthlyAttendanceRow#getStateLabel()}: chưa vào ca = Vắng,
+     * vào mà chưa tan = Chưa tan ca, còn lại mới xét trạng thái duyệt. Lệch một nhánh là bộ lọc trả về
+     * dòng mang nhãn khác với mục vừa chọn.
+     */
+    private static String monthlyStateCondition(String state) {
+        if (state == null) return "";
+        switch (state) {
+            case "ABSENT":   return "AND a.CheckInAt IS NULL ";
+            case "OPEN":     return "AND a.CheckInAt IS NOT NULL AND a.CheckOutAt IS NULL ";
+            case "APPROVED": return MONTHLY_CLOSED + "AND a.Status='APPROVED' ";
+            case "REJECTED": return MONTHLY_CLOSED + "AND a.Status='REJECTED' ";
+            // Status NULL vẫn là chờ duyệt: getStateLabel() rơi về nhánh mặc định khi không phải APPROVED/REJECTED.
+            case "PENDING":  return MONTHLY_CLOSED + "AND (a.Status IS NULL OR a.Status NOT IN ('APPROVED','REJECTED')) ";
+            default:         return "";
+        }
+    }
+
+    private static int bindMonthlyFilters(PreparedStatement ps, int idx, int userId, int branchId,
+                                          LocalDate monthStart, LocalDate monthEndExclusive,
+                                          String query) throws SQLException {
+        ps.setInt(idx++, userId);
+        ps.setInt(idx++, branchId);
+        ps.setDate(idx++, Date.valueOf(monthStart));
+        ps.setDate(idx++, Date.valueOf(monthEndExclusive));
+        if (hasText(query)) {
+            String pattern = "%" + query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+            ps.setNString(idx++, pattern);
+            ps.setNString(idx++, pattern);
+        }
+        return idx;
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private Attendance map(ResultSet rs) throws SQLException {

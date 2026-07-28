@@ -28,7 +28,13 @@ public class OrderInboxServlet extends HttpServlet {
             throws ServletException, IOException {
         int branchId = InventoryDashboardServlet.branchId(req);
         try {
-            req.setAttribute("orders", orderService.getIncomingOrders(branchId));
+            java.util.List<com.cafe.model.Order> orders = orderService.getIncomingOrders(branchId);
+            // Đơn treo đã được service xếp lên đầu; đếm ở đây để có một dòng nhắc gọn trên cùng —
+            // quầy pha chế không còn nhận những đơn này nên đây là chỗ duy nhất chốt được chúng.
+            int staleCount = 0;
+            for (com.cafe.model.Order o : orders) if (o.isStale()) staleCount++;
+            req.setAttribute("orders", orders);
+            req.setAttribute("staleOrderCount", staleCount);
             req.setAttribute("pageTitle", "Đơn đến (Inbox)");
             req.getRequestDispatcher("/WEB-INF/views/cashier/inbox.jsp").forward(req, resp);
         } catch (Exception e) { throw new ServletException(e); }

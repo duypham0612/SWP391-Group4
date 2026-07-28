@@ -90,15 +90,15 @@ public class VoucherService {
     }
 
     public static String validateVoucherRecord(Voucher v, int branchId, BigDecimal orderAmount) {
-        if (v == null || !v.isActive()) return "Voucher khong ton tai hoac da tat.";
+        if (v == null || !v.isActive()) return "Voucher không tồn tại hoặc đã tắt.";
         if ("BRANCH".equals(v.getScope()) && (v.getBranchId() == null || v.getBranchId() != branchId))
-            return "Voucher khong ap dung cho chi nhanh nay.";
+            return "Voucher không áp dụng cho chi nhánh này.";
         LocalDateTime now = LocalDateTime.now();
-        if (v.getStartDate() != null && now.isBefore(v.getStartDate())) return "Voucher chua toi ngay ap dung.";
-        if (v.getEndDate() != null && now.isAfter(v.getEndDate())) return "Voucher da het han.";
-        if (v.getUsageLimit() != null && v.getUsedCount() >= v.getUsageLimit()) return "Voucher da het luot su dung.";
+        if (v.getStartDate() != null && now.isBefore(v.getStartDate())) return "Voucher chưa tới ngày áp dụng.";
+        if (v.getEndDate() != null && now.isAfter(v.getEndDate())) return "Voucher đã hết hạn.";
+        if (v.getUsageLimit() != null && v.getUsedCount() >= v.getUsageLimit()) return "Voucher đã hết lượt sử dụng.";
         if (orderAmount != null && v.getMinOrderAmount() != null && orderAmount.compareTo(v.getMinOrderAmount()) < 0)
-            return "Don chua dat gia tri toi thieu de dung voucher.";
+            return "Đơn chưa đạt giá trị tối thiểu để dùng voucher.";
         return null;
     }
 }

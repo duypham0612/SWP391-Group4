@@ -61,6 +61,7 @@ public class CheckoutServlet extends HttpServlet {
                 // chưa chọn phiên: liệt kê các phiên đang mở để chọn
                 req.setAttribute("openSessions", tableSessionService.getOpenSessions(branchId));
             }
+            req.setAttribute("vietQrBankName", Constants.VIETQR_BANK_NAME);
             req.setAttribute("vietQrAccountName", Constants.VIETQR_ACCOUNT_NAME);
             req.setAttribute("vietQrAccountNo", Constants.VIETQR_ACCOUNT_NO);
             req.setAttribute("pageTitle", "Thanh toán");

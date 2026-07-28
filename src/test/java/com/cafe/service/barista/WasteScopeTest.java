@@ -37,6 +37,34 @@ class WasteScopeTest {
         assertEquals(LocalTime.MIDNIGHT, vnStart);
     }
 
+    /**
+     * Ngày kinh doanh: cửa sổ 24h tính từ giờ MỞ CỬA gần nhất đã trôi qua, dùng chung mốc với
+     * Quầy pha chế. Đây là điểm khác then chốt so với TODAY (cắt theo nửa đêm).
+     */
+    @Test
+    void businessDay_starts_at_branch_open_time_not_midnight() {
+        LocalTime openTime = LocalTime.of(7, 0);
+        WasteService.WasteScope scope = WasteService.WasteScope.businessDay(openTime);
+
+        assertEquals("BUSINESS_DAY", scope.getKind());
+        assertEquals(Duration.ofDays(1), Duration.between(scope.getFromUtc(), scope.getToUtc()));
+        // Mốc đầu quy ngược về giờ VN phải đúng giờ mở cửa, không phải 00:00.
+        LocalTime vnStart = scope.getFromUtc().atOffset(ZoneOffset.UTC)
+                .atZoneSameInstant(VN_ZONE).toLocalTime();
+        assertEquals(openTime, vnStart);
+    }
+
+    /** Chi nhánh chưa khai giờ mở cửa → lùi về đúng hành vi cũ (cắt theo nửa đêm). */
+    @Test
+    void businessDay_without_open_time_falls_back_to_today() {
+        WasteService.WasteScope scope = WasteService.WasteScope.businessDay(null);
+
+        assertEquals("TODAY", scope.getKind());
+        LocalTime vnStart = scope.getFromUtc().atOffset(ZoneOffset.UTC)
+                .atZoneSameInstant(VN_ZONE).toLocalTime();
+        assertEquals(LocalTime.MIDNIGHT, vnStart);
+    }
+
     /** Ca đang mở: từ mốc check-in, chưa có mốc kết thúc (to = null → lọc mở tới hiện tại). */
     @Test
     void openShift_keeps_checkIn_and_null_end() {

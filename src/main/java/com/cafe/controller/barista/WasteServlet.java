@@ -17,6 +17,8 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -25,7 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-/** B5 · WasteServlet → /barista/waste. Ghi hao hụt/làm lại (qua ledger). */
+/** B5 · WasteServlet → /barista/waste. Ghi hao hụt nguyên liệu (qua ledger); làm lại ghi từ KDS. */
 @WebServlet("/barista/waste")
 public class WasteServlet extends HttpServlet {
 
@@ -39,9 +41,6 @@ public class WasteServlet extends HttpServlet {
             "Đổ khi pha", "SPILL", "Rơi khi thao tác", "SPILL", "Sai định lượng", "WRONG_RECIPE",
             "Hết hạn", "EXPIRED", "Nguyên liệu hỏng", "EXPIRED", "Bảo quản lỗi", "STORAGE",
             "Quá thời gian mở nắp", "STORAGE", "Mẫu thử/QC", "QC_SAMPLE", "Khác", "OTHER");
-    private static final Map<String, String> REMAKE_REASONS = Map.of(
-            "WRONG_RECIPE", "Sai công thức", "CUSTOMER_FEEDBACK", "Khách yêu cầu làm lại",
-            "SPILL", "Đổ/rơi sau khi pha", "QUALITY", "Lỗi chất lượng");
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -63,7 +62,12 @@ public class WasteServlet extends HttpServlet {
         int branchId = InventoryDashboardServlet.branchId(req);
         int userId = currentUserId(req);
         String action = req.getParameter("action");
-        if (BaristaShift.guardWrite(req, resp, action, "/barista/waste")) return;   // vào ca / chặn ngoài ca
+        if (!BaristaWritePolicy.isWasteAction(action)) {
+            req.getSession().setAttribute("flashError", BaristaWritePolicy.invalidActionMessage());
+            resp.sendRedirect(req.getContextPath() + "/barista/waste");
+            return;
+        }
+        if (BaristaShift.guardWrite(req, resp, "/barista/waste")) return;   // ngoài ca → chặn ghi
         String editId = null;
 
         try {
@@ -74,21 +78,6 @@ public class WasteServlet extends HttpServlet {
                 req.setAttribute("wasteClientRequestId", clientRequestId);
                 int count = service.logIngredientWasteLines(branchId, toWasteLines(submitted, !"create".equals(action)), userId, clientRequestId);
                 req.getSession().setAttribute("flashOk", count == 0 ? "Yêu cầu này đã được ghi trước đó." : "Đã ghi " + count + " dòng hao hụt.");
-            } else if ("remakeProduct".equals(action)) {
-                if (!"1".equals(req.getParameter("manualRemakeConfirmed"))) {
-                    throw new BusinessException("Món thuộc đơn phải làm lại từ KDS để không ghi trùng tồn kho.");
-                }
-                RemakeForm form = submittedRemake(req);
-                req.setAttribute("submittedRemake", form);
-                String causeCode = requireRemakeCause(form.reasonPreset);
-                String remakeReason = combineReason(REMAKE_REASONS.get(causeCode), form.reasonDetail);
-                if (blank(remakeReason)) throw new BusinessException("Vui lòng chọn lý do làm lại.");
-                String clientRequestId = requestId(req);
-                req.setAttribute("wasteClientRequestId", clientRequestId);
-                int count = service.remakeProduct(branchId, parseInt(form.productId, "Chưa chọn món làm lại."),
-                        parseInt(form.quantity, "Số lượng món làm lại không hợp lệ."),
-                        parseOptionIds(req), remakeReason, causeCode, userId, clientRequestId);
-                req.getSession().setAttribute("flashOk", count == 0 ? "Yêu cầu này đã được ghi trước đó." : "Đã ghi làm lại món (" + count + " dòng nguyên liệu).");
             } else if ("update".equals(action)) {
                 editId = req.getParameter("wasteLogId");
                 req.setAttribute("editQuantity", req.getParameter("quantity"));
@@ -105,7 +94,9 @@ public class WasteServlet extends HttpServlet {
             } else {
                 throw new BusinessException("Thao tác không hợp lệ.");
             }
-            resp.sendRedirect(req.getContextPath() + "/barista/waste");
+            // Dòng vừa ghi nằm trên cùng (LoggedAt DESC) nên về trang 1 mới thấy; sửa/huỷ thì giữ nguyên trang.
+            boolean created = "createIngredientWaste".equals(action) || "create".equals(action);
+            resp.sendRedirect(selfUrlKeepingFilters(req, created ? 1 : null));
         } catch (BusinessException e) {
             req.setAttribute("flashError", e.getMessage());
             forwardAfterError(req, resp, branchId, userId, editId);
@@ -115,6 +106,10 @@ public class WasteServlet extends HttpServlet {
         } catch (IllegalArgumentException e) {
             req.setAttribute("flashError", e.getMessage());
             forwardAfterError(req, resp, branchId, userId, editId);
+        } catch (SQLException e) {
+            // Hạ tầng lỗi thì redirect an toàn; không forward lại để tránh truy vấn DB hỏng lần thứ hai.
+            req.getSession().setAttribute("flashError", "Không thể cập nhật hao hụt lúc này. Vui lòng thử lại.");
+            resp.sendRedirect(selfUrlKeepingFilters(req, null));
         } catch (Exception e) {
             throw new ServletException(e);
         }
@@ -133,9 +128,9 @@ public class WasteServlet extends HttpServlet {
             throws SQLException, ServletException, IOException {
         WasteService.WasteScope scope = service.resolveScope(userId, branchId);
         String logQuery = textParam(req, "q", 100);
-        String logWasteType = allowedParam(req, "wasteType", "SPILL", "EXPIRED", "REMAKE", "OTHER");
+        String logWasteType = logTypeParam(req);
         String logStatus = allowedParam(req, "status", "ACTIVE", "VOIDED");
-        int logPageSize = pageSize();
+        int logPageSize = pageSizeParam(req);
         int requestedLogPage = positiveIntParam(req, "page", 1);
 
         // Tổng quan giữ nguyên toàn bộ phạm vi; bảng nhật ký thì chỉ lấy đúng trang từ DB.
@@ -143,9 +138,6 @@ public class WasteServlet extends HttpServlet {
         InventoryService.WasteLogPage wasteLogPage = service.getWasteLogPage(branchId, scope,
                 logQuery, logWasteType, logStatus, requestedLogPage, logPageSize);
         req.setAttribute("ingredients", service.getIngredients(branchId));
-        List<com.cafe.model.BranchMenuItem> remakeProducts = service.getRemakeProducts(branchId);
-        req.setAttribute("products", remakeProducts);
-        req.setAttribute("remakeModifiersJson", service.getRemakeModifiersJson(remakeProducts));
         req.setAttribute("scope", scope);
         req.setAttribute("logs", wasteLogPage.getLogs());
         req.setAttribute("hasWasteLogs", !scopedLogs.isEmpty());
@@ -161,9 +153,6 @@ public class WasteServlet extends HttpServlet {
         if (req.getAttribute("submittedWasteRows") == null) {
             req.setAttribute("submittedWasteRows", List.of(new WasteRowForm("", "", "SPILL", "", "")));
         }
-        if (req.getAttribute("submittedRemake") == null) {
-            req.setAttribute("submittedRemake", new RemakeForm("", "1", "", ""));
-        }
         if (req.getAttribute("wasteClientRequestId") == null) {
             req.setAttribute("wasteClientRequestId", UUID.randomUUID().toString());
         }
@@ -178,7 +167,7 @@ public class WasteServlet extends HttpServlet {
                 req.setAttribute("flashError", "Bản ghi cần sửa không hợp lệ.");
             }
         }
-        req.getRequestDispatcher("/WEB-INF/views/barista/waste.jsp").forward(req, resp);
+            req.getRequestDispatcher("/WEB-INF/views/barista/waste.jsp").forward(req, resp);
     }
 
     private int currentUserId(HttpServletRequest req) {
@@ -251,23 +240,6 @@ public class WasteServlet extends HttpServlet {
         return lines;
     }
 
-    private RemakeForm submittedRemake(HttpServletRequest req) {
-        return new RemakeForm(req.getParameter("productId"), req.getParameter("productQty"),
-                req.getParameter("remakeReasonPreset"), req.getParameter("remakeReasonDetail"));
-    }
-
-    /** Tuỳ chọn modifier đã tick trên form làm lại; service vẫn kiểm tra lại thuộc món và tự loại trùng. */
-    private List<Integer> parseOptionIds(HttpServletRequest req) {
-        String[] raw = req.getParameterValues("remakeOptionId");
-        if (raw == null) return List.of();
-        List<Integer> ids = new ArrayList<>();
-        for (String s : raw) {
-            if (blank(s)) continue;
-            try { ids.add(Integer.parseInt(s.trim())); } catch (NumberFormatException ignore) { throw new BusinessException("Tuỳ chọn món làm lại không hợp lệ."); }
-        }
-        return ids;
-    }
-
     private static int parseInt(String value, String message) {
         if (blank(value)) throw new BusinessException(message);
         try { return Integer.parseInt(value.trim()); }
@@ -317,12 +289,6 @@ public class WasteServlet extends HttpServlet {
         return INGREDIENT_CAUSES.get(chosen);
     }
 
-    static String requireRemakeCause(String causeCode) {
-        String code = causeCode == null ? "" : causeCode.trim().toUpperCase();
-        if (!REMAKE_REASONS.containsKey(code)) throw new BusinessException("Lý do làm lại không hợp lệ.");
-        return code;
-    }
-
     private static String value(String[] arr, int idx) {
         return arr != null && idx < arr.length && arr[idx] != null ? arr[idx] : "";
     }
@@ -353,9 +319,49 @@ public class WasteServlet extends HttpServlet {
         }
     }
 
-    /** Nhật ký luôn hiển thị 5 dòng/trang để dễ theo dõi tại quầy. */
-    private static int pageSize() {
-        return 5;
+    /** Nhật ký mặc định 5 dòng/trang cho dễ theo dõi tại quầy; barista chọn được 10/20/50 khi cần soát lại. */
+    private static int pageSizeParam(HttpServletRequest req) {
+        return normalizePageSize(positiveIntParam(req, "pageSize", 5));
+    }
+
+    /** Chỉ nhận đúng các mức có trên giao diện; giá trị lạ (kể cả rất lớn) rơi về mặc định. */
+    static int normalizePageSize(int value) {
+        return value == 10 || value == 20 || value == 50 ? value : 5;
+    }
+
+    /**
+     * Bộ lọc loại hao hụt của nhật ký đi bằng tên "logType", không dùng chung "wasteType" với form ghi:
+     * form ghi gửi nhiều giá trị wasteType (mỗi dòng một giá trị), lấy nhầm là nhật ký tự lọc sai.
+     */
+    private static String logTypeParam(HttpServletRequest req) {
+        return allowedParam(req, "logType", "SPILL", "EXPIRED", "REMAKE", "OTHER");
+    }
+
+    /**
+     * URL quay lại chính màn này kèm bộ lọc + trang nhật ký đang xem, dùng cho redirect sau POST (PRG).
+     * Không có nó thì ghi/sửa/huỷ xong là văng về trang 1 và mất hết điều kiện đang lọc.
+     */
+    private static String selfUrlKeepingFilters(HttpServletRequest req, Integer forcePage) {
+        return buildSelfUrl(req.getContextPath(), textParam(req, "q", 100), logTypeParam(req),
+                allowedParam(req, "status", "ACTIVE", "VOIDED"), pageSizeParam(req),
+                forcePage != null ? forcePage : positiveIntParam(req, "page", 1));
+    }
+
+    /** Phần thuần của {@link #selfUrlKeepingFilters} — tách ra để test được mà không cần dựng request. */
+    static String buildSelfUrl(String contextPath, String query, String logType, String status, int pageSize, int page) {
+        StringBuilder qs = new StringBuilder();
+        appendParam(qs, "q", query);
+        appendParam(qs, "logType", logType);
+        appendParam(qs, "status", status);
+        appendParam(qs, "pageSize", String.valueOf(pageSize));
+        appendParam(qs, "page", String.valueOf(page));
+        return contextPath + "/barista/waste" + (qs.length() == 0 ? "" : "?" + qs);
+    }
+
+    private static void appendParam(StringBuilder qs, String name, String value) {
+        if (blank(value)) return;
+        if (qs.length() > 0) qs.append('&');
+        qs.append(name).append('=').append(URLEncoder.encode(value, StandardCharsets.UTF_8));
     }
 
     private record WasteLineKey(int ingredientId, String wasteType, String causeCode, String reason) { }
@@ -378,25 +384,6 @@ public class WasteServlet extends HttpServlet {
         public String getIngredientId() { return ingredientId; }
         public String getQuantity() { return quantity; }
         public String getWasteType() { return wasteType; }
-        public String getReasonPreset() { return reasonPreset; }
-        public String getReasonDetail() { return reasonDetail; }
-    }
-
-    public static class RemakeForm {
-        private final String productId;
-        private final String quantity;
-        private final String reasonPreset;
-        private final String reasonDetail;
-
-        public RemakeForm(String productId, String quantity, String reasonPreset, String reasonDetail) {
-            this.productId = productId == null ? "" : productId;
-            this.quantity = quantity == null || quantity.isBlank() ? "1" : quantity;
-            this.reasonPreset = reasonPreset == null ? "" : reasonPreset;
-            this.reasonDetail = reasonDetail == null ? "" : reasonDetail;
-        }
-
-        public String getProductId() { return productId; }
-        public String getQuantity() { return quantity; }
         public String getReasonPreset() { return reasonPreset; }
         public String getReasonDetail() { return reasonDetail; }
     }

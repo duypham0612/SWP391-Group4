@@ -48,7 +48,7 @@
                                 <c:if test="${r.overridden}"><span class="badge badge-ready" title="Đã chốt/sửa">đã chốt</span></c:if>
                             </td>
                             <td><input type="number" name="hours_${r.userId}" class="form-control payHours" data-uid="${r.userId}"
-                                       min="0" step="any" value="${r.totalHours}" style="width:130px">
+                                       min="10" step="5" value="${r.totalHours}" style="width:130px" required>
                                 <div class="muted" style="font-size:.78rem">chấm công: ${r.computedHours}h</div></td>
                             <td><input type="number" name="rate_${r.userId}" class="form-control payRate" data-uid="${r.userId}"
                                        min="${minHourlyRate}" step="1000" value="${r.hourlyRate}" style="width:150px">
@@ -79,6 +79,11 @@
                 rt.style.borderColor=invalid ? 'var(--st-cancelled)' : '';
                 rt.style.boxShadow=invalid ? '0 0 0 3px rgba(178,58,46,.18)' : '';
             }
+            function markHours(input, invalid){
+                input.setAttribute('aria-invalid', invalid ? 'true' : 'false');
+                input.style.borderColor=invalid ? 'var(--st-cancelled)' : '';
+                input.style.boxShadow=invalid ? '0 0 0 3px rgba(178,58,46,.18)' : '';
+            }
             function removeClientAlert(){
                 var old=document.getElementById('payrollClientError');
                 if(old) old.remove();
@@ -101,6 +106,16 @@
                 });
                 return bad;
             }
+            function invalidHours(){
+                var bad=[];
+                document.querySelectorAll('.payHours').forEach(function(input){
+                    var hours=Number(input.value);
+                    var invalid=!Number.isFinite(hours)||hours<=5||hours%5!==0;
+                    markHours(input, invalid);
+                    if(invalid) bad.push(input);
+                });
+                return bad;
+            }
             function recompute(){
                 var sumH=0, sumS=0;
                 document.querySelectorAll('#payTable tbody tr').forEach(function(tr){
@@ -116,15 +131,19 @@
                 el.addEventListener('input', function(){
                     removeClientAlert();
                     if(el.classList.contains('payRate')) invalidRates();
+                    if(el.classList.contains('payHours')) invalidHours();
                     recompute();
                 });
             });
             form.addEventListener('submit', function(e){
-                var bad=invalidRates();
-                if(bad.length){
+                var badHours=invalidHours();
+                var badRates=invalidRates();
+                if(badHours.length||badRates.length){
                     e.preventDefault();
-                    showClientAlert('Lương/giờ tối thiểu là '+fmt(minRate)+'₫. Vui lòng kiểm tra các ô đang được đánh dấu.');
-                    bad[0].focus();
+                    showClientAlert(badHours.length
+                        ? 'Số giờ làm phải lớn hơn 5 giờ và chia hết cho 5.'
+                        : 'Lương/giờ tối thiểu là '+fmt(minRate)+'₫. Vui lòng kiểm tra các ô đang được đánh dấu.');
+                    (badHours[0]||badRates[0]).focus();
                 }
             });
         })();

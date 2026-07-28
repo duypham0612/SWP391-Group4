@@ -10,7 +10,9 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /** Sổ cái tồn kho — chỉ INSERT (append-only) + đọc. */
 public class InventoryTransactionDao {
@@ -31,6 +33,32 @@ public class InventoryTransactionDao {
         }
     }
 
+    /**
+     * Tổng ChangeQty đã ghi cho một chứng từ, gộp theo nguyên liệu.
+     * Dùng khi cần ĐẢO một chứng từ: hoàn đúng lượng sổ cái đã ghi thay vì tính lại theo công thức —
+     * định mức có thể đã đổi từ lúc ghi, và số ghi sổ đã bị làm tròn về DECIMAL(12,3).
+     */
+    public Map<Integer, BigDecimal> sumByRef(Connection conn, int branchId, String refTable, long refId,
+                                             String txnType) throws SQLException {
+        final String sql =
+            "SELECT t.IngredientId, SUM(t.ChangeQty) AS TotalQty FROM inventory.InventoryTransaction t " +
+            "WHERE t.BranchId = ? AND t.RefTable = ? AND t.RefId = ? AND t.TxnType = ? GROUP BY t.IngredientId";
+        Map<Integer, BigDecimal> out = new LinkedHashMap<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setString(2, refTable);
+            ps.setLong(3, refId);
+            ps.setString(4, txnType);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    BigDecimal total = rs.getBigDecimal("TotalQty");
+                    out.put(rs.getInt("IngredientId"), total == null ? BigDecimal.ZERO : total);
+                }
+            }
+        }
+        return out;
+    }
+
     public List<InventoryTransaction> findByBranchIngredient(Connection conn, int branchId, int ingredientId) throws SQLException {
         final String sql =
             "SELECT t.InventoryTxnId, t.BranchId, t.IngredientId, t.ChangeQty, t.TxnType, t.RefTable, t.RefId, " +
@@ -46,6 +74,18 @@ public class InventoryTransactionDao {
             try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
         }
         return out;
+    }
+
+    public boolean hasNegativeAfter(Connection conn, int branchId, int ingredientId,
+                                    java.time.LocalDateTime afterUtc) throws SQLException {
+        final String sql = "SELECT TOP (1) 1 FROM inventory.InventoryTransaction "
+                + "WHERE BranchId=? AND IngredientId=? AND ChangeQty<0 AND CreatedAt>?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setInt(2, ingredientId);
+            ps.setTimestamp(3, Timestamp.valueOf(afterUtc));
+            try (ResultSet rs = ps.executeQuery()) { return rs.next(); }
+        }
     }
 
     private InventoryTransaction map(ResultSet rs) throws SQLException {

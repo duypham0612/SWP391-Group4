@@ -130,7 +130,8 @@
                             <div class="qr-pay-panel" id="qr-panel-${b.billId}" data-payload="<c:out value='${qrPayloads[b.billId]}'/>" style="display:none">
                                 <div class="qr-code" id="qr-code-${b.billId}"></div>
                                 <div class="muted" style="font-size:.85rem;margin-top:6px">
-                                    ${vietQrAccountName} · ${vietQrAccountNo}<br>
+                                    ${vietQrBankName} · ${vietQrAccountNo}<br>
+                                    Chủ tài khoản: ${vietQrAccountName}<br>
                                     Nội dung: CAFE BILL ${b.billId}
                                 </div>
                             </div>

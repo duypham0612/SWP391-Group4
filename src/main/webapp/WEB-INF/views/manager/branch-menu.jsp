@@ -76,14 +76,13 @@
                             </form>
                         </td>
                         <td>
-                            <form action="${ctx}/manager/menu" method="post" style="margin:0">
-                                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                                <input type="hidden" name="action" value="toggle86">
-                                <input type="hidden" name="productId" value="${m.productId}">
-                                <button type="submit" class="btn btn-sm ${m.is86 ? 'btn-ghost' : 'btn-ghost'}">
-                                    <c:choose><c:when test="${m.is86}"><span class="badge badge-cancelled">Hết tạm thời</span></c:when><c:otherwise><span class="badge badge-ready">Còn bán</span></c:otherwise></c:choose>
-                                </button>
-                            </form>
+                            <c:choose>
+                                <c:when test="${m.is86}">
+                                    <span class="badge badge-cancelled">Hết tạm thời</span>
+                                    <a href="#menu86" class="muted" style="display:block;font-size:.82em;margin-top:4px">Xử lý ở "Món tạm hết"</a>
+                                </c:when>
+                                <c:otherwise><span class="badge badge-ready">Còn bán</span></c:otherwise>
+                            </c:choose>
                         </td>
                     </tr>
                 </c:forEach>

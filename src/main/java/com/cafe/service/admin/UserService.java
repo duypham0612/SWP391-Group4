@@ -3,7 +3,7 @@ package com.cafe.service.admin;
 import com.cafe.common.BusinessException;
 import com.cafe.common.PasswordHasher;
 import com.cafe.config.DBConnection;
-import com.cafe.dao.admin.BranchDao;
+import com.cafe.dao.shared.BranchDao;
 import com.cafe.dao.admin.UserDao;
 import com.cafe.model.User;
 

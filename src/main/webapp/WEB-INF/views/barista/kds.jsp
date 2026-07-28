@@ -3,10 +3,11 @@
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <c:set var="wideLayout" value="true" scope="request" />
 <c:set var="bodyClass" value="page-kds" scope="request" />
-<jsp:include page="../layout/header.jsp" />
+<jsp:include page="/WEB-INF/views/layout/header.jsp" />
 <h1 class="visually-hidden">Quầy pha chế</h1>
 
-<jsp:include page="../layout/_baristaShiftBanner.jsp" />
+<jsp:include page="/WEB-INF/views/layout/_baristaShiftBanner.jsp" />
+<jsp:include page="/WEB-INF/views/layout/_handoverPendingAlert.jsp" />
 
 <div class="kds-toolbar">
     <div class="kds-filters" id="kdsOwnerFilters" role="group" aria-label="Lọc theo người phụ trách">
@@ -14,7 +15,6 @@
         <button type="button" class="chip-filter" data-filter-group="owner" data-filter-value="mine" aria-pressed="false">Món của tôi</button>
         <button type="button" class="chip-filter" data-filter-group="owner" data-filter-value="unassigned" aria-pressed="false">Chưa nhận</button>
     </div>
-    <button type="button" class="chip-filter chip-filter--urgent" id="kdsUrgencyFilter" data-filter-group="urgency" data-filter-value="late" aria-pressed="false">Trễ giờ</button>
     <details class="kds-more" id="kdsMoreFilters">
         <summary class="chip-filter">Quầy &amp; loại đơn <span class="kds-filter-badge" id="kdsFilterBadge" hidden></span></summary>
         <div class="kds-more__panel">
@@ -43,8 +43,8 @@
     </div>
 </div>
 
-<div id="kdsBoard" class="kds-board" data-user-id="${currentUserId}" data-endpoint="${ctx}/barista/kds" aria-busy="false">
-    <jsp:include page="kds_cards.jsp" />
+<div id="kdsBoard" class="kds-board" data-endpoint="${ctx}/barista/kds" aria-busy="false">
+        <jsp:include page="/WEB-INF/fragments/barista/kds/cards.jsp" />
 </div>
 <div id="kdsLiveNotice" class="kds-live-notice" role="status" aria-live="assertive" hidden></div>
 
@@ -94,5 +94,5 @@
     </div>
 </div>
 
-<script src="${ctx}/assets/js/kds-board.js?v=${applicationScope.assetVersion}" defer></script>
-<jsp:include page="../layout/footer.jsp" />
+<script src="${ctx}/assets/js/barista/kds-board.js?v=${applicationScope.assetVersion}" defer></script>
+<jsp:include page="/WEB-INF/views/layout/footer.jsp" />

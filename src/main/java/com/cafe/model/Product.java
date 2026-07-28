@@ -16,6 +16,13 @@ public class Product {
 
     private String categoryName; // join để hiển thị
 
+    /**
+     * Món đã khai báo định mức chưa — chỉ được nạp bởi các truy vấn tra cứu công thức
+     * ({@code ProductDao.findForRecipeLookup*}). Dùng Boolean thay boolean để null nghĩa là
+     * "chưa nạp", tránh việc màn khác đọc nhầm thành "chưa có công thức".
+     */
+    private Boolean hasRecipe;
+
     public int getProductId() { return productId; }
     public void setProductId(int productId) { this.productId = productId; }
 
@@ -48,4 +55,7 @@ public class Product {
 
     public String getCategoryName() { return categoryName; }
     public void setCategoryName(String categoryName) { this.categoryName = categoryName; }
+
+    public Boolean getHasRecipe() { return hasRecipe; }
+    public void setHasRecipe(Boolean hasRecipe) { this.hasRecipe = hasRecipe; }
 }

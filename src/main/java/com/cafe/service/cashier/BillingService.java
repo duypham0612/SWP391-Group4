@@ -9,6 +9,7 @@ import com.cafe.dao.cashier.BillDao;
 import com.cafe.dao.cashier.BillItemDao;
 import com.cafe.dao.cashier.DiningTableDao;
 import com.cafe.dao.shared.OrderItemDao;
+import com.cafe.dao.shared.OutboxEventDao;
 import com.cafe.dao.cashier.TableSessionDao;
 import com.cafe.dao.shared.VoucherDao;
 import com.cafe.dao.cashier.VoucherRedemptionDao;
@@ -37,6 +38,7 @@ public class BillingService {
     private final TableSessionDao sessionDao = new TableSessionDao();
     private final DiningTableDao tableDao = new DiningTableDao();
     private final VoucherService voucherService = new VoucherService();
+    private final OutboxEventDao outboxEventDao = new OutboxEventDao();
 
     /**
      * Dựng/đồng bộ bill cho phiên: đảm bảo mọi dòng đơn (chưa thuộc bill nào, không CANCELLED)
@@ -184,6 +186,7 @@ public class BillingService {
                         sessionDao.updateStatus(c, s.getTableSessionId(), "CLOSED", true);
                         tableDao.updateStatus(c, s.getDiningTableId(), "EMPTY");
                     }
+                    outboxEventDao.markBillRequestProcessed(c, bill.getTableSessionId());
                 }
                 c.commit();
                 return true;

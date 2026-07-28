@@ -16,7 +16,14 @@ public class PrepBatchDao {
 
     public int insert(Connection conn, int branchId, int preppedIngredientId, BigDecimal qtyProduced,
                       java.time.LocalDateTime expiresAt, int madeBy) throws SQLException {
-        final String sql = "INSERT INTO inventory.PrepBatch(BranchId, PreppedIngredientId, QuantityProduced, ExpiresAt, MadeBy) VALUES (?,?,?,?,?)";
+        return insert(conn, branchId, preppedIngredientId, qtyProduced, expiresAt, madeBy, null);
+    }
+
+    public int insert(Connection conn, int branchId, int preppedIngredientId, BigDecimal qtyProduced,
+                      java.time.LocalDateTime expiresAt, int madeBy, String clientRequestId) throws SQLException {
+        final String sql = "INSERT INTO inventory.PrepBatch"
+                + "(BranchId, PreppedIngredientId, QuantityProduced, ExpiresAt, MadeBy, ClientRequestId) "
+                + "VALUES (?,?,?,?,?,?)";
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setInt(1, branchId);
             ps.setInt(2, preppedIngredientId);
@@ -24,14 +31,20 @@ public class PrepBatchDao {
             if (expiresAt == null) ps.setNull(4, java.sql.Types.TIMESTAMP);
             else ps.setTimestamp(4, Timestamp.valueOf(expiresAt));
             ps.setInt(5, madeBy);
+            if (clientRequestId == null) ps.setNull(6, java.sql.Types.VARCHAR);
+            else ps.setString(6, clientRequestId);
             ps.executeUpdate();
             try (ResultSet k = ps.getGeneratedKeys()) { return k.next() ? k.getInt(1) : 0; }
         }
     }
 
+    private static final String COLUMNS =
+        "pb.PrepBatchId, pb.BranchId, pb.PreppedIngredientId, pb.QuantityProduced, pb.MadeBy, pb.MadeAt, " +
+        "pb.ExpiresAt, pb.Status, pb.VoidedAt, pb.WrittenOffAt, pb.WriteOffWasteLogId, pb.ClientRequestId, " +
+        "i.Name AS IngName, i.Unit AS IngUnit, u.FullName AS MadeByName ";
+
     private static final String SELECT =
-        "SELECT pb.PrepBatchId, pb.BranchId, pb.PreppedIngredientId, pb.QuantityProduced, pb.MadeBy, pb.MadeAt, pb.ExpiresAt, pb.Status, pb.VoidedAt, " +
-        "       i.Name AS IngName, i.Unit AS IngUnit, u.FullName AS MadeByName " +
+        "SELECT " + COLUMNS +
         "FROM inventory.PrepBatch pb " +
         "JOIN catalog.Ingredient i ON i.IngredientId=pb.PreppedIngredientId " +
         "JOIN iam.[User] u ON u.UserId=pb.MadeBy ";
@@ -45,6 +58,28 @@ public class PrepBatchDao {
             }
         }
         return out;
+    }
+
+    public List<PrepBatch> findRecentByBranch(Connection conn, int branchId, int limit) throws SQLException {
+        String sql = SELECT + "WHERE pb.BranchId=? ORDER BY pb.MadeAt DESC, pb.PrepBatchId DESC "
+                + "OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY";
+        List<PrepBatch> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setInt(2, Math.max(1, Math.min(limit, 100)));
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
+        }
+        return out;
+    }
+
+    public PrepBatch findByClientRequest(Connection conn, int branchId, String clientRequestId) throws SQLException {
+        if (clientRequestId == null || clientRequestId.isBlank()) return null;
+        try (PreparedStatement ps = conn.prepareStatement(
+                SELECT + "WHERE pb.BranchId=? AND pb.ClientRequestId=?")) {
+            ps.setInt(1, branchId);
+            ps.setString(2, clientRequestId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? map(rs) : null; }
+        }
     }
 
     /** Mẻ pha tạo HÔM NAY (theo ngày VN, quy về cửa sổ UTC) — mọi trạng thái, mới nhất trước. */
@@ -96,17 +131,29 @@ public class PrepBatchDao {
         }
     }
 
-    /** Me ACTIVE da qua han, cat theo ExpiresAt thay vi MadeAt de bat ca me pha tu ngay truoc. */
+    /** Scoped lookup: callers must not load a batch belonging to another branch. */
+    public PrepBatch findByIdForBranch(Connection conn, int prepBatchId, int branchId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                SELECT + "WHERE pb.PrepBatchId=? AND pb.BranchId=?")) {
+            ps.setInt(1, prepBatchId);
+            ps.setInt(2, branchId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? map(rs) : null; }
+        }
+    }
+
+    /**
+     * Me ACTIVE da qua han va CHUA ghi hao hut, cat theo ExpiresAt thay vi MadeAt de bat ca me pha tu ngay truoc.
+     * Loc WrittenOffAt IS NULL de me da xu ly roi khoi treo mai o banner Prep va banner ban giao ca.
+     * Thu tu ExpiresAt ASC la dau vao cua phan bo FIFO trong ExpiryWasteCalculator - khong doi thu tu nay.
+     */
     public List<PrepBatch> findExpiredActive(Connection conn, int branchId) throws SQLException {
         final String sql =
-            "SELECT pb.PrepBatchId, pb.BranchId, pb.PreppedIngredientId, pb.QuantityProduced, pb.MadeBy, pb.MadeAt, pb.ExpiresAt, pb.Status, pb.VoidedAt, " +
-            "       i.Name AS IngName, i.Unit AS IngUnit, u.FullName AS MadeByName, " +
-            "       ISNULL(bi.QuantityOnHand, 0) AS BranchQuantityOnHand " +
+            "SELECT " + COLUMNS + ", ISNULL(bi.QuantityOnHand, 0) AS BranchQuantityOnHand " +
             "FROM inventory.PrepBatch pb " +
             "JOIN catalog.Ingredient i ON i.IngredientId=pb.PreppedIngredientId " +
             "JOIN iam.[User] u ON u.UserId=pb.MadeBy " +
             "LEFT JOIN inventory.BranchInventory bi ON bi.BranchId=pb.BranchId AND bi.IngredientId=pb.PreppedIngredientId " +
-            "WHERE pb.BranchId=? AND pb.Status='ACTIVE' AND pb.ExpiresAt<SYSUTCDATETIME() " +
+            "WHERE pb.BranchId=? AND pb.Status='ACTIVE' AND pb.WrittenOffAt IS NULL AND pb.ExpiresAt<SYSUTCDATETIME() " +
             "ORDER BY pb.ExpiresAt ASC, pb.MadeAt ASC, pb.PrepBatchId ASC";
         List<PrepBatch> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -122,6 +169,19 @@ public class PrepBatchDao {
         return out;
     }
 
+    /** Count-only variant for dashboard badges; avoids loading and mapping the full batch list. */
+    public int countExpiredActive(Connection conn, int branchId) throws SQLException {
+        final String sql = "SELECT COUNT(*) FROM inventory.PrepBatch "
+                + "WHERE BranchId=? AND Status='ACTIVE' AND WrittenOffAt IS NULL "
+                + "AND ExpiresAt<SYSUTCDATETIME()";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        }
+    }
+
     /** Đánh dấu trạng thái (CANCELLED kèm VoidedAt). KHÔNG hard-delete — tồn hoàn qua txn bù. */
     public int updateStatus(Connection conn, int prepBatchId, String status) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
@@ -133,12 +193,54 @@ public class PrepBatchDao {
         }
     }
 
+    /** Scoped status update; keeps the write protected even if a caller has a stale object. */
+    public int updateStatusForBranch(Connection conn, int prepBatchId, int branchId, String status) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE inventory.PrepBatch SET Status=?, VoidedAt=CASE WHEN ?='CANCELLED' THEN SYSUTCDATETIME() ELSE NULL END "
+                        + "WHERE PrepBatchId=? AND BranchId=? AND Status='ACTIVE'")) {
+            ps.setString(1, status);
+            ps.setString(2, status);
+            ps.setInt(3, prepBatchId);
+            ps.setInt(4, branchId);
+            return ps.executeUpdate();
+        }
+    }
+
+    /**
+     * Đóng vòng đời mẻ quá hạn: gắn dòng hao hụt đã ghi. Điều kiện WrittenOffAt IS NULL là chốt
+     * nguyên tử — bấm hai lần hoặc hai barista cùng xử lý một mẻ thì chỉ một lần trừ tồn được ghi nhận.
+     */
+    public int markWrittenOff(Connection conn, int prepBatchId, int branchId, int wasteLogId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE inventory.PrepBatch SET WrittenOffAt=SYSUTCDATETIME(), WriteOffWasteLogId=? "
+                        + "WHERE PrepBatchId=? AND BranchId=? AND Status='ACTIVE' AND WrittenOffAt IS NULL")) {
+            ps.setInt(1, wasteLogId);
+            ps.setInt(2, prepBatchId);
+            ps.setInt(3, branchId);
+            return ps.executeUpdate();
+        }
+    }
+
     public int updateQuantity(Connection conn, int prepBatchId, BigDecimal qtyProduced, BigDecimal expectedQtyProduced) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
                 "UPDATE inventory.PrepBatch SET QuantityProduced=? WHERE PrepBatchId=? AND Status='ACTIVE' AND QuantityProduced=?")) {
             ps.setBigDecimal(1, qtyProduced);
             ps.setInt(2, prepBatchId);
             ps.setBigDecimal(3, expectedQtyProduced);
+            return ps.executeUpdate();
+        }
+    }
+
+    /** Optimistic update scoped to the current branch. */
+    public int updateQuantityForBranch(Connection conn, int prepBatchId, int branchId,
+                                       BigDecimal qtyProduced, BigDecimal expectedQtyProduced) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE inventory.PrepBatch SET QuantityProduced=? "
+                        + "WHERE PrepBatchId=? AND BranchId=? AND Status='ACTIVE' AND QuantityProduced=?")) {
+            ps.setBigDecimal(1, qtyProduced);
+            ps.setInt(2, prepBatchId);
+            ps.setInt(3, branchId);
+            ps.setBigDecimal(4, expectedQtyProduced);
             return ps.executeUpdate();
         }
     }
@@ -154,11 +256,13 @@ public class PrepBatchDao {
     private static String todayFilteredWhere(String query, int ingredientId, String expiry, String status) {
         StringBuilder where = new StringBuilder("WHERE pb.BranchId=? AND pb.MadeAt>=? AND pb.MadeAt<? ");
         if (ingredientId > 0) where.append("AND pb.PreppedIngredientId=? ");
-        if (hasText(status)) where.append("AND pb.Status=? ");
-        if ("expired".equals(expiry)) where.append("AND pb.Status='ACTIVE' AND pb.ExpiresAt<SYSUTCDATETIME() ");
-        else if ("soon".equals(expiry)) where.append("AND pb.Status='ACTIVE' AND pb.ExpiresAt>=SYSUTCDATETIME() AND pb.ExpiresAt<DATEADD(HOUR, 2, SYSUTCDATETIME()) ");
-        else if ("ok".equals(expiry)) where.append("AND pb.Status='ACTIVE' AND pb.ExpiresAt>=DATEADD(HOUR, 2, SYSUTCDATETIME()) ");
-        else if ("none".equals(expiry)) where.append("AND (pb.ExpiresAt IS NULL OR pb.Status<>'ACTIVE') ");
+        if ("ACTIVE".equals(status)) where.append("AND pb.Status='ACTIVE' AND pb.WrittenOffAt IS NULL ");
+        else if ("WRITTEN_OFF".equals(status)) where.append("AND pb.Status='ACTIVE' AND pb.WrittenOffAt IS NOT NULL ");
+        else if (hasText(status)) where.append("AND pb.Status=? ");
+        if ("expired".equals(expiry)) where.append("AND pb.Status='ACTIVE' AND pb.WrittenOffAt IS NULL AND pb.ExpiresAt<SYSUTCDATETIME() ");
+        else if ("soon".equals(expiry)) where.append("AND pb.Status='ACTIVE' AND pb.WrittenOffAt IS NULL AND pb.ExpiresAt>=SYSUTCDATETIME() AND pb.ExpiresAt<DATEADD(HOUR, 2, SYSUTCDATETIME()) ");
+        else if ("ok".equals(expiry)) where.append("AND pb.Status='ACTIVE' AND pb.WrittenOffAt IS NULL AND pb.ExpiresAt>=DATEADD(HOUR, 2, SYSUTCDATETIME()) ");
+        else if ("none".equals(expiry)) where.append("AND pb.ExpiresAt IS NULL ");
         if (hasText(query)) {
             where.append("AND (CAST(pb.PrepBatchId AS NVARCHAR(20)) LIKE ? ESCAPE '\\' "
                     + "OR i.Name LIKE ? ESCAPE '\\' OR u.FullName LIKE ? ESCAPE '\\') ");
@@ -172,7 +276,8 @@ public class PrepBatchDao {
         ps.setTimestamp(idx++, from);
         ps.setTimestamp(idx++, to);
         if (ingredientId > 0) ps.setInt(idx++, ingredientId);
-        if (hasText(status)) ps.setString(idx++, status);
+        if (hasText(status) && !"ACTIVE".equals(status) && !"WRITTEN_OFF".equals(status))
+            ps.setString(idx++, status);
         if (hasText(query)) {
             String pattern = "%" + query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
             ps.setNString(idx++, pattern);
@@ -200,6 +305,11 @@ public class PrepBatchDao {
         b.setStatus(rs.getString("Status"));
         Timestamp va = rs.getTimestamp("VoidedAt");
         if (va != null) b.setVoidedAt(va.toLocalDateTime());
+        Timestamp wo = rs.getTimestamp("WrittenOffAt");
+        if (wo != null) b.setWrittenOffAt(wo.toLocalDateTime());
+        int wasteLogId = rs.getInt("WriteOffWasteLogId");
+        b.setWriteOffWasteLogId(rs.wasNull() ? null : wasteLogId);
+        b.setClientRequestId(rs.getString("ClientRequestId"));
         b.setPreppedIngredientName(rs.getString("IngName"));
         b.setPreppedIngredientUnit(rs.getString("IngUnit"));
         b.setMadeByName(rs.getString("MadeByName"));

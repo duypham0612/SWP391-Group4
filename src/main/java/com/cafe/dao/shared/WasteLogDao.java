@@ -143,9 +143,43 @@ public class WasteLogDao {
         return value != null && !value.isBlank();
     }
 
+    /**
+     * Các dòng WASTE của LẦN LÀM LẠI GẦN NHẤT trên một dòng món (event REMAKE có id lớn nhất).
+     * Chỉ lần gần nhất mới có thể đang giữ chỗ nguyên liệu cho lượt pha kế tiếp — các event trước
+     * đó đã ứng với những lượt pha thật sự tiêu hao rồi, hoàn lại là ghi thiếu.
+     */
+    public List<WasteLog> findActiveRemakeLinesOfLatestEvent(Connection conn, int branchId, int orderItemId)
+            throws SQLException {
+        final String sql = SELECT
+                + "WHERE wl.BranchId=? AND wl.Status='ACTIVE' AND wl.WasteType='REMAKE' "
+                + "  AND wl.WasteEventId=(SELECT MAX(e.WasteEventId) FROM inventory.WasteEvent e "
+                + "                       WHERE e.BranchId=? AND e.OrderItemId=? AND e.EventKind='REMAKE') "
+                + "ORDER BY wl.WasteLogId";
+        List<WasteLog> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setInt(2, branchId);
+            ps.setInt(3, orderItemId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) out.add(map(rs));
+            }
+        }
+        return out;
+    }
+
     public WasteLog findById(Connection conn, int wasteLogId) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(SELECT + "WHERE wl.WasteLogId=?")) {
             ps.setInt(1, wasteLogId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? map(rs) : null; }
+        }
+    }
+
+    /** Scoped lookup: a barista must never load a waste record from another branch. */
+    public WasteLog findByIdForBranch(Connection conn, int wasteLogId, int branchId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                SELECT + "WHERE wl.WasteLogId=? AND wl.BranchId=?")) {
+            ps.setInt(1, wasteLogId);
+            ps.setInt(2, branchId);
             try (ResultSet rs = ps.executeQuery()) { return rs.next() ? map(rs) : null; }
         }
     }
@@ -163,6 +197,22 @@ public class WasteLogDao {
         }
     }
 
+    /** Optimistic update scoped to the current branch. */
+    public int updateForBranch(Connection conn, int wasteLogId, int branchId, BigDecimal qty, String wasteType,
+                               String reason, BigDecimal expectedQty) throws SQLException {
+        final String sql = "UPDATE inventory.WasteLog SET Quantity=?, WasteType=?, Reason=? "
+                + "WHERE WasteLogId=? AND BranchId=? AND Status='ACTIVE' AND Quantity=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setBigDecimal(1, qty);
+            ps.setString(2, wasteType);
+            if (reason == null) ps.setNull(3, java.sql.Types.NVARCHAR); else ps.setString(3, reason);
+            ps.setInt(4, wasteLogId);
+            ps.setInt(5, branchId);
+            ps.setBigDecimal(6, expectedQty);
+            return ps.executeUpdate();
+        }
+    }
+
     /** Đánh dấu VOIDED (kèm VoidedAt). KHÔNG hard-delete — tồn hoàn qua txn bù. */
     public int updateStatus(Connection conn, int wasteLogId, String status) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
@@ -170,6 +220,19 @@ public class WasteLogDao {
             ps.setString(1, status);
             ps.setString(2, status);
             ps.setInt(3, wasteLogId);
+            return ps.executeUpdate();
+        }
+    }
+
+    /** Scoped status update for voiding a waste log. */
+    public int updateStatusForBranch(Connection conn, int wasteLogId, int branchId, String status) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE inventory.WasteLog SET Status=?, VoidedAt=CASE WHEN ?='VOIDED' THEN SYSUTCDATETIME() ELSE NULL END "
+                        + "WHERE WasteLogId=? AND BranchId=? AND Status='ACTIVE'")) {
+            ps.setString(1, status);
+            ps.setString(2, status);
+            ps.setInt(3, wasteLogId);
+            ps.setInt(4, branchId);
             return ps.executeUpdate();
         }
     }

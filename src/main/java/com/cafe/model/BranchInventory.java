@@ -10,11 +10,13 @@ public class BranchInventory {
     private int ingredientId;
     private BigDecimal quantityOnHand = BigDecimal.ZERO;
     private BigDecimal minThreshold = BigDecimal.ZERO;
+    private BigDecimal prepTargetQty;
 
     // join
     private String ingredientName;
     private String ingredientUnit;
     private String ingredientType;
+    private Integer ingredientShelfLifeMinutes;
 
     public int getBranchId() { return branchId; }
     public void setBranchId(int branchId) { this.branchId = branchId; }
@@ -27,10 +29,13 @@ public class BranchInventory {
 
     public BigDecimal getMinThreshold() { return minThreshold; }
     public void setMinThreshold(BigDecimal minThreshold) { this.minThreshold = minThreshold; }
+    public BigDecimal getPrepTargetQty() { return prepTargetQty; }
+    public void setPrepTargetQty(BigDecimal prepTargetQty) { this.prepTargetQty = prepTargetQty; }
 
     /** Cho JSP — bỏ .000 thừa. So sánh/tính toán vẫn dùng getter BigDecimal ở trên. */
-    public String getQuantityOnHandDisplay() { return QuantityFormat.plain(quantityOnHand); }
+    public String getQuantityOnHandDisplay() { return QuantityFormat.groupedVi(quantityOnHand); }
     public String getMinThresholdDisplay() { return QuantityFormat.plain(minThreshold); }
+    public String getPrepTargetQtyDisplay() { return QuantityFormat.plain(prepTargetQty); }
 
     public boolean isLow() {
         return quantityOnHand != null && minThreshold != null && quantityOnHand.compareTo(minThreshold) <= 0;
@@ -49,4 +54,6 @@ public class BranchInventory {
 
     public String getIngredientType() { return ingredientType; }
     public void setIngredientType(String ingredientType) { this.ingredientType = ingredientType; }
+    public Integer getIngredientShelfLifeMinutes() { return ingredientShelfLifeMinutes; }
+    public void setIngredientShelfLifeMinutes(Integer value) { this.ingredientShelfLifeMinutes = value; }
 }

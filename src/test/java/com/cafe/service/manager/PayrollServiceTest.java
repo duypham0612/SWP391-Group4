@@ -42,10 +42,26 @@ class PayrollServiceTest {
         assertDoesNotThrow(() -> PayrollService.validateHourlyRates(List.of(payroll(11, "25000"))));
     }
 
+    @Test
+    void workedHoursMustBeGreaterThanFiveAndDivisibleByFive() {
+        assertThrows(BusinessException.class,
+                () -> PayrollService.validateWorkedHours(List.of(payrollWithHours("5"))));
+        assertThrows(BusinessException.class,
+                () -> PayrollService.validateWorkedHours(List.of(payrollWithHours("12"))));
+        assertDoesNotThrow(
+                () -> PayrollService.validateWorkedHours(List.of(payrollWithHours("10"), payrollWithHours("15"))));
+    }
+
     private Payroll payroll(int userId, String hourlyRate) {
         Payroll p = new Payroll();
         p.setUserId(userId);
         p.setHourlyRate(hourlyRate == null ? null : new BigDecimal(hourlyRate));
+        return p;
+    }
+
+    private Payroll payrollWithHours(String hours) {
+        Payroll p = new Payroll();
+        p.setWorkedHours(new BigDecimal(hours));
         return p;
     }
 }

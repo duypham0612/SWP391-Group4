@@ -16,7 +16,9 @@
 - **Chấm giờ nhân viên (clock-in/out)** ở cả Cashier shift và Barista handover (`ShiftClockStatus`, `_shiftClockCard.jsp`) — ngoài đặc tả ca gốc.
 - **2 màn ngoài đặc tả 4-role:** trang **Home công khai** (`/home`) và **Home Editor** (`/admin/home`).
 - **POS** gửi đơn bằng **JSON fetch** kèm `orderType` (COUNTER), không phải form thường.
-- **Waste** giàu hơn đặc tả: `createIngredientWaste`, **`remakeProduct`** (làm lại), `update`, `void`.
+- **Waste** chỉ ghi hao hụt nguyên liệu: `createIngredientWaste`, `update`, `void`; món làm lại ghi tự động từ KDS (`remake`).
+- **Quầy pha chế cắt theo NGÀY KINH DOANH** (giờ mở cửa chi nhánh, xem `BusinessDay.startUtc`). Món dang dở của ngày trước không vào hàng chờ mà nằm ở khu **Đơn treo cần xử lý** cuối màn, và được đếm riêng ở dashboard barista.
+- **Trực ca chặn ghi:** mọi POST của barista (KDS · Prep · Waste · Báo hết món) yêu cầu đang trong ca theo chấm công (`BaristaShift`). Chưa được xếp ca thì Quản lý phải xếp ca trước — barista không tự mở khoá được.
 - **Theme** hiện là Espresso/Caramel (nâu), không phải "Highlands đỏ" như changelog cũ mô tả.
 
 Chú thích ⚠ trong cột Notes = điểm lệch so với đặc tả gốc.
@@ -72,14 +74,14 @@ Chú thích ⚠ trong cột Notes = điểm lệch so với đặc tả gốc.
 
 | Screen/Function | Description | In Charge | SRS | SDS | Status | Notes |
 |---|---|---|---|---|---|---|
-| Barista Dashboard | KDS KPI + tồn thấp + món 86 | DEV4 | — | `/barista/dashboard` · `BaristaDashboardServlet` | ✅ Done | ⚠ thêm ngoài đặc tả |
-| KDS Queue | queue(AJAX cards), start, markReady, bump · **★ auto-deduct** | DEV4 | B1 | `/barista/kds` · `KdsServlet` | ✅ Done | **Contract #1,#2** |
-| Pickup Board | list, markServed, **serveAllReady** | DEV4 | B2 | `/barista/pickup` · `PickupServlet` | ✅ Done | |
+| Barista Dashboard | KDS KPI + tồn thấp + món 86 + cảnh báo đơn treo | DEV4 | — | `/barista/dashboard` · `BaristaDashboardServlet` | ✅ Done | ⚠ thêm ngoài đặc tả; **không có link ở sidebar**, vào qua redirect `/dashboard` |
+| KDS Queue | queue(AJAX, lọc + phân trang server-side), start, markReady, returnQueue, reportIssue, unblock, remake + khu **Đơn treo cần xử lý** · **★ auto-deduct** | DEV4 | B1 | `/barista/kds` · `KdsServlet` | ✅ Done | **Contract #1,#2**; ⚠ **không còn `bump`** (đã gỡ, thứ tự pha do RemakeCount + FIFO quyết định) |
+| Pickup Board | list, pickUp, **pickUpAllReady**, serve | DEV4 | B2 | `/cashier/handoff` · `PickupServlet` | ✅ Done | ⚠ **thuộc role CASHIER** (`RbacFilter` chặn barista); barista chỉ xem món READY tại Quầy pha chế |
 | 86 / Out-of-Stock | toggle86 + ETA | DEV4 | B3 | `/barista/eightysix` · `EightySixServlet` | ✅ Done | |
 | Prep Checklist | createBatch, cancelBatch, updateBatch · RAW→PREPPED | DEV4 | B4 | `/barista/prep` · `PrepServlet` | ✅ Done | **Contract #2 nơi DUY NHẤT** |
-| Waste & Remake | createIngredientWaste, create, **remakeProduct**, update, void | DEV4 | B5 | `/barista/waste` · `WasteServlet` | ✅ Done | ⚠ remake ngoài đặc tả |
+| Waste | createIngredientWaste, create, update, void | DEV4 | B5 | `/barista/waste` · `WasteServlet` | ✅ Done | remake ghi từ KDS, không có form thủ công |
 | Recipe Lookup | search/view (read-only) | DEV4 | B6 | `/barista/recipe` · `RecipeLookupServlet` | ✅ Done | |
-| Shift Handover + Clock | clockIn, clockOut, create note + KPI | DEV4 | B7 | `/barista/handover` · `ShiftHandoverServlet` | ✅ Done | ⚠ **chấm giờ** thêm; `hr.ShiftHandover` |
+| Shift Handover + Clock | clockIn, clockOut, create (note + đầu việc, **chuyển tiếp việc tồn**), acknowledge, updateTask · danh sách **lọc + phân trang server-side** | DEV4 | B7 | `/barista/handover` · `ShiftHandoverServlet` | ✅ Done | ⚠ **chấm giờ** thêm; `hr.ShiftHandover`; lọc dùng param `state` (không phải `status` — trùng ô đổi trạng thái việc) |
 
 ## Shared / Infra
 

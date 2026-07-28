@@ -13,6 +13,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 
 /** M · WasteReportServlet → /manager/waste. Manager chỉ xem nhật ký hao hụt/làm lại. */
@@ -40,7 +42,7 @@ public class WasteReportServlet extends HttpServlet {
 
         try {
             InventoryService.WasteLogPage p = service.page(branchId, range,
-                    logQuery, logWasteType, logStatus, requestedLogPage, pageSize());
+                    logQuery, logWasteType, logStatus, requestedLogPage, pageSizeParam(req));
             req.setAttribute("summary", service.summarize(branchId, range));
             req.setAttribute("wasteLogPage", p);
             req.setAttribute("logs", p.getLogs());
@@ -52,6 +54,8 @@ public class WasteReportServlet extends HttpServlet {
             req.setAttribute("wasteLogWasteType", logWasteType);
             req.setAttribute("wasteLogStatus", logStatus);
             req.setAttribute("openReviews", service.openReviews(branchId));
+            req.setAttribute("corrections", service.corrections(branchId, range));
+            req.setAttribute("correctionsLimit", WasteReportService.MAX_CORRECTIONS);
             req.setAttribute("pageTitle", "Đối soát tồn và hao hụt");
             req.getRequestDispatcher("/WEB-INF/views/manager/waste.jsp").forward(req, resp);
         } catch (Exception e) {
@@ -69,7 +73,7 @@ public class WasteReportServlet extends HttpServlet {
             boolean ok = service.resolveReview(InventoryDashboardServlet.branchId(req), id,
                     user == null ? 0 : user.getUserId(), req.getParameter("note"));
             req.getSession().setAttribute(ok ? "flashOk" : "flashError", ok ? "Đã xác nhận ngoại lệ." : "Ngoại lệ đã được xử lý.");
-            resp.sendRedirect(req.getContextPath() + "/manager/reconciliation");
+            resp.sendRedirect(selfUrlKeepingFilters(req));
         } catch (NumberFormatException e) { resp.sendError(400); }
         catch (Exception e) { throw new ServletException(e); }
     }
@@ -100,8 +104,43 @@ public class WasteReportServlet extends HttpServlet {
         return value == null || value.trim().isEmpty();
     }
 
-    /** Màn manager ưu tiên nhìn được nhiều dòng hơn quầy pha chế. */
-    private static int pageSize() {
-        return 10;
+    /** Màn manager ưu tiên nhìn được nhiều dòng hơn quầy pha chế; đối soát dài thì chọn tới 100. */
+    private static int pageSizeParam(HttpServletRequest req) {
+        return normalizePageSize(positiveIntParam(req, "pageSize", 10));
+    }
+
+    /** Chỉ nhận đúng các mức có trên giao diện; giá trị lạ (kể cả rất lớn) rơi về mặc định. */
+    static int normalizePageSize(int value) {
+        return value == 20 || value == 50 || value == 100 ? value : 10;
+    }
+
+    /**
+     * URL quay lại màn đối soát kèm khoảng ngày + bộ lọc + trang đang xem, dùng cho redirect sau POST (PRG).
+     * Không có nó thì xử lý xong một ngoại lệ là khoảng ngày và trang nhật ký bị reset về mặc định.
+     */
+    private static String selfUrlKeepingFilters(HttpServletRequest req) {
+        return buildSelfUrl(req.getContextPath(), textParam(req, "from", 10), textParam(req, "to", 10),
+                textParam(req, "q", 100), allowedParam(req, "wasteType", "SPILL", "EXPIRED", "REMAKE", "OTHER"),
+                allowedParam(req, "status", "ACTIVE", "VOIDED"), pageSizeParam(req), positiveIntParam(req, "page", 1));
+    }
+
+    /** Phần thuần của {@link #selfUrlKeepingFilters} — tách ra để test được mà không cần dựng request. */
+    static String buildSelfUrl(String contextPath, String from, String to, String query,
+                               String wasteType, String status, int pageSize, int page) {
+        StringBuilder qs = new StringBuilder();
+        appendParam(qs, "from", from);
+        appendParam(qs, "to", to);
+        appendParam(qs, "q", query);
+        appendParam(qs, "wasteType", wasteType);
+        appendParam(qs, "status", status);
+        appendParam(qs, "pageSize", String.valueOf(pageSize));
+        appendParam(qs, "page", String.valueOf(page));
+        return contextPath + "/manager/reconciliation" + (qs.length() == 0 ? "" : "?" + qs);
+    }
+
+    private static void appendParam(StringBuilder qs, String name, String value) {
+        if (blank(value)) return;
+        if (qs.length() > 0) qs.append('&');
+        qs.append(name).append('=').append(URLEncoder.encode(value, StandardCharsets.UTF_8));
     }
 }

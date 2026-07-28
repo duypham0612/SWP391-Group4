@@ -40,9 +40,9 @@
             <div class="form-group" style="margin:0;width:110px"><label>Đơn vị</label>
                 <input id="unitInp" type="text" name="unit" class="form-control" maxlength="20" placeholder="vd: Túi"></div>
             <div class="form-group" style="margin:0;width:130px"><label>Số lượng</label>
-                <input type="number" name="quantity" class="form-control" min="0" step="5" required></div>
+                <input type="number" name="quantity" class="form-control" min="0.001" step="0.001" required></div>
             <div class="form-group" style="margin:0;width:150px"><label>Đơn giá (₫)</label>
-                <input type="number" name="unitCost" class="form-control" min="0" step="5000" value="0"></div>
+                <input type="number" name="unitCost" class="form-control" min="0.01" step="0.01" required></div>
             <button type="submit" class="btn btn-primary">+ Thêm</button>
         </form>
         <script>
@@ -75,8 +75,8 @@
                             <td><input class="pickbox" type="checkbox" name="pick" value="${i.ingredientId}"></td>
                             <td>${i.name}</td>
                             <td><input type="text" name="unit_${i.ingredientId}" class="form-control" maxlength="20" value="${i.unit}"></td>
-                            <td><input type="number" name="qty_${i.ingredientId}" class="form-control" min="0" step="5"></td>
-                            <td><input type="number" name="cost_${i.ingredientId}" class="form-control" min="0" step="5000" value="0"></td>
+                            <td><input type="number" name="qty_${i.ingredientId}" class="form-control" min="0.001" step="0.001"></td>
+                            <td><input type="number" name="cost_${i.ingredientId}" class="form-control" min="0.01" step="0.01"></td>
                         </tr>
                     </c:forEach>
                 </tbody>
@@ -98,8 +98,8 @@
                     <tr>
                         <td>${d.ingredientName}</td>
                         <td>${d.quantityDisplay} ${d.displayUnit}</td>
-                        <td><fmt:formatNumber value="${d.unitCost}" maxFractionDigits="0"/> ₫</td>
-                        <td><fmt:formatNumber value="${d.lineCost}" maxFractionDigits="0"/> ₫</td>
+                        <td>${d.unitCostDisplay} ₫</td>
+                        <td>${d.lineCostDisplay} ₫</td>
                         <c:if test="${draft}">
                             <td>
                                 <form action="${ctx}/manager/receipt" method="post" style="display:inline" onsubmit="return confirm('Xoá dòng?');">
@@ -119,7 +119,7 @@
 </c:choose>
 
 <c:if test="${receipt.status == 'CONFIRMED'}">
-    <div class="alert alert-success" style="margin-top:18px">Đã nhập kho · Tổng tiền: <strong><fmt:formatNumber value="${receipt.totalCost}" maxFractionDigits="0"/> ₫</strong>. Tồn đã được cộng qua sổ cái.</div>
+    <div class="alert alert-success" style="margin-top:18px">Đã nhập kho · Tổng tiền: <strong>${receipt.totalCostDisplay} ₫</strong>. Tồn đã được cộng qua sổ cái.</div>
 </c:if>
 
 <c:if test="${draft}">

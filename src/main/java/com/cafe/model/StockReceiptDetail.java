@@ -32,6 +32,7 @@ public class StockReceiptDetail {
 
     public BigDecimal getUnitCost() { return unitCost; }
     public void setUnitCost(BigDecimal unitCost) { this.unitCost = unitCost; }
+    public String getUnitCostDisplay() { return com.cafe.common.QuantityFormat.groupedVi(unitCost); }
 
     public String getUnit() { return unit; }
     public void setUnit(String unit) { this.unit = unit; }
@@ -42,6 +43,7 @@ public class StockReceiptDetail {
     public BigDecimal getLineCost() {
         return quantity == null || unitCost == null ? BigDecimal.ZERO : quantity.multiply(unitCost);
     }
+    public String getLineCostDisplay() { return com.cafe.common.QuantityFormat.groupedVi(getLineCost()); }
 
     public String getIngredientName() { return ingredientName; }
     public void setIngredientName(String ingredientName) { this.ingredientName = ingredientName; }

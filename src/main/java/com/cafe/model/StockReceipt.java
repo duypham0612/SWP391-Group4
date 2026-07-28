@@ -38,6 +38,7 @@ public class StockReceipt {
 
     public BigDecimal getTotalCost() { return totalCost; }
     public void setTotalCost(BigDecimal totalCost) { this.totalCost = totalCost; }
+    public String getTotalCostDisplay() { return com.cafe.common.QuantityFormat.groupedVi(totalCost); }
 
     public String getNote() { return note; }
     public void setNote(String note) { this.note = note; }

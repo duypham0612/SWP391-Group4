@@ -10,8 +10,11 @@
     <meta name="theme-color" content="#291A0F">
     <title>${pageTitle} · Cafe Chain</title>
     <script>
-      /* Đặt theme trước khi paint để tránh nháy màn (FOUC). */
-      (function(){try{var t=localStorage.getItem('cafe-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();
+      /* Đặt theme + trạng thái menu trước khi paint để tránh nháy màn (FOUC). */
+      (function(){try{
+        var t=localStorage.getItem('cafe-theme');if(t)document.documentElement.setAttribute('data-theme',t);
+        if(localStorage.getItem('cafe-nav')==='collapsed')document.documentElement.classList.add('is-nav-collapsed');
+      }catch(e){}})();
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
