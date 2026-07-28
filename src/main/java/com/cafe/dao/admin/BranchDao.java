@@ -126,6 +126,36 @@ public class BranchDao {
         }
     }
 
+    public Integer findManagerUserIdForUpdate(Connection conn, int branchId) throws SQLException {
+        String sql = "SELECT ManagerUserId FROM org.Branch WITH (UPDLOCK, HOLDLOCK) WHERE BranchId=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return null;
+                int managerId = rs.getInt("ManagerUserId");
+                return rs.wasNull() ? null : managerId;
+            }
+        }
+    }
+
+    public void clearManagerByUser(Connection conn, int userId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE org.Branch SET ManagerUserId=NULL WHERE ManagerUserId=?")) {
+            ps.setInt(1, userId);
+            ps.executeUpdate();
+        }
+    }
+
+    public boolean isManagerAssigned(Connection conn, int userId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT 1 FROM org.Branch WHERE ManagerUserId=?")) {
+            ps.setInt(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
     private Branch map(ResultSet rs) throws SQLException {
         Branch b = new Branch();
         b.setBranchId(rs.getInt("BranchId"));

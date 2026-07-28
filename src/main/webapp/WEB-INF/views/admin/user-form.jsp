@@ -18,9 +18,12 @@
 
         <div class="form-group">
             <label for="username">Tên đăng nhập *</label>
-            <input id="username" type="text" name="username" class="form-control" maxlength="60"
+            <input id="username" type="text" name="username" class="form-control" minlength="4" maxlength="60"
+                   pattern="[A-Za-z][A-Za-z0-9._-]{3,59}"
+                   title="Từ 4 đến 60 ký tự, bắt đầu bằng chữ cái; chỉ dùng chữ không dấu, số, dấu chấm, gạch dưới hoặc gạch ngang."
                    value="${staff.username}" required <c:if test="${editing}">readonly</c:if>>
             <c:if test="${editing}"><small>Không thể đổi tên đăng nhập sau khi tạo.</small></c:if>
+            <c:if test="${not editing}"><small>Từ 4–60 ký tự, bắt đầu bằng chữ cái; hệ thống tự chuyển thành chữ thường.</small></c:if>
         </div>
         <div class="form-group">
             <label for="fullName">Họ tên *</label>
@@ -48,12 +51,21 @@
         </div>
         <div class="form-group">
             <label for="branchId">Chi nhánh *</label>
-            <select id="branchId" name="branchId" class="form-control" required>
-                <option value="">-- Chọn chi nhánh --</option>
-                <c:forEach var="b" items="${branches}">
-                    <option value="${b.branchId}" <c:if test="${b.branchId == staff.branchId}">selected</c:if>>${b.code} — ${b.name}</option>
-                </c:forEach>
-            </select>
+            <c:choose>
+                <c:when test="${editing}">
+                    <div class="form-control" style="background:var(--surface-2);color:var(--ink-soft)">${staff.branchName}</div>
+                    <input id="branchId" type="hidden" name="branchId" value="${staff.branchId}">
+                    <small class="muted">Chi nhánh làm việc được cố định sau khi tạo nhân sự.</small>
+                </c:when>
+                <c:otherwise>
+                    <select id="branchId" name="branchId" class="form-control" required>
+                        <option value="">-- Chọn chi nhánh --</option>
+                        <c:forEach var="b" items="${branches}">
+                            <option value="${b.branchId}" <c:if test="${b.branchId == staff.branchId}">selected</c:if>>${b.code} — ${b.name}</option>
+                        </c:forEach>
+                    </select>
+                </c:otherwise>
+            </c:choose>
         </div>
         <div class="form-group">
             <label for="status">Trạng thái</label>

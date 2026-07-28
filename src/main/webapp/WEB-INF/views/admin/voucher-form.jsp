@@ -1,14 +1,17 @@
-<%@ page contentType="text/html;charset=UTF-8" %>
+<%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1><c:choose><c:when test="${voucher.voucherId > 0}">Sửa voucher</c:when><c:otherwise>Thêm voucher</c:otherwise></c:choose></h1><p>Thiết lập mã giảm giá và phạm vi áp dụng.</p></div>
+    <div>
+        <h1><c:choose><c:when test="${voucher.voucherId > 0}">Sửa voucher</c:when><c:otherwise>Thêm voucher</c:otherwise></c:choose></h1>
+        <p>Thiết lập mã giảm giá và phạm vi áp dụng.</p>
+    </div>
     <a class="btn btn-ghost" href="${ctx}/admin/voucher">← Quay lại</a>
 </div>
 
-<c:if test="${not empty errorMsg}"><div class="alert alert-error">${errorMsg}</div></c:if>
+<c:if test="${not empty errorMsg}"><div class="alert alert-error"><c:out value="${errorMsg}"/></div></c:if>
 
 <div class="card form-card">
     <form action="${ctx}/admin/voucher" method="post">
@@ -18,15 +21,24 @@
 
         <div class="form-group">
             <label for="code">Mã voucher *</label>
-            <input id="code" type="text" name="code" class="form-control" maxlength="40" value="${voucher.code}" required
+            <input id="code" type="text" name="code" class="form-control" maxlength="40" pattern="[A-Za-z0-9_-]+"
+                   title="Chỉ dùng chữ cái không dấu, chữ số, dấu gạch ngang hoặc gạch dưới."
+                   value="${voucher.code}" required
                    <c:choose><c:when test="${voucher.voucherId > 0}">readonly</c:when><c:otherwise>autofocus</c:otherwise></c:choose>>
-            <c:if test="${voucher.voucherId > 0}"><small class="muted">Mã voucher không thể thay đổi sau khi tạo.</small></c:if>
+            <c:choose>
+                <c:when test="${voucher.voucherId > 0}">
+                    <small class="muted">Mã voucher không thể thay đổi sau khi tạo.</small>
+                </c:when>
+                <c:otherwise>
+                    <small class="muted">Tối đa 40 ký tự; chỉ dùng chữ cái không dấu, chữ số, dấu - hoặc _.</small>
+                </c:otherwise>
+            </c:choose>
         </div>
         <div class="form-group">
             <label for="discountType">Loại giảm *</label>
             <select id="discountType" name="discountType" class="form-control" required>
                 <option value="PERCENT" <c:if test="${voucher.discountType == 'PERCENT'}">selected</c:if>>PERCENT (theo %)</option>
-                <option value="FIXED"   <c:if test="${voucher.discountType == 'FIXED'}">selected</c:if>>FIXED (số tiền)</option>
+                <option value="FIXED" <c:if test="${voucher.discountType == 'FIXED'}">selected</c:if>>FIXED (số tiền)</option>
             </select>
         </div>
         <div class="form-group">
@@ -38,18 +50,13 @@
             <input id="minOrderAmount" type="text" name="minOrderAmount" class="form-control" value="${voucher.minOrderAmount}" data-money-input>
         </div>
         <div class="form-group">
-            <label for="scope">Phạm vi *</label>
-            <select id="scope" name="scope" class="form-control" required>
-                <option value="CHAIN"  <c:if test="${voucher.scope == 'CHAIN'}">selected</c:if>>CHAIN (toàn chuỗi)</option>
-                <option value="BRANCH" <c:if test="${voucher.scope == 'BRANCH'}">selected</c:if>>BRANCH (1 chi nhánh)</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="branchId">Chi nhánh <span class="muted">(chỉ khi phạm vi BRANCH)</span></label>
-            <select id="branchId" name="branchId" class="form-control">
-                <option value="">--</option>
+            <label for="scopeTarget">Phạm vi áp dụng *</label>
+            <select id="scopeTarget" name="scopeTarget" class="form-control" required>
+                <option value="CHAIN" <c:if test="${voucher.scope == 'CHAIN'}">selected</c:if>>Toàn chuỗi</option>
                 <c:forEach var="b" items="${branches}">
-                    <option value="${b.branchId}" <c:if test="${b.branchId == voucher.branchId}">selected</c:if>>${b.code} — ${b.name}</option>
+                    <option value="BRANCH:${b.branchId}" <c:if test="${voucher.scope == 'BRANCH' and b.branchId == voucher.branchId}">selected</c:if>>
+                        Chi nhánh: ${b.code} — ${b.name}
+                    </option>
                 </c:forEach>
             </select>
         </div>

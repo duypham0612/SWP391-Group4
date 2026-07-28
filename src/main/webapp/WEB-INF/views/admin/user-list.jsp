@@ -50,14 +50,23 @@
         </c:when>
         <c:otherwise>
             <table class="table admin-user-table">
+                <colgroup>
+                    <col style="width:64px">
+                    <col style="width:13%">
+                    <col style="width:18%">
+                    <col style="width:18%">
+                    <col style="width:23%">
+                    <col style="width:10%">
+                    <col style="width:14%">
+                </colgroup>
                 <thead><tr>
-                    <th style="width:52px">#</th>
-                    <th style="width:150px">Tên đăng nhập</th>
+                    <th>#</th>
+                    <th>Tên đăng nhập</th>
                     <th>Họ tên</th>
-                    <th style="width:180px">Vai trò</th>
-                    <th style="width:220px">Chi nhánh</th>
-                    <th style="width:120px">Trạng thái</th>
-                    <th style="width:150px">Thao tác</th>
+                    <th>Vai trò</th>
+                    <th>Chi nhánh</th>
+                    <th>Trạng thái</th>
+                    <th>Thao tác</th>
                 </tr></thead>
                 <tbody>
                     <c:forEach var="s" items="${staffList}">

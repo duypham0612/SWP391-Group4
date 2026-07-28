@@ -5,7 +5,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Sản phẩm</h1><p>Quản lý món bán, giá, size và thời gian pha.</p></div>
+    <div><h1>Sản phẩm</h1><p>Quản lý món bán, giá và size.</p></div>
     <a class="btn btn-primary" href="${ctx}/admin/product?action=new">+ Thêm sản phẩm</a>
 </div>
 
@@ -70,7 +70,6 @@
                     <th style="width:180px" data-tt-search>Danh mục</th>
                     <th style="width:130px" data-tt-nosearch>Giá gốc</th>
                     <th style="width:120px" data-tt-nosearch>Trạng thái</th>
-                    <th style="width:105px" data-tt-nosearch>Pha chuẩn</th>
                     <th style="width:260px" data-tt-nosearch>Thao tác</th>
                 </tr></thead>
                 <tbody>
@@ -84,7 +83,6 @@
                             <td>${p.categoryName}</td>
                             <td><fmt:formatNumber value="${p.basePrice}" type="number" maxFractionDigits="0"/> ₫</td>
                             <td data-tt-val="${p.active}"><c:choose><c:when test="${p.active}"><span class="badge badge-ready">Hiển thị</span></c:when><c:otherwise><span class="badge badge-cancelled">Ẩn</span></c:otherwise></c:choose></td>
-                            <td>${p.prepMinutes} phút</td>
                             <td>
                                 <div class="row-actions">
                                 <a class="btn btn-ghost btn-sm" href="${ctx}/admin/product?action=edit&id=${p.productId}">Sửa</a>

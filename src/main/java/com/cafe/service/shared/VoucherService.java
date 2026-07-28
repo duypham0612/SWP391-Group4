@@ -23,6 +23,12 @@ public class VoucherService {
         try (Connection conn = DBConnection.getConnection()) { return dao.findById(conn, id); }
     }
 
+    public boolean isCodeInUse(String code, int excludeVoucherId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            return dao.existsByCode(conn, code, excludeVoucherId);
+        }
+    }
+
     public int createVoucher(Voucher v) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);

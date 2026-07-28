@@ -150,6 +150,17 @@ public class UserDao {
         }
     }
 
+    public boolean hasRoleCode(Connection conn, int roleId, String roleCode) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT 1 FROM iam.Role WHERE RoleId=? AND Code=?")) {
+            ps.setInt(1, roleId);
+            ps.setString(2, roleCode);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
     public int insert(Connection conn, User u, String passwordHash) throws SQLException {
         final String sql = "INSERT INTO iam.[User](Username, PasswordHash, FullName, Email, Phone, RoleId, BranchId, Status) " +
                 "VALUES (?,?,?,?,?,?,?,?)";
