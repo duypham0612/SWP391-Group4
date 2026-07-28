@@ -1,0 +1,548 @@
+@startuml
+title Cafe Chain Management - Main dine-in order lifecycle
+
+hide footbox
+autonumber
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequence {
+  ArrowColor #344054
+  ActorBorderColor #344054
+  ActorFontColor #101828
+  LifeLineBorderColor #98A2B3
+  LifeLineBackgroundColor #FFFFFF
+  ParticipantBorderColor #667085
+  ParticipantBackgroundColor #F9FAFB
+  ParticipantFontColor #101828
+  GroupBorderColor #667085
+  GroupBackgroundColor #F9FAFB
+  GroupHeaderFontColor #101828
+  BoxBorderColor #D0D5DD
+  BoxFontColor #344054
+}
+
+actor "Thu ngan" as Cashier
+actor "Khach hang" as Customer
+actor "Barista" as Barista
+
+box "VIEW - JSP / JavaScript" #F2F4F7
+boundary "table-map.jsp" as TableView
+boundary "pos.jsp" as PosView
+boundary "customer/menu.jsp" as QrView
+boundary "barista/kds.jsp\n+ fragments" as KdsView
+boundary "cashier/handoff/*" as HandoffView
+boundary "cashier/checkout.jsp" as CheckoutView
+end box
+
+box "CONTROLLER - Jakarta Servlet" #EFF8FF
+control "TableServlet" as TableCtl
+control "PosServlet" as PosCtl
+control "QrMenuServlet" as QrCtl
+control "KdsServlet" as KdsCtl
+control "PickupServlet" as PickupCtl
+control "CheckoutServlet" as CheckoutCtl
+end box
+
+box "SERVICE - Business logic and transaction owner" #ECFDF3
+entity "TableSessionService" as TableSvc
+entity "QrOrderService" as QrSvc
+entity "KdsService" as KdsSvc
+entity "PickupService" as PickupSvc
+entity "OrderService" as OrderSvc
+entity "InventoryService" as InventorySvc
+entity "BillingService" as BillingSvc
+end box
+
+box "PERSISTENCE - DAO / JDBC gateway" #FFF6ED
+database "TableSessionDao\nDiningTableDao" as TableDao
+database "Sales DAOs\nOrder / Item / Menu / Modifier / Action" as SalesDao
+database "Inventory DAOs\nRecipe / ModifierImpact / Ledger / Stock" as InventoryDao
+database "Billing DAOs\nBill / BillItem / Voucher" as BillingDao
+database "OutboxEventDao\nEventPublisher <<JDBC gateway>>" as Outbox
+end box
+
+database "SQL Server\nsales | catalog | inventory | payment | ops" as DB
+
+note over TableCtl,CheckoutCtl
+  Auth, RBAC, branch scope, CSRF and shift guards
+  run before or inside the controllers.
+end note
+
+== 1. Cashier opens a table ==
+
+Cashier -> TableView : Select table and click "Open table"
+TableView -> TableCtl : POST /cashier/table\naction=openTable, tableId
+activate TableCtl
+TableCtl -> TableSvc : openSession(branchId, tableId, cashierId)
+activate TableSvc
+
+group One JDBC transaction
+  TableSvc -> TableDao : findOpenByTable(tableId)
+  activate TableDao
+  TableDao -> DB : SELECT sales.TableSession\nWHERE table is OPEN
+  DB --> TableDao : existing session or null
+  TableDao --> TableSvc : TableSession?
+  deactivate TableDao
+
+  alt No OPEN session exists
+    TableSvc -> TableDao : insertOpen(branchId, tableId, cashierId)
+    activate TableDao
+    TableDao -> DB : INSERT sales.TableSession\nStatus = OPEN
+    DB --> TableDao : sessionId
+    TableDao --> TableSvc : sessionId
+    deactivate TableDao
+
+    TableSvc -> TableDao : updateStatus(tableId, OCCUPIED)
+    activate TableDao
+    TableDao -> DB : UPDATE sales.DiningTable
+    DB --> TableDao : updated
+    TableDao --> TableSvc
+    deactivate TableDao
+  else Session already OPEN
+    note right of TableSvc
+      Idempotent: reuse the current session.
+    end note
+  end
+
+  TableSvc -> Outbox : markOpenRequestsProcessed(tableId)
+  activate Outbox
+  Outbox -> DB : UPDATE ops.OutboxEvent\nProcessedAt = now
+  DB --> Outbox : updated
+  Outbox --> TableSvc
+  deactivate Outbox
+
+  note over TableSvc,DB
+    COMMIT. On SQLException: ROLLBACK.
+  end note
+end
+
+TableSvc --> TableCtl : sessionId
+deactivate TableSvc
+TableCtl --> TableView : Redirect to POS or show table QR
+deactivate TableCtl
+TableView --> Cashier : Table is OCCUPIED
+
+== 2. Place an order - POS and QR converge ==
+
+alt Cashier enters the order at POS
+  Cashier -> PosView : Build cart and submit
+  PosView -> PosCtl : POST /cashier/pos\nJSON cart + sessionId
+  activate PosCtl
+  PosCtl -> OrderSvc : placeOrder(branchId, sessionId,\nCOUNTER, DINE_IN, userId, lines)
+  activate OrderSvc
+else Customer orders from the table QR
+  Customer -> QrView : Scan QR, build cart and submit
+  QrView -> QrCtl : POST /qr/menu\nJSON cart
+  activate QrCtl
+  QrCtl -> QrSvc : isSessionOrderable(sessionId)
+  activate QrSvc
+  QrSvc -> TableDao : findById(sessionId)
+  activate TableDao
+  TableDao -> DB : SELECT sales.TableSession
+  DB --> TableDao : OPEN session
+  TableDao --> QrSvc : TableSession
+  deactivate TableDao
+  QrSvc --> QrCtl : true
+  QrCtl -> QrSvc : placeCustomerOrder(branchId, sessionId, lines)
+  QrSvc -> OrderSvc : placeOrder(branchId, sessionId,\nQR, DINE_IN, null, lines)
+  activate OrderSvc
+end
+
+group OrderService.placeOrder - one JDBC transaction
+  OrderSvc -> SalesDao : list branch menu, depleted products,\nvalidate products and modifiers
+  activate SalesDao
+  SalesDao -> DB : SELECT catalog.BranchMenu,\nProductRecipe, Modifier*
+  DB --> SalesDao : server-side price and availability
+  SalesDao --> OrderSvc : validated catalog data
+  deactivate SalesDao
+
+  alt Product is unpublished, stopped, 86 or depleted
+    note over OrderSvc,DB
+      ROLLBACK and return validation error.
+      No order or item remains in the database.
+    end note
+  else Cart is valid
+    OrderSvc -> SalesDao : insert Order(ACTIVE)\nand generate pickupCode
+    activate SalesDao
+    SalesDao -> DB : INSERT/UPDATE sales.Orders
+    DB --> SalesDao : orderId
+    SalesDao --> OrderSvc : orderId
+    deactivate SalesDao
+
+    loop Each valid cart line
+      OrderSvc -> SalesDao : insert OrderItem(WAITING)
+      activate SalesDao
+      SalesDao -> DB : INSERT sales.OrderItem
+      DB --> SalesDao : orderItemId
+      SalesDao --> OrderSvc : orderItemId
+      deactivate SalesDao
+
+      opt Selected modifier options
+        OrderSvc -> SalesDao : insert OrderItemModifier
+        activate SalesDao
+        SalesDao -> DB : INSERT sales.OrderItemModifier
+        DB --> SalesDao : inserted
+        SalesDao --> OrderSvc
+        deactivate SalesDao
+      end
+    end
+
+    OrderSvc -> Outbox : publish(order.created)
+    activate Outbox
+    Outbox -> DB : INSERT ops.OutboxEvent
+    DB --> Outbox : inserted
+    Outbox --> OrderSvc
+    deactivate Outbox
+
+    note over OrderSvc,DB
+      COMMIT Order + Items + Modifiers + event atomically.
+    end note
+  end
+end
+
+alt POS source
+  OrderSvc --> PosCtl : orderId
+  deactivate OrderSvc
+  PosCtl --> PosView : 200 JSON {orderId}
+  deactivate PosCtl
+  PosView --> Cashier : Order accepted
+else QR source
+  OrderSvc --> QrSvc : orderId
+  deactivate OrderSvc
+  QrSvc --> QrCtl : orderId
+  deactivate QrSvc
+  QrCtl --> QrView : 200 JSON {orderId}
+  deactivate QrCtl
+  QrView --> Customer : Show order tracking
+end
+
+== 3. Barista prepares the item ==
+
+Barista -> KdsView : Click "Receive"
+KdsView -> KdsCtl : POST /barista/kds\naction=start, orderItemId
+activate KdsCtl
+KdsCtl -> KdsSvc : startItem(orderItemId, userId, branchId)
+activate KdsSvc
+KdsSvc -> OrderSvc : startItem(...)
+activate OrderSvc
+
+group Claim item - one JDBC transaction
+  OrderSvc -> SalesDao : findById + claim conditionally
+  activate SalesDao
+  SalesDao -> DB : UPDATE sales.OrderItem\nWAITING -> MAKING, set BaristaId\nWHERE branch/status still match
+  DB --> SalesDao : affectedRows
+  SalesDao --> OrderSvc : 1 or 0
+  deactivate SalesDao
+
+  alt affectedRows = 1
+    OrderSvc -> SalesDao : insert action log(CLAIM)
+    activate SalesDao
+    SalesDao -> DB : INSERT ops.OrderItemActionLog
+    DB --> SalesDao
+    SalesDao --> OrderSvc
+    deactivate SalesDao
+    OrderSvc -> Outbox : publish status MAKING
+    activate Outbox
+    Outbox -> DB : INSERT ops.OutboxEvent
+    DB --> Outbox
+    Outbox --> OrderSvc
+    deactivate Outbox
+    note over OrderSvc,DB : COMMIT
+  else Item was changed by another request
+    note over OrderSvc,DB : ROLLBACK / return false
+  end
+end
+
+OrderSvc --> KdsSvc : success
+deactivate OrderSvc
+KdsSvc --> KdsCtl : success
+deactivate KdsSvc
+KdsCtl --> KdsView : Refresh KDS fragment
+deactivate KdsCtl
+KdsView --> Barista : Item is MAKING
+
+Barista -> KdsView : Click "Done"
+KdsView -> KdsCtl : POST /barista/kds\naction=markReady, handoverLocation
+activate KdsCtl
+KdsCtl -> KdsSvc : markReady(orderItemId, userId, branchId, location)
+activate KdsSvc
+KdsSvc -> OrderSvc : markItemReady(...)
+activate OrderSvc
+
+group Complete and deduct inventory - one JDBC transaction
+  OrderSvc -> SalesDao : completeClaimed(...)
+  activate SalesDao
+  SalesDao -> DB : Conditional UPDATE sales.OrderItem\nMAKING -> READY\nset PreparedBy/PreparedAt/location
+  DB --> SalesDao : affectedRows
+  SalesDao --> OrderSvc : 1 or 0
+  deactivate SalesDao
+
+  alt affectedRows = 1 and recipe exists
+    OrderSvc -> InventorySvc : deductForOrderItem(connection, item)
+    activate InventorySvc
+    InventorySvc -> InventoryDao : read recipe + selected modifier impacts
+    activate InventoryDao
+    InventoryDao -> DB : SELECT catalog.ProductRecipe,\nOrderItemModifier, ModifierIngredientImpact
+    DB --> InventoryDao : required ingredients
+    InventoryDao --> InventorySvc : recipe and impacts
+    deactivate InventoryDao
+
+    loop Each required ingredient
+      InventorySvc -> InventoryDao : insert ledger(DEDUCT)\n+ apply stock delta
+      activate InventoryDao
+      InventoryDao -> DB : INSERT inventory.InventoryTransaction\nUPDATE inventory.BranchInventory
+      DB --> InventoryDao : new quantity
+      InventoryDao --> InventorySvc : quantity
+      deactivate InventoryDao
+    end
+
+    InventorySvc -> Outbox : publish(inventory.deducted / stock alert)
+    activate Outbox
+    Outbox -> DB : INSERT ops.OutboxEvent
+    DB --> Outbox
+    Outbox --> InventorySvc
+    deactivate Outbox
+    InventorySvc --> OrderSvc : inventory deducted
+    deactivate InventorySvc
+
+    OrderSvc -> SalesDao : insert action log(COMPLETE)
+    activate SalesDao
+    SalesDao -> DB : INSERT ops.OrderItemActionLog
+    DB --> SalesDao
+    SalesDao --> OrderSvc
+    deactivate SalesDao
+    OrderSvc -> Outbox : publish(item.ready)
+    activate Outbox
+    Outbox -> DB : INSERT ops.OutboxEvent
+    DB --> Outbox
+    Outbox --> OrderSvc
+    deactivate Outbox
+
+    note over OrderSvc,DB
+      COMMIT READY state, inventory ledger,
+      stock balance, audit log and events together.
+    end note
+  else Conflict or missing/invalid recipe
+    note over OrderSvc,DB
+      ROLLBACK. The item does not remain READY
+      and inventory is not partially deducted.
+    end note
+  end
+end
+
+OrderSvc --> KdsSvc : success
+deactivate OrderSvc
+KdsSvc --> KdsCtl : success
+deactivate KdsSvc
+KdsCtl --> KdsView : Refresh KDS fragment
+deactivate KdsCtl
+KdsView --> Barista : Item is READY
+
+== 4. Cashier receives and serves the prepared item ==
+
+Cashier -> HandoffView : Click "Received"
+HandoffView -> PickupCtl : POST /cashier/handoff\naction=pickUp
+activate PickupCtl
+PickupCtl -> PickupSvc : pickUpItem(orderItemId, userId, branchId)
+activate PickupSvc
+PickupSvc -> OrderSvc : markItemPickedUp(...)
+activate OrderSvc
+OrderSvc -> SalesDao : pickUp + insert action log
+activate SalesDao
+SalesDao -> DB : Conditional UPDATE sales.OrderItem\nREADY -> PICKED_UP\n+ INSERT action log
+DB --> SalesDao : affectedRows
+SalesDao --> OrderSvc : success
+deactivate SalesDao
+OrderSvc -> Outbox : publish(item.picked_up)
+activate Outbox
+Outbox -> DB : INSERT ops.OutboxEvent
+DB --> Outbox
+Outbox --> OrderSvc
+deactivate Outbox
+note over OrderSvc,DB : COMMIT
+OrderSvc --> PickupSvc : success
+deactivate OrderSvc
+PickupSvc --> PickupCtl : success
+deactivate PickupSvc
+PickupCtl --> HandoffView : Refresh handoff fragment
+deactivate PickupCtl
+HandoffView --> Cashier : Item is PICKED_UP
+
+Cashier -> HandoffView : Click "Served"
+HandoffView -> PickupCtl : POST /cashier/handoff\naction=serve
+activate PickupCtl
+PickupCtl -> PickupSvc : serveItem(orderItemId, userId, branchId)
+activate PickupSvc
+PickupSvc -> OrderSvc : markItemServed(...)
+activate OrderSvc
+OrderSvc -> SalesDao : updateStatusIf(PICKED_UP -> SERVED)\n+ completeIfAllItemsFinal(orderId)
+activate SalesDao
+SalesDao -> DB : UPDATE sales.OrderItem\nUPDATE sales.Orders to COMPLETED if all final
+DB --> SalesDao : success
+SalesDao --> OrderSvc : success
+deactivate SalesDao
+OrderSvc -> Outbox : publish status events
+activate Outbox
+Outbox -> DB : INSERT ops.OutboxEvent
+DB --> Outbox
+Outbox --> OrderSvc
+deactivate Outbox
+note over OrderSvc,DB : COMMIT
+OrderSvc --> PickupSvc : success
+deactivate OrderSvc
+PickupSvc --> PickupCtl : success
+deactivate PickupSvc
+PickupCtl --> HandoffView : Refresh handoff fragment
+deactivate PickupCtl
+HandoffView --> Cashier : Item is SERVED
+
+== 5. Build bill, pay and close the table ==
+
+Cashier -> TableView : Select checkout for the open session
+TableView -> CheckoutCtl : GET /cashier/checkout?sessionId
+activate CheckoutCtl
+CheckoutCtl -> TableSvc : getSession(sessionId)
+activate TableSvc
+TableSvc -> TableDao : findById(sessionId)
+activate TableDao
+TableDao -> DB : SELECT sales.TableSession
+DB --> TableDao : OPEN session
+TableDao --> TableSvc : TableSession
+deactivate TableDao
+TableSvc --> CheckoutCtl : TableSession
+deactivate TableSvc
+
+CheckoutCtl -> BillingSvc : buildSessionBill(sessionId, branchId, shiftId)
+activate BillingSvc
+group Build/synchronize bill - one JDBC transaction
+  BillingSvc -> BillingDao : find unpaid bills and unbilled order items
+  activate BillingDao
+  BillingDao -> DB : SELECT payment.Bill, sales.OrderItem,\npayment.BillItem
+  DB --> BillingDao : bill and item data
+  BillingDao --> BillingSvc : data
+  deactivate BillingDao
+
+  opt No default UNPAID bill
+    BillingSvc -> BillingDao : insert Bill(UNPAID)
+    activate BillingDao
+    BillingDao -> DB : INSERT payment.Bill
+    DB --> BillingDao : billId
+    BillingDao --> BillingSvc : billId
+    deactivate BillingDao
+  end
+
+  loop Each non-cancelled, unbilled OrderItem
+    BillingSvc -> BillingDao : insert BillItem
+    activate BillingDao
+    BillingDao -> DB : INSERT payment.BillItem
+    DB --> BillingDao
+    BillingDao --> BillingSvc
+    deactivate BillingDao
+  end
+
+  BillingSvc -> BillingDao : recompute subtotal, discount, VAT and total
+  activate BillingDao
+  BillingDao -> DB : UPDATE payment.Bill amounts
+  DB --> BillingDao
+  BillingDao --> BillingSvc
+  deactivate BillingDao
+  note over BillingSvc,DB : COMMIT
+end
+BillingSvc --> CheckoutCtl : bills
+deactivate BillingSvc
+CheckoutCtl --> CheckoutView : Forward bills and payment options
+deactivate CheckoutCtl
+CheckoutView --> Cashier : Show payable bill
+
+Cashier -> CheckoutView : Confirm payment method
+CheckoutView -> CheckoutCtl : POST /cashier/checkout\naction=pay, billId, method
+activate CheckoutCtl
+CheckoutCtl -> BillingSvc : validate bill and payBill(billId, method)
+activate BillingSvc
+
+group Payment - one JDBC transaction
+  BillingSvc -> BillingDao : find bill + validate voucher/items/total
+  activate BillingDao
+  BillingDao -> DB : SELECT payment.Bill, BillItem, Voucher
+  DB --> BillingDao : current state
+  BillingDao --> BillingSvc : bill data
+  deactivate BillingDao
+
+  BillingSvc -> BillingDao : markPaid conditionally
+  activate BillingDao
+  BillingDao -> DB : UPDATE payment.Bill\nUNPAID -> PAID\nWHERE Status = UNPAID
+  DB --> BillingDao : affectedRows
+  BillingDao --> BillingSvc : 1 or 0
+  deactivate BillingDao
+
+  alt Payment accepted
+    opt Voucher was applied
+      BillingSvc -> BillingDao : increment usage + insert redemption
+      activate BillingDao
+      BillingDao -> DB : UPDATE payment.Voucher\nINSERT payment.VoucherRedemption
+      DB --> BillingDao
+      BillingDao --> BillingSvc
+      deactivate BillingDao
+    end
+
+    BillingSvc -> Outbox : publish(payment.completed)
+    activate Outbox
+    Outbox -> DB : INSERT ops.OutboxEvent
+    DB --> Outbox
+    Outbox --> BillingSvc
+    deactivate Outbox
+
+    BillingSvc -> BillingDao : findUnpaidBySession(sessionId)
+    activate BillingDao
+    BillingDao -> DB : SELECT remaining UNPAID bills
+    DB --> BillingDao : list
+    BillingDao --> BillingSvc : list
+    deactivate BillingDao
+
+    alt No UNPAID bill remains
+      BillingSvc -> TableDao : close session and release table
+      activate TableDao
+      TableDao -> DB : UPDATE sales.TableSession = CLOSED\nUPDATE sales.DiningTable = EMPTY
+      DB --> TableDao : updated
+      TableDao --> BillingSvc
+      deactivate TableDao
+      BillingSvc -> Outbox : mark bill request processed
+      activate Outbox
+      Outbox -> DB : UPDATE ops.OutboxEvent
+      DB --> Outbox
+      Outbox --> BillingSvc
+      deactivate Outbox
+    else Split bill still UNPAID
+      note right of BillingSvc
+        Keep the table session OPEN until
+        every split bill is paid.
+      end note
+    end
+
+    note over BillingSvc,DB
+      COMMIT payment, voucher redemption,
+      event and table close atomically.
+    end note
+  else Already paid/void or invalid
+    note over BillingSvc,DB : ROLLBACK and return false
+  end
+end
+
+BillingSvc --> CheckoutCtl : payment result
+deactivate BillingSvc
+CheckoutCtl --> TableView : Redirect /cashier/table when session is CLOSED
+deactivate CheckoutCtl
+TableView --> Cashier : Table is EMPTY
+
+legend bottom
+  |= State machine |= Meaning |
+  | WAITING -> MAKING | Barista atomically claims an item |
+  | MAKING -> READY | Preparation completes and inventory is deducted |
+  | READY -> PICKED_UP -> SERVED | Cashier receives then serves the item |
+  | ACTIVE -> COMPLETED | All order items are final |
+  | UNPAID -> PAID | Payment is accepted once |
+  | OPEN/OCCUPIED -> CLOSED/EMPTY | Last bill is paid and the table is released |
+endlegend
+
+@enduml
