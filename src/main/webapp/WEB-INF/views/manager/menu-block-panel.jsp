@@ -1,6 +1,7 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%@ taglib prefix="fn" uri="jakarta.tags.functions" %>
+<c:set var="ctx" value="${pageContext.request.contextPath}" />
 
 <section id="menu86" class="card" style="margin-top:24px">
     <div class="page-header" style="margin-bottom:16px">
