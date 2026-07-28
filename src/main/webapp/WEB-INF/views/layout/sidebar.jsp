@@ -87,9 +87,6 @@
                 <li><a class="${curPath == ctx.concat('/manager/payroll') ? 'active' : ''}" href="${ctx}/manager/payroll"><svg class="ic"><use href="#ic-wallet"/></svg>Bảng lương</a></li>
                 <li class="nav-section">Thực đơn</li>
                 <li><a class="${curPath == ctx.concat('/manager/menu') or curPath == ctx.concat('/manager/menu-block') ? 'active' : ''}" href="${ctx}/manager/menu"><svg class="ic"><use href="#ic-menu"/></svg>Thực đơn chi nhánh</a></li>
-                <li class="nav-section">Vận hành</li>
-                <li><a class="${curPath == ctx.concat('/manager/handover') ? 'active' : ''}" href="${ctx}/manager/handover"><svg class="ic"><use href="#ic-clipboard"/></svg>Bàn giao cần tiếp nhận</a></li>
-                <li><a class="${curPath == ctx.concat('/manager/branch-settings') ? 'active' : ''}" href="${ctx}/manager/branch-settings"><svg class="ic"><use href="#ic-store"/></svg>Cài đặt chi nhánh</a></li>
             </c:when>
             <c:when test="${u.roleCode == 'CASHIER'}">
                 <c:set var="cashierReady" value="${requestScope.cashierOnDuty}" />

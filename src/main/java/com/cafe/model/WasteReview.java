@@ -16,6 +16,8 @@ public class WasteReview {
     public String getReviewType(){return reviewType;} public void setReviewType(String v){reviewType=v;}
     public BigDecimal getQtyBefore(){return qtyBefore;} public void setQtyBefore(BigDecimal v){qtyBefore=v;}
     public BigDecimal getQtyAfter(){return qtyAfter;} public void setQtyAfter(BigDecimal v){qtyAfter=v;}
+    public String getQtyBeforeDisplay(){return com.cafe.common.QuantityFormat.groupedVi(qtyBefore);}
+    public String getQtyAfterDisplay(){return com.cafe.common.QuantityFormat.groupedVi(qtyAfter);}
     public String getStatus(){return status;} public void setStatus(String v){status=v;}
     public String getNote(){return note;} public void setNote(String v){note=v;}
     public LocalDateTime getCreatedAt(){return createdAt;} public void setCreatedAt(LocalDateTime v){createdAt=v;}

@@ -47,7 +47,7 @@ public class WasteLog {
     public void setIngredientId(int v) { this.ingredientId = v; }
 
     /** Cho JSP — bỏ .000 thừa. */
-    public String getQuantityDisplay() { return com.cafe.common.QuantityFormat.plain(quantity); }
+    public String getQuantityDisplay() { return com.cafe.common.QuantityFormat.groupedVi(quantity); }
 
     public BigDecimal getQuantity() { return quantity; }
     public void setQuantity(BigDecimal v) { this.quantity = v; }

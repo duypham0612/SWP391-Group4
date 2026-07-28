@@ -2,6 +2,7 @@ package com.cafe.controller.manager;
 
 import com.cafe.common.BusinessException;
 import com.cafe.common.CsrfUtil;
+import com.cafe.common.LocalizedNumber;
 import com.cafe.common.SessionUtil;
 import com.cafe.model.StockAdjustment;
 import com.cafe.model.User;
@@ -59,7 +60,7 @@ public class ReconciliationServlet extends HttpServlet {
                     String aq = req.getParameter("actual_" + ingId);
                     if (aq == null || aq.isBlank()) continue;   // tick nhưng chưa nhập tồn thực tế → bỏ qua
                     BigDecimal actual;
-                    try { actual = new BigDecimal(aq.trim()); } catch (NumberFormatException e) { throw e; }
+                    try { actual = LocalizedNumber.parse(aq); } catch (NumberFormatException e) { throw e; }
                     StockAdjustment a = new StockAdjustment();
                     a.setIngredientId(ingId);
                     a.setActualQty(actual);
