@@ -54,14 +54,14 @@
                             <img class="prod-thumb" src="${imgSrc}" alt="${m.productName}" loading="lazy" onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
                             <span>${m.productName}</span>
                         </td>
-                        <td><fmt:formatNumber value="${m.basePrice}" maxFractionDigits="0"/> ₫</td>
+                        <td>${m.basePriceDisplay} ₫</td>
                         <td>
                             <form action="${ctx}/manager/menu" method="post" style="display:flex;gap:6px;align-items:center;margin:0">
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                 <input type="hidden" name="action" value="setLocalPrice">
                                 <input type="hidden" name="productId" value="${m.productId}">
-                                <input type="number" name="localPrice" class="form-control" style="width:130px" step="100" min="0"
-                                       value="${m.localPrice}" placeholder="Dùng giá gốc">
+                                <input type="text" name="localPrice" class="form-control" style="width:130px"
+                                       value="${m.localPriceDisplay}" placeholder="Dùng giá gốc" data-vi-number>
                                 <button type="submit" class="btn btn-ghost btn-sm">Lưu</button>
                             </form>
                         </td>

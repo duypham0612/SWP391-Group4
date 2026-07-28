@@ -2,6 +2,7 @@ package com.cafe.controller.manager;
 
 import com.cafe.common.BusinessException;
 import com.cafe.common.CsrfUtil;
+import com.cafe.common.LocalizedNumber;
 import com.cafe.common.SessionUtil;
 import com.cafe.model.BranchInventory;
 import com.cafe.model.User;
@@ -59,13 +60,13 @@ public class InventoryDashboardServlet extends HttpServlet {
         try {
             if ("setThreshold".equals(req.getParameter("action"))) {
                 int ingredientId = Integer.parseInt(req.getParameter("ingredientId"));
-                BigDecimal th = new BigDecimal(req.getParameter("threshold").trim());
+                BigDecimal th = LocalizedNumber.parse(req.getParameter("threshold"));
                 inventoryService.setMinThreshold(branchId, ingredientId, th);
                 req.getSession().setAttribute("flashOk", "Đã cập nhật ngưỡng cảnh báo.");
             } else if ("setPrepPolicy".equals(req.getParameter("action"))) {
                 int ingredientId = Integer.parseInt(req.getParameter("ingredientId"));
-                BigDecimal threshold = new BigDecimal(req.getParameter("threshold").trim());
-                BigDecimal target = new BigDecimal(req.getParameter("target").trim());
+                BigDecimal threshold = LocalizedNumber.parse(req.getParameter("threshold"));
+                BigDecimal target = LocalizedNumber.parse(req.getParameter("target"));
                 inventoryService.setPrepPolicy(branchId, ingredientId, threshold, target);
                 req.getSession().setAttribute("flashOk", "Đã cập nhật ngưỡng và mức tồn mục tiêu.");
             }

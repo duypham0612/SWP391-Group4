@@ -37,6 +37,17 @@ public class VoucherDao {
         }
     }
 
+    public boolean existsByCode(Connection conn, String code, int excludeVoucherId) throws SQLException {
+        String sql = "SELECT 1 FROM payment.Voucher WHERE UPPER(Code) = UPPER(?) AND VoucherId <> ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, code);
+            ps.setInt(2, excludeVoucherId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
     public void incrementUsed(Connection conn, int voucherId) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
                 "UPDATE payment.Voucher SET UsedCount = UsedCount + 1 WHERE VoucherId = ?")) {

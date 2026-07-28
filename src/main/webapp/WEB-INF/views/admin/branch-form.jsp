@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1><c:choose><c:when test="${branch.branchId > 0}">Sửa chi nhánh</c:when><c:otherwise>Thêm chi nhánh</c:otherwise></c:choose></h1><p>Cập nhật địa điểm, giờ mở cửa và quản lý phụ trách.</p></div>
+    <div><h1><c:choose><c:when test="${branch.branchId > 0}">Sửa chi nhánh</c:when><c:otherwise>Thêm chi nhánh</c:otherwise></c:choose></h1><p>Cập nhật địa điểm và quản lý phụ trách.</p></div>
     <a class="btn btn-ghost" href="${ctx}/admin/branch">← Quay lại</a>
 </div>
 
@@ -15,6 +15,8 @@
         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
         <input type="hidden" name="action" value="save">
         <input type="hidden" name="branchId" value="${branch.branchId}">
+        <input type="hidden" name="openTime" value="${branch.openTime}">
+        <input type="hidden" name="closeTime" value="${branch.closeTime}">
 
         <c:if test="${branch.branchId > 0}">
             <div class="form-group">
@@ -32,24 +34,15 @@
             <label for="address">Địa chỉ *</label>
             <input id="address" type="text" name="address" class="form-control" maxlength="255" value="${branch.address}" required>
         </div>
-        <div class="form-row" style="display:flex;gap:16px">
-            <div class="form-group" style="flex:1">
-                <label for="openTime">Giờ mở cửa</label>
-                <input id="openTime" type="time" name="openTime" class="form-control" value="${branch.openTime}">
-            </div>
-            <div class="form-group" style="flex:1">
-                <label for="closeTime">Giờ đóng cửa</label>
-                <input id="closeTime" type="time" name="closeTime" class="form-control" value="${branch.closeTime}">
-            </div>
-        </div>
         <div class="form-group">
-            <label for="managerUserId">Quản lý phụ trách</label>
-            <select id="managerUserId" name="managerUserId" class="form-control">
-                <option value="">— Chưa gán —</option>
-                <c:forEach var="m" items="${managers}">
-                    <option value="${m.userId}" <c:if test="${branch.managerUserId == m.userId}">selected</c:if>>${m.fullName} (${m.username})</option>
-                </c:forEach>
-            </select>
+            <label>Quản lý phụ trách</label>
+            <div class="form-control" style="background:var(--surface-2);color:var(--ink-soft)">
+                <c:choose>
+                    <c:when test="${not empty branch.managerName}">${branch.managerName}</c:when>
+                    <c:otherwise>Chưa có quản lý</c:otherwise>
+                </c:choose>
+            </div>
+            <small class="muted">Quản lý được gán tự động theo vai trò và chi nhánh ở màn Nhân sự.</small>
         </div>
         <div class="form-group">
             <label><input type="checkbox" name="active" value="1" <c:if test="${branch.active or branch.branchId == 0}">checked</c:if>> Đang hoạt động</label>
@@ -57,26 +50,5 @@
         <button type="submit" class="btn btn-primary btn-lg">Lưu</button>
     </form>
 </div>
-
-<script>
-(function(){
-    var openTime = document.getElementById('openTime');
-    var closeTime = document.getElementById('closeTime');
-    if (!openTime || !closeTime) return;
-
-    function validateHours() {
-        closeTime.min = openTime.value || '';
-        if (openTime.value && closeTime.value && closeTime.value <= openTime.value) {
-            closeTime.setCustomValidity('Giờ đóng cửa phải sau giờ mở cửa.');
-        } else {
-            closeTime.setCustomValidity('');
-        }
-    }
-
-    openTime.addEventListener('input', validateHours);
-    closeTime.addEventListener('input', validateHours);
-    validateHours();
-})();
-</script>
 
 <jsp:include page="../layout/footer.jsp" />

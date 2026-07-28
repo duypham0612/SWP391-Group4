@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Chi nhánh</h1><p>Quản lý thông tin, giờ mở cửa và người phụ trách.</p></div>
+    <div><h1>Chi nhánh</h1><p>Quản lý thông tin và người phụ trách.</p></div>
     <a class="btn btn-primary" href="${ctx}/admin/branch?action=new">+ Thêm chi nhánh</a>
 </div>
 
@@ -29,6 +29,7 @@
             <div class="seg" role="group" aria-label="Lọc trạng thái">
                 <button type="button" class="seg__btn is-active" data-filter="all">Tất cả</button>
                 <button type="button" class="seg__btn" data-filter="active">Hoạt động</button>
+                <button type="button" class="seg__btn" data-filter="unassigned">Chưa phân công</button>
                 <button type="button" class="seg__btn" data-filter="inactive">Ngừng</button>
             </div>
             <span class="tt-summary"><strong id="branchCount">0</strong> chi nhánh</span>
@@ -37,33 +38,41 @@
         <table class="table">
             <thead><tr>
                 <th style="width:60px">#</th><th style="width:100px">Mã</th><th>Tên</th><th>Địa chỉ</th>
-                <th style="width:120px">Giờ mở cửa</th><th>Quản lý</th>
+                <th>Quản lý</th>
                 <th style="width:110px">Trạng thái</th><th style="width:230px">Thao tác</th>
             </tr></thead>
             <tbody id="branchBody">
                 <c:forEach var="b" items="${branches}">
-                    <tr data-state="${b.active ? 'active' : 'inactive'}">
+                    <tr data-state="${empty b.managerUserId ? 'unassigned' : (b.active ? 'active' : 'inactive')}">
                         <td>${b.branchId}</td>
                         <td>${b.code}</td>
                         <td>${b.name}</td>
                         <td>${b.address}</td>
-                        <td><c:choose><c:when test="${not empty b.hoursText}">${b.hoursText}</c:when><c:otherwise><span class="muted">—</span></c:otherwise></c:choose></td>
                         <td><c:choose><c:when test="${not empty b.managerName}">${b.managerName}</c:when><c:otherwise><span class="muted">(chưa gán)</span></c:otherwise></c:choose></td>
-                        <td><c:choose><c:when test="${b.active}"><span class="badge badge-ready">Hoạt động</span></c:when><c:otherwise><span class="badge badge-cancelled">Ngừng</span></c:otherwise></c:choose></td>
+                        <td><c:choose><c:when test="${empty b.managerUserId}"><span class="badge badge-waiting">Chưa phân công</span></c:when><c:when test="${b.active}"><span class="badge badge-ready">Hoạt động</span></c:when><c:otherwise><span class="badge badge-cancelled">Ngừng</span></c:otherwise></c:choose></td>
                         <td>
-                            <a class="btn btn-ghost btn-sm" href="${ctx}/admin/branch?action=edit&id=${b.branchId}">Sửa</a>
-                            <a class="btn btn-ghost btn-sm" href="${ctx}/admin/branch-menu?branchId=${b.branchId}">Menu</a>
-                            <form action="${ctx}/admin/branch" method="post" style="display:inline" onsubmit="return confirm('Đổi trạng thái chi nhánh này?');">
-                                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                                <input type="hidden" name="action" value="toggleActive">
-                                <input type="hidden" name="id" value="${b.branchId}">
-                                <button type="submit" class="btn btn-ghost btn-sm">${b.active ? 'Ngừng' : 'Bật'}</button>
-                            </form>
+                            <div class="row-actions branch-row-actions">
+                                <a class="btn btn-ghost btn-sm" href="${ctx}/admin/branch?action=edit&id=${b.branchId}">Sửa</a>
+                                <a class="btn btn-ghost btn-sm" href="${ctx}/admin/branch-menu?branchId=${b.branchId}">Menu</a>
+                                <c:choose>
+                                    <c:when test="${empty b.managerUserId}">
+                                        <a class="btn btn-primary btn-sm" href="${ctx}/admin/user?action=new&amp;branchId=${b.branchId}">Phân công</a>
+                                    </c:when>
+                                    <c:otherwise>
+                                        <form action="${ctx}/admin/branch" method="post" onsubmit="return confirm('Đổi trạng thái chi nhánh này?');">
+                                            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                            <input type="hidden" name="action" value="toggleActive">
+                                            <input type="hidden" name="id" value="${b.branchId}">
+                                            <button type="submit" class="btn btn-ghost btn-sm">${b.active ? 'Ngừng' : 'Bật'}</button>
+                                        </form>
+                                    </c:otherwise>
+                                </c:choose>
+                            </div>
                         </td>
                     </tr>
                 </c:forEach>
                 <tr id="branchNoResult" style="display:none">
-                    <td colspan="8" style="text-align:center;padding:26px" class="muted">Không tìm thấy chi nhánh phù hợp.</td>
+                    <td colspan="7" style="text-align:center;padding:26px" class="muted">Không tìm thấy chi nhánh phù hợp.</td>
                 </tr>
             </tbody>
         </table>
@@ -96,7 +105,7 @@
                     cells[1] ? cells[1].textContent : '',
                     cells[2] ? cells[2].textContent : '',
                     cells[3] ? cells[3].textContent : '',
-                    cells[5] ? cells[5].textContent : ''
+                    cells[4] ? cells[4].textContent : ''
                 ].join(' '));
             });
 
@@ -173,3 +182,4 @@
 </c:choose>
 
 <jsp:include page="../layout/footer.jsp" />
+

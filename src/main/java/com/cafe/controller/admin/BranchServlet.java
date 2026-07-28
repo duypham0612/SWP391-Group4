@@ -3,7 +3,6 @@ package com.cafe.controller.admin;
 import com.cafe.common.CsrfUtil;
 import com.cafe.model.Branch;
 import com.cafe.service.admin.BranchService;
-import com.cafe.service.admin.UserService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -19,7 +18,6 @@ import java.time.format.DateTimeParseException;
 public class BranchServlet extends HttpServlet {
 
     private final BranchService service = new BranchService();
-    private final UserService userService = new UserService();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -50,18 +48,36 @@ public class BranchServlet extends HttpServlet {
         String action = req.getParameter("action");
         try {
             if ("toggleActive".equals(action)) {
-                service.toggleActive(Integer.parseInt(req.getParameter("id")));
+                int id = Integer.parseInt(req.getParameter("id"));
+                Branch branch = service.getBranch(id);
+                if (branch == null) {
+                    resp.sendError(HttpServletResponse.SC_NOT_FOUND);
+                    return;
+                }
+                if (branch.getManagerUserId() == null) {
+                    req.getSession().setAttribute("flashError",
+                            "Vui lòng phân công quản lý trước khi thay đổi trạng thái chi nhánh.");
+                    resp.sendRedirect(ctx + "/admin/branch");
+                    return;
+                }
+                service.toggleActive(id);
                 req.getSession().setAttribute("flashOk", "Đã cập nhật trạng thái chi nhánh.");
                 resp.sendRedirect(ctx + "/admin/branch");
                 return;
             }
             Branch b = bind(req);
+            if (b.getBranchId() != 0) {
+                Branch existing = service.getBranch(b.getBranchId());
+                if (existing == null) {
+                    resp.sendError(HttpServletResponse.SC_NOT_FOUND);
+                    return;
+                }
+                b.setCode(existing.getCode());
+                b.setManagerUserId(existing.getManagerUserId());
+                b.setManagerName(existing.getManagerName());
+            }
             String error = validate(b);
             if (error != null) {
-                if (b.getBranchId() != 0) {
-                    Branch existing = service.getBranch(b.getBranchId());
-                    if (existing != null) b.setCode(existing.getCode());
-                }
                 req.setAttribute("branch", b);
                 req.setAttribute("errorMsg", error);
                 forwardForm(req, resp, b.getBranchId() == 0 ? "Thêm chi nhánh" : "Sửa chi nhánh");
@@ -88,8 +104,7 @@ public class BranchServlet extends HttpServlet {
         b.setActive(req.getParameter("active") != null);
         b.setOpenTime(parseTime(req.getParameter("openTime")));
         b.setCloseTime(parseTime(req.getParameter("closeTime")));
-        int managerUserId = parsePositiveInt(req.getParameter("managerUserId"));
-        b.setManagerUserId(managerUserId <= 0 ? null : managerUserId);
+        b.setManagerUserId(null);
         return b;
     }
 
@@ -105,28 +120,15 @@ public class BranchServlet extends HttpServlet {
             return "Giờ mở cửa và giờ đóng cửa phải nhập cả hai hoặc để trống cả hai.";
         if (b.getOpenTime() != null && !b.getOpenTime().isBefore(b.getCloseTime()))
             return "Giờ mở cửa phải trước giờ đóng cửa trong cùng ngày.";
-        if (b.getManagerUserId() != null && userService.getManagers().stream().noneMatch(u -> u.getUserId() == b.getManagerUserId()))
-            return "Quản lý phụ trách không hợp lệ.";
         return null;
     }
 
     private void forwardForm(HttpServletRequest req, HttpServletResponse resp, String title)
             throws ServletException, IOException {
-        try { req.setAttribute("managers", userService.getManagers()); }
-        catch (Exception e) { throw new ServletException(e); }
         req.setAttribute("pageTitle", title);
         req.getRequestDispatcher("/WEB-INF/views/admin/branch-form.jsp").forward(req, resp);
     }
 
     private String trim(String s) { return s == null ? null : s.trim(); }
 
-    private int parsePositiveInt(String raw) {
-        try {
-            if (raw == null || raw.isBlank()) return 0;
-            int value = Integer.parseInt(raw.trim());
-            return value > 0 ? value : 0;
-        } catch (NumberFormatException e) {
-            return 0;
-        }
-    }
 }

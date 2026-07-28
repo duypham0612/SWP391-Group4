@@ -7,6 +7,7 @@ import java.time.format.DateTimeFormatter;
 /** payment.Voucher */
 public class Voucher {
     private static final DateTimeFormatter INPUT_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm");
+    private static final DateTimeFormatter DISPLAY_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     private int voucherId;
     private String code;
@@ -65,6 +66,8 @@ public class Voucher {
     // Helper cho input datetime-local
     public String getStartInput() { return startDate == null ? "" : startDate.format(INPUT_FMT); }
     public String getEndInput()   { return endDate == null ? "" : endDate.format(INPUT_FMT); }
+    public String getStartDisplay() { return startDate == null ? "Không giới hạn" : startDate.format(DISPLAY_FMT); }
+    public String getEndDisplay()   { return endDate == null ? "Không giới hạn" : endDate.format(DISPLAY_FMT); }
 
     public String getLifecycleStatusCode() {
         LocalDateTime now = LocalDateTime.now();

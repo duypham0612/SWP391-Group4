@@ -27,6 +27,9 @@ public class BranchMenuItem {
 
     public BigDecimal getBasePrice() { return basePrice; }
     public void setBasePrice(BigDecimal basePrice) { this.basePrice = basePrice; }
+    public String getBasePriceDisplay() {
+        return com.cafe.common.QuantityFormat.groupedVi(basePrice);
+    }
 
     public boolean isPublished() { return published; }
     public void setPublished(boolean published) { this.published = published; }
@@ -36,6 +39,9 @@ public class BranchMenuItem {
 
     public BigDecimal getLocalPrice() { return localPrice; }
     public void setLocalPrice(BigDecimal localPrice) { this.localPrice = localPrice; }
+    public String getLocalPriceDisplay() {
+        return com.cafe.common.QuantityFormat.groupedVi(localPrice);
+    }
 
     public boolean isIs86() { return is86; }
     public void setIs86(boolean is86) { this.is86 = is86; }

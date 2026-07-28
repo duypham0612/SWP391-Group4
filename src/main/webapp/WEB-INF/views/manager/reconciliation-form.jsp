@@ -31,7 +31,7 @@
                         <td><input class="pickbox" type="checkbox" name="pick" value="${i.ingredientId}"></td>
                         <td>${i.name} <span class="muted">· ${i.ingredientType == 'PREPPED' ? 'Đã sơ chế' : 'Nguyên liệu thô'}</span></td>
                         <td><input type="text" name="unit_${i.ingredientId}" class="form-control" maxlength="20" value="${i.unit}"></td>
-                        <td><input type="number" name="actual_${i.ingredientId}" class="form-control" min="0" step="any" placeholder="0"></td>
+                        <td><input type="text" name="actual_${i.ingredientId}" class="form-control" placeholder="0" data-vi-number></td>
                         <td><input type="text" name="reason_${i.ingredientId}" class="form-control" maxlength="255" placeholder="Kiểm kê cuối ca..."></td>
                     </tr>
                 </c:forEach>

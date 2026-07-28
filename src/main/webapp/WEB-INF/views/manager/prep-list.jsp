@@ -36,7 +36,7 @@
                     <tr class="${batch.status == 'CANCELLED' ? 'row-muted' : ''}">
                         <td>${batch.prepBatchId}</td>
                         <td>${batch.preppedIngredientName}</td>
-                        <td><strong>${batch.quantityProduced}</strong> ${batch.preppedIngredientUnit}</td>
+                        <td><strong>${batch.quantityProducedDisplay}</strong> ${batch.preppedIngredientUnit}</td>
                         <td>${batch.madeByName}</td>
                         <td>${batch.madeAtDisplay}</td>
                         <td>${empty batch.expiresAtDisplay ? '—' : batch.expiresAtDisplay}</td>

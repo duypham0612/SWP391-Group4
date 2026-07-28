@@ -2,6 +2,7 @@ package com.cafe.controller.manager;
 
 import com.cafe.common.BusinessException;
 import com.cafe.common.CsrfUtil;
+import com.cafe.common.LocalizedNumber;
 import com.cafe.model.BranchMenuItem;
 import com.cafe.service.shared.BranchMenuService;
 import jakarta.servlet.ServletException;
@@ -68,7 +69,7 @@ public class ManagerMenuServlet extends HttpServlet {
                 available = !available;
             } else if ("setLocalPrice".equals(action)) {
                 String lp = req.getParameter("localPrice");
-                localPrice = (lp == null || lp.isBlank()) ? null : new BigDecimal(lp.trim());
+                localPrice = (lp == null || lp.isBlank()) ? null : LocalizedNumber.parse(lp);
             } else {
                 req.getSession().setAttribute("flashError", "Thao tác không hợp lệ.");
                 resp.sendRedirect(req.getContextPath() + "/manager/menu");

@@ -49,15 +49,27 @@
             <div class="card empty-state"><div class="icon">📭</div><p>Chưa có nhân sự nào.</p></div>
         </c:when>
         <c:otherwise>
+            <div class="table-scroll">
             <table class="table admin-user-table">
+                <colgroup>
+                    <col style="width:64px">
+                    <col style="width:13%">
+                    <col style="width:16%">
+                    <col style="width:21%">
+                    <col style="width:14%">
+                    <col style="width:17%">
+                    <col style="width:10%">
+                    <col style="width:150px">
+                </colgroup>
                 <thead><tr>
-                    <th style="width:52px">#</th>
-                    <th style="width:150px">Tên đăng nhập</th>
+                    <th>#</th>
+                    <th>Tên đăng nhập</th>
                     <th>Họ tên</th>
-                    <th style="width:180px">Vai trò</th>
-                    <th style="width:220px">Chi nhánh</th>
-                    <th style="width:120px">Trạng thái</th>
-                    <th style="width:150px">Thao tác</th>
+                    <th>Liên hệ</th>
+                    <th>Vai trò</th>
+                    <th>Chi nhánh</th>
+                    <th>Trạng thái</th>
+                    <th>Thao tác</th>
                 </tr></thead>
                 <tbody>
                     <c:forEach var="s" items="${staffList}" varStatus="st">
@@ -65,6 +77,12 @@
                             <td>${rowStart + st.index + 1}</td>
                             <td>${s.username}</td>
                             <td>${s.fullName}</td>
+                            <td>
+                                <div class="staff-contact">
+                                    <span><c:out value="${s.email}"/></span>
+                                    <span><c:out value="${s.phone}"/></span>
+                                </div>
+                            </td>
                             <td>${s.roleName}</td>
                             <td><c:choose><c:when test="${empty s.branchName}"><span class="muted">(toàn chuỗi)</span></c:when><c:otherwise>${s.branchName}</c:otherwise></c:choose></td>
                             <td><c:choose><c:when test="${s.status == 'ACTIVE'}"><span class="badge badge-ready">ACTIVE</span></c:when><c:otherwise><span class="badge badge-cancelled">LOCKED</span></c:otherwise></c:choose></td>
@@ -94,6 +112,7 @@
                     </c:forEach>
                 </tbody>
             </table>
+            </div>
             <c:if test="${totalPages > 1}">
                 <div class="pagination" style="margin-top:16px">
                     <c:if test="${page > 1}">

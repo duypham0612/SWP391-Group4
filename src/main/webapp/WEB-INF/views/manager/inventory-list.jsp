@@ -56,11 +56,11 @@
                                 <input type="hidden" name="action" value="${bi.ingredientType == 'PREPPED' ? 'setPrepPolicy' : 'setThreshold'}">
                                 <input type="hidden" name="ingredientId" value="${bi.ingredientId}">
                                 <label style="font-size:var(--fs-xs)">Cảnh báo
-                                    <input type="number" name="threshold" class="form-control" style="width:105px" min="0" step="0.001" value="${bi.minThresholdDisplay}" required>
+                                    <input type="text" name="threshold" class="form-control" style="width:115px" value="${bi.minThresholdDisplay}" data-vi-number required>
                                 </label>
                                 <c:if test="${bi.ingredientType == 'PREPPED'}">
                                     <label style="font-size:var(--fs-xs)">Mục tiêu
-                                        <input type="number" name="target" class="form-control" style="width:105px" min="0.001" step="0.001" value="${bi.prepTargetQtyDisplay}" required>
+                                        <input type="text" name="target" class="form-control" style="width:115px" value="${bi.prepTargetQtyDisplay}" data-vi-number required>
                                     </label>
                                 </c:if>
                                 <button type="submit" class="btn btn-ghost btn-sm">Lưu</button>
