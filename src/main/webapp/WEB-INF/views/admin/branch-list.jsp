@@ -26,6 +26,7 @@
             <div class="seg" role="group" aria-label="Lọc trạng thái">
                 <button type="button" class="seg__btn is-active" data-filter="all">Tất cả</button>
                 <button type="button" class="seg__btn" data-filter="active">Hoạt động</button>
+                <button type="button" class="seg__btn" data-filter="unassigned">Chưa phân công</button>
                 <button type="button" class="seg__btn" data-filter="inactive">Ngừng</button>
             </div>
             <span class="list-count"><strong id="branchCount">0</strong> chi nhánh</span>
@@ -39,22 +40,31 @@
             </tr></thead>
             <tbody id="branchBody">
                 <c:forEach var="b" items="${branches}">
-                    <tr data-state="${b.active ? 'active' : 'inactive'}">
+                    <tr data-state="${empty b.managerUserId ? 'unassigned' : (b.active ? 'active' : 'inactive')}">
                         <td>${b.branchId}</td>
                         <td>${b.code}</td>
                         <td>${b.name}</td>
                         <td>${b.address}</td>
                         <td><c:choose><c:when test="${not empty b.managerName}">${b.managerName}</c:when><c:otherwise><span class="muted">(chưa gán)</span></c:otherwise></c:choose></td>
-                        <td><c:choose><c:when test="${b.active}"><span class="badge badge-ready">Hoạt động</span></c:when><c:otherwise><span class="badge badge-cancelled">Ngừng</span></c:otherwise></c:choose></td>
+                        <td><c:choose><c:when test="${empty b.managerUserId}"><span class="badge badge-waiting">Chưa phân công</span></c:when><c:when test="${b.active}"><span class="badge badge-ready">Hoạt động</span></c:when><c:otherwise><span class="badge badge-cancelled">Ngừng</span></c:otherwise></c:choose></td>
                         <td>
-                            <a class="btn btn-ghost btn-sm" href="${ctx}/admin/branch?action=edit&id=${b.branchId}">Sửa</a>
-                            <a class="btn btn-ghost btn-sm" href="${ctx}/admin/branch-menu?branchId=${b.branchId}">Menu</a>
-                            <form action="${ctx}/admin/branch" method="post" style="display:inline" onsubmit="return confirm('Đổi trạng thái chi nhánh này?');">
-                                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                                <input type="hidden" name="action" value="toggleActive">
-                                <input type="hidden" name="id" value="${b.branchId}">
-                                <button type="submit" class="btn btn-ghost btn-sm">${b.active ? 'Ngừng' : 'Bật'}</button>
-                            </form>
+                            <div class="row-actions branch-row-actions">
+                                <a class="btn btn-ghost btn-sm" href="${ctx}/admin/branch?action=edit&id=${b.branchId}">Sửa</a>
+                                <a class="btn btn-ghost btn-sm" href="${ctx}/admin/branch-menu?branchId=${b.branchId}">Menu</a>
+                                <c:choose>
+                                    <c:when test="${empty b.managerUserId}">
+                                        <a class="btn btn-primary btn-sm" href="${ctx}/admin/user?action=new&amp;branchId=${b.branchId}">Phân công</a>
+                                    </c:when>
+                                    <c:otherwise>
+                                        <form action="${ctx}/admin/branch" method="post" onsubmit="return confirm('Đổi trạng thái chi nhánh này?');">
+                                            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                            <input type="hidden" name="action" value="toggleActive">
+                                            <input type="hidden" name="id" value="${b.branchId}">
+                                            <button type="submit" class="btn btn-ghost btn-sm">${b.active ? 'Ngừng' : 'Bật'}</button>
+                                        </form>
+                                    </c:otherwise>
+                                </c:choose>
+                            </div>
                         </td>
                     </tr>
                 </c:forEach>

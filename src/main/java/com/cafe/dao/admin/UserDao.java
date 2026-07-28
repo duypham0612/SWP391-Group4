@@ -20,7 +20,7 @@ public class UserDao {
     private static final String BASE_SELECT =
         "SELECT u.UserId, u.Username, u.PasswordHash, u.FullName, u.Email, u.Phone, " +
         "       u.RoleId, u.BranchId, u.Status, " +
-        "       r.Code AS RoleCode, r.Name AS RoleName, b.Name AS BranchName " +
+        "       r.Code AS RoleCode, r.Name AS RoleName, b.Name AS BranchName, b.IsActive AS BranchActive " +
         "FROM iam.[User] u " +
         "JOIN iam.Role r       ON u.RoleId = r.RoleId " +
         "LEFT JOIN org.Branch b ON u.BranchId = b.BranchId ";
@@ -150,6 +150,24 @@ public class UserDao {
         }
     }
 
+    public boolean emailExists(Connection conn, String email, int excludeId) throws SQLException {
+        final String sql = "SELECT 1 FROM iam.[User] WHERE LOWER(Email) = LOWER(?) AND UserId <> ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, email);
+            ps.setInt(2, excludeId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next(); }
+        }
+    }
+
+    public boolean phoneExists(Connection conn, String phone, int excludeId) throws SQLException {
+        final String sql = "SELECT 1 FROM iam.[User] WHERE Phone = ? AND UserId <> ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, phone);
+            ps.setInt(2, excludeId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next(); }
+        }
+    }
+
     public boolean hasRoleCode(Connection conn, int roleId, String roleCode) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
                 "SELECT 1 FROM iam.Role WHERE RoleId=? AND Code=?")) {
@@ -244,6 +262,8 @@ public class UserDao {
         u.setRoleCode(rs.getString("RoleCode"));
         u.setRoleName(rs.getString("RoleName"));
         u.setBranchName(rs.getString("BranchName"));
+        Object branchActive = rs.getObject("BranchActive");
+        u.setBranchActive(branchActive == null ? null : rs.getBoolean("BranchActive"));
         return u;
     }
 }
