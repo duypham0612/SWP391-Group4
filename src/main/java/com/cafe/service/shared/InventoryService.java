@@ -64,11 +64,6 @@ public class InventoryService {
     /** Một sự cố làm lại tại quầy không được phép biến thành thao tác hàng loạt. */
     private static final int MAX_MANUAL_REMAKE_CUPS = 100;
 
-    /** WasteLog/BranchInventory dùng DECIMAL(12,3); giới hạn này tránh lỗi làm tròn hoặc tràn DB. */
-    private static final BigDecimal MAX_WASTE_QUANTITY = new BigDecimal("999999999.999");
-    /** Một sự cố làm lại tại quầy không được phép biến thành thao tác hàng loạt. */
-    private static final int MAX_MANUAL_REMAKE_CUPS = 100;
-
     private final BranchInventoryDao biDao = new BranchInventoryDao();
     private final BranchMenuDao branchMenuDao = new BranchMenuDao();
     private final InventoryTransactionDao txnDao = new InventoryTransactionDao();
