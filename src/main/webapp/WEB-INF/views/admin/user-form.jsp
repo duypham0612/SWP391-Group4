@@ -34,14 +34,14 @@
             <input id="fullName" type="text" name="fullName" class="form-control" maxlength="120" value="${staff.fullName}" required>
         </div>
         <div class="form-group">
-            <label for="email">Email</label>
+            <label for="email">Email *</label>
             <input id="email" type="email" name="email" class="form-control" maxlength="120"
                    pattern="[A-Za-z0-9.!#$%&amp;'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+"
                    title="Nhập đúng định dạng email, ví dụ: ten@congty.vn"
                    value="${staff.email}" required>
         </div>
         <div class="form-group">
-            <label for="phone">Số điện thoại</label>
+            <label for="phone">Số điện thoại *</label>
             <input id="phone" type="text" name="phone" class="form-control" maxlength="10"
                    inputmode="numeric" pattern="0[0-9]{9}" title="10 chữ số, bắt đầu bằng 0"
                    value="${staff.phone}" required>
