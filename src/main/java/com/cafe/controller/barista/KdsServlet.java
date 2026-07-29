@@ -55,7 +55,7 @@ public class KdsServlet extends HttpServlet {
             loadBoard(req, branchId);
             req.setAttribute("pageTitle", "Quầy pha chế");
             boolean partial = "1".equals(req.getParameter("partial"));
-            BaristaShift.expose(req, "/barista/kds", !partial);
+            BaristaShift.expose(req, "/barista/kds");
             String view = partial
                 ? "/WEB-INF/fragments/barista/kds/cards.jsp"
                 : "/WEB-INF/views/barista/kds.jsp";
@@ -188,7 +188,7 @@ public class KdsServlet extends HttpServlet {
             throws SQLException, ServletException, IOException {
         if ("1".equals(req.getParameter("ajax"))) {
             loadBoard(req, branchId);
-            BaristaShift.expose(req, "/barista/kds", false);
+            BaristaShift.expose(req, "/barista/kds");
             req.getRequestDispatcher("/WEB-INF/fragments/barista/kds/cards.jsp").forward(req, resp);
         } else {
             resp.sendRedirect(req.getContextPath() + "/barista/kds");

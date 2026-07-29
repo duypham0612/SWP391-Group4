@@ -56,8 +56,12 @@
         </span>
     </div>
     <ul class="nav" id="appNav">
+        <%-- Barista không có bảng điều khiển riêng (đã bỏ) — landing sau đăng nhập đi thẳng vào
+             Quầy pha chế, nên mục này chỉ hiện cho các role còn dashboard thật. --%>
+        <c:if test="${u.roleCode != 'BARISTA'}">
         <li class="nav-section">Tổng quan</li>
         <li><a class="${curPath == ctx.concat('/dashboard') ? 'active' : ''}" href="${ctx}/dashboard" title="Bảng điều khiển"><svg class="ic"><use href="#ic-dash"/></svg>Bảng điều khiển</a></li>
+        </c:if>
 
         <c:choose>
             <c:when test="${u.roleCode == 'ADMIN'}">
@@ -108,7 +112,6 @@
                 <li><a class="${curPath == ctx.concat('/barista/eightysix') ? 'active' : ''}" href="${ctx}/barista/eightysix" title="Báo hết món"><svg class="ic"><use href="#ic-ban"/></svg>Báo hết món</a></li>
                 <li><a class="${curPath == ctx.concat('/barista/recipe') ? 'active' : ''}" href="${ctx}/barista/recipe" title="Tra cứu công thức"><svg class="ic"><use href="#ic-search"/></svg>Tra cứu công thức</a></li>
                 <li><a class="${curPath == ctx.concat('/barista/shift') ? 'active' : ''}" href="${ctx}/barista/shift" title="Ca làm của tôi"><svg class="ic"><use href="#ic-clock"/></svg>Ca làm của tôi</a></li>
-                <li><a class="${curPath == ctx.concat('/barista/handover') ? 'active' : ''}" href="${ctx}/barista/handover" title="Bàn giao ca"><svg class="ic"><use href="#ic-clipboard"/></svg>Bàn giao ca</a></li>
             </c:when>
         </c:choose>
     </ul>

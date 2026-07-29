@@ -607,58 +607,10 @@ CREATE TABLE hr.Payroll (
 END
 GO
 
--- Bàn giao ca (Barista) — ghi chú đầu/cuối ca (B7)
-IF OBJECT_ID(N'hr.ShiftHandover', N'U') IS NULL
-BEGIN
-CREATE TABLE hr.ShiftHandover (
-    ShiftHandoverId INT IDENTITY PRIMARY KEY,
-    BranchId        INT NOT NULL,
-    Note            NVARCHAR(1000) NOT NULL,
-    CreatedBy       INT NOT NULL,
-    SourceShiftAssignmentId INT NULL,
-    OverallStatus  VARCHAR(20) NOT NULL DEFAULT 'LEGACY'
-                   CONSTRAINT CK_SH_Status CHECK (OverallStatus IN ('LEGACY','WAITING_RECEIPT','IN_PROGRESS','COMPLETED')),
-    CreatedAt       DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-    CONSTRAINT FK_SH_Branch FOREIGN KEY (BranchId)  REFERENCES org.Branch(BranchId),
-    CONSTRAINT FK_SH_User   FOREIGN KEY (CreatedBy) REFERENCES iam.[User](UserId),
-    CONSTRAINT FK_SH_Source FOREIGN KEY (SourceShiftAssignmentId) REFERENCES hr.ShiftAssignment(ShiftAssignmentId)
-);
-END
-GO
-
--- Người nhận được tạo từ toàn bộ barista của ca kế tiếp; không có ca nhận thì ManagerUserId nhận dự phòng.
-IF OBJECT_ID(N'hr.ShiftHandoverRecipient', N'U') IS NULL
-BEGIN
-CREATE TABLE hr.ShiftHandoverRecipient (
-    ShiftHandoverRecipientId INT IDENTITY PRIMARY KEY,
-    ShiftHandoverId          INT NOT NULL,
-    RecipientUserId          INT NOT NULL,
-    RecipientShiftAssignmentId INT NULL,
-    RecipientType            VARCHAR(20) NOT NULL
-                             CONSTRAINT CK_SHR_Type CHECK (RecipientType IN ('NEXT_SHIFT','MANAGER_FALLBACK')),
-    AcknowledgedAt            DATETIME2 NULL,
-    CONSTRAINT UQ_SHR_Recipient UNIQUE (ShiftHandoverId, RecipientUserId),
-    CONSTRAINT FK_SHR_Handover FOREIGN KEY (ShiftHandoverId) REFERENCES hr.ShiftHandover(ShiftHandoverId),
-    CONSTRAINT FK_SHR_User FOREIGN KEY (RecipientUserId) REFERENCES iam.[User](UserId),
-    CONSTRAINT FK_SHR_Assignment FOREIGN KEY (RecipientShiftAssignmentId) REFERENCES hr.ShiftAssignment(ShiftAssignmentId)
-);
-END
-GO
-
-IF OBJECT_ID(N'hr.ShiftHandoverTask', N'U') IS NULL
-BEGIN
-CREATE TABLE hr.ShiftHandoverTask (
-    ShiftHandoverTaskId INT IDENTITY PRIMARY KEY,
-    ShiftHandoverId     INT NOT NULL,
-    Content             NVARCHAR(500) NOT NULL,
-    Status              VARCHAR(15) NOT NULL DEFAULT 'NEW'
-                        CONSTRAINT CK_SHT_Status CHECK (Status IN ('NEW','IN_PROGRESS','DONE')),
-    UpdatedBy           INT NULL,
-    UpdatedAt           DATETIME2 NULL,
-    CONSTRAINT FK_SHT_Handover FOREIGN KEY (ShiftHandoverId) REFERENCES hr.ShiftHandover(ShiftHandoverId),
-    CONSTRAINT FK_SHT_Updater FOREIGN KEY (UpdatedBy) REFERENCES iam.[User](UserId)
-);
-END
+-- Bàn giao ca (Barista) đã bị loại bỏ khỏi nghiệp vụ — dọn bảng cũ nếu còn tồn tại từ lần khởi tạo trước.
+IF OBJECT_ID(N'hr.ShiftHandoverTask', N'U') IS NOT NULL DROP TABLE hr.ShiftHandoverTask;
+IF OBJECT_ID(N'hr.ShiftHandoverRecipient', N'U') IS NOT NULL DROP TABLE hr.ShiftHandoverRecipient;
+IF OBJECT_ID(N'hr.ShiftHandover', N'U') IS NOT NULL DROP TABLE hr.ShiftHandover;
 GO
 
 /* ===========================================================================
@@ -1142,44 +1094,6 @@ END;
 IF NOT EXISTS (SELECT 1 FROM ops.SchemaVersion WHERE VersionCode = '20260722_attendance_integrity')
     INSERT INTO ops.SchemaVersion (VersionCode, Description)
     VALUES ('20260722_attendance_integrity', N'Bảo đảm một bản ghi chấm công cho mỗi ca.');
-
-COMMIT TRANSACTION;
-GO
-
--- 20260722: Workflow bàn giao ca và người nhận bàn giao.
-SET XACT_ABORT ON;
-BEGIN TRANSACTION;
-
-IF COL_LENGTH(N'hr.ShiftHandover', N'SourceShiftAssignmentId') IS NULL
-    ALTER TABLE hr.ShiftHandover ADD SourceShiftAssignmentId INT NULL;
-
-IF COL_LENGTH(N'hr.ShiftHandover', N'OverallStatus') IS NULL
-    ALTER TABLE hr.ShiftHandover
-        ADD OverallStatus VARCHAR(20) NOT NULL
-            CONSTRAINT DF_SH_OverallStatus DEFAULT 'LEGACY' WITH VALUES;
-GO
-
-IF NOT EXISTS (
-    SELECT 1 FROM sys.check_constraints
-    WHERE parent_object_id = OBJECT_ID(N'hr.ShiftHandover')
-      AND name = N'CK_SH_Status'
-)
-    ALTER TABLE hr.ShiftHandover WITH CHECK
-        ADD CONSTRAINT CK_SH_Status
-        CHECK (OverallStatus IN ('LEGACY','WAITING_RECEIPT','IN_PROGRESS','COMPLETED'));
-
-IF NOT EXISTS (
-    SELECT 1 FROM sys.foreign_keys
-    WHERE parent_object_id = OBJECT_ID(N'hr.ShiftHandover')
-      AND name = N'FK_SH_Source'
-)
-    ALTER TABLE hr.ShiftHandover WITH CHECK
-        ADD CONSTRAINT FK_SH_Source
-        FOREIGN KEY (SourceShiftAssignmentId) REFERENCES hr.ShiftAssignment(ShiftAssignmentId);
-
-IF NOT EXISTS (SELECT 1 FROM ops.SchemaVersion WHERE VersionCode = '20260722_shift_handover_workflow')
-    INSERT INTO ops.SchemaVersion (VersionCode, Description)
-    VALUES ('20260722_shift_handover_workflow', N'Bổ sung nguồn ca, trạng thái và người nhận bàn giao.');
 
 COMMIT TRANSACTION;
 GO
@@ -1851,10 +1765,6 @@ JOIN org.Branch br ON br.BranchId=u.BranchId
 CROSS JOIN (VALUES(@m1),(@m2),(@m3)) m(PayMonth)
 WHERE u.BranchId IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM hr.Payroll p WHERE p.UserId=u.UserId AND p.PayMonth=m.PayMonth);
-
--- Bàn giao ca (mỗi chi nhánh)
-INSERT INTO hr.ShiftHandover(BranchId,Note,CreatedBy,CreatedAt)
-SELECT x.BranchId,N'Cuối ca: Cold Brew còn đủ cho sáng mai, vệ sinh máy xay số 2.',x.Bar,DATEADD(DAY,-1,@now) FROM @bx x;
 
 /* ===========================================================================
    C5) GENERATOR 31 NGÀY LỊCH SỬ BÁN (PAID + trừ kho). Tất định (modulo).
