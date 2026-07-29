@@ -700,7 +700,6 @@ CREATE TABLE sales.OrderItem (
     IssueReportedAt DATETIME2 NULL,
     RemakeCount INT NOT NULL DEFAULT 0,
     RemakeInventoryReserved BIT NOT NULL DEFAULT 0,
-    HandoverLocation NVARCHAR(80) NULL,
     PickedUpBy  INT NULL,
     PickedUpAt  DATETIME2 NULL,
     ServedAt    DATETIME2 NULL,                  -- mốc giao khách (→SERVED); NULL khi hoàn tác giao
@@ -712,6 +711,11 @@ CREATE TABLE sales.OrderItem (
     CONSTRAINT FK_OI_PickedUpBy FOREIGN KEY (PickedUpBy) REFERENCES iam.[User](UserId)
 );
 END
+GO
+
+-- "Nơi đặt món" đã bị loại bỏ khỏi nghiệp vụ — dọn cột cũ nếu còn tồn tại từ lần khởi tạo trước.
+IF COL_LENGTH(N'sales.OrderItem', N'HandoverLocation') IS NOT NULL
+    ALTER TABLE sales.OrderItem DROP COLUMN HandoverLocation;
 GO
 
 -- Modifier khách chọn cho từng dòng đơn (đầu vào cho auto-deduct theo modifier)
@@ -2183,7 +2187,7 @@ DELETE FROM sales.OrderItemModifier WHERE OrderItemId IN (SELECT OrderItemId FRO
 
 UPDATE sales.OrderItem
 SET Status = 'CANCELLED', BaristaId = NULL, PreparedBy = NULL,
-    HasIssue = 0, IssueReason = NULL, HandoverLocation = NULL
+    HasIssue = 0, IssueReason = NULL
 WHERE OrderItemId IN (SELECT OrderItemId FROM @oldItems);
 
 UPDATE sales.Orders SET Status = 'CANCELLED'
@@ -2412,11 +2416,11 @@ WHERE pmg.ProductId = @pA
 ORDER BY CASE mg.Name WHEN N'Size' THEN 1 WHEN N'Đường' THEN 2 WHEN N'Đá' THEN 3
                       WHEN N'Topping' THEN 4 ELSE 5 END, mo.ModifierOptionId;
 
--- Đã pha xong: dòng làm mờ, thay số thứ tự bằng ✓, hiện người pha + nơi đặt.
+-- Đã pha xong: dòng làm mờ, thay số thứ tự bằng ✓, hiện người pha.
 INSERT INTO sales.OrderItem(OrderId, ProductId, Quantity, UnitPrice, Note, Status,
-                            StartedAt, DoneAt, BaristaId, PreparedBy, HandoverLocation)
+                            StartedAt, DoneAt, BaristaId, PreparedBy)
 VALUES (@o, @pC, 3, @prC, N'Giao kèm ống hút giấy.', 'READY',
-        DATEADD(MINUTE, -5, @now), DATEADD(MINUTE, -2, @now), @bar, @bar, N'Bar trái');
+        DATEADD(MINUTE, -5, @now), DATEADD(MINUTE, -2, @now), @bar, @bar);
 SET @i = SCOPE_IDENTITY();
 INSERT INTO sales.OrderItemModifier(OrderItemId, ModifierOptionId, PriceDelta)
 SELECT @i, mo.ModifierOptionId, mo.PriceDelta

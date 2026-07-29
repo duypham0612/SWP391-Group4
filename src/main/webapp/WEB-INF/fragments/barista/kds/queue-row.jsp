@@ -25,7 +25,6 @@
                 <c:if test="${cardItem.groupInfo.mineMakingCount gt 1}">
                     <form action="${ctx}/barista/kds" method="post" class="kds-qgroup__ready">
                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="markOrderReady"><input type="hidden" name="orderId" value="${cardItem.groupInfo.orderId}">
-                        <select name="handoverLocation" class="kds-qrow__sel"><option value="">— nơi đặt —</option><c:forEach var="loc" items="${handoverLocations}"><option value="${loc}">${loc}</option></c:forEach></select>
                         <button type="submit" class="btn btn-primary btn-sm">Xong cả đơn (${cardItem.groupInfo.mineMakingCount})</button>
                     </form>
                 </c:if>
@@ -114,7 +113,6 @@
                 <c:if test="${onShift and cardItem.baristaId == currentUserId}">
                     <form action="${ctx}/barista/kds" method="post" class="kds-qrow__ready">
                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="markReady"><input type="hidden" name="orderItemId" value="${cardItem.orderItemId}">
-                        <select name="handoverLocation" class="kds-qrow__sel"><option value="">— nơi đặt —</option><c:forEach var="loc" items="${handoverLocations}"><option value="${loc}">${loc}</option></c:forEach></select>
                         <button type="submit" class="btn btn-primary btn-sm" ${cardItem.recipeMissing ? 'disabled' : ''}>Xong</button>
                     </form>
                     <details class="kds-card-menu"><summary>⋯</summary><div class="kds-card-menu__panel kds-subactions">
@@ -141,7 +139,7 @@
             </c:when>
             <%-- ĐÃ PHA XONG --%>
             <c:when test="${cardItem.status == 'READY'}">
-                <span class="kds-qrow__by">✓ <c:choose><c:when test="${not empty cardItem.preparedByName}"><c:out value="${cardItem.preparedByName}" /></c:when><c:otherwise>đã pha</c:otherwise></c:choose><c:if test="${not empty cardItem.handoverLocation}"> · <c:out value="${cardItem.handoverLocation}" /></c:if></span>
+                <span class="kds-qrow__by">✓ <c:choose><c:when test="${not empty cardItem.preparedByName}"><c:out value="${cardItem.preparedByName}" /></c:when><c:otherwise>đã pha</c:otherwise></c:choose></span>
                 <c:if test="${onShift}">
                     <details class="kds-card-menu"><summary>⋯</summary><div class="kds-card-menu__panel">
                         <button type="button" class="btn btn-ghost btn-sm btn-full js-remake" data-item-id="${cardItem.orderItemId}" data-name="${cardItem.quantity} × <c:out value='${cardItem.productName}' />" ${cardItem.recipeMissing ? 'disabled' : ''}>Làm lại món</button>

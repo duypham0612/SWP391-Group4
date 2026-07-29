@@ -642,10 +642,6 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
 /* Mã gọi món — khớp ly với đơn khi bar đông. */
 .kds-code{display:inline-block;padding:1px 7px;border-radius:6px;background:var(--espresso);color:#fff;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:.5px}
 .kds-code--lg{font-size:20px;padding:3px 11px}
-/* Chọn nơi đặt món khi bấm xong. */
-.kds-handoff{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin-bottom:8px}
-.kds-handoff__sel{flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px}
-.pickup-loc{font-size:14px;color:var(--st-making);margin-top:2px}
 /* Banner cao điểm gom cảnh báo về một dòng cấp bảng. */
 .kds-peak{
   display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;
@@ -675,7 +671,6 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
 }
 .kds-ready-facts span{font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;flex:none;min-width:82px}
 .kds-ready-facts strong{font-size:13.5px;overflow-wrap:anywhere}
-.kds-handover{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--st-ready)}
 .kds-connection{display:flex;align-items:center;gap:7px;padding:7px 11px;border:1px solid var(--line);border-radius:var(--radius-pill);font-size:12px;color:var(--muted);background:var(--surface)}
 .kds-connection.is-offline{color:var(--st-cancelled);border-color:var(--st-cancelled)}
 .kds-connection.is-offline .kds-refresh__dot{background:var(--st-cancelled)}
@@ -1028,7 +1023,6 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
 
 .kds-qrow__act{grid-column:7; grid-row:1; min-width:0; display:flex; align-items:center; justify-content:flex-end; gap:6px; flex-wrap:wrap}
 .kds-qrow__ready{display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:flex-end}
-.kds-qrow__sel{min-height:38px; max-width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:var(--radius-xs); font-size:12.5px; background:var(--surface); color:var(--ink)}
 /* Tên barista có thể dài hơn cả cột cố định — xuống dòng thay vì đẩy tràn ra ngoài. */
 .kds-qrow__by{font-size:12px; color:var(--muted); text-align:right; overflow-wrap:anywhere}
 .kds-qrow .btn-sm{min-height:38px}
