@@ -26,6 +26,7 @@ public class CashierDutyService {
     private final AttendanceDao attendanceDao = new AttendanceDao();
     private final AttendanceService attendanceService = new AttendanceService();
     private final CashierShiftDao cashierShiftDao = new CashierShiftDao();
+    private final CashierShiftService cashierShiftService = new CashierShiftService();
 
     public DutyState getDutyState(int userId, int branchId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) {
@@ -40,6 +41,7 @@ public class CashierDutyService {
 
     /** Bắt đầu ca = vào ca chấm công + mở két trong cùng transaction. */
     public int startDuty(int userId, int branchId, BigDecimal openingCash) throws SQLException {
+        CashierCashReconciliation.requireValidMoney(openingCash, "Quỹ đầu ca");
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
             try {
@@ -64,11 +66,7 @@ public class CashierDutyService {
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
             try {
-                CashierShift open = cashierShiftDao.findOpenByCashier(c, userId);
-                if (open == null || open.getCashierShiftId() != shiftId) {
-                    throw new IllegalStateException("Không tìm thấy ca két đang mở của bạn.");
-                }
-                cashierShiftDao.close(c, shiftId, closingCash);
+                cashierShiftService.closeShift(c, shiftId, userId, branchId, closingCash);
                 attendanceService.clockOut(c, userId, branchId);
                 c.commit();
             } catch (SQLException | RuntimeException e) {

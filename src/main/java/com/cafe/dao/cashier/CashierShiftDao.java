@@ -30,12 +30,13 @@ public class CashierShiftDao {
         }
     }
 
-    public void close(Connection conn, int shiftId, BigDecimal closingCash) throws SQLException {
+    public int close(Connection conn, int shiftId, BigDecimal closingCash) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE payment.CashierShift SET ClosingCash=?, ClosedAt=SYSUTCDATETIME() WHERE CashierShiftId=?")) {
+                "UPDATE payment.CashierShift SET ClosingCash=?, ClosedAt=SYSUTCDATETIME() " +
+                        "WHERE CashierShiftId=? AND ClosedAt IS NULL")) {
             ps.setBigDecimal(1, closingCash == null ? BigDecimal.ZERO : closingCash);
             ps.setInt(2, shiftId);
-            ps.executeUpdate();
+            return ps.executeUpdate();
         }
     }
 
@@ -47,6 +48,33 @@ public class CashierShiftDao {
         }
     }
 
+    /** Khóa ca trong transaction kết ca để chống hai request đóng cùng lúc. */
+    public CashierShift findOpenByCashierForUpdate(Connection conn, int cashierId) throws SQLException {
+        String lockedSelect = SELECT.replace(
+                "FROM payment.CashierShift cs ",
+                "FROM payment.CashierShift cs WITH (UPDLOCK, HOLDLOCK) ");
+        try (PreparedStatement ps = conn.prepareStatement(
+                lockedSelect + "WHERE cs.CashierId=? AND cs.ClosedAt IS NULL")) {
+            ps.setInt(1, cashierId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? map(rs) : null;
+            }
+        }
+    }
+
+    /** Tổng bill tiền mặt đã thu trong ca; khóa tập bill tới khi transaction kết ca hoàn tất. */
+    public BigDecimal sumPaidCashForClose(Connection conn, int shiftId) throws SQLException {
+        String sql = "SELECT ISNULL(SUM(TotalAmount),0) AS CashTotal " +
+                "FROM payment.Bill WITH (UPDLOCK, HOLDLOCK) " +
+                "WHERE CashierShiftId=? AND Status='PAID' AND PaymentMethod='CASH'";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, shiftId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getBigDecimal("CashTotal") : BigDecimal.ZERO;
+            }
+        }
+    }
+
     public CashierShift findById(Connection conn, int id) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(SELECT + "WHERE cs.CashierShiftId=?")) {
             ps.setInt(1, id);
@@ -54,14 +82,18 @@ public class CashierShiftDao {
         }
     }
 
-    /** Báo cáo ca: số bill PAID + tổng tiền thu. */
+    /** Báo cáo ca: số bill PAID + riêng tổng tiền mặt đã thu. */
     public void fillReport(Connection conn, CashierShift shift) throws SQLException {
-        final String sql = "SELECT COUNT(*) AS Cnt, ISNULL(SUM(TotalAmount),0) AS Total " +
+        final String sql = "SELECT COUNT(*) AS Cnt, " +
+                "ISNULL(SUM(CASE WHEN PaymentMethod='CASH' THEN TotalAmount ELSE 0 END),0) AS CashTotal " +
                 "FROM payment.Bill WHERE CashierShiftId=? AND Status='PAID'";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, shift.getCashierShiftId());
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) { shift.setBillCount(rs.getInt("Cnt")); shift.setTotalCollected(rs.getBigDecimal("Total")); }
+                if (rs.next()) {
+                    shift.setBillCount(rs.getInt("Cnt"));
+                    shift.setCashCollected(rs.getBigDecimal("CashTotal"));
+                }
             }
         }
     }

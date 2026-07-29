@@ -18,7 +18,7 @@ public class CashierShift {
     // join / report
     private String cashierName;
     private int billCount;
-    private BigDecimal totalCollected;
+    private BigDecimal cashCollected = BigDecimal.ZERO;
 
     public int getCashierShiftId() { return cashierShiftId; }
     public void setCashierShiftId(int v) { this.cashierShiftId = v; }
@@ -49,8 +49,15 @@ public class CashierShift {
     public int getBillCount() { return billCount; }
     public void setBillCount(int v) { this.billCount = v; }
 
-    public BigDecimal getTotalCollected() { return totalCollected; }
-    public void setTotalCollected(BigDecimal v) { this.totalCollected = v; }
+    public BigDecimal getCashCollected() { return cashCollected; }
+    public void setCashCollected(BigDecimal v) {
+        this.cashCollected = v == null ? BigDecimal.ZERO : v;
+    }
+
+    public BigDecimal getExpectedClosingCash() {
+        BigDecimal opening = openingCash == null ? BigDecimal.ZERO : openingCash;
+        return opening.add(cashCollected);
+    }
 
     public boolean isOpen() { return closedAt == null; }
 }

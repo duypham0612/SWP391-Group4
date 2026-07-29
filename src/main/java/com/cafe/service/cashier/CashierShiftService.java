@@ -18,6 +18,7 @@ public class CashierShiftService {
 
     /** Mở ca (idempotent: nếu đã có ca mở thì trả về ca đó). */
     public int openShift(int branchId, int cashierId, BigDecimal openingCash) throws SQLException {
+        CashierCashReconciliation.requireValidMoney(openingCash, "Quỹ đầu ca");
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
             try {
@@ -30,17 +31,40 @@ public class CashierShiftService {
         }
     }
 
-    public void closeShift(int shiftId, BigDecimal closingCash) throws SQLException {
+    public void closeShift(int shiftId, int cashierId, int branchId, BigDecimal closingCash)
+            throws SQLException {
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
-            try { dao.close(c, shiftId, closingCash); c.commit(); }
+            try {
+                closeShift(c, shiftId, cashierId, branchId, closingCash);
+                c.commit();
+            }
             catch (SQLException e) { c.rollback(); throw e; }
+            catch (RuntimeException e) { c.rollback(); throw e; }
             finally { c.setAutoCommit(true); }
         }
     }
 
+    void closeShift(Connection c, int shiftId, int cashierId, int branchId, BigDecimal closingCash)
+            throws SQLException {
+        CashierShift open = dao.findOpenByCashierForUpdate(c, cashierId);
+        if (open == null || open.getCashierShiftId() != shiftId || open.getBranchId() != branchId) {
+            throw new IllegalStateException("Không tìm thấy ca két đang mở của bạn.");
+        }
+        BigDecimal cashRevenue = dao.sumPaidCashForClose(c, shiftId);
+        CashierCashReconciliation.requireMatchingClosingCash(
+                closingCash, open.getOpeningCash(), cashRevenue);
+        if (dao.close(c, shiftId, closingCash) != 1) {
+            throw new IllegalStateException("Ca đã được kết thúc bởi thao tác khác.");
+        }
+    }
+
     public CashierShift getCurrentShift(int cashierId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) { return dao.findOpenByCashier(c, cashierId); }
+        try (Connection c = DBConnection.getConnection()) {
+            CashierShift shift = dao.findOpenByCashier(c, cashierId);
+            if (shift != null) dao.fillReport(c, shift);
+            return shift;
+        }
     }
 
     public CashierShift getShiftReport(int shiftId) throws SQLException {

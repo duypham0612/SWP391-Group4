@@ -65,8 +65,11 @@
                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                 <input type="hidden" name="action" value="closeDuty">
                 <input type="hidden" name="shiftId" value="${current.cashierShiftId}">
-                <div class="form-group" style="margin:0;width:220px"><label>Quỹ cuối ca (đếm tay)</label>
-                    <input type="number" name="closingCash" class="form-control" min="0" step="1000" value="0"></div>
+                <div class="form-group" style="margin:0;width:260px">
+                    <label>Tổng tiền mặt trong két</label>
+                    <input type="number" name="closingCash" class="form-control" min="0" step="1000" required>
+                    <small class="muted">Quỹ cần đối chiếu: <fmt:formatNumber value="${current.expectedClosingCash}" maxFractionDigits="0"/> ₫</small>
+                </div>
                 <button type="submit" class="btn btn-primary" onclick="return confirm('Kết ca và tan ca?');">Kết ca</button>
                 <a class="btn btn-ghost" href="${ctx}/cashier/checkout">Tới thanh toán</a>
             </form>
@@ -98,7 +101,8 @@
                 <tr><td>Thu ngân</td><td>${shift.cashierName}</td></tr>
                 <tr><td>Quỹ đầu ca</td><td><fmt:formatNumber value="${shift.openingCash}" maxFractionDigits="0"/> ₫</td></tr>
                 <tr><td>Số hoá đơn đã thu</td><td>${shift.billCount}</td></tr>
-                <tr><td>Tổng tiền thu (PAID)</td><td><strong><fmt:formatNumber value="${shift.totalCollected}" maxFractionDigits="0"/> ₫</strong></td></tr>
+                <tr><td>Tiền mặt đã thu</td><td><strong><fmt:formatNumber value="${shift.cashCollected}" maxFractionDigits="0"/> ₫</strong></td></tr>
+                <tr><td>Tiền mặt cần có trong két</td><td><strong><fmt:formatNumber value="${shift.expectedClosingCash}" maxFractionDigits="0"/> ₫</strong></td></tr>
                 <tr><td>Quỹ cuối ca (đếm tay)</td><td><fmt:formatNumber value="${shift.closingCash}" maxFractionDigits="0"/> ₫</td></tr>
             </table>
             <a class="btn btn-primary" href="${ctx}/cashier/shift">Mở ca mới</a>
