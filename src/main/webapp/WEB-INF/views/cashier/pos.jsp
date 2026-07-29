@@ -44,7 +44,7 @@
                     </c:forEach>
                     <div class="pos-error" style="display:none;color:var(--st-cancelled);font-size:.86rem;margin-top:8px"></div>
                     <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
-                        <input type="number" class="form-control pos-qty" value="1" min="1" style="width:70px">
+                        <input type="number" class="form-control pos-qty" value="1" min="1" max="20" style="width:70px">
                         <button type="button" class="btn btn-primary btn-sm" onclick="addToCart(this)">Thêm vào giỏ</button>
                     </div>
                   </div>
@@ -160,7 +160,14 @@ function addToCart(btn){
   const productId = parseInt(card.dataset.productId);
   const name = card.dataset.productName;
   const base = parseFloat(card.dataset.price);
-  const qty = Math.max(1, parseInt(card.querySelector('.pos-qty').value) || 1);
+  const qty = parseInt(card.querySelector('.pos-qty').value);
+  const currentQty = cart
+      .filter(line => line.productId === productId)
+      .reduce((sum, line) => sum + line.quantity, 0);
+  if (!Number.isInteger(qty) || qty < 1 || qty > 20 || currentQty + qty > 20) {
+    showProductError(card, 'Mỗi loại món chỉ được đặt tối đa 20 trong một đơn.');
+    return;
+  }
   let delta = 0; const optionIds = []; const optNames = [];
   card.querySelectorAll('.pos-opt:checked').forEach(o => {
     delta += parseFloat(o.dataset.delta);
