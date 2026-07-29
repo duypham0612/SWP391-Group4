@@ -158,9 +158,12 @@ public class BillDao {
 
     /** Thanh toán: chỉ chuyển UNPAID→PAID (chống double-pay bằng WHERE Status). Trả số dòng đổi. */
     public int markPaid(Connection conn, int billId, String method, int shiftId) throws SQLException {
-        final String sql = "UPDATE payment.Bill SET Status='PAID', PaymentMethod=?, " +
-                "CashierShiftId=?, PaidAt=SYSUTCDATETIME() " +
-                "WHERE BillId=? AND Status='UNPAID'";
+        final String sql = "UPDATE b SET Status='PAID', PaymentMethod=?, " +
+                "CashierShiftId=cs.CashierShiftId, PaidAt=SYSUTCDATETIME() " +
+                "FROM payment.Bill b " +
+                "JOIN payment.CashierShift cs WITH (UPDLOCK, HOLDLOCK) " +
+                "ON cs.CashierShiftId=? AND cs.BranchId=b.BranchId AND cs.ClosedAt IS NULL " +
+                "WHERE b.BillId=? AND b.Status='UNPAID'";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, method);
             ps.setInt(2, shiftId);

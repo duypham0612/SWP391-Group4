@@ -25,12 +25,16 @@ import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Set;
 
 /**
  * C5/C6 · BillingService — ★ Dynamic Bill Splitting + thanh toán (Contract #3: payment.completed).
  * Voucher 1 nguồn (payment.Voucher qua VoucherService.validateVoucher).
  */
 public class BillingService {
+
+    private static final Set<String> PAYMENT_METHODS =
+            Set.of("CASH", "TRANSFER", "QR_BANK");
 
     private final BillDao billDao = new BillDao();
     private final BillItemDao billItemDao = new BillItemDao();
@@ -205,7 +209,7 @@ public class BillingService {
 
     /** Thanh toán 1 bill trong ca hiện tại. Chống double-pay và không để doanh thu rơi ngoài ca. */
     public boolean payBill(int billId, String method, Integer shiftId) throws SQLException {
-        if (shiftId == null) return false;
+        if (shiftId == null || !isSupportedPaymentMethod(method)) return false;
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
             try {
@@ -247,6 +251,10 @@ public class BillingService {
             } catch (SQLException e) { c.rollback(); throw e; }
             finally { c.setAutoCommit(true); }
         }
+    }
+
+    public static boolean isSupportedPaymentMethod(String method) {
+        return method != null && PAYMENT_METHODS.contains(method);
     }
 
     /** Huỷ bill chưa thanh toán KÈM LÝ DO — ghi log qua ops.OutboxEvent trong cùng tx. */
