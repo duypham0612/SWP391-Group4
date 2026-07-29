@@ -1040,6 +1040,28 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'payment.B
 CREATE INDEX IX_Bill_Session       ON payment.Bill(TableSessionId);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'payment.Bill') AND name = N'IX_Bill_BranchStatus')
 CREATE INDEX IX_Bill_BranchStatus  ON payment.Bill(BranchId, Status);
+-- Một chi nhánh chỉ có một két thu ngân đang mở. Database cũ có thể đang có nhiều
+-- ca OPEN; khi đó chưa tự tạo unique index để tránh tự ý đóng/mất dấu đối soát.
+-- Sau khi Manager xử lý hết ca trùng, chạy lại database.sql sẽ tạo index này.
+IF NOT EXISTS (
+       SELECT 1 FROM sys.indexes
+       WHERE object_id = OBJECT_ID(N'payment.CashierShift')
+         AND name = N'UX_CashierShift_OneOpenPerBranch'
+   )
+BEGIN
+    IF NOT EXISTS (
+        SELECT BranchId
+        FROM payment.CashierShift
+        WHERE ClosedAt IS NULL
+        GROUP BY BranchId
+        HAVING COUNT(*) > 1
+    )
+        CREATE UNIQUE INDEX UX_CashierShift_OneOpenPerBranch
+            ON payment.CashierShift(BranchId)
+            WHERE ClosedAt IS NULL;
+    ELSE
+        PRINT N'Chưa tạo UX_CashierShift_OneOpenPerBranch: cần dùng màn Quản lý két thu ngân để xử lý các ca OPEN trùng.';
+END
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'ops.OutboxEvent') AND name = N'IX_Outbox_Unprocessed')
 CREATE INDEX IX_Outbox_Unprocessed ON ops.OutboxEvent(ProcessedAt) WHERE ProcessedAt IS NULL;
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'sales.OrderItem') AND name = N'IX_OrderItem_BaristaStatus')

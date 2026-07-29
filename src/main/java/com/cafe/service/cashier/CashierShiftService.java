@@ -22,13 +22,45 @@ public class CashierShiftService {
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
             try {
-                CashierShift open = dao.findOpenByCashier(c, cashierId);
-                int id = open != null ? open.getCashierShiftId() : dao.insertOpen(c, branchId, cashierId, openingCash);
+                int id = openShift(c, branchId, cashierId, openingCash);
                 c.commit();
                 return id;
-            } catch (SQLException e) { c.rollback(); throw e; }
+            } catch (SQLException | RuntimeException e) { c.rollback(); throw e; }
             finally { c.setAutoCommit(true); }
         }
+    }
+
+    /**
+     * Lõi mở két dùng được trong transaction của caller. Mỗi chi nhánh chỉ có một két mở;
+     * ca của chính Cashier được trả lại để thao tác lặp vẫn idempotent.
+     */
+    public int openShift(Connection c, int branchId, int cashierId, BigDecimal openingCash)
+            throws SQLException {
+        CashierCashReconciliation.requireValidMoney(openingCash, "Quỹ đầu ca");
+        dao.acquireBranchOpenLock(c, branchId);
+        List<CashierShift> openShifts = dao.findOpenByBranchForUpdate(c, branchId);
+
+        CashierShift ownOpenShift = selectOwnOpenShift(openShifts, cashierId);
+        if (ownOpenShift != null) return ownOpenShift.getCashierShiftId();
+        return dao.insertOpen(c, branchId, cashierId, openingCash);
+    }
+
+    static CashierShift selectOwnOpenShift(List<CashierShift> openShifts, int cashierId) {
+        if (openShifts.size() > 1) {
+            throw new IllegalStateException(
+                    "Chi nhánh đang có nhiều ca thu ngân chưa kết. "
+                            + "Vui lòng nhờ Quản lý đối soát và xử lý các ca cũ trước khi bắt đầu ca mới.");
+        }
+
+        CashierShift ownOpenShift = null;
+        for (CashierShift open : openShifts) {
+            if (open.getCashierId() == cashierId) {
+                ownOpenShift = open;
+                continue;
+            }
+            throw new IllegalStateException(openShiftConflictMessage(open));
+        }
+        return ownOpenShift;
     }
 
     public void closeShift(int shiftId, int cashierId, int branchId, BigDecimal closingCash)
@@ -87,5 +119,13 @@ public class CashierShiftService {
     /** R1/R2 · Số hoá đơn đã thu hôm nay = "số đơn đã thực hiện". */
     public int getTodayBillCount(int branchId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) { return billDao.countPaidToday(c, branchId); }
+    }
+
+    private static String openShiftConflictMessage(CashierShift open) {
+        String cashier = open.getCashierName() == null || open.getCashierName().isBlank()
+                ? "thu ngân khác"
+                : open.getCashierName();
+        return "Chi nhánh còn ca thu ngân #" + open.getCashierShiftId() + " của " + cashier
+                + " chưa kết. Vui lòng kết ca cũ hoặc nhờ Quản lý xử lý trước khi bắt đầu ca mới.";
     }
 }

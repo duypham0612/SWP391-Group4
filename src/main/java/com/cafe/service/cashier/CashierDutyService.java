@@ -4,7 +4,6 @@ import com.cafe.config.DBConnection;
 import com.cafe.dao.cashier.CashierShiftDao;
 import com.cafe.dao.manager.AttendanceDao;
 import com.cafe.model.Attendance;
-import com.cafe.model.CashierShift;
 import com.cafe.model.ShiftAssignment;
 import com.cafe.service.manager.AttendanceService;
 
@@ -45,11 +44,8 @@ public class CashierDutyService {
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
             try {
+                int id = cashierShiftService.openShift(c, branchId, userId, openingCash);
                 attendanceService.clockIn(c, userId, branchId);
-                CashierShift open = cashierShiftDao.findOpenByCashier(c, userId);
-                int id = open != null
-                        ? open.getCashierShiftId()
-                        : cashierShiftDao.insertOpen(c, branchId, userId, openingCash);
                 c.commit();
                 return id;
             } catch (SQLException | RuntimeException e) {

@@ -62,6 +62,51 @@ public class CashierShiftDao {
         }
     }
 
+    /** Khóa dòng chi nhánh đến hết transaction để serialize mọi thao tác mở/đóng két của branch. */
+    public void acquireBranchOpenLock(Connection conn, int branchId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT BranchId FROM org.Branch WITH (UPDLOCK, HOLDLOCK) WHERE BranchId=?")) {
+            ps.setInt(1, branchId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    throw new SQLException("Không tìm thấy chi nhánh để khóa thao tác mở ca: " + branchId);
+                }
+            }
+        }
+    }
+
+    /** Tất cả ca đang mở của chi nhánh, được khóa tới hết transaction mở/đóng cưỡng chế. */
+    public List<CashierShift> findOpenByBranchForUpdate(Connection conn, int branchId) throws SQLException {
+        List<CashierShift> out = new ArrayList<>();
+        String lockedSelect = SELECT.replace(
+                "FROM payment.CashierShift cs ",
+                "FROM payment.CashierShift cs WITH (UPDLOCK, HOLDLOCK) ");
+        try (PreparedStatement ps = conn.prepareStatement(
+                lockedSelect + "WHERE cs.BranchId=? AND cs.ClosedAt IS NULL "
+                        + "ORDER BY cs.OpenedAt, cs.CashierShiftId")) {
+            ps.setInt(1, branchId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) out.add(map(rs));
+            }
+        }
+        return out;
+    }
+
+    /** Khóa một ca mở theo cả id và branch để Manager không thể đóng ca của chi nhánh khác. */
+    public CashierShift findOpenByIdForUpdate(Connection conn, int shiftId, int branchId) throws SQLException {
+        String lockedSelect = SELECT.replace(
+                "FROM payment.CashierShift cs ",
+                "FROM payment.CashierShift cs WITH (UPDLOCK, HOLDLOCK) ");
+        try (PreparedStatement ps = conn.prepareStatement(
+                lockedSelect + "WHERE cs.CashierShiftId=? AND cs.BranchId=? AND cs.ClosedAt IS NULL")) {
+            ps.setInt(1, shiftId);
+            ps.setInt(2, branchId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? map(rs) : null;
+            }
+        }
+    }
+
     /** Tổng bill tiền mặt đã thu trong ca; khóa tập bill tới khi transaction kết ca hoàn tất. */
     public BigDecimal sumPaidCashForClose(Connection conn, int shiftId) throws SQLException {
         String sql = "SELECT ISNULL(SUM(TotalAmount),0) AS CashTotal " +
@@ -103,6 +148,19 @@ public class CashierShiftDao {
         try (PreparedStatement ps = conn.prepareStatement(SELECT + "WHERE cs.BranchId=? ORDER BY cs.OpenedAt DESC")) {
             ps.setInt(1, branchId);
             try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
+        }
+        return out;
+    }
+
+    public List<CashierShift> findOpenByBranch(Connection conn, int branchId) throws SQLException {
+        List<CashierShift> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(
+                SELECT + "WHERE cs.BranchId=? AND cs.ClosedAt IS NULL "
+                        + "ORDER BY cs.OpenedAt, cs.CashierShiftId")) {
+            ps.setInt(1, branchId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) out.add(map(rs));
+            }
         }
         return out;
     }
