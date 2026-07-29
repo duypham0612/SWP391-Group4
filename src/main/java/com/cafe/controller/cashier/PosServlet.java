@@ -8,6 +8,7 @@ import com.cafe.model.TableSession;
 import com.cafe.model.User;
 import com.cafe.service.shared.CatalogReadService;
 import com.cafe.service.shared.OrderService;
+import com.cafe.service.cashier.CashierOrderValidator;
 import com.cafe.service.cashier.TableSessionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -87,17 +88,17 @@ public class PosServlet extends HttpServlet {
             resp.setContentType("application/json;charset=UTF-8");
             JsonNode body = mapper.readTree(req.getInputStream());
             Integer sessionId = body.hasNonNull("sessionId") ? body.get("sessionId").asInt() : null;
-            String orderType = body.hasNonNull("orderType") ? body.get("orderType").asText() : "DINE_IN";
             if (sessionId != null && !belongsToBranch(sessionId, branchId)) {
                 throw new IllegalArgumentException("Phiên bàn không hợp lệ.");
             }
+            String orderType = sessionId == null ? "TAKEAWAY" : "DINE_IN";
 
             List<OrderService.CartLine> lines = new ArrayList<>();
             JsonNode items = body.get("items");
             if (items != null && items.isArray()) {
                 for (JsonNode n : items) {
                     OrderService.CartLine line = new OrderService.CartLine();
-                    line.productId = n.get("productId").asInt();
+                    line.productId = n.hasNonNull("productId") ? n.get("productId").asInt() : 0;
                     line.quantity = n.has("quantity") ? n.get("quantity").asInt() : 1;
                     line.note = n.hasNonNull("note") ? n.get("note").asText() : null;
                     JsonNode opts = n.get("optionIds");
@@ -105,7 +106,7 @@ public class PosServlet extends HttpServlet {
                     lines.add(line);
                 }
             }
-            if (lines.isEmpty()) { resp.setStatus(400); resp.getWriter().write("{\"error\":\"Đơn rỗng\"}"); return; }
+            CashierOrderValidator.validate(lines);
 
             int orderId = orderService.placeOrder(branchId, sessionId, "COUNTER", orderType, userId, lines);
             if (sessionId != null) removeDraftCart(req.getSession(), sessionId);

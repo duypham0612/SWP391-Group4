@@ -85,19 +85,25 @@ public class CashierShiftServlet extends HttpServlet {
             } else if ("close".equals(action)) {
                 int shiftId = Integer.parseInt(req.getParameter("shiftId"));
                 BigDecimal closing = parseMoney(req.getParameter("closingCash"));
-                service.closeShift(shiftId, closing);
+                service.closeShift(shiftId, cashierId, branchId, closing);
                 resp.sendRedirect(ctx + "/cashier/shift?action=report&shiftId=" + shiftId);
             } else {
                 resp.sendRedirect(ctx + "/cashier/shift");
             }
-        } catch (IllegalStateException e) {
+        } catch (IllegalStateException | IllegalArgumentException e) {
             req.getSession().setAttribute("flashError", e.getMessage());
             resp.sendRedirect(ctx + "/cashier/shift");
         } catch (Exception e) { throw new ServletException(e); }
     }
 
     private BigDecimal parseMoney(String s) {
-        if (s == null || s.isBlank()) return BigDecimal.ZERO;
-        try { return new BigDecimal(s.trim()); } catch (NumberFormatException e) { return BigDecimal.ZERO; }
+        if (s == null || s.isBlank()) {
+            throw new IllegalArgumentException("Số tiền không được để trống.");
+        }
+        try {
+            return new BigDecimal(s.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Số tiền không hợp lệ.");
+        }
     }
 }
