@@ -94,7 +94,7 @@ public class CashierShiftDao {
 
     /** Tổng bill tiền mặt đã thu trong ca; khóa tập bill tới khi transaction kết ca hoàn tất. */
     public BigDecimal sumPaidCashForClose(Connection conn, int shiftId) throws SQLException {
-        String sql = "SELECT ISNULL(SUM(TotalAmount),0) AS CashTotal " +
+        String sql = "SELECT ISNULL(SUM(COALESCE(PaidAmount, TotalAmount)),0) AS CashTotal " +
                 "FROM payment.Bill WITH (UPDLOCK, HOLDLOCK) " +
                 "WHERE CashierShiftId=? AND Status='PAID' AND PaymentMethod='CASH'";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -115,7 +115,8 @@ public class CashierShiftDao {
     /** Báo cáo ca: số bill PAID + riêng tổng tiền mặt đã thu. */
     public void fillReport(Connection conn, CashierShift shift) throws SQLException {
         final String sql = "SELECT COUNT(*) AS Cnt, " +
-                "ISNULL(SUM(CASE WHEN PaymentMethod='CASH' THEN TotalAmount ELSE 0 END),0) AS CashTotal " +
+                "ISNULL(SUM(CASE WHEN PaymentMethod='CASH' " +
+                "THEN COALESCE(PaidAmount, TotalAmount) ELSE 0 END),0) AS CashTotal " +
                 "FROM payment.Bill WHERE CashierShiftId=? AND Status='PAID'";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, shift.getCashierShiftId());

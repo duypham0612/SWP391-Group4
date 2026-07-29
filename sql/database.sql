@@ -921,6 +921,10 @@ CREATE TABLE payment.Bill (
     VatAmount      DECIMAL(14,2) NOT NULL DEFAULT 0,
     DiscountAmount DECIMAL(14,2) NOT NULL DEFAULT 0,
     TotalAmount    DECIMAL(14,2) NOT NULL DEFAULT 0,
+    RoundingAdjustment DECIMAL(14,2) NOT NULL DEFAULT 0,
+    PaidAmount     DECIMAL(14,2) NULL,
+    CashTendered   DECIMAL(14,2) NULL,
+    CashChange     DECIMAL(14,2) NULL,
     VoucherId      INT NULL,
     PaymentMethod  VARCHAR(10) NULL
                    CONSTRAINT CK_Bill_Method CHECK (PaymentMethod IN ('CASH','TRANSFER','QR_BANK')),
@@ -931,9 +935,57 @@ CREATE TABLE payment.Bill (
     CONSTRAINT FK_Bill_Branch  FOREIGN KEY (BranchId)       REFERENCES org.Branch(BranchId),
     CONSTRAINT FK_Bill_Session FOREIGN KEY (TableSessionId) REFERENCES sales.TableSession(TableSessionId),
     CONSTRAINT FK_Bill_Shift   FOREIGN KEY (CashierShiftId) REFERENCES payment.CashierShift(CashierShiftId),
-    CONSTRAINT FK_Bill_Voucher FOREIGN KEY (VoucherId)      REFERENCES payment.Voucher(VoucherId)
+    CONSTRAINT FK_Bill_Voucher FOREIGN KEY (VoucherId)      REFERENCES payment.Voucher(VoucherId),
+    CONSTRAINT CK_Bill_SettlementAmounts CHECK (
+        RoundingAdjustment BETWEEN -500 AND 500
+        AND (PaidAmount IS NULL OR PaidAmount = TotalAmount + RoundingAdjustment)
+        AND (CashTendered IS NULL OR CashTendered >= 0)
+        AND (CashChange IS NULL OR CashChange >= 0)
+        AND (CashTendered IS NULL OR CashChange IS NULL
+             OR PaidAmount = CashTendered - CashChange)
+    ),
+    CONSTRAINT CK_Bill_PaidHasAmount CHECK (Status <> 'PAID' OR PaidAmount IS NOT NULL)
 );
 END
+GO
+
+-- Snapshot quyết toán: giữ nguyên TotalAmount của hóa đơn và lưu riêng số thực thu.
+IF COL_LENGTH(N'payment.Bill', N'RoundingAdjustment') IS NULL
+    ALTER TABLE payment.Bill ADD RoundingAdjustment DECIMAL(14,2) NOT NULL
+        CONSTRAINT DF_Bill_RoundingAdjustment DEFAULT 0 WITH VALUES;
+IF COL_LENGTH(N'payment.Bill', N'PaidAmount') IS NULL
+    ALTER TABLE payment.Bill ADD PaidAmount DECIMAL(14,2) NULL;
+IF COL_LENGTH(N'payment.Bill', N'CashTendered') IS NULL
+    ALTER TABLE payment.Bill ADD CashTendered DECIMAL(14,2) NULL;
+IF COL_LENGTH(N'payment.Bill', N'CashChange') IS NULL
+    ALTER TABLE payment.Bill ADD CashChange DECIMAL(14,2) NULL;
+GO
+
+UPDATE payment.Bill
+SET PaidAmount=TotalAmount
+WHERE Status='PAID' AND PaidAmount IS NULL;
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.check_constraints
+    WHERE parent_object_id=OBJECT_ID(N'payment.Bill')
+      AND name=N'CK_Bill_SettlementAmounts'
+)
+    ALTER TABLE payment.Bill WITH CHECK ADD CONSTRAINT CK_Bill_SettlementAmounts CHECK (
+        RoundingAdjustment BETWEEN -500 AND 500
+        AND (PaidAmount IS NULL OR PaidAmount = TotalAmount + RoundingAdjustment)
+        AND (CashTendered IS NULL OR CashTendered >= 0)
+        AND (CashChange IS NULL OR CashChange >= 0)
+        AND (CashTendered IS NULL OR CashChange IS NULL
+             OR PaidAmount = CashTendered - CashChange)
+    );
+IF NOT EXISTS (
+    SELECT 1 FROM sys.check_constraints
+    WHERE parent_object_id=OBJECT_ID(N'payment.Bill')
+      AND name=N'CK_Bill_PaidHasAmount'
+)
+    ALTER TABLE payment.Bill WITH CHECK ADD CONSTRAINT CK_Bill_PaidHasAmount
+        CHECK (Status <> 'PAID' OR PaidAmount IS NOT NULL);
 GO
 
 -- Dòng đơn nào nằm trên Bill nào (cho phép tách bill)

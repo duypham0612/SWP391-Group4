@@ -10,6 +10,7 @@ import com.cafe.model.CashierShift;
 import com.cafe.model.TableSession;
 import com.cafe.model.User;
 import com.cafe.service.cashier.BillingService;
+import com.cafe.service.cashier.CashPaymentCalculator;
 import com.cafe.service.cashier.CashierShiftService;
 import com.cafe.service.cashier.TableSessionService;
 import jakarta.servlet.ServletException;
@@ -20,9 +21,11 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /** C5 · CheckoutServlet → /cashier/checkout. ★ showBill | applyVoucher | splitBill | mergeBill | pay. */
@@ -54,7 +57,7 @@ public class CheckoutServlet extends HttpServlet {
                     return;
                 }
                 req.setAttribute("bills", bills);
-                req.setAttribute("qrPayloads", buildQrPayloads(bills));
+                attachPaymentData(req, bills);
                 req.setAttribute("orderId", orderId);
                 req.setAttribute("takeawayCheckout", true);
             } else if (sid != null && !sid.isBlank()) {
@@ -70,7 +73,7 @@ public class CheckoutServlet extends HttpServlet {
                 List<Bill> bills = billingService.buildSessionBill(sessionId, branchId, shiftId);
                 req.setAttribute("session", tableSession);
                 req.setAttribute("bills", bills);
-                req.setAttribute("qrPayloads", buildQrPayloads(bills));
+                attachPaymentData(req, bills);
                 req.setAttribute("sessionId", sessionId);
             } else {
                 // Chưa chọn: liệt kê phiên bàn và cả đơn mang đi chưa có bill.
@@ -117,17 +120,23 @@ public class CheckoutServlet extends HttpServlet {
                 } else {
                     CashierShift shift = u != null ? shiftService.getCurrentShift(u.getUserId()) : null;
                     Integer shiftId = shift != null ? shift.getCashierShiftId() : null;
-                    boolean ok = billingService.payBill(billId, req.getParameter("method"), shiftId);
-                    if (!ok) {
+                    String method = req.getParameter("method");
+                    BigDecimal cashTendered = "CASH".equals(method)
+                            ? parseMoney(req.getParameter("cashTendered"))
+                            : null;
+                    BillingService.PaymentResult result =
+                            billingService.payBill(billId, method, shiftId, cashTendered);
+                    if (!result.paid()) {
                         req.getSession().setAttribute("flashError", "Hoá đơn không thể thanh toán.");
-                    } else if (hasText(orderId)) {
-                        req.getSession().setAttribute("flashOk",
-                                "Đã thanh toán đơn mang đi. Hoá đơn đã được lưu vào lịch sử.");
-                        back = req.getContextPath() + "/cashier/history";
-                    } else if (hasText(sessionId)) {
-                        TableSession session = tableSessionService.getSession(Integer.parseInt(sessionId));
-                        if (session == null || !"OPEN".equals(session.getStatus())) {
-                            back = req.getContextPath() + "/cashier/table";
+                    } else {
+                        req.getSession().setAttribute("flashOk", paymentSuccessMessage(method, result));
+                        if (hasText(orderId)) {
+                            back = req.getContextPath() + "/cashier/history";
+                        } else if (hasText(sessionId)) {
+                            TableSession session = tableSessionService.getSession(Integer.parseInt(sessionId));
+                            if (session == null || !"OPEN".equals(session.getStatus())) {
+                                back = req.getContextPath() + "/cashier/table";
+                            }
                         }
                     }
                 }
@@ -140,6 +149,9 @@ public class CheckoutServlet extends HttpServlet {
                     billingService.voidBill(Integer.parseInt(req.getParameter("billId")), reason.trim(), uid);
                 }
             }
+            resp.sendRedirect(back);
+        } catch (IllegalArgumentException e) {
+            req.getSession().setAttribute("flashError", e.getMessage());
             resp.sendRedirect(back);
         } catch (Exception e) { throw new ServletException(e); }
     }
@@ -170,6 +182,47 @@ public class CheckoutServlet extends HttpServlet {
             }
         }
         return payloads;
+    }
+
+    private void attachPaymentData(HttpServletRequest req, List<Bill> bills) {
+        req.setAttribute("qrPayloads", buildQrPayloads(bills));
+        Map<Integer, BigDecimal> payable = new LinkedHashMap<>();
+        Map<Integer, BigDecimal> adjustment = new LinkedHashMap<>();
+        if (bills != null) {
+            for (Bill bill : bills) {
+                if (!"UNPAID".equals(bill.getStatus())
+                        || bill.getTotalAmount() == null
+                        || bill.getTotalAmount().signum() <= 0) continue;
+                CashPaymentCalculator.CashQuote quote =
+                        CashPaymentCalculator.quote(bill.getTotalAmount());
+                payable.put(bill.getBillId(), quote.paidAmount());
+                adjustment.put(bill.getBillId(), quote.roundingAdjustment());
+            }
+        }
+        req.setAttribute("cashPayableAmounts", payable);
+        req.setAttribute("cashRoundingAdjustments", adjustment);
+    }
+
+    private BigDecimal parseMoney(String value) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException("Phải nhập số tiền khách đưa.");
+        }
+        try {
+            return new BigDecimal(value.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Tiền khách đưa không hợp lệ.");
+        }
+    }
+
+    private String paymentSuccessMessage(String method, BillingService.PaymentResult result) {
+        if (!"CASH".equals(method)) return "Đã ghi nhận thanh toán thành công.";
+        return "Đã thu tiền mặt " + formatMoney(result.paidAmount())
+                + " đ. Tiền thối lại khách: " + formatMoney(result.cashChange()) + " đ.";
+    }
+
+    private String formatMoney(BigDecimal value) {
+        NumberFormat format = NumberFormat.getIntegerInstance(Locale.forLanguageTag("vi-VN"));
+        return format.format(value);
     }
 
     private String validatePayable(int billId, int branchId) throws Exception {

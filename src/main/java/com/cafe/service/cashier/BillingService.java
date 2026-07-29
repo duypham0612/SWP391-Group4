@@ -207,34 +207,57 @@ public class BillingService {
         }
     }
 
-    /** Thanh toán 1 bill trong ca hiện tại. Chống double-pay và không để doanh thu rơi ngoài ca. */
-    public boolean payBill(int billId, String method, Integer shiftId) throws SQLException {
-        if (shiftId == null || !isSupportedPaymentMethod(method)) return false;
+    /**
+     * Thanh toán 1 bill trong ca hiện tại. CASH lưu snapshot làm tròn/khách đưa/tiền thối;
+     * phương thức không tiền mặt quyết toán đúng TotalAmount.
+     */
+    public PaymentResult payBill(int billId, String method, Integer shiftId,
+                                 BigDecimal cashTendered) throws SQLException {
+        if (shiftId == null || !isSupportedPaymentMethod(method)) return PaymentResult.notPaid();
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
             try {
-                Bill bill = billDao.findById(c, billId);
-                if (bill == null) { c.rollback(); return false; }
+                Bill bill = billDao.findByIdForUpdate(c, billId);
+                if (bill == null || !"UNPAID".equals(bill.getStatus())) {
+                    c.rollback();
+                    return PaymentResult.notPaid();
+                }
                 if (bill.getVoucherId() != null) {
                     Voucher voucher = voucherDao.findById(c, bill.getVoucherId());
                     String voucherError = VoucherService.validateVoucherRecord(voucher, bill.getBranchId(), bill.getSubtotal());
-                    if (voucherError != null) { c.rollback(); return false; }
+                    if (voucherError != null) { c.rollback(); return PaymentResult.notPaid(); }
                 }
                 if (billItemDao.countByBill(c, billId) == 0
                         || bill.getTotalAmount() == null
                         || bill.getTotalAmount().compareTo(BigDecimal.ZERO) <= 0) {
                     c.rollback();
-                    return false;
+                    return PaymentResult.notPaid();
                 }
-                int rows = billDao.markPaid(c, billId, method, shiftId);
-                if (rows == 0) { c.rollback(); return false; }   // đã PAID/VOID
+
+                BigDecimal adjustment = BigDecimal.ZERO.setScale(2);
+                BigDecimal paidAmount = bill.getTotalAmount();
+                BigDecimal tendered = null;
+                BigDecimal change = null;
+                if ("CASH".equals(method)) {
+                    CashPaymentCalculator.CashSettlement settlement =
+                            CashPaymentCalculator.settle(bill.getTotalAmount(), cashTendered);
+                    adjustment = settlement.roundingAdjustment();
+                    paidAmount = settlement.paidAmount();
+                    tendered = settlement.cashTendered();
+                    change = settlement.cashChange();
+                }
+
+                int rows = billDao.markPaid(c, billId, method, shiftId,
+                        adjustment, paidAmount, tendered, change);
+                if (rows == 0) { c.rollback(); return PaymentResult.notPaid(); }
 
                 if (bill.getVoucherId() != null) {
                     voucherDao.incrementUsed(c, bill.getVoucherId());
                     redemptionDao.insert(c, bill.getVoucherId(), billId, bill.getDiscountAmount());
                 }
                 EventPublisher.publish(c, EventType.PAYMENT_COMPLETED, String.valueOf(billId), bill.getBranchId(),
-                        "{\"billId\":" + billId + ",\"method\":\"" + method + "\",\"total\":" + bill.getTotalAmount() + "}");
+                        paymentPayload(billId, method, bill.getTotalAmount(), adjustment,
+                                paidAmount, tendered, change));
 
                 // Nếu phiên không còn bill UNPAID → đóng phiên + trả bàn EMPTY
                 if (bill.getTableSessionId() != null
@@ -247,14 +270,42 @@ public class BillingService {
                     outboxEventDao.markBillRequestProcessed(c, bill.getTableSessionId());
                 }
                 c.commit();
-                return true;
-            } catch (SQLException e) { c.rollback(); throw e; }
+                return new PaymentResult(true, paidAmount, tendered, change, adjustment);
+            } catch (SQLException | RuntimeException e) { c.rollback(); throw e; }
             finally { c.setAutoCommit(true); }
         }
     }
 
+    private String paymentPayload(int billId, String method, BigDecimal total,
+                                  BigDecimal adjustment, BigDecimal paidAmount,
+                                  BigDecimal tendered, BigDecimal change) {
+        return "{\"billId\":" + billId
+                + ",\"method\":\"" + method
+                + "\",\"total\":" + total.toPlainString()
+                + ",\"roundingAdjustment\":" + adjustment.toPlainString()
+                + ",\"paidAmount\":" + paidAmount.toPlainString()
+                + ",\"cashTendered\":" + jsonNumber(tendered)
+                + ",\"cashChange\":" + jsonNumber(change) + "}";
+    }
+
+    private String jsonNumber(BigDecimal value) {
+        return value == null ? "null" : value.toPlainString();
+    }
+
     public static boolean isSupportedPaymentMethod(String method) {
         return method != null && PAYMENT_METHODS.contains(method);
+    }
+
+    public record PaymentResult(
+            boolean paid,
+            BigDecimal paidAmount,
+            BigDecimal cashTendered,
+            BigDecimal cashChange,
+            BigDecimal roundingAdjustment) {
+
+        private static PaymentResult notPaid() {
+            return new PaymentResult(false, null, null, null, null);
+        }
     }
 
     /** Huỷ bill chưa thanh toán KÈM LÝ DO — ghi log qua ops.OutboxEvent trong cùng tx. */

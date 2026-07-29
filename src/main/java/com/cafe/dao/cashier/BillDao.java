@@ -17,7 +17,8 @@ public class BillDao {
 
     private static final String SELECT =
         "SELECT b.BillId, b.BranchId, b.TableSessionId, b.CashierShiftId, b.Subtotal, b.VatAmount, b.DiscountAmount, " +
-        "       b.TotalAmount, b.VoucherId, b.PaymentMethod, b.Status, b.PaidAt, b.CreatedAt, " +
+        "       b.TotalAmount, b.RoundingAdjustment, b.PaidAmount, b.CashTendered, b.CashChange, " +
+        "       b.VoucherId, b.PaymentMethod, b.Status, b.PaidAt, b.CreatedAt, " +
         "       dt.TableNumber, v.Code AS VoucherCode " +
         "FROM payment.Bill b " +
         "LEFT JOIN sales.TableSession ts ON ts.TableSessionId=b.TableSessionId " +
@@ -37,6 +38,17 @@ public class BillDao {
 
     public Bill findById(Connection conn, int id) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(SELECT + "WHERE b.BillId=?")) {
+            ps.setInt(1, id);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? map(rs) : null; }
+        }
+    }
+
+    /** Khóa bill đến hết transaction thanh toán để số tiền và voucher không đổi giữa chừng. */
+    public Bill findByIdForUpdate(Connection conn, int id) throws SQLException {
+        String lockedSelect = SELECT.replace(
+                "FROM payment.Bill b ",
+                "FROM payment.Bill b WITH (UPDLOCK, HOLDLOCK) ");
+        try (PreparedStatement ps = conn.prepareStatement(lockedSelect + "WHERE b.BillId=?")) {
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) { return rs.next() ? map(rs) : null; }
         }
@@ -157,8 +169,11 @@ public class BillDao {
     }
 
     /** Thanh toán: chỉ chuyển UNPAID→PAID (chống double-pay bằng WHERE Status). Trả số dòng đổi. */
-    public int markPaid(Connection conn, int billId, String method, int shiftId) throws SQLException {
+    public int markPaid(Connection conn, int billId, String method, int shiftId,
+                        BigDecimal roundingAdjustment, BigDecimal paidAmount,
+                        BigDecimal cashTendered, BigDecimal cashChange) throws SQLException {
         final String sql = "UPDATE b SET Status='PAID', PaymentMethod=?, " +
+                "RoundingAdjustment=?, PaidAmount=?, CashTendered=?, CashChange=?, " +
                 "CashierShiftId=cs.CashierShiftId, PaidAt=SYSUTCDATETIME() " +
                 "FROM payment.Bill b " +
                 "JOIN payment.CashierShift cs WITH (UPDLOCK, HOLDLOCK) " +
@@ -166,8 +181,12 @@ public class BillDao {
                 "WHERE b.BillId=? AND b.Status='UNPAID'";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, method);
-            ps.setInt(2, shiftId);
-            ps.setInt(3, billId);
+            ps.setBigDecimal(2, roundingAdjustment);
+            ps.setBigDecimal(3, paidAmount);
+            if (cashTendered == null) ps.setNull(4, Types.DECIMAL); else ps.setBigDecimal(4, cashTendered);
+            if (cashChange == null) ps.setNull(5, Types.DECIMAL); else ps.setBigDecimal(5, cashChange);
+            ps.setInt(6, shiftId);
+            ps.setInt(7, billId);
             return ps.executeUpdate();
         }
     }
@@ -190,6 +209,10 @@ public class BillDao {
         b.setVatAmount(rs.getBigDecimal("VatAmount"));
         b.setDiscountAmount(rs.getBigDecimal("DiscountAmount"));
         b.setTotalAmount(rs.getBigDecimal("TotalAmount"));
+        b.setRoundingAdjustment(rs.getBigDecimal("RoundingAdjustment"));
+        b.setPaidAmount(rs.getBigDecimal("PaidAmount"));
+        b.setCashTendered(rs.getBigDecimal("CashTendered"));
+        b.setCashChange(rs.getBigDecimal("CashChange"));
         int vc = rs.getInt("VoucherId"); if (!rs.wasNull()) b.setVoucherId(vc);
         b.setPaymentMethod(rs.getString("PaymentMethod"));
         b.setStatus(rs.getString("Status"));
