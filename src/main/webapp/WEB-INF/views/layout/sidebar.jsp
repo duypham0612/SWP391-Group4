@@ -84,7 +84,6 @@
                 <li class="nav-section">Nhân sự</li>
                 <li><a class="${curPath == ctx.concat('/manager/shift') ? 'active' : ''}" href="${ctx}/manager/shift"><svg class="ic"><use href="#ic-calendar"/></svg>Lịch làm việc</a></li>
                 <li><a class="${curPath == ctx.concat('/manager/attendance') ? 'active' : ''}" href="${ctx}/manager/attendance"><svg class="ic"><use href="#ic-clock"/></svg>Chấm công</a></li>
-                <li><a class="${curPath == ctx.concat('/manager/cashier-shift') ? 'active' : ''}" href="${ctx}/manager/cashier-shift"><svg class="ic"><use href="#ic-card"/></svg>Két thu ngân</a></li>
                 <li><a class="${curPath == ctx.concat('/manager/payroll') ? 'active' : ''}" href="${ctx}/manager/payroll"><svg class="ic"><use href="#ic-wallet"/></svg>Bảng lương</a></li>
                 <li class="nav-section">Thực đơn</li>
                 <li><a class="${curPath == ctx.concat('/manager/menu') or curPath == ctx.concat('/manager/menu-block') ? 'active' : ''}" href="${ctx}/manager/menu"><svg class="ic"><use href="#ic-menu"/></svg>Thực đơn chi nhánh</a></li>

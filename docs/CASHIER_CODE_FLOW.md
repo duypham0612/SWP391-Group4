@@ -60,7 +60,6 @@ JSP form hoặc JavaScript fetch
 | Route bàn giao cũ | `GET/POST /cashier/handoff` | fragment `cashier/handoff/cards.jsp` | `PickupServlet` | `PickupService` |
 | Thanh toán | `GET/POST /cashier/checkout` | `cashier/checkout.jsp` | `CheckoutServlet` | `BillingService` |
 | Lịch sử hóa đơn | `GET/POST /cashier/history` | `cashier/bill-history.jsp`, `cashier/bill-view.jsp` | `BillHistoryServlet` | `BillingService`, `CashierShiftService` |
-| Manager xử lý két bỏ quên | `GET/POST /manager/cashier-shift` | `manager/cashier-shift.jsp` | `ManagerCashierShiftServlet` | `ManagerCashierShiftService` |
 
 Route `/cashier/handoff` không còn là màn độc lập:
 
@@ -463,7 +462,7 @@ Quy tắc:
 - Có ca của Cashier khác: rollback toàn bộ và báo rõ mã ca, tên người đang giữ
   két; Attendance của người mới cũng chưa bị tạo.
 - Database cũ đang có nhiều ca trùng: mọi Cashier đều bị chặn mở tiếp cho tới
-  khi Manager xử lý các ca cũ.
+  khi các ca cũ được đối soát và kết.
 
 Thông báo:
 
@@ -572,8 +571,8 @@ WHERE ClosedAt IS NULL;
 ```
 
 Khi chạy `database.sql` trên database đang có nhiều ca OPEN cùng branch, script
-không tự đóng ca và tạm chưa tạo index. Sau khi Manager xử lý hết ca trùng, chạy
-lại `database.sql` sẽ tạo index.
+không tự đóng ca và tạm chưa tạo index. Sau khi đối soát và kết hết ca trùng,
+chạy lại `database.sql` sẽ tạo index.
 
 ### 6.4 Bấm **Kết ca**
 
@@ -669,70 +668,6 @@ Bảng dùng:
 - `payment.CashierShift`
 - `payment.Bill`
 - `iam.User`
-
-### 6.5 Manager xử lý ca thu ngân bị bỏ quên
-
-Route liên quan:
-
-```text
-GET/POST /manager/cashier-shift
-```
-
-View:
-
-```text
-src/main/webapp/WEB-INF/views/manager/cashier-shift.jsp
-```
-
-Màn này thuộc prefix `/manager/*`, vì vậy chỉ `BRANCH_MANAGER` của đúng chi
-nhánh hoặc `ADMIN` được qua RBAC. Manager xem:
-
-- Các ca `ClosedAt IS NULL`.
-- Quỹ đầu ca.
-- Số bill đã thu.
-- Tiền mặt đã thu.
-- Số tiền cần đối chiếu `OpeningCash + CASH revenue`.
-
-Query danh sách:
-
-```sql
-SELECT cs.CashierShiftId, cs.BranchId, cs.CashierId,
-       cs.OpeningCash, cs.ClosingCash, cs.OpenedAt, cs.ClosedAt,
-       u.FullName AS CashierName
-FROM payment.CashierShift cs
-JOIN iam.[User] u ON u.UserId=cs.CashierId
-WHERE cs.BranchId=?
-  AND cs.ClosedAt IS NULL
-ORDER BY cs.OpenedAt, cs.CashierShiftId
-```
-
-Form **Kết ca hộ**:
-
-```text
-POST /manager/cashier-shift
-action=forceClose
-shiftId=<id>
-actualCash=<tiền mặt Manager thực đếm>
-reason=<lý do bắt buộc>
-_csrf=<token>
-```
-
-`ManagerCashierShiftService.forceClose`:
-
-1. Validate tiền không âm, tối đa hai chữ số thập phân.
-2. Bắt buộc lý do, tối đa 255 ký tự.
-3. Mở transaction và lấy cùng `UPDLOCK/HOLDLOCK` trên dòng branch.
-4. Khóa ca theo cả `CashierShiftId` và `BranchId`.
-5. Tính `expectedCash`, `actualCash` và `variance = actual - expected`.
-6. Đóng ca bằng `actualCash`.
-7. Ghi audit `cashier_shift.force_closed` vào `ops.OutboxEvent` với:
-   `cashierShiftId`, `cashierId`, `closedBy`, `expectedCash`, `actualCash`,
-   `variance`, `reason`.
-8. Commit.
-
-Màn phục hồi không tự sửa `hr.Attendance`, vì `payment.CashierShift` không lưu
-`ShiftAssignmentId`; tự suy đoán có thể đóng nhầm chấm công nếu nhân viên có
-nhiều assignment. Manager chỉnh giờ ra riêng tại `/manager/attendance`.
 
 ## 7. Màn Sơ đồ bàn
 
@@ -2583,7 +2518,6 @@ Role Cashier hiện không có thao tác hoàn tiền, nhưng:
 - `src/main/java/com/cafe/controller/cashier/PickupServlet.java`
 - `src/main/java/com/cafe/controller/cashier/CheckoutServlet.java`
 - `src/main/java/com/cafe/controller/cashier/BillHistoryServlet.java`
-- `src/main/java/com/cafe/controller/manager/ManagerCashierShiftServlet.java`
 
 ### Service
 
@@ -2598,7 +2532,6 @@ Role Cashier hiện không có thao tác hoàn tiền, nhưng:
 - `src/main/java/com/cafe/service/shared/CatalogReadService.java`
 - `src/main/java/com/cafe/service/shared/VoucherService.java`
 - `src/main/java/com/cafe/service/manager/AttendanceService.java`
-- `src/main/java/com/cafe/service/manager/ManagerCashierShiftService.java`
 
 ### DAO chứa SQL chính
 
@@ -2633,7 +2566,6 @@ Role Cashier hiện không có thao tác hoàn tiền, nhưng:
 - `src/main/webapp/WEB-INF/views/cashier/checkout.jsp`
 - `src/main/webapp/WEB-INF/views/cashier/bill-history.jsp`
 - `src/main/webapp/WEB-INF/views/cashier/bill-view.jsp`
-- `src/main/webapp/WEB-INF/views/manager/cashier-shift.jsp`
 
 ### Schema
 

@@ -1060,7 +1060,7 @@ BEGIN
             ON payment.CashierShift(BranchId)
             WHERE ClosedAt IS NULL;
     ELSE
-        PRINT N'Chưa tạo UX_CashierShift_OneOpenPerBranch: cần dùng màn Quản lý két thu ngân để xử lý các ca OPEN trùng.';
+        PRINT N'Chưa tạo UX_CashierShift_OneOpenPerBranch: cần đối soát và kết các ca OPEN trùng trước.';
 END
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'ops.OutboxEvent') AND name = N'IX_Outbox_Unprocessed')
 CREATE INDEX IX_Outbox_Unprocessed ON ops.OutboxEvent(ProcessedAt) WHERE ProcessedAt IS NULL;
