@@ -13,11 +13,23 @@ public final class QrLink {
      * Mọi màn hình sinh mã QR đều đi qua đây để local và bản deploy không lệch nhau.
      */
     public static String absoluteBase(jakarta.servlet.http.HttpServletRequest req) {
+        String configured = AppConfig.get("app.publicBaseUrl", "CAFE_PUBLIC_BASE_URL");
+        if (configured != null) {
+            String normalized = normalizeConfiguredBase(configured);
+            if (normalized != null) return normalized;
+        }
         return absoluteBase(
                 req.getScheme(), req.getServerName(), req.getServerPort(), req.getContextPath(),
                 req.getHeader("X-Forwarded-Proto"),
                 req.getHeader("X-Forwarded-Host"),
                 req.getHeader("X-Forwarded-Port"));
+    }
+
+    static String normalizeConfiguredBase(String configured) {
+        if (configured == null) return null;
+        String value = configured.trim();
+        while (value.endsWith("/")) value = value.substring(0, value.length() - 1);
+        return value.matches("(?i)^https?://[^\\s/]+(?::\\d+)?(?:/[^\\s]*)?$") ? value : null;
     }
 
     /**

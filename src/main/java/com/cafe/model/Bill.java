@@ -17,6 +17,10 @@ public class Bill {
     private BigDecimal vatAmount;
     private BigDecimal discountAmount;
     private BigDecimal totalAmount;
+    private BigDecimal roundingAdjustment;
+    private BigDecimal paidAmount;
+    private BigDecimal cashTendered;
+    private BigDecimal cashChange;
     private Integer voucherId;
     private String paymentMethod;      // CASH | TRANSFER | QR_BANK
     private String status;             // UNPAID | PAID | VOID
@@ -51,6 +55,18 @@ public class Bill {
 
     public BigDecimal getTotalAmount() { return totalAmount; }
     public void setTotalAmount(BigDecimal v) { this.totalAmount = v; }
+
+    public BigDecimal getRoundingAdjustment() { return roundingAdjustment; }
+    public void setRoundingAdjustment(BigDecimal v) { this.roundingAdjustment = v; }
+
+    public BigDecimal getPaidAmount() { return paidAmount; }
+    public void setPaidAmount(BigDecimal v) { this.paidAmount = v; }
+
+    public BigDecimal getCashTendered() { return cashTendered; }
+    public void setCashTendered(BigDecimal v) { this.cashTendered = v; }
+
+    public BigDecimal getCashChange() { return cashChange; }
+    public void setCashChange(BigDecimal v) { this.cashChange = v; }
 
     public Integer getVoucherId() { return voucherId; }
     public void setVoucherId(Integer v) { this.voucherId = v; }

@@ -19,9 +19,6 @@
   .qr-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:16px;margin-bottom:12px}
   .qr-item{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px dashed var(--line)}
   .qr-item:last-child{border-bottom:none}
-  .qr-actions{display:flex;gap:10px;margin-top:8px}
-  .qr-actions form{flex:1}
-  .qr-actions button{width:100%}
 </style>
 </head>
 <body>
@@ -52,7 +49,12 @@
                         <%-- Nhãn hướng tới KHÁCH (thân thiện, không jargon). --%>
                         <c:forEach var="it" items="${items}">
                             <div class="qr-item" data-status="${it.status}">
-                                <span>${it.quantity}× ${it.productName}</span>
+                                <span>
+                                    ${it.quantity}× ${it.productName}
+                                    <c:if test="${it.hasIssue and not empty it.issueReason}">
+                                        <br><small style="color:var(--st-cancelled)">Nhân viên sẽ hỗ trợ: <c:out value="${it.issueReason}" /></small>
+                                    </c:if>
+                                </span>
                                 <c:choose>
                                     <c:when test="${it.status == 'WAITING'}"><span class="badge badge-waiting">Chờ pha</span></c:when>
                                     <c:when test="${it.status == 'MAKING'}"><span class="badge badge-making">Đang pha</span></c:when>
@@ -88,20 +90,6 @@
         </c:if>
 
         <c:if test="${not sessionClosed}">
-            <div class="qr-actions">
-                <form action="${ctx}/qr/track" method="post">
-                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                    <input type="hidden" name="action" value="callStaff">
-                    <input type="hidden" name="sessionId" value="${sessionId}">
-                    <button type="submit" class="btn btn-ghost">Gọi nhân viên</button>
-                </form>
-                <form action="${ctx}/qr/track" method="post">
-                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                    <input type="hidden" name="action" value="requestBill">
-                    <input type="hidden" name="sessionId" value="${sessionId}">
-                    <button type="submit" class="btn btn-primary">Xin thanh toán</button>
-                </form>
-            </div>
             <div style="margin-top:12px;text-align:center;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
                 <a class="btn btn-primary btn-sm" href="${ctx}/qr/menu">Gọi thêm món</a>
                 <a class="btn btn-ghost btn-sm" href="${ctx}/qr/track?s=${sessionId}">Làm mới</a>
@@ -146,6 +134,12 @@ function renderStatuses(items){
     row.className='qr-item';
     const name=document.createElement('span');
     name.textContent=item.qty+'× '+item.name;
+    if(item.issueReason){
+      const issue=document.createElement('small');
+      issue.style.color='var(--st-cancelled)';
+      issue.textContent='Nhân viên sẽ hỗ trợ: '+item.issueReason;
+      name.append(document.createElement('br'),issue);
+    }
     const badge=document.createElement('span');
     const meta=STATUS_LABELS[item.status]||['Đang cập nhật','badge-served'];
     badge.className='badge '+meta[1];

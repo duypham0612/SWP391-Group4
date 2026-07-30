@@ -34,9 +34,10 @@ public class CashierShiftServlet extends HttpServlet {
         try {
             String action = req.getParameter("action");
             if ("report".equals(action) && req.getParameter("shiftId") != null) {
-                req.setAttribute("shift", service.getShiftReport(Integer.parseInt(req.getParameter("shiftId"))));
+                req.setAttribute("shift", service.getShiftReport(
+                        Integer.parseInt(req.getParameter("shiftId")), branchId));
             }
-            req.setAttribute("current", service.getCurrentShift(cashierId));
+            req.setAttribute("current", service.getCurrentShift(cashierId, branchId));
             req.setAttribute("dutyState", dutyService.getDutyState(cashierId, branchId).name());
             req.setAttribute("history", service.getShiftList(branchId));
             req.setAttribute("todayRevenue", service.getTodayRevenue(branchId));      // R1
@@ -67,25 +68,10 @@ public class CashierShiftServlet extends HttpServlet {
             } else if ("closeDuty".equals(action)) {
                 int shiftId = Integer.parseInt(req.getParameter("shiftId"));
                 BigDecimal closing = parseMoney(req.getParameter("closingCash"));
-                dutyService.closeDuty(cashierId, branchId, shiftId, closing);
+                boolean handoverConfirmed = "1".equals(req.getParameter("confirmHandover"));
+                dutyService.closeDuty(
+                        cashierId, branchId, shiftId, closing, handoverConfirmed);
                 req.getSession().setAttribute("flashOk", "Đã kết ca.");
-                resp.sendRedirect(ctx + "/cashier/shift?action=report&shiftId=" + shiftId);
-            } else if ("clockIn".equals(action)) {
-                attendanceService.clockIn(cashierId, branchId);
-                req.getSession().setAttribute("flashOk", "Đã vào ca.");
-                resp.sendRedirect(ctx + "/cashier/shift");
-            } else if ("clockOut".equals(action)) {
-                attendanceService.clockOut(cashierId, branchId);
-                req.getSession().setAttribute("flashOk", "Đã tan ca.");
-                resp.sendRedirect(ctx + "/cashier/shift");
-            } else if ("open".equals(action)) {
-                BigDecimal opening = parseMoney(req.getParameter("openingCash"));
-                service.openShift(branchId, cashierId, opening);
-                resp.sendRedirect(ctx + "/cashier/shift");
-            } else if ("close".equals(action)) {
-                int shiftId = Integer.parseInt(req.getParameter("shiftId"));
-                BigDecimal closing = parseMoney(req.getParameter("closingCash"));
-                service.closeShift(shiftId, cashierId, branchId, closing);
                 resp.sendRedirect(ctx + "/cashier/shift?action=report&shiftId=" + shiftId);
             } else {
                 resp.sendRedirect(ctx + "/cashier/shift");

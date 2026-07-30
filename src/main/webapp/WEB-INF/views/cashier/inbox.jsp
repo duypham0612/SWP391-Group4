@@ -18,10 +18,28 @@
     <c:remove var="flashError" scope="session" />
 </c:if>
 
+<c:if test="${not empty outOfStockItems}">
+    <div class="alert alert-error">
+        <strong>Món hiện không nhận đặt:</strong>
+        <c:forEach var="m" items="${outOfStockItems}" varStatus="loop">
+            <c:out value="${m.name}" /> (<c:out value="${m.stockMessage}" />)${loop.last ? '' : ' · '}
+        </c:forEach>
+        — nếu đơn đang xử lý có món bị chặn, hãy thông báo khách để đổi hoặc huỷ món.
+    </div>
+</c:if>
+<c:if test="${not empty lowStockItems}">
+    <div class="alert alert-info">
+        <strong>Cảnh báo sắp hết — vẫn nhận đặt:</strong>
+        <c:forEach var="m" items="${lowStockItems}" varStatus="loop">
+            <c:out value="${m.name}" /> (<c:out value="${m.stockMessage}" />)${loop.last ? '' : ' · '}
+        </c:forEach>
+    </div>
+</c:if>
+
 <section id="handoff" style="scroll-margin-top:20px;margin-bottom:24px">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px">
         <h2 style="margin:0">Món sẵn bàn giao</h2>
-        <span class="badge badge-ready">${tickets.size() + pickedUpItems.size()} nhóm đang chờ</span>
+        <span class="badge badge-ready">${tickets.size() + pickedUpGroups.size()} nhóm đang chờ</span>
     </div>
     <jsp:include page="handoff/cards.jsp" />
 </section>
@@ -43,30 +61,64 @@
         <div class="card empty-state"><div class="icon">📭</div><p>Không có đơn nào đang xử lý.</p></div>
     </c:when>
     <c:otherwise>
+      <div class="kds-grid">
         <c:forEach var="o" items="${orders}">
-            <div class="card" style="margin-bottom:14px${o.stale ? ';border-left:4px solid var(--st-cancelled)' : ''}">
-                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+            <article class="card kds-card ${o.stale ? 'kds-late' : 'kds-ok'}">
+                <div class="kds-card__top">
                     <div>
-                        <c:if test="${not empty o.pickupCode}"><span class="kds-code"><c:out value="${o.pickupCode}" /></span> </c:if><strong>Đơn #${o.orderId}</strong>
+                        <div>
+                            <c:if test="${not empty o.pickupCode}"><span class="kds-code kds-code--lg"><c:out value="${o.pickupCode}" /></span> </c:if>
+                            <strong class="kds-table">
+                                <c:choose>
+                                    <c:when test="${not empty o.tableNumber}"><c:out value="${o.tableNumber}" /></c:when>
+                                    <c:otherwise>Nhận tại quầy</c:otherwise>
+                                </c:choose>
+                            </strong>
+                        </div>
+                        <div class="muted">Đơn #${o.orderId} · ${o.createdAtDisplay} · ${o.items.size()} dòng món</div>
+                        <div class="muted">Tổng <strong><fmt:formatNumber value="${o.total}" type="number"/>đ</strong></div>
+                    </div>
+                    <div class="pickup-card__badges">
                         <c:if test="${o.stale}"><span class="badge badge-cancelled">Treo từ ngày trước</span></c:if>
                         <c:choose>
-                            <c:when test="${o.source == 'QR'}"><span class="badge" style="background:var(--caramel);color:#fff">QR</span></c:when>
-                            <c:otherwise><span class="badge" style="background:var(--coffee);color:#fff">Quầy</span></c:otherwise>
+                            <c:when test="${o.source == 'QR'}"><span class="badge" style="background:var(--caramel);color:#fff">Đơn QR</span></c:when>
+                            <c:otherwise><span class="badge" style="background:var(--coffee);color:#fff">Đơn quầy</span></c:otherwise>
                         </c:choose>
-                        <c:if test="${not empty o.tableNumber}"><span class="badge" style="background:var(--latte)"><c:out value="${o.tableNumber}" /></span></c:if>
-                        <c:if test="${o.orderType == 'TAKEAWAY'}"><span class="badge" style="background:var(--latte)">Mang đi</span></c:if>
                         <c:choose>
                             <c:when test="${o.paymentStatus == 'PAID'}"><span class="badge badge-ready">Đã thanh toán</span></c:when>
                             <c:when test="${o.paymentStatus == 'ERROR'}"><span class="badge badge-cancelled">Lỗi thanh toán</span></c:when>
                             <c:otherwise><span class="badge badge-waiting">Đang thanh toán</span></c:otherwise>
                         </c:choose>
-                        <br><small style="color:var(--muted)">${o.createdAtDisplay} · ${o.items.size()} món · Tổng <fmt:formatNumber value="${o.total}" type="number"/>đ</small>
                     </div>
-                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
-                        <c:if test="${o.orderType == 'TAKEAWAY' and o.paymentStatus != 'PAID'}">
-                            <a class="btn btn-primary btn-sm" href="${ctx}/cashier/checkout?orderId=${o.orderId}">Thanh toán</a>
-                        </c:if>
-                        <c:choose>
+                </div>
+                <div class="kds-ticket-items">
+                    <c:forEach var="it" items="${o.items}">
+                        <section class="kds-ticket-item ${it.status == 'BLOCKED' ? 'kds-issue' : ''}">
+                            <div class="kds-ticket-item__head">
+                                <strong>${it.quantity} × <c:out value="${it.productName}" /></strong>
+                                <jsp:include page="../layout/_statusBadge.jsp"><jsp:param name="status" value="${it.status}"/></jsp:include>
+                            </div>
+                            <c:if test="${it.hasIssue and not empty it.issueReason}">
+                                <div class="kds-note" style="color:var(--st-cancelled)">⚠ <c:out value="${it.issueReason}" /></div>
+                            </c:if>
+                            <c:if test="${not empty it.note}"><div class="kds-note"><c:out value="${it.note}" /></div></c:if>
+                            <c:if test="${it.status == 'BLOCKED'}">
+                                <form action="${ctx}/cashier/inbox" method="post" onsubmit="return confirm('Huỷ món ${it.productName}? Món này đang bị chặn.');">
+                                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                    <input type="hidden" name="action" value="cancelItem">
+                                    <input type="hidden" name="orderItemId" value="${it.orderItemId}">
+                                    <input type="hidden" name="reason" value="Huỷ món bị chặn từ Inbox">
+                                    <button type="submit" class="btn btn-ghost btn-sm btn-full" style="color:var(--st-cancelled)">Huỷ món bị chặn</button>
+                                </form>
+                            </c:if>
+                        </section>
+                    </c:forEach>
+                </div>
+                <div class="kds-card__foot">
+                    <c:if test="${o.orderType == 'TAKEAWAY' and o.paymentStatus != 'PAID'}">
+                        <a class="btn btn-primary btn-sm" href="${ctx}/cashier/checkout?orderId=${o.orderId}">Thanh toán</a>
+                    </c:if>
+                    <c:choose>
                         <c:when test="${o.cancellable}">
                             <form action="${ctx}/cashier/inbox" method="post" onsubmit="return confirm('Huỷ đơn #${o.orderId}? Các món chưa pha sẽ bị huỷ.');">
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
@@ -75,39 +127,12 @@
                                 <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--st-cancelled)">Huỷ đơn</button>
                             </form>
                         </c:when>
-                        <c:otherwise>
-                            <small style="color:var(--muted)">Đang/đã pha — không thể huỷ</small>
-                        </c:otherwise>
-                        </c:choose>
-                    </div>
+                        <c:otherwise><small class="muted">Đang/đã pha — không thể huỷ đơn</small></c:otherwise>
+                    </c:choose>
                 </div>
-                <table class="table" style="margin-top:10px">
-                    <thead><tr><th>Món</th><th style="width:70px">SL</th><th style="width:120px">Trạng thái</th><th>Ghi chú</th><th style="width:110px">Thao tác</th></tr></thead>
-                    <tbody>
-                        <c:forEach var="it" items="${o.items}">
-                            <tr>
-                                <td>${it.productName}</td>
-                                <td>${it.quantity}</td>
-                                <td><jsp:include page="../layout/_statusBadge.jsp"><jsp:param name="status" value="${it.status}"/></jsp:include></td>
-                                <td><c:if test="${it.hasIssue and not empty it.issueReason}"><span style="color:var(--st-cancelled)">⚠ <c:out value="${it.issueReason}" /></span><br></c:if><c:out value="${it.note}" /></td>
-                                <td>
-                                    <%-- Món bị chặn (hết nguyên liệu/hỏng máy) không tự thoát; Thu ngân huỷ để đóng đơn. --%>
-                                    <c:if test="${it.status == 'BLOCKED'}">
-                                        <form action="${ctx}/cashier/inbox" method="post" onsubmit="return confirm('Huỷ món ${it.productName}? Món này đang bị chặn.');">
-                                            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                                            <input type="hidden" name="action" value="cancelItem">
-                                            <input type="hidden" name="orderItemId" value="${it.orderItemId}">
-                                            <input type="hidden" name="reason" value="Huỷ món bị chặn từ Inbox">
-                                            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--st-cancelled)">Huỷ món</button>
-                                        </form>
-                                    </c:if>
-                                </td>
-                            </tr>
-                        </c:forEach>
-                    </tbody>
-                </table>
-            </div>
+            </article>
         </c:forEach>
+      </div>
     </c:otherwise>
 </c:choose>
 

@@ -39,7 +39,8 @@ public class QrTrackServlet extends HttpServlet {
                     if (i > 0) sb.append(",");
                     sb.append("{\"name\":\"").append(esc(it.getProductName()))
                       .append("\",\"qty\":").append(it.getQuantity())
-                      .append(",\"status\":\"").append(it.getStatus()).append("\"}");
+                      .append(",\"status\":\"").append(it.getStatus()).append("\"")
+                      .append(",\"issueReason\":\"").append(esc(it.getIssueReason())).append("\"}");
                 }
                 sb.append("]");
                 resp.getWriter().write(sb.toString());
@@ -94,5 +95,12 @@ public class QrTrackServlet extends HttpServlet {
         return QrSessionPolicy.resolve(s == null ? null : s.getAttribute("qrSessionId"), requested);
     }
 
-    private String esc(String s) { return s == null ? "" : s.replace("\"", "'"); }
+    private String esc(String s) {
+        return s == null ? "" : s
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\r", "\\r")
+                .replace("\n", "\\n")
+                .replace("\t", "\\t");
+    }
 }

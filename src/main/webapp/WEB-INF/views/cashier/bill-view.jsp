@@ -31,7 +31,21 @@
         <div style="display:flex;justify-content:space-between"><span>Tạm tính</span><span><fmt:formatNumber value="${bill.subtotal}" maxFractionDigits="0"/> ₫</span></div>
         <c:if test="${bill.discountAmount > 0}"><div style="display:flex;justify-content:space-between;color:var(--st-ready)"><span>Giảm ${bill.voucherCode}</span><span>−<fmt:formatNumber value="${bill.discountAmount}" maxFractionDigits="0"/> ₫</span></div></c:if>
         <div style="display:flex;justify-content:space-between"><span>VAT 8%</span><span><fmt:formatNumber value="${bill.vatAmount}" maxFractionDigits="0"/> ₫</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px solid var(--line);padding-top:6px;margin-top:6px"><span>Tổng cộng</span><span><fmt:formatNumber value="${bill.totalAmount}" maxFractionDigits="0"/> ₫</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px solid var(--line);padding-top:6px;margin-top:6px"><span>Tổng hóa đơn</span><span><fmt:formatNumber value="${bill.totalAmount}" maxFractionDigits="0"/> ₫</span></div>
+        <c:if test="${bill.paymentMethod == 'CASH' and not empty bill.paidAmount}">
+            <div style="display:flex;justify-content:space-between">
+                <span>Điều chỉnh tiền mặt</span>
+                <span><c:if test="${bill.roundingAdjustment > 0}">+</c:if><fmt:formatNumber value="${bill.roundingAdjustment}" maxFractionDigits="0"/> ₫</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-weight:700">
+                <span>Thực thu tiền mặt</span>
+                <span><fmt:formatNumber value="${bill.paidAmount}" maxFractionDigits="0"/> ₫</span>
+            </div>
+            <c:if test="${not empty bill.cashTendered}">
+                <div style="display:flex;justify-content:space-between"><span>Khách đưa</span><span><fmt:formatNumber value="${bill.cashTendered}" maxFractionDigits="0"/> ₫</span></div>
+                <div style="display:flex;justify-content:space-between"><span>Tiền thối</span><span><fmt:formatNumber value="${bill.cashChange}" maxFractionDigits="0"/> ₫</span></div>
+            </c:if>
+        </c:if>
     </div>
     <p style="margin-top:14px">Trạng thái:
         <c:choose>

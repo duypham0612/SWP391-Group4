@@ -4,6 +4,8 @@ import com.cafe.controller.manager.InventoryDashboardServlet;
 import com.cafe.common.Constants;
 import com.cafe.common.CsrfUtil;
 import com.cafe.common.SessionUtil;
+import com.cafe.common.ItemUnavailableException;
+import com.cafe.model.PosMenuItem;
 import com.cafe.model.TableSession;
 import com.cafe.model.User;
 import com.cafe.service.shared.CatalogReadService;
@@ -39,7 +41,12 @@ public class PosServlet extends HttpServlet {
             throws ServletException, IOException {
         int branchId = InventoryDashboardServlet.branchId(req);
         try {
-            req.setAttribute("menu", catalogReadService.getPosMenu(branchId));
+            List<PosMenuItem> menu = catalogReadService.getPosMenu(branchId);
+            req.setAttribute("menu", menu);
+            req.setAttribute("lowStockItems", menu.stream()
+                    .filter(item -> "LOW".equals(item.getAvailabilityState())).toList());
+            req.setAttribute("outOfStockItems", menu.stream()
+                    .filter(item -> !item.isOrderable()).toList());
             req.setAttribute("openSessions", tableSessionService.getOpenSessions(branchId));
             String sid = req.getParameter("sessionId");
             if (sid != null && !sid.isBlank()) {
@@ -111,6 +118,14 @@ public class PosServlet extends HttpServlet {
             int orderId = orderService.placeOrder(branchId, sessionId, "COUNTER", orderType, userId, lines);
             if (sessionId != null) removeDraftCart(req.getSession(), sessionId);
             resp.getWriter().write("{\"orderId\":" + orderId + "}");
+        } catch (ItemUnavailableException e) {
+            resp.setStatus(409);
+            mapper.writeValue(resp.getWriter(), Map.of(
+                    "code", "ITEM_UNAVAILABLE",
+                    "productId", e.getProductId(),
+                    "productName", e.getProductName(),
+                    "state", e.getState(),
+                    "error", e.getReason()));
         } catch (IllegalArgumentException e) {
             resp.setStatus(400);
             resp.getWriter().write("{\"error\":\"" + escape(e.getMessage()) + "\"}");

@@ -9,6 +9,23 @@
     <a class="btn btn-ghost" href="${ctx}/cashier/table">← Sơ đồ bàn</a>
 </div>
 
+<c:if test="${not empty outOfStockItems}">
+    <div class="alert alert-error">
+        <strong>Món hiện không nhận đặt:</strong>
+        <c:forEach var="m" items="${outOfStockItems}" varStatus="loop">
+            <c:out value="${m.name}" /> (<c:out value="${m.stockMessage}" />)${loop.last ? '' : ' · '}
+        </c:forEach>
+    </div>
+</c:if>
+<c:if test="${not empty lowStockItems}">
+    <div class="alert alert-info">
+        <strong>Cảnh báo sắp hết — vẫn có thể đặt:</strong>
+        <c:forEach var="m" items="${lowStockItems}" varStatus="loop">
+            <c:out value="${m.name}" /> (<c:out value="${m.stockMessage}" />)${loop.last ? '' : ' · '}
+        </c:forEach>
+    </div>
+</c:if>
+
 <div style="display:grid;grid-template-columns:1fr 360px;gap:20px;align-items:start">
     <div>
         <c:if test="${empty menu}">
@@ -17,7 +34,9 @@
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px">
             <c:forEach var="m" items="${menu}">
                 <c:set var="imgSrc" value="${empty m.imageUrl ? ctx.concat('/assets/img/products/_placeholder.svg') : (m.imageUrl.startsWith('http') ? m.imageUrl : ctx.concat(m.imageUrl))}" />
-                <div class="card pos-product" data-product-id="${m.productId}" data-product-name="${m.name}" data-price="${m.price}">
+                <div class="card pos-product" data-product-id="${m.productId}" data-product-name="${m.name}"
+                     data-price="${m.price}" data-orderable="${m.orderable}"
+                     style="${m.orderable ? '' : 'opacity:.72;border-color:var(--st-cancelled)'}">
                     <img class="pos-product__img" src="${imgSrc}" alt="${m.name}" loading="lazy"
                          onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
                   <div class="pos-product__body">
@@ -25,6 +44,15 @@
                         <strong>${m.name}</strong>
                         <span class="muted"><fmt:formatNumber value="${m.price}" maxFractionDigits="0"/> ₫</span>
                     </div>
+                    <c:if test="${m.availabilityState == 'LOW'}">
+                        <div class="badge badge-waiting" style="margin-top:8px">⚠ <c:out value="${m.stockMessage}" /></div>
+                    </c:if>
+                    <c:if test="${m.availabilityState == 'OUT'}">
+                        <div class="badge badge-cancelled" style="margin-top:8px">Hết món · <c:out value="${m.stockMessage}" /></div>
+                    </c:if>
+                    <c:if test="${m.availabilityState == 'EIGHTY_SIX'}">
+                        <div class="badge badge-cancelled" style="margin-top:8px"><c:out value="${m.stockMessage}" /></div>
+                    </c:if>
                     <c:forEach var="g" items="${m.groups}">
                         <div class="pos-group" style="margin-top:8px"
                              data-group-name="${g.name}" data-required="${g.required}" data-min="${g.minSelect}" data-max="${g.maxSelect}">
@@ -44,8 +72,10 @@
                     </c:forEach>
                     <div class="pos-error" style="display:none;color:var(--st-cancelled);font-size:.86rem;margin-top:8px"></div>
                     <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
-                        <input type="number" class="form-control pos-qty" value="1" min="1" max="20" style="width:70px">
-                        <button type="button" class="btn btn-primary btn-sm" onclick="addToCart(this)">Thêm vào giỏ</button>
+                        <input type="number" class="form-control pos-qty" value="1" min="1" max="20"
+                               style="width:70px" ${m.orderable ? '' : 'disabled'}>
+                        <button type="button" class="btn btn-primary btn-sm" onclick="addToCart(this)"
+                                ${m.orderable ? '' : 'disabled'}>${m.orderable ? 'Thêm vào giỏ' : 'Không thể thêm'}</button>
                     </div>
                   </div>
                 </div>
@@ -156,6 +186,10 @@ function resetProduct(card){
 
 function addToCart(btn){
   const card = btn.closest('.pos-product');
+  if(card.dataset.orderable !== 'true'){
+    showProductError(card, 'Món hiện không nhận đặt. Vui lòng chọn món khác.');
+    return;
+  }
   if(!validateProduct(card)) return;
   const productId = parseInt(card.dataset.productId);
   const name = card.dataset.productName;
@@ -190,6 +224,7 @@ function renderCart(){
       '<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line)">' +
         '<div><strong>' + l.quantity + '× ' + l.name + '</strong>' +
           (l.optNames.length ? '<br><span class="muted" style="font-size:.85rem">' + l.optNames.join(', ') + '</span>' : '') +
+          (l.unavailable ? '<br><span style="color:var(--st-cancelled);font-size:.82rem">⚠ ' + l.unavailableReason + '</span>' : '') +
         '</div>' +
         '<div style="text-align:right;white-space:nowrap">' + fmt(l.unit*l.quantity) +
           ' <a href="javascript:void(0)" onclick="removeLine(' + i + ')" title="Xoá">×</a></div>' +
@@ -197,7 +232,7 @@ function renderCart(){
   }
   const total = cart.reduce((s,l)=> s + l.unit*l.quantity, 0);
   document.getElementById('cartTotal').textContent = fmt(total);
-  document.getElementById('submitBtn').disabled = cart.length === 0;
+  document.getElementById('submitBtn').disabled = cart.length === 0 || cart.some(l => l.unavailable);
 }
 
 function submitOrder(){
@@ -216,7 +251,18 @@ function submitOrder(){
       msg.innerHTML = '<span style="color:var(--st-ready)">✓ Đã gửi đơn #' + j.orderId + ' tới bếp.</span>';
       cart=[]; renderCart();
     }
-    else { msg.innerHTML = '<span style="color:var(--st-cancelled)">Lỗi: ' + (j.error||'không xác định') + '</span>'; }
+    else {
+      if(j.code === 'ITEM_UNAVAILABLE' && j.productId){
+        cart.forEach(l => {
+          if(l.productId === j.productId){
+            l.unavailable = true;
+            l.unavailableReason = j.error || 'Món hiện không nhận đặt.';
+          }
+        });
+        renderCart();
+      }
+      msg.innerHTML = '<span style="color:var(--st-cancelled)">Lỗi: ' + (j.error||'không xác định') + '</span>';
+    }
   }).catch(e => { msg.innerHTML = '<span style="color:var(--st-cancelled)">Lỗi mạng.</span>'; });
 }
 

@@ -837,9 +837,35 @@ CREATE TABLE payment.CashierShift (
     OpenedAt       DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     ClosedAt       DATETIME2 NULL,
     CONSTRAINT FK_CS_Branch  FOREIGN KEY (BranchId)  REFERENCES org.Branch(BranchId),
-    CONSTRAINT FK_CS_Cashier FOREIGN KEY (CashierId) REFERENCES iam.[User](UserId)
+    CONSTRAINT FK_CS_Cashier FOREIGN KEY (CashierId) REFERENCES iam.[User](UserId),
+    CONSTRAINT CK_CashierShift_Money CHECK (
+        OpeningCash >= 0 AND (ClosingCash IS NULL OR ClosingCash >= 0)
+    ),
+    CONSTRAINT CK_CashierShift_CloseState CHECK (
+        (ClosedAt IS NULL AND ClosingCash IS NULL)
+        OR (ClosedAt IS NOT NULL AND ClosingCash IS NOT NULL AND ClosedAt >= OpenedAt)
+    )
 );
 END
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.check_constraints
+    WHERE parent_object_id=OBJECT_ID(N'payment.CashierShift')
+      AND name=N'CK_CashierShift_Money'
+)
+    ALTER TABLE payment.CashierShift WITH CHECK ADD CONSTRAINT CK_CashierShift_Money
+        CHECK (OpeningCash >= 0 AND (ClosingCash IS NULL OR ClosingCash >= 0));
+IF NOT EXISTS (
+    SELECT 1 FROM sys.check_constraints
+    WHERE parent_object_id=OBJECT_ID(N'payment.CashierShift')
+      AND name=N'CK_CashierShift_CloseState'
+)
+    ALTER TABLE payment.CashierShift WITH CHECK ADD CONSTRAINT CK_CashierShift_CloseState
+        CHECK (
+            (ClosedAt IS NULL AND ClosingCash IS NULL)
+            OR (ClosedAt IS NOT NULL AND ClosingCash IS NOT NULL AND ClosedAt >= OpenedAt)
+        );
 GO
 
 -- Voucher toàn hệ thống (chỉ Admin sở hữu — một nguồn duy nhất)
@@ -877,6 +903,10 @@ CREATE TABLE payment.Bill (
     VatAmount      DECIMAL(14,2) NOT NULL DEFAULT 0,
     DiscountAmount DECIMAL(14,2) NOT NULL DEFAULT 0,
     TotalAmount    DECIMAL(14,2) NOT NULL DEFAULT 0,
+    RoundingAdjustment DECIMAL(14,2) NOT NULL DEFAULT 0,
+    PaidAmount     DECIMAL(14,2) NULL,
+    CashTendered   DECIMAL(14,2) NULL,
+    CashChange     DECIMAL(14,2) NULL,
     VoucherId      INT NULL,
     PaymentMethod  VARCHAR(10) NULL
                    CONSTRAINT CK_Bill_Method CHECK (PaymentMethod IN ('CASH','TRANSFER','QR_BANK')),
@@ -887,9 +917,57 @@ CREATE TABLE payment.Bill (
     CONSTRAINT FK_Bill_Branch  FOREIGN KEY (BranchId)       REFERENCES org.Branch(BranchId),
     CONSTRAINT FK_Bill_Session FOREIGN KEY (TableSessionId) REFERENCES sales.TableSession(TableSessionId),
     CONSTRAINT FK_Bill_Shift   FOREIGN KEY (CashierShiftId) REFERENCES payment.CashierShift(CashierShiftId),
-    CONSTRAINT FK_Bill_Voucher FOREIGN KEY (VoucherId)      REFERENCES payment.Voucher(VoucherId)
+    CONSTRAINT FK_Bill_Voucher FOREIGN KEY (VoucherId)      REFERENCES payment.Voucher(VoucherId),
+    CONSTRAINT CK_Bill_SettlementAmounts CHECK (
+        RoundingAdjustment BETWEEN -500 AND 500
+        AND (PaidAmount IS NULL OR PaidAmount = TotalAmount + RoundingAdjustment)
+        AND (CashTendered IS NULL OR CashTendered >= 0)
+        AND (CashChange IS NULL OR CashChange >= 0)
+        AND (CashTendered IS NULL OR CashChange IS NULL
+             OR PaidAmount = CashTendered - CashChange)
+    ),
+    CONSTRAINT CK_Bill_PaidHasAmount CHECK (Status <> 'PAID' OR PaidAmount IS NOT NULL)
 );
 END
+GO
+
+-- Snapshot quyết toán: giữ nguyên TotalAmount của hóa đơn và lưu riêng số thực thu.
+IF COL_LENGTH(N'payment.Bill', N'RoundingAdjustment') IS NULL
+    ALTER TABLE payment.Bill ADD RoundingAdjustment DECIMAL(14,2) NOT NULL
+        CONSTRAINT DF_Bill_RoundingAdjustment DEFAULT 0 WITH VALUES;
+IF COL_LENGTH(N'payment.Bill', N'PaidAmount') IS NULL
+    ALTER TABLE payment.Bill ADD PaidAmount DECIMAL(14,2) NULL;
+IF COL_LENGTH(N'payment.Bill', N'CashTendered') IS NULL
+    ALTER TABLE payment.Bill ADD CashTendered DECIMAL(14,2) NULL;
+IF COL_LENGTH(N'payment.Bill', N'CashChange') IS NULL
+    ALTER TABLE payment.Bill ADD CashChange DECIMAL(14,2) NULL;
+GO
+
+UPDATE payment.Bill
+SET PaidAmount=TotalAmount
+WHERE Status='PAID' AND PaidAmount IS NULL;
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.check_constraints
+    WHERE parent_object_id=OBJECT_ID(N'payment.Bill')
+      AND name=N'CK_Bill_SettlementAmounts'
+)
+    ALTER TABLE payment.Bill WITH CHECK ADD CONSTRAINT CK_Bill_SettlementAmounts CHECK (
+        RoundingAdjustment BETWEEN -500 AND 500
+        AND (PaidAmount IS NULL OR PaidAmount = TotalAmount + RoundingAdjustment)
+        AND (CashTendered IS NULL OR CashTendered >= 0)
+        AND (CashChange IS NULL OR CashChange >= 0)
+        AND (CashTendered IS NULL OR CashChange IS NULL
+             OR PaidAmount = CashTendered - CashChange)
+    );
+IF NOT EXISTS (
+    SELECT 1 FROM sys.check_constraints
+    WHERE parent_object_id=OBJECT_ID(N'payment.Bill')
+      AND name=N'CK_Bill_PaidHasAmount'
+)
+    ALTER TABLE payment.Bill WITH CHECK ADD CONSTRAINT CK_Bill_PaidHasAmount
+        CHECK (Status <> 'PAID' OR PaidAmount IS NOT NULL);
 GO
 
 -- Dòng đơn nào nằm trên Bill nào (cho phép tách bill)
@@ -996,6 +1074,31 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'payment.B
 CREATE INDEX IX_Bill_Session       ON payment.Bill(TableSessionId);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'payment.Bill') AND name = N'IX_Bill_BranchStatus')
 CREATE INDEX IX_Bill_BranchStatus  ON payment.Bill(BranchId, Status);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'payment.Bill') AND name = N'IX_Bill_ShiftSettlement')
+CREATE INDEX IX_Bill_ShiftSettlement
+    ON payment.Bill(CashierShiftId, Status, PaymentMethod)
+    INCLUDE (PaidAmount, TotalAmount);
+-- Một chi nhánh chỉ có một két thu ngân đang mở. Database cũ có thể đang có nhiều
+-- ca OPEN; không tự đóng hoặc tự ghi quỹ vì thiếu số kiểm đếm thực tế.
+IF NOT EXISTS (
+       SELECT 1 FROM sys.indexes
+       WHERE object_id = OBJECT_ID(N'payment.CashierShift')
+         AND name = N'UX_CashierShift_OneOpenPerBranch'
+   )
+BEGIN
+    IF NOT EXISTS (
+        SELECT BranchId
+        FROM payment.CashierShift
+        WHERE ClosedAt IS NULL
+        GROUP BY BranchId
+        HAVING COUNT(*) > 1
+    )
+        CREATE UNIQUE INDEX UX_CashierShift_OneOpenPerBranch
+            ON payment.CashierShift(BranchId)
+            WHERE ClosedAt IS NULL;
+    ELSE
+        THROW 51001, N'Không thể tạo UX_CashierShift_OneOpenPerBranch: cần đối soát các ca OPEN trùng trước.', 1;
+END
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'ops.OutboxEvent') AND name = N'IX_Outbox_Unprocessed')
 CREATE INDEX IX_Outbox_Unprocessed ON ops.OutboxEvent(ProcessedAt) WHERE ProcessedAt IS NULL;
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'sales.OrderItem') AND name = N'IX_OrderItem_BaristaStatus')
@@ -1846,8 +1949,8 @@ BEGIN
             DECLARE @pm VARCHAR(10)=CASE (@k%3) WHEN 0 THEN 'CASH' WHEN 1 THEN 'TRANSFER' ELSE 'QR_BANK' END;
             DECLARE @paidAt DATETIME2=DATEADD(MINUTE,50,@when);
             DECLARE @bill INT;
-            INSERT INTO payment.Bill(BranchId,TableSessionId,CashierShiftId,Subtotal,VatAmount,DiscountAmount,TotalAmount,VoucherId,PaymentMethod,Status,PaidAt,CreatedAt)
-            VALUES(@gB,@ses,@csDay,@sub,@vat,@disc,@tot,CASE WHEN @useV=1 THEN @vGrand ELSE NULL END,@pm,'PAID',@paidAt,@when);
+            INSERT INTO payment.Bill(BranchId,TableSessionId,CashierShiftId,Subtotal,VatAmount,DiscountAmount,TotalAmount,PaidAmount,VoucherId,PaymentMethod,Status,PaidAt,CreatedAt)
+            VALUES(@gB,@ses,@csDay,@sub,@vat,@disc,@tot,@tot,CASE WHEN @useV=1 THEN @vGrand ELSE NULL END,@pm,'PAID',@paidAt,@when);
             SET @bill = SCOPE_IDENTITY();
             INSERT INTO payment.BillItem(BillId,OrderItemId,Amount)
             SELECT @bill,OrderItemId,UnitPrice*Quantity FROM sales.OrderItem WHERE OrderId=@ord;
