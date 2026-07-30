@@ -1,5 +1,6 @@
 package com.cafe.service.cashier;
 
+import com.cafe.dao.cashier.CashierShiftDao;
 import com.cafe.model.CashierShift;
 import org.junit.jupiter.api.Test;
 
@@ -7,6 +8,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -56,6 +58,23 @@ class CashierShiftServiceTest {
                 () -> CashierShiftService.selectOwnOpenShift(List.of(first, second), 10));
 
         assertTrue(error.getMessage().contains("nhiều ca thu ngân"));
+    }
+
+    @Test
+    void noPendingOrderDoesNotRequireHandoverConfirmation() {
+        assertDoesNotThrow(() -> CashierShiftService.requireHandoverConfirmed(
+                new CashierShiftDao.PendingHandover(0, 0), false));
+    }
+
+    @Test
+    void pendingOrdersRequireExplicitHandoverConfirmation() {
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> CashierShiftService.requireHandoverConfirmed(
+                        new CashierShiftDao.PendingHandover(2, 3), false));
+
+        assertTrue(error.getMessage().contains("5 đơn"));
+        assertDoesNotThrow(() -> CashierShiftService.requireHandoverConfirmed(
+                new CashierShiftDao.PendingHandover(2, 3), true));
     }
 
     private CashierShift shift(int shiftId, int cashierId, String cashierName) {

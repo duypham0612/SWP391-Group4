@@ -7,6 +7,7 @@ import com.cafe.common.EventType;
 import com.cafe.config.DBConnection;
 import com.cafe.dao.cashier.BillDao;
 import com.cafe.dao.cashier.BillItemDao;
+import com.cafe.dao.cashier.CashierShiftDao;
 import com.cafe.dao.cashier.DiningTableDao;
 import com.cafe.dao.shared.OrderItemDao;
 import com.cafe.dao.shared.OutboxEventDao;
@@ -16,6 +17,7 @@ import com.cafe.dao.shared.VoucherDao;
 import com.cafe.dao.cashier.VoucherRedemptionDao;
 import com.cafe.model.Bill;
 import com.cafe.model.BillItem;
+import com.cafe.model.CashierShift;
 import com.cafe.model.OrderItem;
 import com.cafe.model.Order;
 import com.cafe.model.TableSession;
@@ -38,6 +40,7 @@ public class BillingService {
 
     private final BillDao billDao = new BillDao();
     private final BillItemDao billItemDao = new BillItemDao();
+    private final CashierShiftDao cashierShiftDao = new CashierShiftDao();
     private final OrderItemDao orderItemDao = new OrderItemDao();
     private final VoucherDao voucherDao = new VoucherDao();
     private final VoucherRedemptionDao redemptionDao = new VoucherRedemptionDao();
@@ -128,10 +131,24 @@ public class BillingService {
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
             try {
+                TableSession session = sessionDao.findById(c, sessionId);
+                if (session == null || session.getBranchId() != branchId
+                        || !"OPEN".equals(session.getStatus())) {
+                    throw new IllegalArgumentException("Phiên bàn không thuộc chi nhánh đang thao tác.");
+                }
                 int newBillId = billDao.insert(c, branchId, sessionId, shiftId);
                 for (Integer biId : billItemIds) {
                     BillItem bi = billItemDao.findById(c, biId);
-                    if (bi != null) billItemDao.reassign(c, biId, newBillId);
+                    if (bi == null) continue;
+                    Bill source = billDao.findById(c, bi.getBillId());
+                    if (source == null || source.getBranchId() != branchId
+                            || source.getTableSessionId() == null
+                            || source.getTableSessionId() != sessionId
+                            || !"UNPAID".equals(source.getStatus())) {
+                        throw new IllegalArgumentException(
+                                "Có dòng hoá đơn không thuộc phiên bàn đang thao tác.");
+                    }
+                    billItemDao.reassign(c, biId, newBillId);
                 }
                 // void các bill rỗng, rồi recompute toàn phiên no-drift (VAT + discount phân bổ theo tỷ lệ)
                 for (Bill b : billDao.findUnpaidBySession(c, sessionId)) {
@@ -139,26 +156,41 @@ public class BillingService {
                 }
                 recomputeSession(c, sessionId);
                 c.commit();
-            } catch (SQLException e) { c.rollback(); throw e; }
+            } catch (SQLException | RuntimeException e) { c.rollback(); throw e; }
             finally { c.setAutoCommit(true); }
         }
     }
 
     /** Gộp: dồn mọi dòng của các bill vào bill đầu tiên; void các bill rỗng còn lại. */
-    public void mergeBills(List<Integer> billIds) throws SQLException {
+    public void mergeBills(List<Integer> billIds, int branchId) throws SQLException {
         if (billIds == null || billIds.size() < 2) return;
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
             try {
                 int target = billIds.get(0);
+                Bill targetBill = billDao.findById(c, target);
+                if (targetBill == null || targetBill.getBranchId() != branchId
+                        || targetBill.getTableSessionId() == null
+                        || !"UNPAID".equals(targetBill.getStatus())) {
+                    throw new IllegalArgumentException(
+                            "Chỉ được gộp hoá đơn chưa thu của cùng một phiên bàn.");
+                }
                 for (int i = 1; i < billIds.size(); i++) {
                     int src = billIds.get(i);
+                    Bill sourceBill = billDao.findById(c, src);
+                    if (sourceBill == null || sourceBill.getBranchId() != branchId
+                            || !"UNPAID".equals(sourceBill.getStatus())
+                            || !java.util.Objects.equals(
+                                    sourceBill.getTableSessionId(), targetBill.getTableSessionId())) {
+                        throw new IllegalArgumentException(
+                                "Chỉ được gộp hoá đơn chưa thu của cùng một phiên bàn.");
+                    }
                     for (BillItem bi : billItemDao.findByBill(c, src)) billItemDao.reassign(c, bi.getBillItemId(), target);
                     billDao.markVoid(c, src);
                 }
                 recomputeForBill(c, target);
                 c.commit();
-            } catch (SQLException e) { c.rollback(); throw e; }
+            } catch (SQLException | RuntimeException e) { c.rollback(); throw e; }
             finally { c.setAutoCommit(true); }
         }
     }
@@ -167,6 +199,7 @@ public class BillingService {
     public String applyVoucher(int billId, String code, int branchId) throws SQLException {
         Bill bill = getBill(billId);
         if (bill == null) return "Không tìm thấy hoá đơn.";
+        if (bill.getBranchId() != branchId) return "Hoá đơn không thuộc chi nhánh đang thao tác.";
         if (!"UNPAID".equals(bill.getStatus())) return "Hoá đơn đã thanh toán/huỷ.";
         String err = voucherService.validateVoucher(code, branchId, bill.getSubtotal());
         if (err != null) return err;
@@ -182,7 +215,7 @@ public class BillingService {
                     recomputeWithVoucher(c, billId, vid);   // bill takeaway lẻ (không phiên)
                 }
                 c.commit();
-            } catch (SQLException e) { c.rollback(); throw e; }
+            } catch (SQLException | RuntimeException e) { c.rollback(); throw e; }
             finally { c.setAutoCommit(true); }
         }
         return null;
@@ -194,15 +227,20 @@ public class BillingService {
         return voucherService.validateVoucherById(bill.getVoucherId(), branchId, bill.getSubtotal());
     }
 
-    public void removeVoucher(int billId) throws SQLException {
+    public void removeVoucher(int billId, int branchId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
             try {
                 Bill b = billDao.findById(c, billId);
-                if (b != null && b.getTableSessionId() != null) recomputeSession(c, b.getTableSessionId(), null);
+                if (b == null || b.getBranchId() != branchId
+                        || !"UNPAID".equals(b.getStatus())) {
+                    throw new IllegalArgumentException(
+                            "Hoá đơn không thuộc chi nhánh đang thao tác hoặc đã được chốt.");
+                }
+                if (b.getTableSessionId() != null) recomputeSession(c, b.getTableSessionId(), null);
                 else recomputeWithVoucher(c, billId, null);
                 c.commit();
-            } catch (SQLException e) { c.rollback(); throw e; }
+            } catch (SQLException | RuntimeException e) { c.rollback(); throw e; }
             finally { c.setAutoCommit(true); }
         }
     }
@@ -217,8 +255,14 @@ public class BillingService {
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
             try {
+                CashierShift shift = cashierShiftDao.findOpenByIdForUpdate(c, shiftId);
+                if (shift == null) {
+                    c.rollback();
+                    return PaymentResult.notPaid();
+                }
                 Bill bill = billDao.findByIdForUpdate(c, billId);
-                if (bill == null || !"UNPAID".equals(bill.getStatus())) {
+                if (bill == null || bill.getBranchId() != shift.getBranchId()
+                        || !"UNPAID".equals(bill.getStatus())) {
                     c.rollback();
                     return PaymentResult.notPaid();
                 }
@@ -309,12 +353,15 @@ public class BillingService {
     }
 
     /** Huỷ bill chưa thanh toán KÈM LÝ DO — ghi log qua ops.OutboxEvent trong cùng tx. */
-    public boolean voidBill(int billId, String reason, Integer userId) throws SQLException {
+    public boolean voidBill(int billId, int branchId, String reason, Integer userId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
             try {
                 Bill b = billDao.findById(c, billId);
-                if (b == null) { c.rollback(); return false; }
+                if (b == null || b.getBranchId() != branchId) {
+                    c.rollback();
+                    return false;
+                }
                 int r = billDao.markVoid(c, billId);
                 if (r > 0) {
                     String safeReason = reason == null ? "" : reason.replace("\"", "'");

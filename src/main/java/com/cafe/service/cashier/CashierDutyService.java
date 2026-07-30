@@ -30,7 +30,7 @@ public class CashierDutyService {
     public DutyState getDutyState(int userId, int branchId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) {
             boolean clockedIn = isClockedIn(c, userId, branchId);
-            boolean tillOpen = cashierShiftDao.findOpenByCashier(c, userId) != null;
+            boolean tillOpen = cashierShiftDao.findOpenByCashier(c, userId, branchId) != null;
             if (clockedIn && tillOpen) return DutyState.ON_DUTY;
             if (clockedIn) return DutyState.CLOCKED_NO_TILL;
             if (tillOpen) return DutyState.TILL_ONLY;
@@ -58,11 +58,13 @@ public class CashierDutyService {
     }
 
     /** Kết ca = đóng két + tan ca trong cùng transaction. */
-    public void closeDuty(int userId, int branchId, int shiftId, BigDecimal closingCash) throws SQLException {
+    public void closeDuty(int userId, int branchId, int shiftId, BigDecimal closingCash,
+                          boolean handoverConfirmed) throws SQLException {
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
             try {
-                cashierShiftService.closeShift(c, shiftId, userId, branchId, closingCash);
+                cashierShiftService.closeShift(
+                        c, shiftId, userId, branchId, closingCash, handoverConfirmed);
                 attendanceService.clockOut(c, userId, branchId);
                 c.commit();
             } catch (SQLException | RuntimeException e) {

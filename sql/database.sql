@@ -837,9 +837,35 @@ CREATE TABLE payment.CashierShift (
     OpenedAt       DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     ClosedAt       DATETIME2 NULL,
     CONSTRAINT FK_CS_Branch  FOREIGN KEY (BranchId)  REFERENCES org.Branch(BranchId),
-    CONSTRAINT FK_CS_Cashier FOREIGN KEY (CashierId) REFERENCES iam.[User](UserId)
+    CONSTRAINT FK_CS_Cashier FOREIGN KEY (CashierId) REFERENCES iam.[User](UserId),
+    CONSTRAINT CK_CashierShift_Money CHECK (
+        OpeningCash >= 0 AND (ClosingCash IS NULL OR ClosingCash >= 0)
+    ),
+    CONSTRAINT CK_CashierShift_CloseState CHECK (
+        (ClosedAt IS NULL AND ClosingCash IS NULL)
+        OR (ClosedAt IS NOT NULL AND ClosingCash IS NOT NULL AND ClosedAt >= OpenedAt)
+    )
 );
 END
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.check_constraints
+    WHERE parent_object_id=OBJECT_ID(N'payment.CashierShift')
+      AND name=N'CK_CashierShift_Money'
+)
+    ALTER TABLE payment.CashierShift WITH CHECK ADD CONSTRAINT CK_CashierShift_Money
+        CHECK (OpeningCash >= 0 AND (ClosingCash IS NULL OR ClosingCash >= 0));
+IF NOT EXISTS (
+    SELECT 1 FROM sys.check_constraints
+    WHERE parent_object_id=OBJECT_ID(N'payment.CashierShift')
+      AND name=N'CK_CashierShift_CloseState'
+)
+    ALTER TABLE payment.CashierShift WITH CHECK ADD CONSTRAINT CK_CashierShift_CloseState
+        CHECK (
+            (ClosedAt IS NULL AND ClosingCash IS NULL)
+            OR (ClosedAt IS NOT NULL AND ClosingCash IS NOT NULL AND ClosedAt >= OpenedAt)
+        );
 GO
 
 -- Voucher toàn hệ thống (chỉ Admin sở hữu — một nguồn duy nhất)
@@ -1048,9 +1074,12 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'payment.B
 CREATE INDEX IX_Bill_Session       ON payment.Bill(TableSessionId);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'payment.Bill') AND name = N'IX_Bill_BranchStatus')
 CREATE INDEX IX_Bill_BranchStatus  ON payment.Bill(BranchId, Status);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'payment.Bill') AND name = N'IX_Bill_ShiftSettlement')
+CREATE INDEX IX_Bill_ShiftSettlement
+    ON payment.Bill(CashierShiftId, Status, PaymentMethod)
+    INCLUDE (PaidAmount, TotalAmount);
 -- Một chi nhánh chỉ có một két thu ngân đang mở. Database cũ có thể đang có nhiều
--- ca OPEN; khi đó chưa tự tạo unique index để tránh tự ý đóng/mất dấu đối soát.
--- Sau khi Manager xử lý hết ca trùng, chạy lại database.sql sẽ tạo index này.
+-- ca OPEN; không tự đóng hoặc tự ghi quỹ vì thiếu số kiểm đếm thực tế.
 IF NOT EXISTS (
        SELECT 1 FROM sys.indexes
        WHERE object_id = OBJECT_ID(N'payment.CashierShift')
@@ -1068,7 +1097,7 @@ BEGIN
             ON payment.CashierShift(BranchId)
             WHERE ClosedAt IS NULL;
     ELSE
-        PRINT N'Chưa tạo UX_CashierShift_OneOpenPerBranch: cần đối soát và kết các ca OPEN trùng trước.';
+        THROW 51001, N'Không thể tạo UX_CashierShift_OneOpenPerBranch: cần đối soát các ca OPEN trùng trước.', 1;
 END
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'ops.OutboxEvent') AND name = N'IX_Outbox_Unprocessed')
 CREATE INDEX IX_Outbox_Unprocessed ON ops.OutboxEvent(ProcessedAt) WHERE ProcessedAt IS NULL;
@@ -1920,8 +1949,8 @@ BEGIN
             DECLARE @pm VARCHAR(10)=CASE (@k%3) WHEN 0 THEN 'CASH' WHEN 1 THEN 'TRANSFER' ELSE 'QR_BANK' END;
             DECLARE @paidAt DATETIME2=DATEADD(MINUTE,50,@when);
             DECLARE @bill INT;
-            INSERT INTO payment.Bill(BranchId,TableSessionId,CashierShiftId,Subtotal,VatAmount,DiscountAmount,TotalAmount,VoucherId,PaymentMethod,Status,PaidAt,CreatedAt)
-            VALUES(@gB,@ses,@csDay,@sub,@vat,@disc,@tot,CASE WHEN @useV=1 THEN @vGrand ELSE NULL END,@pm,'PAID',@paidAt,@when);
+            INSERT INTO payment.Bill(BranchId,TableSessionId,CashierShiftId,Subtotal,VatAmount,DiscountAmount,TotalAmount,PaidAmount,VoucherId,PaymentMethod,Status,PaidAt,CreatedAt)
+            VALUES(@gB,@ses,@csDay,@sub,@vat,@disc,@tot,@tot,CASE WHEN @useV=1 THEN @vGrand ELSE NULL END,@pm,'PAID',@paidAt,@when);
             SET @bill = SCOPE_IDENTITY();
             INSERT INTO payment.BillItem(BillId,OrderItemId,Amount)
             SELECT @bill,OrderItemId,UnitPrice*Quantity FROM sales.OrderItem WHERE OrderId=@ord;

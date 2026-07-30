@@ -61,6 +61,16 @@
 
     <c:choose>
         <c:when test="${dutyState == 'ON_DUTY' and not empty current}">
+            <c:if test="${current.handoverRequired}">
+                <div class="alert alert-info" style="margin-top:18px;margin-bottom:0">
+                    <span>
+                        Còn <strong>${current.pendingHandoverOrderCount} đơn chưa thu tiền</strong>
+                        (${current.pendingReadyOrderCount} đơn đã bàn giao món,
+                        ${current.pendingInProgressOrderCount} đơn đang xử lý).
+                        Các đơn này sẽ được chuyển cho ca sau và doanh thu thuộc ca thực sự thu tiền.
+                    </span>
+                </div>
+            </c:if>
             <form action="${ctx}/cashier/shift" method="post" style="margin-top:18px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                 <input type="hidden" name="action" value="closeDuty">
@@ -70,6 +80,12 @@
                     <input type="number" name="closingCash" class="form-control" min="0" step="1000" required>
                     <small class="muted">Quỹ cần đối chiếu: <fmt:formatNumber value="${current.expectedClosingCash}" maxFractionDigits="0"/> ₫</small>
                 </div>
+                <c:if test="${current.handoverRequired}">
+                    <label style="display:flex;align-items:center;gap:8px;max-width:390px;padding-bottom:10px">
+                        <input type="checkbox" name="confirmHandover" value="1" required>
+                        Tôi xác nhận bàn giao ${current.pendingHandoverOrderCount} đơn chưa thu cho ca sau.
+                    </label>
+                </c:if>
                 <button type="submit" class="btn btn-primary" onclick="return confirm('Kết ca và tan ca?');">Kết ca</button>
                 <a class="btn btn-ghost" href="${ctx}/cashier/checkout">Tới thanh toán</a>
             </form>
@@ -130,20 +146,22 @@
         <div class="card empty-state"><div class="icon">∅</div><p>Chưa có ca nào.</p></div>
     </c:when>
     <c:otherwise>
-        <table class="table">
-            <thead><tr><th>#</th><th>Thu ngân</th><th>Mở</th><th>Đóng</th><th style="width:120px">Trạng thái</th></tr></thead>
-            <tbody>
-                <c:forEach var="s" items="${history}">
-                    <tr>
-                        <td><a href="${ctx}/cashier/shift?action=report&shiftId=${s.cashierShiftId}">#${s.cashierShiftId}</a></td>
-                        <td>${s.cashierName}</td>
-                        <td>${s.openedAtDisplay}</td>
-                        <td><c:choose><c:when test="${s.open}"><span class="badge badge-making">Đang mở</span></c:when><c:otherwise>${s.closedAtDisplay}</c:otherwise></c:choose></td>
-                        <td><c:choose><c:when test="${s.open}"><span class="badge badge-waiting">OPEN</span></c:when><c:otherwise><span class="badge badge-served">Đã đóng</span></c:otherwise></c:choose></td>
-                    </tr>
-                </c:forEach>
-            </tbody>
-        </table>
+        <div class="table-scroll">
+            <table class="table">
+                <thead><tr><th>#</th><th>Thu ngân</th><th>Mở</th><th>Đóng</th><th style="width:120px">Trạng thái</th></tr></thead>
+                <tbody>
+                    <c:forEach var="s" items="${history}">
+                        <tr>
+                            <td><a href="${ctx}/cashier/shift?action=report&shiftId=${s.cashierShiftId}">#${s.cashierShiftId}</a></td>
+                            <td>${s.cashierName}</td>
+                            <td>${s.openedAtDisplay}</td>
+                            <td><c:choose><c:when test="${s.open}"><span class="badge badge-making">Đang mở</span></c:when><c:otherwise>${s.closedAtDisplay}</c:otherwise></c:choose></td>
+                            <td><c:choose><c:when test="${s.open}"><span class="badge badge-waiting">OPEN</span></c:when><c:otherwise><span class="badge badge-served">Đã đóng</span></c:otherwise></c:choose></td>
+                        </tr>
+                    </c:forEach>
+                </tbody>
+            </table>
+        </div>
     </c:otherwise>
 </c:choose>
 

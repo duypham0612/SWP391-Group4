@@ -40,22 +40,40 @@ public class CashierShiftDao {
         }
     }
 
-    /** Ca đang mở của 1 thu ngân (nếu có). */
-    public CashierShift findOpenByCashier(Connection conn, int cashierId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(SELECT + "WHERE cs.CashierId=? AND cs.ClosedAt IS NULL")) {
+    /** Ca đang mở của 1 thu ngân tại đúng chi nhánh đang thao tác. */
+    public CashierShift findOpenByCashier(Connection conn, int cashierId, int branchId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                SELECT + "WHERE cs.CashierId=? AND cs.BranchId=? AND cs.ClosedAt IS NULL")) {
             ps.setInt(1, cashierId);
+            ps.setInt(2, branchId);
             try (ResultSet rs = ps.executeQuery()) { return rs.next() ? map(rs) : null; }
         }
     }
 
     /** Khóa ca trong transaction kết ca để chống hai request đóng cùng lúc. */
-    public CashierShift findOpenByCashierForUpdate(Connection conn, int cashierId) throws SQLException {
+    public CashierShift findOpenByCashierForUpdate(Connection conn, int cashierId, int branchId)
+            throws SQLException {
         String lockedSelect = SELECT.replace(
                 "FROM payment.CashierShift cs ",
                 "FROM payment.CashierShift cs WITH (UPDLOCK, HOLDLOCK) ");
         try (PreparedStatement ps = conn.prepareStatement(
-                lockedSelect + "WHERE cs.CashierId=? AND cs.ClosedAt IS NULL")) {
+                lockedSelect + "WHERE cs.CashierId=? AND cs.BranchId=? AND cs.ClosedAt IS NULL")) {
             ps.setInt(1, cashierId);
+            ps.setInt(2, branchId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? map(rs) : null;
+            }
+        }
+    }
+
+    /** Khóa đúng ca theo id trước khi thanh toán; thống nhất thứ tự khóa ca → bill với kết ca. */
+    public CashierShift findOpenByIdForUpdate(Connection conn, int shiftId) throws SQLException {
+        String lockedSelect = SELECT.replace(
+                "FROM payment.CashierShift cs ",
+                "FROM payment.CashierShift cs WITH (UPDLOCK, HOLDLOCK) ");
+        try (PreparedStatement ps = conn.prepareStatement(
+                lockedSelect + "WHERE cs.CashierShiftId=? AND cs.ClosedAt IS NULL")) {
+            ps.setInt(1, shiftId);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? map(rs) : null;
             }
@@ -112,6 +130,15 @@ public class CashierShiftDao {
         }
     }
 
+    public CashierShift findByIdAndBranch(Connection conn, int id, int branchId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                SELECT + "WHERE cs.CashierShiftId=? AND cs.BranchId=?")) {
+            ps.setInt(1, id);
+            ps.setInt(2, branchId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? map(rs) : null; }
+        }
+    }
+
     /** Báo cáo ca: số bill PAID + riêng tổng tiền mặt đã thu. */
     public void fillReport(Connection conn, CashierShift shift) throws SQLException {
         final String sql = "SELECT COUNT(*) AS Cnt, " +
@@ -125,6 +152,40 @@ public class CashierShiftDao {
                     shift.setBillCount(rs.getInt("Cnt"));
                     shift.setCashCollected(rs.getBigDecimal("CashTotal"));
                 }
+            }
+        }
+    }
+
+    /** Đơn chưa thu phải được Cashier xác nhận bàn giao trước khi đóng ca. */
+    public void fillPendingHandover(Connection conn, CashierShift shift) throws SQLException {
+        PendingHandover pending = pendingHandover(conn, shift.getBranchId(), false);
+        shift.setPendingReadyOrderCount(pending.readyOrderCount());
+        shift.setPendingInProgressOrderCount(pending.inProgressOrderCount());
+    }
+
+    /** Đọc và khóa tập đơn chưa thu trong transaction kết ca. */
+    public PendingHandover pendingHandoverForClose(Connection conn, int branchId) throws SQLException {
+        return pendingHandover(conn, branchId, true);
+    }
+
+    private PendingHandover pendingHandover(Connection conn, int branchId, boolean lock)
+            throws SQLException {
+        String orderTable = lock ? "sales.Orders o WITH (UPDLOCK, HOLDLOCK) " : "sales.Orders o ";
+        final String sql = "SELECT " +
+                "ISNULL(SUM(CASE WHEN o.Status='COMPLETED' THEN 1 ELSE 0 END),0) AS ReadyCount, " +
+                "ISNULL(SUM(CASE WHEN o.Status='ACTIVE' THEN 1 ELSE 0 END),0) AS ActiveCount " +
+                "FROM " + orderTable +
+                "WHERE o.BranchId=? AND o.Status IN ('ACTIVE','COMPLETED') AND EXISTS (" +
+                " SELECT 1 FROM sales.OrderItem oi " +
+                " LEFT JOIN payment.BillItem bi ON bi.OrderItemId=oi.OrderItemId " +
+                " LEFT JOIN payment.Bill b ON b.BillId=bi.BillId " +
+                " WHERE oi.OrderId=o.OrderId AND oi.Status<>'CANCELLED' " +
+                " AND (bi.BillItemId IS NULL OR b.Status NOT IN ('PAID','REFUND')))";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return new PendingHandover(0, 0);
+                return new PendingHandover(rs.getInt("ReadyCount"), rs.getInt("ActiveCount"));
             }
         }
     }
@@ -151,5 +212,11 @@ public class CashierShiftDao {
         if (ca != null) s.setClosedAt(ca.toLocalDateTime());
         s.setCashierName(rs.getString("CashierName"));
         return s;
+    }
+
+    public record PendingHandover(int readyOrderCount, int inProgressOrderCount) {
+        public int totalOrderCount() {
+            return readyOrderCount + inProgressOrderCount;
+        }
     }
 }

@@ -10,6 +10,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -115,6 +116,36 @@ public class BillDao {
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, branchId);
             try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getInt(1) : 0; }
+        }
+    }
+
+    /** Doanh thu hóa đơn trong khoảng UTC nửa mở [from, to), dùng cho ngày lịch Việt Nam. */
+    public BigDecimal sumPaidBetween(Connection conn, int branchId,
+                                     LocalDateTime fromUtc, LocalDateTime toUtc) throws SQLException {
+        final String sql = "SELECT ISNULL(SUM(TotalAmount),0) AS Rev FROM payment.Bill " +
+                "WHERE BranchId=? AND Status='PAID' AND PaidAt>=? AND PaidAt<?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setTimestamp(2, Timestamp.valueOf(fromUtc));
+            ps.setTimestamp(3, Timestamp.valueOf(toUtc));
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getBigDecimal("Rev") : BigDecimal.ZERO;
+            }
+        }
+    }
+
+    /** Số hóa đơn đã thu trong khoảng UTC nửa mở [from, to). */
+    public int countPaidBetween(Connection conn, int branchId,
+                                LocalDateTime fromUtc, LocalDateTime toUtc) throws SQLException {
+        final String sql = "SELECT COUNT(*) FROM payment.Bill " +
+                "WHERE BranchId=? AND Status='PAID' AND PaidAt>=? AND PaidAt<?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setTimestamp(2, Timestamp.valueOf(fromUtc));
+            ps.setTimestamp(3, Timestamp.valueOf(toUtc));
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
         }
     }
 

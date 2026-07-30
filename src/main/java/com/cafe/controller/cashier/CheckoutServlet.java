@@ -44,7 +44,8 @@ public class CheckoutServlet extends HttpServlet {
         try {
             String sid = req.getParameter("sessionId");
             String oid = req.getParameter("orderId");
-            CashierShift shift = u != null ? shiftService.getCurrentShift(u.getUserId()) : null;
+            CashierShift shift = u != null
+                    ? shiftService.getCurrentShift(u.getUserId(), branchId) : null;
             req.setAttribute("shift", shift);
             if (oid != null && !oid.isBlank()) {
                 int orderId = Integer.parseInt(oid);
@@ -105,20 +106,24 @@ public class CheckoutServlet extends HttpServlet {
                 String err = billingService.applyVoucher(billId, req.getParameter("code"), branchId);
                 if (err != null) req.getSession().setAttribute("flashError", err);
             } else if ("removeVoucher".equals(action)) {
-                billingService.removeVoucher(Integer.parseInt(req.getParameter("billId")));
+                billingService.removeVoucher(
+                        Integer.parseInt(req.getParameter("billId")), branchId);
             } else if ("splitBill".equals(action) && hasText(sessionId)) {
-                CashierShift shift = u != null ? shiftService.getCurrentShift(u.getUserId()) : null;
+                CashierShift shift = u != null
+                        ? shiftService.getCurrentShift(u.getUserId(), branchId) : null;
                 Integer shiftId = shift != null ? shift.getCashierShiftId() : null;
                 billingService.splitItems(Integer.parseInt(sessionId), branchId, shiftId, intList(req.getParameterValues("billItemId")));
             } else if ("mergeBill".equals(action) && hasText(sessionId)) {
-                billingService.mergeBills(intList(req.getParameterValues("billId")));
+                billingService.mergeBills(
+                        intList(req.getParameterValues("billId")), branchId);
             } else if ("pay".equals(action)) {
                 int billId = Integer.parseInt(req.getParameter("billId"));
                 String err = validatePayable(billId, branchId);
                 if (err != null) {
                     req.getSession().setAttribute("flashError", err);
                 } else {
-                    CashierShift shift = u != null ? shiftService.getCurrentShift(u.getUserId()) : null;
+                    CashierShift shift = u != null
+                            ? shiftService.getCurrentShift(u.getUserId(), branchId) : null;
                     Integer shiftId = shift != null ? shift.getCashierShiftId() : null;
                     String method = req.getParameter("method");
                     BigDecimal cashTendered = "CASH".equals(method)
@@ -146,7 +151,9 @@ public class CheckoutServlet extends HttpServlet {
                     req.getSession().setAttribute("flashError", "Phải nhập lý do khi huỷ hoá đơn.");
                 } else {
                     Integer uid = u != null ? u.getUserId() : null;
-                    billingService.voidBill(Integer.parseInt(req.getParameter("billId")), reason.trim(), uid);
+                    billingService.voidBill(
+                            Integer.parseInt(req.getParameter("billId")),
+                            branchId, reason.trim(), uid);
                 }
             }
             resp.sendRedirect(back);
