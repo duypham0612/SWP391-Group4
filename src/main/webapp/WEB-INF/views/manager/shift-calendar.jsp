@@ -57,6 +57,7 @@
 
     <div class="card">
         <h3 style="margin-top:0">Xếp ca cho nhân viên</h3>
+        <p class="muted">Có thể xếp ca trước giờ bắt đầu hoặc muộn tối đa 10 phút.</p>
         <c:choose>
             <c:when test="${empty templates or empty staff}">
                 <p class="muted">Cần có ít nhất 1 mẫu ca và 1 nhân viên trong chi nhánh.</p>
