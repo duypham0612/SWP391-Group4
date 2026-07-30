@@ -47,6 +47,19 @@ public class IngredientDao {
         }
     }
 
+    public boolean existsByName(Connection conn, String name, int excludeId) throws SQLException {
+        final String sql =
+                "SELECT 1 FROM catalog.Ingredient " +
+                "WHERE LOWER(LTRIM(RTRIM(Name))) = LOWER(LTRIM(RTRIM(?))) AND IngredientId <> ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, name);
+            ps.setInt(2, excludeId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
     public int insert(Connection conn, Ingredient i) throws SQLException {
         final String sql = "INSERT INTO catalog.Ingredient(Name, Unit, IngredientType, ShelfLifeMinutes, IsActive) VALUES (?,?,?,?,?)";
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {

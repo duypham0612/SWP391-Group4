@@ -64,7 +64,7 @@
             <table class="table admin-product-table">
                 <thead><tr>
                     <th style="width:42px" data-tt-nosearch><input id="checkAllProducts" type="checkbox" aria-label="Chọn tất cả sản phẩm"></th>
-                    <th style="width:56px" data-tt-nosearch>#</th>
+                    <th style="width:70px" data-tt-nosearch>STT</th>
                     <th style="width:70px" data-tt-nosearch>Ảnh</th>
                     <th data-tt-search>Tên</th>
                     <th style="width:180px" data-tt-search>Danh mục</th>
@@ -73,11 +73,11 @@
                     <th style="width:260px" data-tt-nosearch>Thao tác</th>
                 </tr></thead>
                 <tbody>
-                    <c:forEach var="p" items="${products}">
+                    <c:forEach var="p" items="${products}" varStatus="status">
                         <c:set var="imgSrc" value="${empty p.imageUrl ? ctx.concat('/assets/img/products/_placeholder.svg') : (p.imageUrl.startsWith('http') ? p.imageUrl : ctx.concat(p.imageUrl))}" />
                         <tr>
                             <td><input class="product-pick" type="checkbox" name="productIds" value="${p.productId}" aria-label="Chọn ${p.name}"></td>
-                            <td>${p.productId}</td>
+                            <td data-tt-index>${status.index + 1}</td>
                             <td><img class="prod-thumb" src="${imgSrc}" alt="${p.name}" loading="lazy" onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'"></td>
                             <td>${p.name}</td>
                             <td>${p.categoryName}</td>

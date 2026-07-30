@@ -1,14 +1,15 @@
 package com.cafe.model;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
-/** catalog.PrepRecipe — 1 PREPPED tạo từ N RAW kèm sản lượng (yield). */
+/** catalog.PrepRecipe - định mức nguyên liệu thô cho nguyên liệu pha sẵn. */
 public class PrepRecipe {
     private int prepRecipeId;
     private int preppedIngredientId;
     private int rawIngredientId;
-    private BigDecimal quantity;   // lượng RAW cho 1 yield
-    private BigDecimal yieldQty;   // 1 mẻ ra bao nhiêu PREPPED
+    private BigDecimal quantity;
+    private BigDecimal yieldQty; // trường tương thích dữ liệu cũ, Admin không nhập
 
     // join
     private String rawIngredientName;
@@ -28,6 +29,11 @@ public class PrepRecipe {
 
     /** Cho JSP — bỏ .000 thừa. */
     public String getQuantityDisplay() { return com.cafe.common.QuantityFormat.plain(quantity); }
+
+    /** Admin recipe forms only accept and display whole-number quantities. */
+    public String getQuantityIntegerDisplay() {
+        return quantity == null ? "" : quantity.setScale(0, RoundingMode.DOWN).toPlainString();
+    }
 
     public BigDecimal getYieldQty() { return yieldQty; }
     public void setYieldQty(BigDecimal yieldQty) { this.yieldQty = yieldQty; }
