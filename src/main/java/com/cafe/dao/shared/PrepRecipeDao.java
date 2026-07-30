@@ -48,10 +48,25 @@ public class PrepRecipeDao {
         }
     }
 
-    public void delete(Connection conn, int prepRecipeId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM catalog.PrepRecipe WHERE PrepRecipeId = ?")) {
+    public int updateQuantity(Connection conn, int prepRecipeId, int preppedIngredientId,
+                              java.math.BigDecimal quantity) throws SQLException {
+        final String sql =
+                "UPDATE catalog.PrepRecipe SET Quantity = ? " +
+                "WHERE PrepRecipeId = ? AND PreppedIngredientId = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setBigDecimal(1, quantity);
+            ps.setInt(2, prepRecipeId);
+            ps.setInt(3, preppedIngredientId);
+            return ps.executeUpdate();
+        }
+    }
+
+    public int delete(Connection conn, int prepRecipeId, int preppedIngredientId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM catalog.PrepRecipe WHERE PrepRecipeId = ? AND PreppedIngredientId = ?")) {
             ps.setInt(1, prepRecipeId);
-            ps.executeUpdate();
+            ps.setInt(2, preppedIngredientId);
+            return ps.executeUpdate();
         }
     }
 }

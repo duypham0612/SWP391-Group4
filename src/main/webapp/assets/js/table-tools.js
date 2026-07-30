@@ -167,6 +167,11 @@
       var endIndex = Math.min(startIndex + pageSize, total);
       var pageRows = filteredRows.slice(startIndex, endIndex);
 
+      filteredRows.forEach(function (row, index) {
+        var indexCell = row.querySelector('[data-tt-index]');
+        if (indexCell) indexCell.textContent = String(index + 1);
+      });
+
       rows.forEach(function (row) {
         row.hidden = pageRows.indexOf(row) === -1;
       });

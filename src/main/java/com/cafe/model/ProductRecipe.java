@@ -1,6 +1,7 @@
 package com.cafe.model;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 /** catalog.ProductRecipe — 1 dòng định mức nguyên liệu của 1 product. */
 public class ProductRecipe {
@@ -26,6 +27,11 @@ public class ProductRecipe {
 
     /** Cho JSP — bỏ .000 thừa. */
     public String getQuantityDisplay() { return com.cafe.common.QuantityFormat.plain(quantity); }
+
+    /** Admin recipe forms only accept and display whole-number quantities. */
+    public String getQuantityIntegerDisplay() {
+        return quantity == null ? "" : quantity.setScale(0, RoundingMode.DOWN).toPlainString();
+    }
 
     public BigDecimal getQuantity() { return quantity; }
     public void setQuantity(BigDecimal quantity) { this.quantity = quantity; }

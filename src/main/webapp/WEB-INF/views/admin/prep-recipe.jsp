@@ -1,71 +1,124 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
-<%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><h1>Công thức pha sẵn: ${prepped.name}</h1><p>Tạo mẻ pha sẵn từ nguyên liệu thô.</p></div>
-    <a class="btn btn-ghost" href="${ctx}/admin/recipe">← Quay lại</a>
+    <div>
+        <h1>Công thức pha sẵn: ${prepped.name}</h1>
+        <p>Nguyên liệu và định mức cho một ${prepped.unit} thành phẩm.</p>
+    </div>
+    <a class="btn btn-ghost" href="${ctx}/admin/recipe">← Chọn nguyên liệu khác</a>
 </div>
 
-<c:if test="${not empty errorMsg}"><div class="alert alert-error">${errorMsg}</div></c:if>
+<c:if test="${not empty errorMsg}">
+    <div class="alert alert-error"><c:out value="${errorMsg}"/></div>
+</c:if>
 <c:if test="${not empty sessionScope.flashError}">
-    <div class="alert alert-error"><c:out value="${sessionScope.flashError}"/></div><c:remove var="flashError" scope="session" />
+    <div class="alert alert-error"><c:out value="${sessionScope.flashError}"/></div>
+    <c:remove var="flashError" scope="session" />
 </c:if>
 <c:if test="${not empty sessionScope.flashOk}">
-    <div class="alert alert-success"><c:out value="${sessionScope.flashOk}"/></div><c:remove var="flashOk" scope="session" />
+    <div class="alert alert-success"><c:out value="${sessionScope.flashOk}"/></div>
+    <c:remove var="flashOk" scope="session" />
 </c:if>
 
-<div class="card" style="margin-bottom:18px">
-    <h3 style="margin-top:0">Thêm nguyên liệu thô vào công thức pha</h3>
-    <form action="${ctx}/admin/recipe" method="post" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
-        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-        <input type="hidden" name="action" value="addPrep">
-        <input type="hidden" name="preppedId" value="${prepped.ingredientId}">
-        <div class="form-group" style="margin:0;flex:1;min-width:220px">
-            <label for="rawIngredientId">Nguyên liệu thô</label>
-            <select id="rawIngredientId" name="rawIngredientId" class="form-control" required>
-                <option value="">-- Chọn --</option>
-                <c:forEach var="i" items="${rawIngredients}">
-                    <option value="${i.ingredientId}">${i.name} (${i.unit})</option>
-                </c:forEach>
-            </select>
+<c:choose>
+    <c:when test="${empty rawIngredients}">
+        <div class="alert alert-info">Tất cả nguyên liệu thô đang hoạt động đã có trong công thức.</div>
+    </c:when>
+    <c:otherwise>
+        <div class="card recipe-compose" style="margin-bottom:18px">
+            <div class="recipe-compose__header">
+                <h3>Thêm nguyên liệu</h3>
+                <button type="button" class="btn btn-ghost btn-sm" id="addPrepRecipeRow">+ Thêm dòng</button>
+            </div>
+            <form action="${ctx}/admin/recipe" method="post" id="prepRecipeBatchForm">
+                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                <input type="hidden" name="action" value="addPrepLines">
+                <input type="hidden" name="preppedId" value="${prepped.ingredientId}">
+                <div class="table-wrap">
+                    <table class="table recipe-draft-table">
+                        <thead>
+                            <tr>
+                                <th>Nguyên liệu thô</th>
+                                <th style="width:180px">Định mức</th>
+                                <th style="width:120px">Đơn vị</th>
+                                <th style="width:90px">Xóa</th>
+                            </tr>
+                        </thead>
+                        <tbody id="prepRecipeDraftRows">
+                            <tr class="recipe-draft-row">
+                                <td>
+                                    <select name="ingredientId" class="form-control recipe-ingredient" required>
+                                        <option value="">-- Chọn nguyên liệu --</option>
+                                        <c:forEach var="i" items="${rawIngredients}">
+                                            <option value="${i.ingredientId}" data-unit="${i.unit}">
+                                                ${i.name}
+                                            </option>
+                                        </c:forEach>
+                                    </select>
+                                </td>
+                                <td>
+                                    <input type="number" name="quantity" class="form-control"
+                                           min="2" max="999999999" step="1" required>
+                                </td>
+                                <td class="recipe-unit muted">—</td>
+                                <td>
+                                    <button type="button"
+                                            class="btn btn-ghost btn-sm recipe-remove">Xóa</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="recipe-compose__actions">
+                    <button type="submit" class="btn btn-primary">Lưu nguyên liệu</button>
+                </div>
+            </form>
         </div>
-        <div class="form-group" style="margin:0;width:150px">
-            <label for="quantity">Lượng nguyên liệu thô</label>
-            <input id="quantity" type="number" name="quantity" class="form-control" min="0" step="0.001" required>
-        </div>
-        <div class="form-group" style="margin:0;width:150px">
-            <label for="yieldQty">Sản lượng (yield)</label>
-            <input id="yieldQty" type="number" name="yieldQty" class="form-control" min="0" step="0.001" required>
-        </div>
-        <button type="submit" class="btn btn-primary">+ Thêm</button>
-    </form>
-</div>
+    </c:otherwise>
+</c:choose>
 
 <c:choose>
     <c:when test="${empty prepLines}">
-        <div class="card empty-state"><div class="icon">🧪</div><p>Chưa có công thức pha cho nguyên liệu này.</p></div>
+        <div class="card empty-state"><p>Công thức chưa có nguyên liệu nào.</p></div>
     </c:when>
     <c:otherwise>
         <table class="table">
-            <thead><tr><th>Nguyên liệu thô</th><th style="width:160px">Lượng dùng</th><th style="width:160px">Yield</th><th style="width:100px">Xoá</th></tr></thead>
+            <thead>
+                <tr>
+                    <th>Nguyên liệu thô</th>
+                    <th style="width:300px">Định mức</th>
+                    <th style="width:90px">Xóa</th>
+                </tr>
+            </thead>
             <tbody>
-                <c:forEach var="pl" items="${prepLines}">
-                    <fmt:formatNumber var="prepQty" value="${pl.quantity}" groupingUsed="false" maxFractionDigits="3" />
-                    <fmt:formatNumber var="prepYield" value="${pl.yieldQty}" groupingUsed="false" maxFractionDigits="3" />
+                <c:forEach var="line" items="${prepLines}">
                     <tr>
-                        <td>${pl.rawIngredientName}</td>
-                        <td>${prepQty} ${pl.rawIngredientUnit}</td>
-                        <td>${prepYield} ${prepped.unit}</td>
+                        <td>${line.rawIngredientName}</td>
                         <td>
-                            <form action="${ctx}/admin/recipe" method="post" style="display:inline" onsubmit="return confirm('Xoá dòng này?');">
+                            <form action="${ctx}/admin/recipe" method="post"
+                                  style="display:inline-flex;gap:6px;align-items:center">
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                                <input type="hidden" name="action" value="deletePrep">
+                                <input type="hidden" name="action" value="updatePrepLine">
                                 <input type="hidden" name="preppedId" value="${prepped.ingredientId}">
-                                <input type="hidden" name="prepId" value="${pl.prepRecipeId}">
-                                <button type="submit" class="btn btn-ghost btn-sm">Xoá</button>
+                                <input type="hidden" name="lineId" value="${line.prepRecipeId}">
+                                <input type="number" name="quantity" class="form-control"
+                                       style="width:120px" min="2" max="999999999"
+                                       step="1" value="${line.quantityIntegerDisplay}" required>
+                                <span class="muted">${line.rawIngredientUnit}/${prepped.unit}</span>
+                                <button type="submit" class="btn btn-ghost btn-sm">Lưu</button>
+                            </form>
+                        </td>
+                        <td>
+                            <form action="${ctx}/admin/recipe" method="post"
+                                  onsubmit="return confirm('Xoá dòng này?');">
+                                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                <input type="hidden" name="action" value="deletePrepLine">
+                                <input type="hidden" name="preppedId" value="${prepped.ingredientId}">
+                                <input type="hidden" name="lineId" value="${line.prepRecipeId}">
+                                <button type="submit" class="btn btn-ghost btn-sm">Xóa</button>
                             </form>
                         </td>
                     </tr>
@@ -74,5 +127,54 @@
         </table>
     </c:otherwise>
 </c:choose>
+
+<script>
+(function () {
+    var rows = document.getElementById('prepRecipeDraftRows');
+    var addButton = document.getElementById('addPrepRecipeRow');
+    if (!rows || !addButton) return;
+
+    function updateRows() {
+        var selects = Array.prototype.slice.call(rows.querySelectorAll('.recipe-ingredient'));
+        var selected = selects.map(function (select) { return select.value; }).filter(Boolean);
+
+        selects.forEach(function (select) {
+            Array.prototype.forEach.call(select.options, function (option) {
+                option.disabled = option.value !== '' &&
+                        option.value !== select.value &&
+                        selected.indexOf(option.value) >= 0;
+            });
+            var unit = select.options[select.selectedIndex];
+            select.closest('tr').querySelector('.recipe-unit').textContent =
+                    unit && unit.dataset.unit ? unit.dataset.unit + '/${prepped.unit}' : '—';
+        });
+
+        var removeButtons = rows.querySelectorAll('.recipe-remove');
+        Array.prototype.forEach.call(removeButtons, function (button) {
+            button.disabled = removeButtons.length === 1;
+        });
+        addButton.disabled = selects.length >= selects[0].options.length - 1;
+    }
+
+    addButton.addEventListener('click', function () {
+        var template = rows.querySelector('.recipe-draft-row');
+        var row = template.cloneNode(true);
+        row.querySelector('.recipe-ingredient').value = '';
+        row.querySelector('input[name="quantity"]').value = '';
+        rows.appendChild(row);
+        updateRows();
+    });
+
+    rows.addEventListener('change', function (event) {
+        if (event.target.classList.contains('recipe-ingredient')) updateRows();
+    });
+    rows.addEventListener('click', function (event) {
+        if (!event.target.classList.contains('recipe-remove')) return;
+        event.target.closest('tr').remove();
+        updateRows();
+    });
+    updateRows();
+})();
+</script>
 
 <jsp:include page="../layout/footer.jsp" />

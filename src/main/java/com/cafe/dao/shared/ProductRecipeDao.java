@@ -151,18 +151,22 @@ public class ProductRecipeDao {
         }
     }
 
-    public void update(Connection conn, int productRecipeId, BigDecimal quantity) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("UPDATE catalog.ProductRecipe SET Quantity=? WHERE ProductRecipeId=?")) {
+    public int update(Connection conn, int productRecipeId, int productId, BigDecimal quantity) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE catalog.ProductRecipe SET Quantity=? WHERE ProductRecipeId=? AND ProductId=?")) {
             ps.setBigDecimal(1, quantity);
             ps.setInt(2, productRecipeId);
-            ps.executeUpdate();
+            ps.setInt(3, productId);
+            return ps.executeUpdate();
         }
     }
 
-    public void delete(Connection conn, int productRecipeId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM catalog.ProductRecipe WHERE ProductRecipeId = ?")) {
+    public int delete(Connection conn, int productRecipeId, int productId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM catalog.ProductRecipe WHERE ProductRecipeId = ? AND ProductId = ?")) {
             ps.setInt(1, productRecipeId);
-            ps.executeUpdate();
+            ps.setInt(2, productId);
+            return ps.executeUpdate();
         }
     }
 }
