@@ -63,10 +63,17 @@ public class WasteLogDao {
     }
 
     public List<WasteLog> findByBranchBetween(Connection conn, int branchId, LocalDateTime fromUtc, LocalDateTime toUtc) throws SQLException {
+        return findByBranchBetween(conn, branchId, fromUtc, toUtc, false);
+    }
+
+    /** {@code excludeRemake}: bỏ các dòng do làm lại món sinh ra — màn hao hụt của quầy chỉ ghi/tra nguyên liệu. */
+    public List<WasteLog> findByBranchBetween(Connection conn, int branchId, LocalDateTime fromUtc, LocalDateTime toUtc,
+                                              boolean excludeRemake) throws SQLException {
         List<WasteLog> out = new ArrayList<>();
         StringBuilder sql = new StringBuilder(SELECT).append("WHERE wl.BranchId=? ");
         if (fromUtc != null) sql.append("AND wl.LoggedAt>=? ");
         if (toUtc != null) sql.append("AND wl.LoggedAt<? ");
+        if (excludeRemake) sql.append(NOT_REMAKE);
         sql.append("ORDER BY wl.LoggedAt DESC");
         try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
             int idx = 1;
@@ -84,8 +91,14 @@ public class WasteLogDao {
     public List<WasteLog> findPageByBranchBetween(Connection conn, int branchId, LocalDateTime fromUtc, LocalDateTime toUtc,
                                                    String query, String wasteType, String status,
                                                    int offset, int pageSize) throws SQLException {
+        return findPageByBranchBetween(conn, branchId, fromUtc, toUtc, query, wasteType, status, false, offset, pageSize);
+    }
+
+    public List<WasteLog> findPageByBranchBetween(Connection conn, int branchId, LocalDateTime fromUtc, LocalDateTime toUtc,
+                                                   String query, String wasteType, String status,
+                                                   boolean excludeRemake, int offset, int pageSize) throws SQLException {
         List<WasteLog> out = new ArrayList<>();
-        String sql = SELECT + filteredWhere(branchId, fromUtc, toUtc, query, wasteType, status)
+        String sql = SELECT + filteredWhere(fromUtc, toUtc, query, wasteType, status, excludeRemake)
                 + "ORDER BY wl.LoggedAt DESC, wl.WasteLogId DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             int idx = bindFilters(ps, 1, branchId, fromUtc, toUtc, query, wasteType, status);
@@ -100,21 +113,30 @@ public class WasteLogDao {
 
     public int countByBranchBetween(Connection conn, int branchId, LocalDateTime fromUtc, LocalDateTime toUtc,
                                     String query, String wasteType, String status) throws SQLException {
+        return countByBranchBetween(conn, branchId, fromUtc, toUtc, query, wasteType, status, false);
+    }
+
+    public int countByBranchBetween(Connection conn, int branchId, LocalDateTime fromUtc, LocalDateTime toUtc,
+                                    String query, String wasteType, String status, boolean excludeRemake) throws SQLException {
         String sql = "SELECT COUNT(*) FROM inventory.WasteLog wl "
                 + "JOIN catalog.Ingredient i ON i.IngredientId=wl.IngredientId "
                 + "JOIN iam.[User] u ON u.UserId=wl.LoggedBy "
-                + filteredWhere(branchId, fromUtc, toUtc, query, wasteType, status);
+                + filteredWhere(fromUtc, toUtc, query, wasteType, status, excludeRemake);
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             bindFilters(ps, 1, branchId, fromUtc, toUtc, query, wasteType, status);
             try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getInt(1) : 0; }
         }
     }
 
-    private static String filteredWhere(int branchId, LocalDateTime fromUtc, LocalDateTime toUtc,
-                                        String query, String wasteType, String status) {
+    /** Điều kiện hằng, không có tham số bind — thêm vào cả câu đếm lẫn câu lấy trang để tổng và dòng khớp nhau. */
+    private static final String NOT_REMAKE = "AND wl.WasteType<>'REMAKE' ";
+
+    private static String filteredWhere(LocalDateTime fromUtc, LocalDateTime toUtc,
+                                        String query, String wasteType, String status, boolean excludeRemake) {
         StringBuilder where = new StringBuilder("WHERE wl.BranchId=? ");
         if (fromUtc != null) where.append("AND wl.LoggedAt>=? ");
         if (toUtc != null) where.append("AND wl.LoggedAt<? ");
+        if (excludeRemake) where.append(NOT_REMAKE);
         if (hasText(wasteType)) where.append("AND wl.WasteType=? ");
         if (hasText(status)) where.append("AND wl.Status=? ");
         if (hasText(query)) {

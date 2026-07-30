@@ -172,7 +172,7 @@ public class InventoryService {
             conn.setAutoCommit(false);
             try {
                 int batchId = doCreatePrepBatch(conn, branchId, preppedIngredientId, qtyProduced,
-                        expiresAt, userId, null, false);
+                        expiresAt, userId, null, false, false);
                 conn.commit();
                 return batchId;
             } catch (SQLException e) { conn.rollback(); throw e; }
@@ -185,8 +185,8 @@ public class InventoryService {
      * Luồng Barista mới: hạn dùng do cấu hình PREPPED quyết định, target theo chi nhánh và
      * clientRequestId làm thao tác idempotent.
      */
-    public int createSuggestedPrepBatch(int branchId, int preppedIngredientId, BigDecimal qtyProduced,
-                                        int userId, String clientRequestId) throws SQLException {
+    public com.cafe.model.PrepBatch createSuggestedPrepBatch(int branchId, int preppedIngredientId,
+                                        BigDecimal qtyProduced, int userId, String clientRequestId) throws SQLException {
         if (qtyProduced == null || qtyProduced.signum() <= 0)
             throw new BusinessException("Sản lượng thực tế phải lớn hơn 0.");
         String requestId = normalizeRequestId(clientRequestId);
@@ -194,7 +194,7 @@ public class InventoryService {
             conn.setAutoCommit(false);
             try {
                 com.cafe.model.PrepBatch existing = prepBatchDao.findByClientRequest(conn, branchId, requestId);
-                if (existing != null) { conn.commit(); return existing.getPrepBatchId(); }
+                if (existing != null) { conn.commit(); return existing; }
 
                 com.cafe.model.Ingredient ingredient = ingredientDao.findById(conn, preppedIngredientId);
                 if (ingredient == null || !ingredient.isActive()
@@ -207,19 +207,23 @@ public class InventoryService {
                 if (policy == null || policy.getPrepTargetQty() == null)
                     throw new BusinessException("Manager chưa đặt mức tồn mục tiêu cho " + ingredient.getName() + ".");
 
+                boolean requiresApproval = com.cafe.common.PrepApprovalPolicy.requiresApproval(
+                        qtyProduced, policy.getPrepTargetQty());
+
                 java.time.LocalDateTime expiresAt = java.time.LocalDateTime.now(java.time.ZoneOffset.UTC)
                         .plusMinutes(ingredient.getShelfLifeMinutes());
                 int batchId = doCreatePrepBatch(conn, branchId, preppedIngredientId, qtyProduced,
-                        expiresAt, userId, requestId, true);
+                        expiresAt, userId, requestId, true, requiresApproval);
+                com.cafe.model.PrepBatch created = prepBatchDao.findByIdForBranch(conn, batchId, branchId);
                 conn.commit();
-                return batchId;
+                return created;
             } catch (SQLException e) {
                 conn.rollback();
                 if (e.getErrorCode() == 2601 || e.getErrorCode() == 2627) {
                     try (Connection retry = DBConnection.getConnection()) {
                         com.cafe.model.PrepBatch existing =
                                 prepBatchDao.findByClientRequest(retry, branchId, requestId);
-                        if (existing != null) return existing.getPrepBatchId();
+                        if (existing != null) return existing;
                     }
                 }
                 throw e;
@@ -250,7 +254,7 @@ public class InventoryService {
                 for (com.cafe.model.PrepBatchLine ln : lines) {
                     try {
                         doCreatePrepBatch(conn, branchId, ln.getPreppedIngredientId(),
-                                ln.getQtyProduced(), ln.getExpiresAt(), userId, null, false);
+                                ln.getQtyProduced(), ln.getExpiresAt(), userId, null, false, false);
                     } catch (BusinessException e) {
                         throw withPrepLineContext(ln, e);
                     }
@@ -270,10 +274,15 @@ public class InventoryService {
         return new BusinessException(name + ": " + msg);
     }
 
-    /** Lõi tạo 1 mẻ — chạy TRONG tx của caller: chặn thiếu công thức, guard tồn RAW, insert + ledger. */
+    /**
+     * Lõi tạo 1 mẻ — chạy TRONG tx của caller: chặn thiếu công thức, guard tồn RAW, insert + ledger.
+     * {@code requiresApproval=true}: RAW vẫn trừ ngay (đã tiêu thụ vật lý), nhưng PREP_IN bị hoãn tới
+     * khi Manager duyệt (xem {@link #approvePrepBatch}) — mẻ insert với Status='PENDING'.
+     */
     private int doCreatePrepBatch(Connection conn, int branchId, int preppedIngredientId,
                                   BigDecimal qtyProduced, java.time.LocalDateTime expiresAt, int userId,
-                                  String clientRequestId, boolean enforceWorklist) throws SQLException {
+                                  String clientRequestId, boolean enforceWorklist,
+                                  boolean requiresApproval) throws SQLException {
         List<PrepRecipe> lines = prepRecipeDao.findByPrepped(conn, preppedIngredientId);
         // Chặn thiếu công thức: tránh cộng PREPPED mà không trừ RAW nào (sai Contract #2).
         if (lines.isEmpty())
@@ -306,13 +315,17 @@ public class InventoryService {
         }
 
         int batchId = prepBatchDao.insert(conn, branchId, preppedIngredientId, qtyProduced,
-                expiresAt, userId, clientRequestId);
+                expiresAt, userId, clientRequestId, requiresApproval);
+        // RAW luôn bị trừ ngay — đã tiêu thụ vật lý lúc pha, không phụ thuộc việc có cần duyệt hay không.
         for (PrepRecipe pr : lines) {
             applyTxn(conn, branchId, pr.getRawIngredientId(), PrepConsumptionCalculator.consumedRaw(qtyProduced, pr).negate(),
                     TxnType.PREP_OUT, "PrepBatch", (long) batchId, userId);
         }
-        applyTxn(conn, branchId, preppedIngredientId, qtyProduced,
-                TxnType.PREP_IN, "PrepBatch", (long) batchId, userId);
+        if (!requiresApproval) {
+            // Mặc định: có hiệu lực ngay, bán được ngay. Mẻ bất thường (PENDING) chờ approvePrepBatch.
+            applyTxn(conn, branchId, preppedIngredientId, qtyProduced,
+                    TxnType.PREP_IN, "PrepBatch", (long) batchId, userId);
+        }
         return batchId;
     }
 
@@ -363,6 +376,81 @@ public class InventoryService {
             } finally {
                 conn.setAutoCommit(true);
             }
+        }
+    }
+
+    /**
+     * Manager duyệt mẻ PENDING → ACTIVE: lúc này mới cộng PREPPED (PREP_IN). Own tx.
+     * UPDATE-guard chạy TRƯỚC applyTxn để tự làm row-lock chốt nguyên tử — 2 request duyệt/từ chối
+     * trùng nhau (double-click, 2 tab) thì request thứ hai luôn nhận 0 rows trước khi kịp ghi sổ cái.
+     */
+    public com.cafe.model.PrepBatch approvePrepBatch(int branchId, int prepBatchId, int reviewerId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                com.cafe.model.PrepBatch b = prepBatchDao.findByIdForBranch(conn, prepBatchId, branchId);
+                if (b == null) throw new BusinessException("Mẻ pha không còn khả dụng. Vui lòng tải lại.");
+                if (!b.isPending()) throw new BusinessException("Mẻ không còn ở trạng thái chờ duyệt. Vui lòng tải lại.");
+                if (b.isExpiredWhilePending())
+                    throw new BusinessException("Mẻ đã quá hạn dùng trong lúc chờ duyệt — hãy Từ chối, "
+                            + "RAW sẽ được hoàn lại; barista cần pha mẻ mới.");
+                if (prepBatchDao.approve(conn, prepBatchId, branchId, reviewerId) != 1)
+                    throw new BusinessException("Mẻ đã được xử lý bởi thao tác khác. Vui lòng tải lại.");
+                applyTxn(conn, branchId, b.getPreppedIngredientId(), b.getQuantityProduced(),
+                        TxnType.PREP_IN, "PrepBatch", (long) prepBatchId, reviewerId);
+                com.cafe.model.PrepBatch updated = prepBatchDao.findByIdForBranch(conn, prepBatchId, branchId);
+                conn.commit();
+                return updated;
+            } catch (SQLException e) { conn.rollback(); throw e; }
+            catch (RuntimeException e) { conn.rollback(); throw e; }
+            finally { conn.setAutoCommit(true); }
+        }
+    }
+
+    /**
+     * Manager từ chối mẻ PENDING → REJECTED: hoàn RAW (đảo PREP_OUT), KHÔNG đụng PREPPED (chưa
+     * từng có PREP_IN nào cho mẻ này). Own tx. Cùng nguyên tắc UPDATE-guard-trước như approve.
+     */
+    public com.cafe.model.PrepBatch rejectPrepBatch(int branchId, int prepBatchId, int reviewerId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                com.cafe.model.PrepBatch b = prepBatchDao.findByIdForBranch(conn, prepBatchId, branchId);
+                if (b == null) throw new BusinessException("Mẻ pha không còn khả dụng. Vui lòng tải lại.");
+                if (!b.isPending()) throw new BusinessException("Mẻ không còn ở trạng thái chờ duyệt. Vui lòng tải lại.");
+                if (prepBatchDao.reject(conn, prepBatchId, branchId, reviewerId) != 1)
+                    throw new BusinessException("Mẻ đã được xử lý bởi thao tác khác. Vui lòng tải lại.");
+                Map<Integer, BigDecimal> rawApplied = appliedRawOfPrepBatch(conn, branchId, prepBatchId, b);
+                for (Map.Entry<Integer, BigDecimal> e : rawApplied.entrySet()) {
+                    applyTxn(conn, branchId, e.getKey(), e.getValue().negate(),   // âm→dương: hoàn RAW
+                            TxnType.PREP_OUT, "PrepBatch", (long) prepBatchId, reviewerId);
+                }
+                com.cafe.model.PrepBatch updated = prepBatchDao.findByIdForBranch(conn, prepBatchId, branchId);
+                conn.commit();
+                return updated;
+            } catch (SQLException e) { conn.rollback(); throw e; }
+            catch (RuntimeException e) { conn.rollback(); throw e; }
+            finally { conn.setAutoCommit(true); }
+        }
+    }
+
+    /** Hậu kiểm không chặn: Manager đánh dấu "đã xem, đúng" — KHÔNG đổi kho, chỉ phục vụ audit. */
+    public void markPrepBatchReviewed(int branchId, int prepBatchId, int reviewerId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            if (prepBatchDao.markReviewed(conn, prepBatchId, branchId, reviewerId) != 1)
+                throw new BusinessException("Mẻ không còn ở trạng thái chờ hậu kiểm. Vui lòng tải lại.");
+        }
+    }
+
+    public List<com.cafe.model.PrepBatch> getPendingApprovalBatches(int branchId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            return prepBatchDao.findPendingApproval(conn, branchId);
+        }
+    }
+
+    public List<com.cafe.model.PrepBatch> getUnreviewedBatches(int branchId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            return prepBatchDao.findUnreviewedActive(conn, branchId);
         }
     }
 
@@ -910,8 +998,17 @@ public class InventoryService {
 
     public List<com.cafe.model.WasteLog> getWasteLogs(int branchId, java.time.LocalDateTime fromUtc,
                                                        java.time.LocalDateTime toUtc) throws SQLException {
+        return getWasteLogs(branchId, fromUtc, toUtc, false);
+    }
+
+    /**
+     * {@code ingredientOnly}: chỉ hao hụt nguyên liệu, bỏ dòng sinh từ làm lại món.
+     * Quầy pha chế xem đúng phần mình ghi; đối soát của Quản lý vẫn lấy đủ cả hai loại.
+     */
+    public List<com.cafe.model.WasteLog> getWasteLogs(int branchId, java.time.LocalDateTime fromUtc,
+                                                       java.time.LocalDateTime toUtc, boolean ingredientOnly) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            List<WasteLog> logs = wasteLogDao.findByBranchBetween(conn, branchId, fromUtc, toUtc);
+            List<WasteLog> logs = wasteLogDao.findByBranchBetween(conn, branchId, fromUtc, toUtc, ingredientOnly);
             enrichWasteCosts(conn, branchId, logs);
             return logs;
         }
@@ -920,12 +1017,18 @@ public class InventoryService {
     /** Nhật ký hao hụt theo trang — điều kiện tìm/lọc và OFFSET/FETCH đều được xử lý tại database. */
     public WasteLogPage getWasteLogPage(int branchId, java.time.LocalDateTime fromUtc, java.time.LocalDateTime toUtc,
                                         String query, String wasteType, String status, int requestedPage, int pageSize) throws SQLException {
+        return getWasteLogPage(branchId, fromUtc, toUtc, query, wasteType, status, false, requestedPage, pageSize);
+    }
+
+    public WasteLogPage getWasteLogPage(int branchId, java.time.LocalDateTime fromUtc, java.time.LocalDateTime toUtc,
+                                        String query, String wasteType, String status, boolean ingredientOnly,
+                                        int requestedPage, int pageSize) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            int total = wasteLogDao.countByBranchBetween(conn, branchId, fromUtc, toUtc, query, wasteType, status);
+            int total = wasteLogDao.countByBranchBetween(conn, branchId, fromUtc, toUtc, query, wasteType, status, ingredientOnly);
             int totalPages = Math.max(1, (int) Math.ceil((double) total / pageSize));
             int page = Math.max(1, Math.min(requestedPage, totalPages));
             List<WasteLog> logs = wasteLogDao.findPageByBranchBetween(conn, branchId, fromUtc, toUtc,
-                    query, wasteType, status, (page - 1) * pageSize, pageSize);
+                    query, wasteType, status, ingredientOnly, (page - 1) * pageSize, pageSize);
             enrichWasteCosts(conn, branchId, logs);
             return new WasteLogPage(logs, total, page, pageSize);
         }

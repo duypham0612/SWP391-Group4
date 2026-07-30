@@ -17,7 +17,7 @@ public final class BaristaWritePolicy {
     private static final Set<String> PREP = Set.of(
             "createBatch", "writeOffExpired");
     private static final Set<String> WASTE = Set.of(
-            "createIngredientWaste", "create", "update", "void");
+            "createIngredientWaste", "update", "void");
     private static final Set<String> EIGHTY_SIX = Set.of("report86", "askReopen");
 
     private BaristaWritePolicy() { }

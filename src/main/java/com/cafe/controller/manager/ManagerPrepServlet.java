@@ -24,6 +24,8 @@ public class ManagerPrepServlet extends HttpServlet {
         int branchId = InventoryDashboardServlet.branchId(req);
         try {
             req.setAttribute("batches", inventoryService.getRecentPrepBatches(branchId, 50));
+            req.setAttribute("pendingBatches", inventoryService.getPendingApprovalBatches(branchId));
+            req.setAttribute("unreviewedBatches", inventoryService.getUnreviewedBatches(branchId));
             req.setAttribute("pageTitle", "Quản lý mẻ pha sẵn");
             req.getRequestDispatcher("/WEB-INF/views/manager/prep-list.jsp").forward(req, resp);
         } catch (Exception e) {
@@ -38,14 +40,26 @@ public class ManagerPrepServlet extends HttpServlet {
         int branchId = InventoryDashboardServlet.branchId(req);
         User user = SessionUtil.currentUser(req);
         try {
-            if (!"cancelBatch".equals(req.getParameter("action")))
-                throw new BusinessException("Thao tác không hợp lệ.");
+            String action = req.getParameter("action");
             int batchId = Integer.parseInt(req.getParameter("prepBatchId"));
-            boolean cancelled = inventoryService.cancelPrepBatchByManager(
-                    branchId, batchId, user.getUserId());
-            req.getSession().setAttribute("flashOk", cancelled
-                    ? "Đã hủy mẻ sai và hoàn tồn qua sổ cái."
-                    : "Mẻ đã được hủy trước đó; tồn kho không thay đổi.");
+            if ("cancelBatch".equals(action)) {
+                boolean cancelled = inventoryService.cancelPrepBatchByManager(
+                        branchId, batchId, user.getUserId());
+                req.getSession().setAttribute("flashOk", cancelled
+                        ? "Đã hủy mẻ sai và hoàn tồn qua sổ cái."
+                        : "Mẻ đã được hủy trước đó; tồn kho không thay đổi.");
+            } else if ("approveBatch".equals(action)) {
+                inventoryService.approvePrepBatch(branchId, batchId, user.getUserId());
+                req.getSession().setAttribute("flashOk", "Đã duyệt mẻ — nguyên liệu pha sẵn đã tính vào tồn bán được.");
+            } else if ("rejectBatch".equals(action)) {
+                inventoryService.rejectPrepBatch(branchId, batchId, user.getUserId());
+                req.getSession().setAttribute("flashOk", "Đã từ chối mẻ — nguyên liệu thô đã được hoàn lại tồn kho.");
+            } else if ("markReviewed".equals(action)) {
+                inventoryService.markPrepBatchReviewed(branchId, batchId, user.getUserId());
+                req.getSession().setAttribute("flashOk", "Đã đánh dấu đã xem.");
+            } else {
+                throw new BusinessException("Thao tác không hợp lệ.");
+            }
         } catch (BusinessException e) {
             req.getSession().setAttribute("flashError", e.getMessage());
         } catch (NumberFormatException e) {

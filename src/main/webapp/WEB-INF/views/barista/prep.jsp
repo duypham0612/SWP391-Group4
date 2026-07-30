@@ -48,7 +48,7 @@
                                     <input type="hidden" name="action" value="writeOffExpired">
                                     <input type="hidden" name="prepBatchId" value="${batch.prepBatchId}">
                                     <button type="submit" class="btn btn-ghost btn-sm">
-                                        Xác nhận loại bỏ ${batch.suggestedWasteQuantity} ${batch.preppedIngredientUnit}
+                                        Xác nhận loại bỏ ${batch.suggestedWasteQuantityDisplay} ${batch.preppedIngredientUnit}
                                     </button>
                                 </form>
                             </c:when>
@@ -92,7 +92,7 @@
                                     data-id="${item.ingredientId}"
                                     data-name="${fn:escapeXml(item.name)}"
                                     data-unit="${fn:escapeXml(item.unit)}"
-                                    data-suggested="${item.suggestedQty}">
+                                    data-suggested="${item.suggestedQtyDisplay}">
                                 <strong>${item.name}</strong>
                                 <span>Còn ${item.onHandDisplay} · mục tiêu ${item.targetQtyDisplay} ${item.unit}</span>
                                 <em style="color:var(--st-ready)">Nên pha ${item.suggestedQtyDisplay} ${item.unit} →</em>
@@ -160,21 +160,29 @@
         </div>
     </div>
     <table class="table" style="margin-top:var(--s3)">
-        <thead><tr><th>#</th><th>Nguyên liệu</th><th>Sản lượng</th><th>Người pha</th><th>Thời gian</th><th>Hạn dùng</th></tr></thead>
+        <thead><tr><th>#</th><th>Nguyên liệu</th><th>Sản lượng</th><th>Người pha</th><th>Thời gian</th><th>Hạn dùng</th><th>Trạng thái</th></tr></thead>
         <tbody>
             <c:choose>
                 <c:when test="${empty recentBatches}">
-                    <tr class="tt-empty"><td colspan="6">Chưa có mẻ pha nào.</td></tr>
+                    <tr class="tt-empty"><td colspan="7">Chưa có mẻ pha nào.</td></tr>
                 </c:when>
                 <c:otherwise>
                     <c:forEach var="batch" items="${recentBatches}">
                         <tr class="${batch.status == 'CANCELLED' ? 'row-muted' : ''}">
                             <td>${batch.prepBatchId}</td>
                             <td>${batch.preppedIngredientName}</td>
-                            <td><strong>${batch.quantityProduced}</strong> ${batch.preppedIngredientUnit}</td>
+                            <td><strong>${batch.quantityProducedDisplay}</strong> ${batch.preppedIngredientUnit}</td>
                             <td>${batch.madeByName}</td>
                             <td>${batch.madeAtDisplay}</td>
                             <td>${empty batch.expiresAtDisplay ? '—' : batch.expiresAtDisplay}</td>
+                            <td>
+                                <c:choose>
+                                    <c:when test="${batch.status == 'PENDING'}"><span class="badge badge-waiting">Chờ duyệt</span></c:when>
+                                    <c:when test="${batch.status == 'REJECTED'}"><span class="badge badge-cancelled">Đã từ chối</span></c:when>
+                                    <c:when test="${batch.status == 'CANCELLED'}"><span class="badge badge-cancelled">Đã hủy</span></c:when>
+                                    <c:otherwise><span class="badge badge-ready">Đang dùng</span></c:otherwise>
+                                </c:choose>
+                            </td>
                         </tr>
                     </c:forEach>
                 </c:otherwise>

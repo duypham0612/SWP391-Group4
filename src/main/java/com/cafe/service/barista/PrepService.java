@@ -50,7 +50,7 @@ public class PrepService {
         return inventoryService.createPrepBatch(branchId, preppedIngredientId, qtyProduced, expiresAt, userId);
     }
 
-    public int createSuggestedBatch(int branchId, int preppedIngredientId, BigDecimal qtyProduced,
+    public PrepBatch createSuggestedBatch(int branchId, int preppedIngredientId, BigDecimal qtyProduced,
                                     int userId, String clientRequestId) throws SQLException {
         return inventoryService.createSuggestedPrepBatch(branchId, preppedIngredientId, qtyProduced,
                 userId, clientRequestId);
