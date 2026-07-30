@@ -16,6 +16,9 @@ import java.util.Set;
 public final class WasteSummary {
     private int activeCount;
     private int ingredientWasteCount;
+    private int spillCount;
+    private int expiredCount;
+    private int otherCount;
     private int remakeCount;
     private int missingCostCount;
     private BigDecimal totalCost = BigDecimal.ZERO;
@@ -38,7 +41,13 @@ public final class WasteSummary {
                 // Event mới đại diện cho một lần/ly remake; dữ liệu legacy không có event giữ cách đếm cũ.
                 Long eventId = log.getWasteEventId();
                 if (eventId == null || remakeEvents.add(eventId)) s.remakeCount++;
-            } else s.ingredientWasteCount++;
+            } else {
+                s.ingredientWasteCount++;
+                // Ba loại của hao hụt nguyên liệu; loại lạ (dữ liệu cũ) gom vào "Khác" để tổng luôn khớp.
+                if ("SPILL".equals(log.getWasteType())) s.spillCount++;
+                else if ("EXPIRED".equals(log.getWasteType())) s.expiredCount++;
+                else s.otherCount++;
+            }
 
             BigDecimal cost = log.getLineCost();
             if (cost == null) {
@@ -64,6 +73,9 @@ public final class WasteSummary {
 
     public int getActiveCount() { return activeCount; }
     public int getIngredientWasteCount() { return ingredientWasteCount; }
+    public int getSpillCount() { return spillCount; }
+    public int getExpiredCount() { return expiredCount; }
+    public int getOtherCount() { return otherCount; }
     public int getRemakeCount() { return remakeCount; }
     public int getMissingCostCount() { return missingCostCount; }
     public BigDecimal getTotalCost() { return totalCost; }

@@ -60,9 +60,12 @@ public class PrepServlet extends HttpServlet {
                 if (blank(rawQty)) throw new BusinessException("Chưa nhập sản lượng thực tế.");
                 BigDecimal qty = new BigDecimal(rawQty.trim());
                 if (qty.signum() <= 0) throw new BusinessException("Sản lượng thực tế phải lớn hơn 0.");
-                int created = service.createSuggestedBatch(branchId, ingredientId, qty, userId,
+                com.cafe.model.PrepBatch created = service.createSuggestedBatch(branchId, ingredientId, qty, userId,
                         req.getParameter("clientRequestId"));
-                req.getSession().setAttribute("flashOk", "Đã xác nhận mẻ pha — tồn kho đã cập nhật.");
+                req.getSession().setAttribute("flashOk", created.isPending()
+                        ? "Đã ghi nhận nguyên liệu đã dùng — sản lượng vượt mức thông thường nên cần Manager "
+                          + "duyệt trước khi tính vào tồn kho bán được."
+                        : "Đã xác nhận mẻ pha — tồn kho đã cập nhật.");
                 resp.sendRedirect(req.getContextPath() + "/barista/prep");
                 return;
             } else if ("writeOffExpired".equals(action)) {

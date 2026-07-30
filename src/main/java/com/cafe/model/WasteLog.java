@@ -46,8 +46,11 @@ public class WasteLog {
     public int getIngredientId() { return ingredientId; }
     public void setIngredientId(int v) { this.ingredientId = v; }
 
-    /** Cho JSP — bỏ .000 thừa. */
-    public String getQuantityDisplay() { return com.cafe.common.QuantityFormat.groupedVi(quantity); }
+    /** Cho JSP — bỏ .000 thừa, không chấm ngăn nghìn (10000 ml chứ không phải 10.000 ml). */
+    public String getQuantityDisplay() { return com.cafe.common.QuantityFormat.plain(quantity); }
+
+    /** Cho ô input[type=number] khi sửa — HTML chỉ nhận số thuần, không chấm ngăn nghìn. */
+    public String getQuantityInput() { return com.cafe.common.QuantityFormat.plain(quantity); }
 
     public BigDecimal getQuantity() { return quantity; }
     public void setQuantity(BigDecimal v) { this.quantity = v; }
@@ -122,7 +125,7 @@ public class WasteLog {
 
     public String getWasteTypeLabel() {
         if ("SPILL".equals(wasteType)) return "Hao đổ/rơi";
-        if ("EXPIRED".equals(wasteType)) return "Hết hạn";
+        if ("EXPIRED".equals(wasteType)) return "Hỏng / hết hạn";
         if ("REMAKE".equals(wasteType)) return "Làm lại món";
         return "Khác";
     }

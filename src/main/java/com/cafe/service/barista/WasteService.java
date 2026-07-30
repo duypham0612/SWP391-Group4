@@ -70,18 +70,18 @@ public class WasteService {
         }
     }
 
-    public List<WasteLog> getWasteLogs(int branchId) throws SQLException {
-        return inventoryService.getWasteLogs(branchId);
-    }
-
+    /**
+     * Nhật ký của màn này CHỈ gồm hao hụt nguyên liệu: dòng do làm lại món sinh ra thuộc về KDS
+     * (barista không sửa/huỷ lẻ được) và đã có trong báo cáo đối soát của Quản lý.
+     */
     public List<WasteLog> getWasteLogs(int branchId, WasteScope scope) throws SQLException {
-        return inventoryService.getWasteLogs(branchId, scope.getFromUtc(), scope.getToUtc());
+        return inventoryService.getWasteLogs(branchId, scope.getFromUtc(), scope.getToUtc(), true);
     }
 
     public InventoryService.WasteLogPage getWasteLogPage(int branchId, WasteScope scope, String query,
                                                           String wasteType, String status, int page, int pageSize) throws SQLException {
         return inventoryService.getWasteLogPage(branchId, scope.getFromUtc(), scope.getToUtc(),
-                query, wasteType, status, page, pageSize);
+                query, wasteType, status, true, page, pageSize);
     }
 
     public WasteSummary getTodayWasteSummary(int branchId) throws SQLException {
@@ -91,7 +91,8 @@ public class WasteService {
     public WasteLog getEditableWasteLog(int branchId, int wasteLogId, int userId) throws SQLException {
         WasteLog log = inventoryService.getWasteLog(branchId, wasteLogId);
         if (log == null) return null;
-        if (!log.isEditable()) throw new BusinessException("Dòng làm lại món không sửa lẻ; hãy huỷ rồi ghi lại nếu cần.");
+        if (log.isRemake()) throw new BusinessException("Dòng làm lại món do KDS ghi, không sửa tại màn hao hụt.");
+        if (!log.isEditable()) throw new BusinessException("Bản ghi đã hết hạn sửa hoặc đã bị huỷ.");
         if (log.getLoggedBy() != userId) throw new BusinessException("Bạn chỉ được sửa bản ghi do chính mình tạo.");
         if (log.getLoggedAt() == null || log.getLoggedAt().isBefore(java.time.LocalDateTime.now(java.time.ZoneOffset.UTC).minusMinutes(15)))
             throw new BusinessException("Bản ghi đã quá 15 phút, hãy gửi Quản lý đối soát.");
@@ -102,15 +103,9 @@ public class WasteService {
         return WasteSummary.from(logs);
     }
 
-    public int logIngredientWasteLines(int branchId, List<WasteLogLine> lines, int userId) throws SQLException {
-        return inventoryService.logWasteLines(branchId, lines, userId);
-    }
+    /** {@code requestId} chống gửi trùng khi barista bấm hai lần hoặc mạng chập chờn. */
     public int logIngredientWasteLines(int branchId, List<WasteLogLine> lines, int userId, String requestId) throws SQLException {
         return inventoryService.logWasteLines(branchId, lines, userId, requestId);
-    }
-
-    public int logWaste(int branchId, int ingredientId, BigDecimal qty, String wasteType, String reason, int userId) throws SQLException {
-        return inventoryService.logWaste(branchId, ingredientId, qty, wasteType, reason, userId);
     }
 
     /** Sửa dòng hao hụt nguyên liệu — áp txn cho phần chênh lệch. */
@@ -118,7 +113,7 @@ public class WasteService {
         inventoryService.updateWaste(branchId, wasteLogId, newQty, wasteType, reason, userId);
     }
 
-    /** Huỷ dòng hao hụt/remake — hoàn kho qua txn bù (không hard-delete). */
+    /** Huỷ dòng hao hụt — hoàn kho qua txn bù (không hard-delete). */
     public void voidWaste(int branchId, int wasteLogId, int userId) throws SQLException {
         inventoryService.voidWaste(branchId, wasteLogId, userId);
     }

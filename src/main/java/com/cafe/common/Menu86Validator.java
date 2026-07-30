@@ -54,7 +54,7 @@ public final class Menu86Validator {
         // cập nhật; đồ hỏng ghi ở Hao hụt — hai loại này không còn khoá tay + duyệt nữa.
         if (!reason.isEvent()) {
             throw new BusinessException("Lý do này không dùng để báo tạm hết. "
-                    + "Hết nguyên liệu do kho tự cập nhật; đồ hỏng hãy ghi ở Hao hụt & Làm lại.");
+                    + "Hết nguyên liệu do kho tự cập nhật; đồ hỏng hãy ghi ở Hao hụt nguyên liệu.");
         }
 
         // Chuẩn hoá NFC: bàn phím tiếng Việt macOS gõ ra dạng tổ hợp ("ầ" = 2 code point),

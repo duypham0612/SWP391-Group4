@@ -1347,6 +1347,67 @@ IF NOT EXISTS (SELECT 1 FROM ops.SchemaVersion WHERE VersionCode = '20260726_pre
 COMMIT TRANSACTION;
 GO
 
+-- 20260729: Duyệt mẻ pha bất thường — mẻ vượt 1.5x mức mục tiêu chờ Manager duyệt trước khi cộng PREPPED.
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+
+IF COL_LENGTH(N'inventory.PrepBatch', N'RequiresApproval') IS NULL
+    ALTER TABLE inventory.PrepBatch ADD RequiresApproval BIT NOT NULL DEFAULT 0;
+
+IF COL_LENGTH(N'inventory.PrepBatch', N'ReviewedAt') IS NULL
+    ALTER TABLE inventory.PrepBatch ADD ReviewedAt DATETIME2 NULL;
+
+IF COL_LENGTH(N'inventory.PrepBatch', N'ReviewedBy') IS NULL
+    ALTER TABLE inventory.PrepBatch ADD ReviewedBy INT NULL;
+GO
+
+-- SQL Server không cho ALTER một CHECK có sẵn — phải DROP rồi ADD lại với danh sách giá trị mới.
+IF EXISTS (
+    SELECT 1 FROM sys.check_constraints
+    WHERE parent_object_id = OBJECT_ID(N'inventory.PrepBatch')
+      AND name = N'CK_PrepBatch_Status'
+      AND definition NOT LIKE '%PENDING%'
+)
+    ALTER TABLE inventory.PrepBatch DROP CONSTRAINT CK_PrepBatch_Status;
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.check_constraints
+    WHERE parent_object_id = OBJECT_ID(N'inventory.PrepBatch') AND name = N'CK_PrepBatch_Status'
+)
+    ALTER TABLE inventory.PrepBatch WITH CHECK
+        ADD CONSTRAINT CK_PrepBatch_Status
+        CHECK (Status IN ('ACTIVE','CANCELLED','PENDING','REJECTED'));
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_PB_ReviewedBy')
+    ALTER TABLE inventory.PrepBatch WITH CHECK
+        ADD CONSTRAINT FK_PB_ReviewedBy FOREIGN KEY (ReviewedBy) REFERENCES iam.[User](UserId);
+GO
+
+-- Index phục vụ hàng đợi "cần duyệt" và hàng đợi hậu kiểm, đọc thường xuyên trên GET /manager/prep.
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'inventory.PrepBatch') AND name = N'IX_PrepBatch_Pending'
+)
+    CREATE INDEX IX_PrepBatch_Pending
+        ON inventory.PrepBatch(BranchId, Status, MadeAt)
+        WHERE Status = 'PENDING';
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'inventory.PrepBatch') AND name = N'IX_PrepBatch_Unreviewed'
+)
+    CREATE INDEX IX_PrepBatch_Unreviewed
+        ON inventory.PrepBatch(BranchId, Status, RequiresApproval, ReviewedAt)
+        WHERE Status = 'ACTIVE' AND RequiresApproval = 0 AND ReviewedAt IS NULL;
+
+IF NOT EXISTS (SELECT 1 FROM ops.SchemaVersion WHERE VersionCode = '20260729_prep_approval')
+    INSERT INTO ops.SchemaVersion (VersionCode, Description)
+    VALUES ('20260729_prep_approval', N'Mẻ pha bất thường (>1.5x mục tiêu) vào PENDING chờ Manager duyệt trước khi cộng PREPPED; mẻ thường vào hàng đợi hậu kiểm không chặn.');
+
+COMMIT TRANSACTION;
+GO
+
 /* ===========================================================================
    8. SEED DATA (dữ liệu mẫu để chạy thử)
    =========================================================================== */

@@ -7,8 +7,8 @@
 <div class="page-header">
     <div>
         <div class="eyebrow">Pha chế</div>
-        <h1>Hao hụt & Làm lại</h1>
-        <p>Ghi nguyên liệu bị hao (đổ, rơi, hết hạn) và món làm lại — để theo dõi & cắt giảm thất thoát.</p>
+        <h1>Hao hụt nguyên liệu</h1>
+        <p>Ghi nguyên liệu bị đổ, rơi, hỏng hoặc hết hạn để trừ khỏi sổ kho — theo dõi & cắt giảm thất thoát.</p>
     </div>
     <div class="waste-scope">
         <strong>${scope.label}</strong>
@@ -31,29 +31,35 @@
 <jsp:include page="/WEB-INF/views/layout/_baristaShiftBanner.jsp" />
 
 <div class="${onShift ? '' : 'is-viewonly'}">
+<%-- Bốn ô dưới đây tính cho trọn phạm vi đang xem, không đổi theo bộ lọc/phân trang của nhật ký. --%>
 <section class="waste-summary">
     <div class="card stat">
         <span class="label">${scope.label}</span>
-        <span class="value">${summary.activeCount}</span>
-        <small>dòng ghi nhận hiệu lực</small>
-    </div>
-    <div class="card stat">
-        <span class="label">Hao hụt nguyên liệu</span>
         <span class="value">${summary.ingredientWasteCount}</span>
-        <small>dòng hao hụt</small>
+        <small>dòng hao hụt hiệu lực</small>
     </div>
     <div class="card stat">
-        <span class="label">Làm lại món</span>
-        <span class="value">${summary.remakeCount}</span>
-        <small>lần làm lại</small>
+        <span class="label">Đổ/rơi</span>
+        <span class="value">${summary.spillCount}</span>
+        <small>dòng</small>
+    </div>
+    <div class="card stat">
+        <span class="label">Hỏng / hết hạn</span>
+        <span class="value">${summary.expiredCount}</span>
+        <small>dòng</small>
+    </div>
+    <div class="card stat">
+        <span class="label">Khác</span>
+        <span class="value">${summary.otherCount}</span>
+        <small>dòng</small>
     </div>
 </section>
 
 <section class="card waste-card">
     <div class="waste-card__head">
         <div>
-            <h3>Hao hụt nguyên liệu</h3>
-            <p>Ghi nhanh nhiều nguyên liệu bị đổ, rơi, hết hạn hoặc thất thoát khác. Món làm lại được ghi tự động từ màn KDS.</p>
+            <h3>Ghi hao hụt</h3>
+            <p>Ghi nhanh nhiều nguyên liệu trong một lần. Món pha lỗi phải làm lại thì bấm ngay trên màn KDS — kho tự trừ, không ghi tay ở đây.</p>
         </div>
     </div>
     <form id="ingredientWasteForm" action="${ctx}/barista/waste" method="post" onsubmit="return confirm('Xác nhận ghi hao hụt? Nếu vượt tồn hệ thống, Quản lý sẽ nhận ngoại lệ để đối soát.');">
@@ -135,7 +141,7 @@
             <input type="hidden" name="status" value="${wasteLogStatus}">
             <input type="hidden" name="pageSize" value="${wasteLogPage.pageSize}">
             <input type="hidden" name="page" value="${wasteLogPage.page}">
-            <c:set var="editQty" value="${empty requestScope.editQuantity ? editLog.quantity : requestScope.editQuantity}" />
+            <c:set var="editQty" value="${empty requestScope.editQuantity ? editLog.quantityInput : requestScope.editQuantity}" />
             <c:set var="editType" value="${empty requestScope.editWasteType ? editLog.wasteType : requestScope.editWasteType}" />
             <c:set var="editReasonValue" value="${empty requestScope.editReason ? editLog.reason : requestScope.editReason}" />
             <div class="form-group">
@@ -146,7 +152,7 @@
                 <label>Loại</label>
                 <select name="wasteType" class="form-control">
                     <option value="SPILL" ${editType == 'SPILL' ? 'selected' : ''}>Đổ/rơi</option>
-                    <option value="EXPIRED" ${editType == 'EXPIRED' ? 'selected' : ''}>Hết hạn</option>
+                    <option value="EXPIRED" ${editType == 'EXPIRED' ? 'selected' : ''}>Hỏng / hết hạn</option>
                     <option value="OTHER" ${editType == 'OTHER' ? 'selected' : ''}>Khác</option>
                 </select>
             </div>
@@ -170,7 +176,7 @@
 
 <%-- Nhật ký chỉ để đọc/tra cứu nên vẫn tìm và lật trang được khi ngoài ca;
      riêng nút Sửa/Huỷ từng dòng vẫn bị khoá bên dưới. --%>
-<h3 class="section-title">Nhật ký trong phạm vi đang xem</h3>
+<h3 class="section-title">Nhật ký hao hụt · ${scope.label}</h3>
 <div>
             <form id="wasteLogFilters" class="table-toolbar" action="${ctx}/barista/waste" method="get">
                 <input type="hidden" name="page" value="1">
@@ -186,8 +192,7 @@
                     <select id="wasteTypeFilter" name="logType" class="form-control tt-filter">
                         <option value="">Tất cả</option>
                         <option value="SPILL" ${wasteLogWasteType == 'SPILL' ? 'selected' : ''}>Đổ/rơi</option>
-                        <option value="EXPIRED" ${wasteLogWasteType == 'EXPIRED' ? 'selected' : ''}>Hết hạn</option>
-                        <option value="REMAKE" ${wasteLogWasteType == 'REMAKE' ? 'selected' : ''}>Làm lại món</option>
+                        <option value="EXPIRED" ${wasteLogWasteType == 'EXPIRED' ? 'selected' : ''}>Hỏng / hết hạn</option>
                         <option value="OTHER" ${wasteLogWasteType == 'OTHER' ? 'selected' : ''}>Khác</option>
                     </select>
                 </div>
@@ -238,7 +243,7 @@
                                         </td>
                                         <td><strong>${w.quantityDisplay}</strong> ${w.ingredientUnit}</td>
                                         <td>${w.wasteTypeLabel}</td>
-                                        <td>${fn:escapeXml(w.reason)}<c:if test="${not empty w.wasteEvent}"><small class="muted"><br>${w.wasteEvent.sourceLabel}<c:if test="${not empty w.wasteEvent.productName}"> · ${w.wasteEvent.cupQuantity} × ${w.wasteEvent.productName}</c:if></small></c:if></td>
+                                        <td>${fn:escapeXml(w.reason)}</td>
                                         <td>${w.loggedByName}</td>
                                         <td>
                                             <c:choose>

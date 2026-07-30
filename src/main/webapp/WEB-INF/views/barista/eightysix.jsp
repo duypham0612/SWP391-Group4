@@ -26,7 +26,7 @@
         </div>
         <div class="muted" style="font-size:.82em;margin-top:8px">
             Những món này đã <strong>tự động ẩn</strong> vì hết nguyên liệu và sẽ <strong>tự hiện lại</strong> khi có tồn (nhập kho / pha mẻ mới).
-            Không cần báo tay. Nếu do <strong>nguyên liệu hỏng</strong>, hãy <a href="${ctx}/barista/waste">ghi ở Hao hụt &amp; Làm lại</a> để trừ khỏi sổ kho.
+            Không cần báo tay. Nếu do <strong>nguyên liệu hỏng</strong>, hãy <a href="${ctx}/barista/waste">ghi ở Hao hụt nguyên liệu</a> để trừ khỏi sổ kho.
         </div>
     </div>
 </c:if>

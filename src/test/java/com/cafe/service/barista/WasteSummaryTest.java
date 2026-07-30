@@ -115,12 +115,40 @@ class WasteSummaryTest {
         assertMoney(s.getTopIngredientCost(), "2000");
     }
 
-    /** getTodayWasteSummary dùng cửa sổ hôm nay rồi gom như summary thường. */
+    /** Ba loại của hao hụt nguyên liệu được đếm tách nhau; loại lạ gom vào "Khác" để tổng vẫn khớp. */
     @Test
-    void today_summary_uses_today_scope_and_summarizes_logs() throws Exception {
+    void ingredient_waste_is_counted_per_type() {
+        WasteSummary s = WasteSummary.from(List.of(
+                log("SPILL", "ACTIVE", "Sữa tươi", 2, "1", "1000"),
+                log("SPILL", "ACTIVE", "Sữa tươi", 2, "1", "1000"),
+                log("EXPIRED", "ACTIVE", "Kem", 3, "1", "1000"),
+                log("OTHER", "ACTIVE", "Đá viên", 4, "1", "100"),
+                log("LEGACY_TYPE", "ACTIVE", "Trà", 5, "1", "100"),
+                log("SPILL", "VOIDED", "Sữa tươi", 2, "9", "1000")));   // đã huỷ → không đếm
+        assertEquals(2, s.getSpillCount());
+        assertEquals(1, s.getExpiredCount());
+        assertEquals(2, s.getOtherCount());
+        assertEquals(5, s.getIngredientWasteCount());
+    }
+
+    /** Dòng làm lại món không rơi vào ô nào của màn hao hụt nguyên liệu. */
+    @Test
+    void remake_is_outside_the_ingredient_type_breakdown() {
+        WasteSummary s = WasteSummary.from(List.of(
+                log("REMAKE", "ACTIVE", "Cà phê", 1, "1", "5000")));
+        assertEquals(0, s.getSpillCount());
+        assertEquals(0, s.getExpiredCount());
+        assertEquals(0, s.getOtherCount());
+        assertEquals(0, s.getIngredientWasteCount());
+        assertEquals(1, s.getRemakeCount());
+    }
+
+    /** getTodayWasteSummary dùng cửa sổ hôm nay và CHỈ hỏi hao hụt nguyên liệu (bỏ dòng làm lại). */
+    @Test
+    void today_summary_uses_today_scope_and_asks_for_ingredient_waste_only() throws Exception {
         FakeInventoryService inventory = new FakeInventoryService(List.of(
                 log("SPILL", "ACTIVE", "Sữa tươi", 2, "2", "1000"),
-                log("REMAKE", "ACTIVE", "Cà phê", 1, "1", "5000"),
+                log("EXPIRED", "ACTIVE", "Kem", 3, "1", "5000"),
                 log("SPILL", "VOIDED", "Đá viên", 4, "10", "100")));
         WasteService service = new WasteService(inventory);
 
@@ -130,11 +158,12 @@ class WasteSummaryTest {
         assertTrue(inventory.fromUtc != null);
         assertTrue(inventory.toUtc != null);
         assertEquals(24, Duration.between(inventory.fromUtc, inventory.toUtc).toHours());
+        assertTrue(inventory.ingredientOnly, "màn hao hụt phải loại dòng làm lại ngay từ truy vấn");
         assertEquals(2, s.getActiveCount());
-        assertEquals(1, s.getIngredientWasteCount());
-        assertEquals(1, s.getRemakeCount());
+        assertEquals(2, s.getIngredientWasteCount());
+        assertEquals(0, s.getRemakeCount());
         assertMoney(s.getTotalCost(), "7000");
-        assertEquals("Cà phê", s.getTopIngredientName());
+        assertEquals("Kem", s.getTopIngredientName());
     }
 
     private static class FakeInventoryService extends InventoryService {
@@ -142,17 +171,19 @@ class WasteSummaryTest {
         private int branchId;
         private LocalDateTime fromUtc;
         private LocalDateTime toUtc;
+        private boolean ingredientOnly;
 
         FakeInventoryService(List<WasteLog> logs) {
             this.logs = logs;
         }
 
         @Override
-        public List<WasteLog> getWasteLogs(int branchId, LocalDateTime fromUtc, LocalDateTime toUtc)
-                throws SQLException {
+        public List<WasteLog> getWasteLogs(int branchId, LocalDateTime fromUtc, LocalDateTime toUtc,
+                                           boolean ingredientOnly) throws SQLException {
             this.branchId = branchId;
             this.fromUtc = fromUtc;
             this.toUtc = toUtc;
+            this.ingredientOnly = ingredientOnly;
             return logs;
         }
     }

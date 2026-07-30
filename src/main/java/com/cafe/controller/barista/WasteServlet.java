@@ -27,7 +27,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-/** B5 · WasteServlet → /barista/waste. Ghi hao hụt nguyên liệu (qua ledger); làm lại ghi từ KDS. */
+/**
+ * B5 · WasteServlet → /barista/waste. Màn báo hao hụt NGUYÊN LIỆU của quầy: ghi/sửa/huỷ qua ledger.
+ * Hao hụt do làm lại món không thuộc màn này — KDS ghi tự động và Quản lý đối soát ở báo cáo hao hụt.
+ */
 @WebServlet("/barista/waste")
 public class WasteServlet extends HttpServlet {
 
@@ -71,12 +74,12 @@ public class WasteServlet extends HttpServlet {
         String editId = null;
 
         try {
-            if ("createIngredientWaste".equals(action) || "create".equals(action)) {
-                List<WasteRowForm> submitted = "create".equals(action) ? legacyRow(req) : submittedWasteRows(req);
+            if ("createIngredientWaste".equals(action)) {
+                List<WasteRowForm> submitted = submittedWasteRows(req);
                 req.setAttribute("submittedWasteRows", submitted);
                 String clientRequestId = requestId(req);
                 req.setAttribute("wasteClientRequestId", clientRequestId);
-                int count = service.logIngredientWasteLines(branchId, toWasteLines(submitted, !"create".equals(action)), userId, clientRequestId);
+                int count = service.logIngredientWasteLines(branchId, toWasteLines(submitted), userId, clientRequestId);
                 req.getSession().setAttribute("flashOk", count == 0 ? "Yêu cầu này đã được ghi trước đó." : "Đã ghi " + count + " dòng hao hụt.");
             } else if ("update".equals(action)) {
                 editId = req.getParameter("wasteLogId");
@@ -95,8 +98,7 @@ public class WasteServlet extends HttpServlet {
                 throw new BusinessException("Thao tác không hợp lệ.");
             }
             // Dòng vừa ghi nằm trên cùng (LoggedAt DESC) nên về trang 1 mới thấy; sửa/huỷ thì giữ nguyên trang.
-            boolean created = "createIngredientWaste".equals(action) || "create".equals(action);
-            resp.sendRedirect(selfUrlKeepingFilters(req, created ? 1 : null));
+            resp.sendRedirect(selfUrlKeepingFilters(req, "createIngredientWaste".equals(action) ? 1 : null));
         } catch (BusinessException e) {
             req.setAttribute("flashError", e.getMessage());
             forwardAfterError(req, resp, branchId, userId, editId);
@@ -140,13 +142,12 @@ public class WasteServlet extends HttpServlet {
         req.setAttribute("ingredients", service.getIngredients(branchId));
         req.setAttribute("scope", scope);
         req.setAttribute("logs", wasteLogPage.getLogs());
-        req.setAttribute("hasWasteLogs", !scopedLogs.isEmpty());
         req.setAttribute("wasteLogPage", wasteLogPage);
         req.setAttribute("wasteLogQuery", logQuery);
         req.setAttribute("wasteLogWasteType", logWasteType);
         req.setAttribute("wasteLogStatus", logStatus);
         req.setAttribute("summary", service.summarize(scopedLogs));
-        req.setAttribute("pageTitle", "Hao hụt & Làm lại");
+        req.setAttribute("pageTitle", "Hao hụt nguyên liệu");
         req.setAttribute("currentUserId", userId);
         BaristaShift.expose(req, "/barista/waste");   // trực ca: banner + khoá thao tác
 
@@ -194,11 +195,6 @@ public class WasteServlet extends HttpServlet {
         return rows.isEmpty() ? List.of(new WasteRowForm("", "", "SPILL", "", "")) : rows;
     }
 
-    private List<WasteRowForm> legacyRow(HttpServletRequest req) {
-        return List.of(new WasteRowForm(req.getParameter("ingredientId"), req.getParameter("quantity"),
-                req.getParameter("wasteType"), "", req.getParameter("reason")));
-    }
-
     private void applyExpiredPrefill(HttpServletRequest req) {
         String ingredientId = req.getParameter("ingredientId");
         String qty = req.getParameter("qty");
@@ -215,7 +211,7 @@ public class WasteServlet extends HttpServlet {
         }
     }
 
-    private List<WasteLogLine> toWasteLines(List<WasteRowForm> forms, boolean requirePreset) {
+    private List<WasteLogLine> toWasteLines(List<WasteRowForm> forms) {
         Map<WasteLineKey, WasteLogLine> grouped = new LinkedHashMap<>();
         int lineNo = 1;
         for (WasteRowForm form : forms) {
@@ -226,7 +222,7 @@ public class WasteServlet extends HttpServlet {
             int ingredientId = parseInt(form.ingredientId, "Dòng " + lineNo + ": Nguyên liệu không hợp lệ.");
             BigDecimal qty = parseQty(form.quantity, "Dòng " + lineNo + ": Số lượng phải > 0.");
             String type = blank(form.wasteType) ? "OTHER" : form.wasteType.trim();
-            String cause = requireIngredientCause(type, form.reasonPreset, form.reasonDetail, lineNo, requirePreset);
+            String cause = requireIngredientCause(type, form.reasonPreset, form.reasonDetail, lineNo);
             String reason = combineReason(form.reasonPreset, form.reasonDetail);
             if (blank(reason)) throw new BusinessException("Dòng " + lineNo + ": Vui lòng chọn hoặc nhập lý do.");
             WasteLineKey key = new WasteLineKey(ingredientId, type.toUpperCase(), cause, reason);
@@ -275,11 +271,11 @@ public class WasteServlet extends HttpServlet {
         return raw;
     }
 
-    static String requireIngredientCause(String wasteType, String preset, String detail, int lineNo, boolean requirePreset) {
+    /** Lý do phải là một gợi ý hợp lệ của đúng loại đã chọn — không có đường ghi nào bỏ qua bước này. */
+    static String requireIngredientCause(String wasteType, String preset, String detail, int lineNo) {
         String type = wasteType == null ? "" : wasteType.trim().toUpperCase();
         if (!PRESETS_BY_TYPE.containsKey(type)) throw new BusinessException("Dòng " + lineNo + ": Loại hao hụt không hợp lệ.");
         String chosen = preset == null ? "" : preset.trim();
-        if (chosen.isEmpty() && !requirePreset) return "OTHER".equals(type) ? "OTHER" : type;
         if (!PRESETS_BY_TYPE.get(type).contains(chosen)) {
             throw new BusinessException("Dòng " + lineNo + ": Lý do không phù hợp với loại hao hụt đã chọn.");
         }
@@ -332,9 +328,12 @@ public class WasteServlet extends HttpServlet {
     /**
      * Bộ lọc loại hao hụt của nhật ký đi bằng tên "logType", không dùng chung "wasteType" với form ghi:
      * form ghi gửi nhiều giá trị wasteType (mỗi dòng một giá trị), lấy nhầm là nhật ký tự lọc sai.
+     *
+     * <p>Chỉ ba loại của hao hụt nguyên liệu; REMAKE không nằm trong phạm vi màn này nên có gõ tay
+     * vào URL cũng bị bỏ qua (rơi về "tất cả" của phần hao hụt nguyên liệu).
      */
     private static String logTypeParam(HttpServletRequest req) {
-        return allowedParam(req, "logType", "SPILL", "EXPIRED", "REMAKE", "OTHER");
+        return allowedParam(req, "logType", "SPILL", "EXPIRED", "OTHER");
     }
 
     /**

@@ -4,6 +4,7 @@ import com.cafe.service.shared.OrderService;
 import com.cafe.service.shared.InventoryService;
 import com.cafe.common.BusinessException;
 import com.cafe.common.TxnType;
+import com.cafe.model.PrepBatch;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -120,23 +121,23 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
         InventoryService inventory = new InventoryService();
         String requestId = UUID.randomUUID().toString();
 
-        int first = inventory.createSuggestedPrepBatch(f.branchId, f.preppedIngredientId,
+        PrepBatch first = inventory.createSuggestedPrepBatch(f.branchId, f.preppedIngredientId,
                 new BigDecimal("100"), f.baristaOneId, requestId);
-        int retry = inventory.createSuggestedPrepBatch(f.branchId, f.preppedIngredientId,
+        PrepBatch retry = inventory.createSuggestedPrepBatch(f.branchId, f.preppedIngredientId,
                 new BigDecimal("100"), f.baristaOneId, requestId);
 
-        assertEquals(first, retry);
+        assertEquals(first.getPrepBatchId(), retry.getPrepBatchId());
         assertEquals(1, scalarInt(
-                "SELECT COUNT(*) FROM inventory.PrepBatch WHERE PrepBatchId=?", first));
+                "SELECT COUNT(*) FROM inventory.PrepBatch WHERE PrepBatchId=?", first.getPrepBatchId()));
         assertEquals(new BigDecimal("100.000"), scalarDecimal(
                 "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction "
-                        + "WHERE RefTable='PrepBatch' AND RefId=? AND TxnType='PREP_IN'", first));
+                        + "WHERE RefTable='PrepBatch' AND RefId=? AND TxnType='PREP_IN'", first.getPrepBatchId()));
         assertEquals(new BigDecimal("-10.000"), scalarDecimal(
                 "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction "
-                        + "WHERE RefTable='PrepBatch' AND RefId=? AND TxnType='PREP_OUT'", first));
+                        + "WHERE RefTable='PrepBatch' AND RefId=? AND TxnType='PREP_OUT'", first.getPrepBatchId()));
         assertEquals(1, scalarInt(
                 "SELECT CASE WHEN ExpiresAt IS NULL THEN 0 ELSE 1 END FROM inventory.PrepBatch WHERE PrepBatchId=?",
-                first));
+                first.getPrepBatchId()));
     }
 
     @Test
@@ -186,17 +187,17 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
     void manager_can_cancel_unconsumed_batch_but_not_after_prepped_consumption() throws Exception {
         Fixture reversible = fixture(false);
         InventoryService inventory = new InventoryService();
-        int reversibleBatch = inventory.createSuggestedPrepBatch(
+        PrepBatch reversibleBatch = inventory.createSuggestedPrepBatch(
                 reversible.branchId, reversible.preppedIngredientId, new BigDecimal("100"),
                 reversible.baristaOneId, UUID.randomUUID().toString());
         assertTrue(inventory.cancelPrepBatchByManager(
-                reversible.branchId, reversibleBatch, reversible.baristaOneId));
+                reversible.branchId, reversibleBatch.getPrepBatchId(), reversible.baristaOneId));
         assertEquals(new BigDecimal("0.000"), scalarDecimal(
                 "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction "
-                        + "WHERE RefTable='PrepBatch' AND RefId=?", reversibleBatch));
+                        + "WHERE RefTable='PrepBatch' AND RefId=?", reversibleBatch.getPrepBatchId()));
 
         Fixture consumed = fixture(false);
-        int consumedBatch = inventory.createSuggestedPrepBatch(
+        PrepBatch consumedBatch = inventory.createSuggestedPrepBatch(
                 consumed.branchId, consumed.preppedIngredientId, new BigDecimal("100"),
                 consumed.baristaOneId, UUID.randomUUID().toString());
         try (Connection conn = connection()) {
@@ -208,9 +209,9 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
         }
 
         assertThrows(BusinessException.class, () -> inventory.cancelPrepBatchByManager(
-                consumed.branchId, consumedBatch, consumed.baristaOneId));
+                consumed.branchId, consumedBatch.getPrepBatchId(), consumed.baristaOneId));
         assertEquals("ACTIVE", scalarString(
-                "SELECT Status FROM inventory.PrepBatch WHERE PrepBatchId=?", consumedBatch));
+                "SELECT Status FROM inventory.PrepBatch WHERE PrepBatchId=?", consumedBatch.getPrepBatchId()));
     }
 
     private static List<Boolean> concurrently(Callable<Boolean> first, Callable<Boolean> second) throws Exception {

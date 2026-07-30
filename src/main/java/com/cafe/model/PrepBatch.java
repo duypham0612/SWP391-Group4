@@ -23,12 +23,17 @@ public class PrepBatch {
     private int madeBy;
     private LocalDateTime madeAt;
     private LocalDateTime expiresAt;
-    private String status = "ACTIVE";   // ACTIVE | CANCELLED
+    private String status = "ACTIVE";   // ACTIVE | CANCELLED | PENDING | REJECTED
     private LocalDateTime voidedAt;
     /** Đã ghi hao hụt vì quá hạn — mẻ khép vòng đời, không gợi ý ghi thêm và không huỷ được nữa. */
     private LocalDateTime writtenOffAt;
     private Integer writeOffWasteLogId;
     private String clientRequestId;
+    /** Vượt 1.5x mức mục tiêu lúc tạo — mẻ vào PENDING, chưa cộng PREPPED cho tới khi Manager duyệt. */
+    private boolean requiresApproval;
+    private LocalDateTime reviewedAt;
+    private Integer reviewedBy;
+    private String reviewedByName;   // join
 
     // join
     private String preppedIngredientName;
@@ -74,6 +79,27 @@ public class PrepBatch {
     public String getClientRequestId() { return clientRequestId; }
     public void setClientRequestId(String v) { this.clientRequestId = v; }
 
+    public boolean isPending() { return "PENDING".equals(status); }
+    public boolean isRejected() { return "REJECTED".equals(status); }
+
+    public boolean isRequiresApproval() { return requiresApproval; }
+    public void setRequiresApproval(boolean v) { this.requiresApproval = v; }
+
+    public LocalDateTime getReviewedAt() { return reviewedAt; }
+    public void setReviewedAt(LocalDateTime v) { this.reviewedAt = v; }
+
+    public Integer getReviewedBy() { return reviewedBy; }
+    public void setReviewedBy(Integer v) { this.reviewedBy = v; }
+
+    public String getReviewedByName() { return reviewedByName; }
+    public void setReviewedByName(String v) { this.reviewedByName = v; }
+
+    /** Mẻ PENDING mà hạn dùng đã trôi qua trong lúc chờ duyệt — chỉ còn đường Từ chối. */
+    public boolean isExpiredWhilePending() {
+        return isPending() && expiresAt != null
+                && expiresAt.isBefore(LocalDateTime.now(ZoneOffset.UTC));
+    }
+
     public String getPreppedIngredientName() { return preppedIngredientName; }
     public void setPreppedIngredientName(String v) { this.preppedIngredientName = v; }
 
@@ -93,8 +119,14 @@ public class PrepBatch {
     // ----- Hiển thị -----
     public String getMadeAtDisplay() { return fmt(madeAt); }
     public String getExpiresAtDisplay() { return fmt(expiresAt); }
+    public String getReviewedAtDisplay() { return fmt(reviewedAt); }
+    /** Bỏ .000 thừa, không chấm ngăn nghìn (10000 ml chứ không phải 10.000 ml). */
     public String getQuantityProducedDisplay() {
-        return com.cafe.common.QuantityFormat.groupedVi(quantityProduced);
+        return com.cafe.common.QuantityFormat.plain(quantityProduced);
+    }
+
+    public String getSuggestedWasteQuantityDisplay() {
+        return com.cafe.common.QuantityFormat.plain(suggestedWasteQuantity);
     }
 
     /** Trạng thái hạn dùng (so với now UTC): none | ok | soon (≤2h) | expired. Chỉ tính cho mẻ ACTIVE. */
