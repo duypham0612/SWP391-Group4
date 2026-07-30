@@ -4,7 +4,9 @@ import com.cafe.controller.manager.InventoryDashboardServlet;
 import com.cafe.common.CsrfUtil;
 import com.cafe.common.SessionUtil;
 import com.cafe.model.User;
+import com.cafe.model.PosMenuItem;
 import com.cafe.service.cashier.PickupService;
+import com.cafe.service.shared.CatalogReadService;
 import com.cafe.service.shared.OrderService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -24,6 +26,7 @@ public class OrderInboxServlet extends HttpServlet {
 
     private final OrderService orderService = new OrderService();
     private final PickupService pickupService = new PickupService();
+    private final CatalogReadService catalogReadService = new CatalogReadService();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -37,6 +40,11 @@ public class OrderInboxServlet extends HttpServlet {
             for (com.cafe.model.Order o : orders) if (o.isStale()) staleCount++;
             req.setAttribute("orders", orders);
             req.setAttribute("staleOrderCount", staleCount);
+            java.util.List<PosMenuItem> menu = catalogReadService.getPosMenu(branchId);
+            req.setAttribute("lowStockItems", menu.stream()
+                    .filter(item -> "LOW".equals(item.getAvailabilityState())).toList());
+            req.setAttribute("outOfStockItems", menu.stream()
+                    .filter(item -> !item.isOrderable()).toList());
             loadHandoff(req, branchId);
             req.setAttribute("pageTitle", "Đơn đến & Bàn giao");
             req.getRequestDispatcher("/WEB-INF/views/cashier/inbox.jsp").forward(req, resp);
@@ -78,8 +86,15 @@ public class OrderInboxServlet extends HttpServlet {
                 if (!pickupService.serveItem(intParam(req, "orderItemId"), userId, branchId)) {
                     flashHandoffConflict(req);
                 }
+            } else if ("serveAll".equals(action)) {
+                int done = pickupService.serveAllPickedUp(
+                        positiveDistinctInts(req.getParameterValues("orderId")),
+                        req.getParameter("tableNumber"), userId, branchId);
+                if (done == 0) flashHandoffConflict(req);
+                else req.getSession().setAttribute("flashOk",
+                        "Đã giao tất cả " + done + " dòng món của bàn.");
             }
-            String anchor = action != null && (action.startsWith("pickUp") || "serve".equals(action))
+            String anchor = action != null && (action.startsWith("pickUp") || action.startsWith("serve"))
                     ? "#handoff" : "#orders";
             resp.sendRedirect(req.getContextPath() + "/cashier/inbox" + anchor);
         } catch (NumberFormatException e) {
@@ -99,7 +114,7 @@ public class OrderInboxServlet extends HttpServlet {
 
     private void loadHandoff(HttpServletRequest req, int branchId) throws Exception {
         req.setAttribute("tickets", pickupService.getReadyTickets(branchId));
-        req.setAttribute("pickedUpItems", pickupService.getPickedUpItems(branchId));
+        req.setAttribute("pickedUpGroups", pickupService.getPickedUpGroups(branchId));
         req.setAttribute("embeddedHandoff", true);
     }
 
@@ -110,5 +125,19 @@ public class OrderInboxServlet extends HttpServlet {
 
     private static int intParam(HttpServletRequest req, String name) {
         return Integer.parseInt(req.getParameter(name));
+    }
+
+    private static java.util.List<Integer> positiveDistinctInts(String[] values) {
+        if (values == null) return java.util.List.of();
+        return java.util.Arrays.stream(values)
+                .map(value -> {
+                    try { return Integer.valueOf(value); }
+                    catch (NumberFormatException e) { return null; }
+                })
+                .filter(java.util.Objects::nonNull)
+                .filter(value -> value > 0)
+                .distinct()
+                .limit(50)
+                .toList();
     }
 }

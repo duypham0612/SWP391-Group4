@@ -6,7 +6,6 @@ import com.cafe.common.SessionUtil;
 import com.cafe.controller.manager.InventoryDashboardServlet;
 import com.cafe.model.MonthlyAttendanceRow;
 import com.cafe.model.User;
-import com.cafe.service.barista.HandoverService;
 import com.cafe.service.manager.AttendanceService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -23,10 +22,8 @@ import java.util.List;
 @WebServlet("/barista/shift")
 public class MyShiftServlet extends HttpServlet {
 
-    /** Màn khác trỏ nút chấm công về đây (vd thanh tan ca ở màn bàn giao). */
     static final String PATH = "/barista/shift";
     private final AttendanceService attendanceService = new AttendanceService();
-    private final HandoverService handoverService = new HandoverService();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -48,10 +45,6 @@ public class MyShiftServlet extends HttpServlet {
                         attendanceService.getMyMonthlySummary(u.getUserId(), branchId, ym, monthRows));
                 req.setAttribute("historyPage", attendanceService.getMyMonthlyHistoryPage(
                         u.getUserId(), branchId, ym, query, state, positiveIntParam(req, "page", 1), pageSize));
-                if (BaristaShift.onShift(req)) {
-                    req.setAttribute("handoverRequired",
-                            handoverService.requiresHandoverBeforeClockOut(branchId, u.getUserId()));
-                }
             }
             req.setAttribute("month", ym.toString());
             req.setAttribute("prevMonth", ym.minusMonths(1));

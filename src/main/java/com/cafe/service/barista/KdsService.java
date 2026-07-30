@@ -261,17 +261,15 @@ public class KdsService {
 
     public boolean startItem(int orderItemId, Integer userId, int branchId) throws SQLException { return orderService.startItem(orderItemId, userId, branchId); }
     public boolean markReady(int orderItemId, Integer userId, int branchId) throws SQLException { return orderService.markItemReady(orderItemId, userId, branchId); }
-    public boolean markReady(int orderItemId, Integer userId, int branchId, String handoverLocation) throws SQLException { return orderService.markItemReady(orderItemId, userId, branchId, handoverLocation); }
 
     /** Nhận pha mọi món còn chờ của một đơn — đơn nhiều ly thường do một người pha trọn. */
     public int startOrder(int orderId, Integer userId, int branchId) throws SQLException {
         return orderService.startAllInOrder(orderId, userId, branchId);
     }
 
-    /** Hoàn thành mọi món CHÍNH barista này đang pha trong một đơn (cùng một nơi đặt). */
-    public OrderService.BulkReadyResult markOrderReady(int orderId, Integer userId, int branchId,
-                                                       String handoverLocation) throws SQLException {
-        return orderService.markOrderReady(orderId, userId, branchId, handoverLocation);
+    /** Hoàn thành mọi món CHÍNH barista này đang pha trong một đơn. */
+    public OrderService.BulkReadyResult markOrderReady(int orderId, Integer userId, int branchId) throws SQLException {
+        return orderService.markOrderReady(orderId, userId, branchId);
     }
 
     public boolean returnToQueue(int orderItemId, Integer userId, int branchId) throws SQLException {

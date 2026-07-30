@@ -29,7 +29,6 @@
 </c:if>
 
 <jsp:include page="/WEB-INF/views/layout/_baristaShiftBanner.jsp" />
-<jsp:include page="/WEB-INF/views/layout/_handoverPendingAlert.jsp" />
 
 <div class="${onShift ? '' : 'is-viewonly'}">
 <section class="waste-summary">

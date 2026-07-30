@@ -1,7 +1,9 @@
 package com.cafe.controller.customer;
 
 import com.cafe.common.CsrfUtil;
+import com.cafe.common.ItemUnavailableException;
 import com.cafe.service.shared.OrderService;
+import com.cafe.service.shared.OrderQuantityValidator;
 import com.cafe.service.customer.QrOrderService;
 import com.cafe.model.DiningTable;
 import com.cafe.model.TableSession;
@@ -17,6 +19,7 @@ import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /** C7 · QrMenuServlet → /qr/menu?t={qrCode}. Khách quét QR → menu mobile → đặt món (ẩn danh). */
 @WebServlet("/qr/menu")
@@ -134,10 +137,18 @@ public class QrMenuServlet extends HttpServlet {
                     lines.add(line);
                 }
             }
-            if (lines.isEmpty()) { resp.setStatus(400); resp.getWriter().write("{\"error\":\"Giỏ trống\"}"); return; }
+            OrderQuantityValidator.validate(lines);
             int orderId = qrService.placeCustomerOrder(branchId, sessionId, lines);
             resp.getWriter().write("{\"orderId\":" + orderId + ",\"sessionId\":" + sessionId + "}");
-        } catch (IllegalArgumentException e) {                 // 86/đơn rỗng… → lỗi client, báo thân thiện
+        } catch (ItemUnavailableException e) {
+            resp.setStatus(409);
+            mapper.writeValue(resp.getWriter(), Map.of(
+                    "code", "ITEM_UNAVAILABLE",
+                    "productId", e.getProductId(),
+                    "productName", e.getProductName(),
+                    "state", e.getState(),
+                    "error", e.getReason()));
+        } catch (IllegalArgumentException e) {                 // đơn rỗng/dữ liệu sai → lỗi client
             resp.setStatus(400);
             resp.getWriter().write("{\"error\":\"" + (e.getMessage() == null ? "Lỗi" : e.getMessage().replace("\"","'")) + "\"}");
         } catch (Exception e) {

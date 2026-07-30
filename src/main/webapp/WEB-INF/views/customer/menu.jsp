@@ -19,6 +19,7 @@
   .qr-body{padding:16px}
   .qr-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:14px;margin-bottom:12px;transition:box-shadow var(--t)}
   .qr-card:active{box-shadow:var(--shadow-md)}
+  .qr-card.is-unavailable{opacity:.72;border-color:var(--st-cancelled)}
   .qr-card .name{font-weight:700;font-size:1.05rem}
   .qr-card .price{color:var(--brand);font-weight:700}
   .qr-grp{margin-top:10px}
@@ -47,7 +48,9 @@
         <c:if test="${empty menu}"><div class="qr-card">Hiện chưa có món nào được phục vụ.</div></c:if>
         <c:forEach var="m" items="${menu}">
             <c:set var="imgSrc" value="${empty m.imageUrl ? ctx.concat('/assets/img/products/_placeholder.svg') : (m.imageUrl.startsWith('http') ? m.imageUrl : ctx.concat(m.imageUrl))}" />
-            <div class="qr-card pos-product" data-product-id="${m.productId}" data-product-name="${m.name}" data-price="${m.price}">
+            <div class="qr-card pos-product ${m.orderable ? '' : 'is-unavailable'}"
+                 data-product-id="${m.productId}" data-product-name="${m.name}"
+                 data-price="${m.price}" data-orderable="${m.orderable}">
                 <div style="display:flex;gap:12px;align-items:center">
                     <img class="prod-thumb lg" src="${imgSrc}" alt="${m.name}" loading="lazy"
                          onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
@@ -56,6 +59,15 @@
                         <span class="price"><fmt:formatNumber value="${m.price}" maxFractionDigits="0"/> ₫</span>
                     </div>
                 </div>
+                <c:if test="${m.availabilityState == 'LOW'}">
+                    <div class="badge badge-waiting" style="margin-top:10px">⚠ <c:out value="${m.stockMessage}" /></div>
+                </c:if>
+                <c:if test="${m.availabilityState == 'OUT'}">
+                    <div class="badge badge-cancelled" style="margin-top:10px">Hết món · <c:out value="${m.stockMessage}" /></div>
+                </c:if>
+                <c:if test="${m.availabilityState == 'EIGHTY_SIX'}">
+                    <div class="badge badge-cancelled" style="margin-top:10px"><c:out value="${m.stockMessage}" /></div>
+                </c:if>
                 <c:forEach var="g" items="${m.groups}">
                     <div class="qr-grp" data-group-name="${g.name}" data-required="${g.required}" data-min="${g.minSelect}" data-max="${g.maxSelect}">
                         <div class="lbl">${g.name}</div>
@@ -70,8 +82,9 @@
                 </c:forEach>
                 <div class="qr-error" style="display:none;color:var(--st-cancelled);font-size:.86rem;margin-top:8px"></div>
                 <div class="qr-add">
-                    <input type="number" class="form-control pos-qty" value="1" min="1">
-                    <button type="button" class="btn btn-primary" style="flex:1" onclick="addToCart(this)">Thêm vào giỏ</button>
+                    <input type="number" class="form-control pos-qty" value="1" min="1" max="20" ${m.orderable ? '' : 'disabled'}>
+                    <button type="button" class="btn btn-primary" style="flex:1" onclick="addToCart(this)"
+                            ${m.orderable ? '' : 'disabled'}>${m.orderable ? 'Thêm vào giỏ' : 'Không thể thêm'}</button>
                 </div>
             </div>
         </c:forEach>
@@ -117,21 +130,28 @@ function resetProduct(card){
 }
 function addToCart(btn){
   const c=btn.closest('.pos-product');
+  if(c.dataset.orderable!=='true'){showProductError(c,'Món hiện không nhận đặt. Vui lòng chọn món khác.');return;}
   if(!validateProduct(c))return;
   let delta=0;const optionIds=[],names=[];
   c.querySelectorAll('.pos-opt:checked').forEach(o=>{delta+=parseFloat(o.dataset.delta);optionIds.push(parseInt(o.dataset.optionId));names.push(o.dataset.name);});
-  const qty=Math.max(1,parseInt(c.querySelector('.pos-qty').value)||1);
-  cart.push({productId:parseInt(c.dataset.productId),name:c.dataset.productName,quantity:qty,unit:parseFloat(c.dataset.price)+delta,optionIds:optionIds,names:names});
+  const qty=parseInt(c.querySelector('.pos-qty').value);
+  const productId=parseInt(c.dataset.productId);
+  const currentQty=cart.filter(l=>l.productId===productId).reduce((sum,l)=>sum+l.quantity,0);
+  if(!Number.isInteger(qty)||qty<1||qty>20||currentQty+qty>20){
+    showProductError(c,'Mỗi loại món chỉ được đặt tối đa 20 trong một đơn.');
+    return;
+  }
+  cart.push({productId:productId,name:c.dataset.productName,quantity:qty,unit:parseFloat(c.dataset.price)+delta,optionIds:optionIds,names:names});
   resetProduct(c);
   render();
 }
 function rm(i){cart.splice(i,1);render();}
 function render(){
   const box=document.getElementById('cartList');
-  box.innerHTML=cart.map((l,i)=>'<div class="qr-line"><div>'+l.quantity+'× '+l.name+(l.names.length?'<br><span class="muted" style="font-size:.8rem">'+l.names.join(', ')+'</span>':'')+'</div><div style="white-space:nowrap">'+fmt(l.unit*l.quantity)+' <a href="javascript:void(0)" onclick="rm('+i+')">×</a></div></div>').join('');
+  box.innerHTML=cart.map((l,i)=>'<div class="qr-line"><div>'+l.quantity+'× '+l.name+(l.names.length?'<br><span class="muted" style="font-size:.8rem">'+l.names.join(', ')+'</span>':'')+(l.unavailable?'<br><span style="color:var(--st-cancelled);font-size:.8rem">⚠ '+l.unavailableReason+'</span>':'')+'</div><div style="white-space:nowrap">'+fmt(l.unit*l.quantity)+' <a href="javascript:void(0)" onclick="rm('+i+')">×</a></div></div>').join('');
   document.getElementById('cartCount').textContent=cart.reduce((s,l)=>s+l.quantity,0);
   document.getElementById('cartTotal').textContent=fmt(cart.reduce((s,l)=>s+l.unit*l.quantity,0));
-  document.getElementById('placeBtn').disabled=cart.length===0;
+  document.getElementById('placeBtn').disabled=cart.length===0||cart.some(l=>l.unavailable);
 }
 function placeOrder(){
   const msg=document.getElementById('qrMsg');msg.textContent='Đang gửi...';
@@ -139,7 +159,13 @@ function placeOrder(){
     body:JSON.stringify({items:cart.map(l=>({productId:l.productId,quantity:l.quantity,optionIds:l.optionIds}))})})
    .then(r=>r.json().then(j=>({ok:r.ok,j}))).then(({ok,j})=>{
      if(ok){location.href=CTX+'/qr/track?s='+j.sessionId;}
-     else{msg.innerHTML='<span style="color:var(--st-cancelled)">Lỗi: '+(j.error||'')+'</span>';}
+     else{
+       if(j.code==='ITEM_UNAVAILABLE'&&j.productId){
+         cart.forEach(l=>{if(l.productId===j.productId){l.unavailable=true;l.unavailableReason=j.error||'Món hiện không nhận đặt.';}});
+         render();
+       }
+       msg.innerHTML='<span style="color:var(--st-cancelled)">Lỗi: '+(j.error||'')+'</span>';
+     }
    }).catch(()=>{msg.innerHTML='<span style="color:var(--st-cancelled)">Lỗi mạng.</span>';});
 }
 document.querySelectorAll('.pos-opt[type="checkbox"]').forEach(opt=>{

@@ -2,10 +2,14 @@ package com.cafe.service.cashier;
 
 import com.cafe.model.OrderItem;
 import com.cafe.model.PickupTicket;
+import com.cafe.model.PickedUpGroup;
 import com.cafe.service.shared.OrderService;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * B2 · PickupService — bảng món sẵn lấy.
@@ -32,6 +36,24 @@ public class PickupService {
         return orderService.getPickedUpItems(branchId);
     }
 
+    /** Gom theo bàn; đơn mang đi không có bàn thì chỉ gom trong chính đơn đó. */
+    public List<PickedUpGroup> getPickedUpGroups(int branchId) throws SQLException {
+        return groupPickedUpItems(getPickedUpItems(branchId));
+    }
+
+    static List<PickedUpGroup> groupPickedUpItems(List<OrderItem> items) {
+        Map<String, PickedUpGroup> groups = new LinkedHashMap<>();
+        if (items == null) return new ArrayList<>();
+        for (OrderItem item : items) {
+            String table = item.getTableNumber();
+            String key = table == null || table.isBlank()
+                    ? "ORDER:" + item.getOrderId()
+                    : "TABLE:" + table.trim();
+            groups.computeIfAbsent(key, ignored -> new PickedUpGroup(table)).add(item);
+        }
+        return new ArrayList<>(groups.values());
+    }
+
     public boolean pickUpItem(int orderItemId, Integer userId, int branchId) throws SQLException {
         return orderService.markItemPickedUp(orderItemId, userId, branchId);
     }
@@ -43,6 +65,11 @@ public class PickupService {
 
     public boolean serveItem(int orderItemId, Integer userId, int branchId) throws SQLException {
         return orderService.markItemServed(orderItemId, userId, branchId);
+    }
+
+    public int serveAllPickedUp(List<Integer> orderIds, String tableNumber,
+                                Integer userId, int branchId) throws SQLException {
+        return orderService.serveAllPickedUp(orderIds, tableNumber, userId, branchId);
     }
 
     /** Hoàn tác giao nhầm: SERVED → READY (không đụng ledger). Trả true nếu hoàn tác được. */

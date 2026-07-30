@@ -25,8 +25,6 @@
     <a class="card stat" href="${ctx}/cashier/history"><span class="label">Lịch sử hoá đơn</span><span class="value">→</span></a>
 </div>
 
-<div class="alert alert-info" style="margin-top:24px">
-    Sơ đồ bàn · POS · Ca thu ngân · Thanh toán (tách/gộp bill, voucher) đã mở.
-</div>
+
 
 <jsp:include page="../layout/footer.jsp" />

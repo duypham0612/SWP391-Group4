@@ -55,7 +55,7 @@ public class KdsServlet extends HttpServlet {
             loadBoard(req, branchId);
             req.setAttribute("pageTitle", "Quầy pha chế");
             boolean partial = "1".equals(req.getParameter("partial"));
-            BaristaShift.expose(req, "/barista/kds", !partial);
+            BaristaShift.expose(req, "/barista/kds");
             String view = partial
                 ? "/WEB-INF/fragments/barista/kds/cards.jsp"
                 : "/WEB-INF/views/barista/kds.jsp";
@@ -99,10 +99,8 @@ public class KdsServlet extends HttpServlet {
                 if (claimed == 0) flashConflict(req);
                 else req.getSession().setAttribute("flashOk", "Đã nhận pha " + claimed + " món của đơn này.");
             } else if ("markOrderReady".equals(action)) {
-                String loc = req.getParameter("handoverLocation");
-                if (loc != null && !com.cafe.common.Constants.HANDOVER_LOCATIONS.contains(loc)) loc = null;
                 OrderService.BulkReadyResult result =
-                        service.markOrderReady(intParam(req, "orderId"), userId, branchId, loc);
+                        service.markOrderReady(intParam(req, "orderId"), userId, branchId);
                 if (result.getCompleted() == 0 && result.getSkippedNoRecipe() == 0) flashConflict(req);
                 else if (result.getSkippedNoRecipe() > 0) {
                     // Nói rõ phần chưa xong và lối thoát — món thiếu công thức sẽ không bao giờ tự xong được.
@@ -112,10 +110,7 @@ public class KdsServlet extends HttpServlet {
                 } else req.getSession().setAttribute("flashOk",
                         "Đã hoàn thành " + result.getCompleted() + " món của đơn này.");
             } else if ("markReady".equals(action)) {
-                // Vị trí đặt: chỉ nhận giá trị trong whitelist, sai/rỗng → null (không tin client).
-                String loc = req.getParameter("handoverLocation");
-                if (loc != null && !com.cafe.common.Constants.HANDOVER_LOCATIONS.contains(loc)) loc = null;
-                if (!service.markReady(intParam(req, "orderItemId"), userId, branchId, loc))
+                if (!service.markReady(intParam(req, "orderItemId"), userId, branchId))
                     flashConflict(req);
             } else if ("reclaim".equals(action)) {
                 // Thu hồi món của người đã rời ca. Điều kiện "đã rời ca" kiểm lại ở SERVER, không tin
@@ -188,7 +183,7 @@ public class KdsServlet extends HttpServlet {
             throws SQLException, ServletException, IOException {
         if ("1".equals(req.getParameter("ajax"))) {
             loadBoard(req, branchId);
-            BaristaShift.expose(req, "/barista/kds", false);
+            BaristaShift.expose(req, "/barista/kds");
             req.getRequestDispatcher("/WEB-INF/fragments/barista/kds/cards.jsp").forward(req, resp);
         } else {
             resp.sendRedirect(req.getContextPath() + "/barista/kds");
@@ -296,7 +291,6 @@ public class KdsServlet extends HttpServlet {
         // uống.
 
         req.setAttribute("currentUserId", currentUserId == null ? 0 : currentUserId);
-        req.setAttribute("handoverLocations", com.cafe.common.Constants.HANDOVER_LOCATIONS);
     }
 
     /**

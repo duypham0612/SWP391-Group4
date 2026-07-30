@@ -5,7 +5,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Bán hàng</div><h1>Ca thu ngân</h1><p>payment.CashierShift — mở quỹ đầu ca, đóng &amp; chốt cuối ca</p></div>
+    <div><div class="eyebrow">Bán hàng</div><h1>Ca thu ngân</h1></div>
 </div>
 
 <c:if test="${not empty sessionScope.flashOk}">
@@ -61,12 +61,31 @@
 
     <c:choose>
         <c:when test="${dutyState == 'ON_DUTY' and not empty current}">
+            <c:if test="${current.handoverRequired}">
+                <div class="alert alert-info" style="margin-top:18px;margin-bottom:0">
+                    <span>
+                        Còn <strong>${current.pendingHandoverOrderCount} đơn chưa thu tiền</strong>
+                        (${current.pendingReadyOrderCount} đơn đã bàn giao món,
+                        ${current.pendingInProgressOrderCount} đơn đang xử lý).
+                        Các đơn này sẽ được chuyển cho ca sau và doanh thu thuộc ca thực sự thu tiền.
+                    </span>
+                </div>
+            </c:if>
             <form action="${ctx}/cashier/shift" method="post" style="margin-top:18px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                 <input type="hidden" name="action" value="closeDuty">
                 <input type="hidden" name="shiftId" value="${current.cashierShiftId}">
-                <div class="form-group" style="margin:0;width:220px"><label>Quỹ cuối ca (đếm tay)</label>
-                    <input type="number" name="closingCash" class="form-control" min="0" step="1000" value="0"></div>
+                <div class="form-group" style="margin:0;width:260px">
+                    <label>Tổng tiền mặt trong két</label>
+                    <input type="number" name="closingCash" class="form-control" min="0" step="1000" required>
+                    <small class="muted">Quỹ cần đối chiếu: <fmt:formatNumber value="${current.expectedClosingCash}" maxFractionDigits="0"/> ₫</small>
+                </div>
+                <c:if test="${current.handoverRequired}">
+                    <label style="display:flex;align-items:center;gap:8px;max-width:390px;padding-bottom:10px">
+                        <input type="checkbox" name="confirmHandover" value="1" required>
+                        Tôi xác nhận bàn giao ${current.pendingHandoverOrderCount} đơn chưa thu cho ca sau.
+                    </label>
+                </c:if>
                 <button type="submit" class="btn btn-primary" onclick="return confirm('Kết ca và tan ca?');">Kết ca</button>
                 <a class="btn btn-ghost" href="${ctx}/cashier/checkout">Tới thanh toán</a>
             </form>
@@ -98,7 +117,8 @@
                 <tr><td>Thu ngân</td><td>${shift.cashierName}</td></tr>
                 <tr><td>Quỹ đầu ca</td><td><fmt:formatNumber value="${shift.openingCash}" maxFractionDigits="0"/> ₫</td></tr>
                 <tr><td>Số hoá đơn đã thu</td><td>${shift.billCount}</td></tr>
-                <tr><td>Tổng tiền thu (PAID)</td><td><strong><fmt:formatNumber value="${shift.totalCollected}" maxFractionDigits="0"/> ₫</strong></td></tr>
+                <tr><td>Tiền mặt đã thu</td><td><strong><fmt:formatNumber value="${shift.cashCollected}" maxFractionDigits="0"/> ₫</strong></td></tr>
+                <tr><td>Tiền mặt cần có trong két</td><td><strong><fmt:formatNumber value="${shift.expectedClosingCash}" maxFractionDigits="0"/> ₫</strong></td></tr>
                 <tr><td>Quỹ cuối ca (đếm tay)</td><td><fmt:formatNumber value="${shift.closingCash}" maxFractionDigits="0"/> ₫</td></tr>
             </table>
             <a class="btn btn-primary" href="${ctx}/cashier/shift">Mở ca mới</a>
@@ -126,20 +146,22 @@
         <div class="card empty-state"><div class="icon">∅</div><p>Chưa có ca nào.</p></div>
     </c:when>
     <c:otherwise>
-        <table class="table">
-            <thead><tr><th>#</th><th>Thu ngân</th><th>Mở</th><th>Đóng</th><th style="width:120px">Trạng thái</th></tr></thead>
-            <tbody>
-                <c:forEach var="s" items="${history}">
-                    <tr>
-                        <td><a href="${ctx}/cashier/shift?action=report&shiftId=${s.cashierShiftId}">#${s.cashierShiftId}</a></td>
-                        <td>${s.cashierName}</td>
-                        <td>${s.openedAtDisplay}</td>
-                        <td><c:choose><c:when test="${s.open}"><span class="badge badge-making">Đang mở</span></c:when><c:otherwise>${s.closedAtDisplay}</c:otherwise></c:choose></td>
-                        <td><c:choose><c:when test="${s.open}"><span class="badge badge-waiting">OPEN</span></c:when><c:otherwise><span class="badge badge-served">Đã đóng</span></c:otherwise></c:choose></td>
-                    </tr>
-                </c:forEach>
-            </tbody>
-        </table>
+        <div class="table-scroll">
+            <table class="table">
+                <thead><tr><th>#</th><th>Thu ngân</th><th>Mở</th><th>Đóng</th><th style="width:120px">Trạng thái</th></tr></thead>
+                <tbody>
+                    <c:forEach var="s" items="${history}">
+                        <tr>
+                            <td><a href="${ctx}/cashier/shift?action=report&shiftId=${s.cashierShiftId}">#${s.cashierShiftId}</a></td>
+                            <td>${s.cashierName}</td>
+                            <td>${s.openedAtDisplay}</td>
+                            <td><c:choose><c:when test="${s.open}"><span class="badge badge-making">Đang mở</span></c:when><c:otherwise>${s.closedAtDisplay}</c:otherwise></c:choose></td>
+                            <td><c:choose><c:when test="${s.open}"><span class="badge badge-waiting">OPEN</span></c:when><c:otherwise><span class="badge badge-served">Đã đóng</span></c:otherwise></c:choose></td>
+                        </tr>
+                    </c:forEach>
+                </tbody>
+            </table>
+        </div>
     </c:otherwise>
 </c:choose>
 

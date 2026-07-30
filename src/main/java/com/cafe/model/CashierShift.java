@@ -18,7 +18,9 @@ public class CashierShift {
     // join / report
     private String cashierName;
     private int billCount;
-    private BigDecimal totalCollected;
+    private BigDecimal cashCollected = BigDecimal.ZERO;
+    private int pendingReadyOrderCount;
+    private int pendingInProgressOrderCount;
 
     public int getCashierShiftId() { return cashierShiftId; }
     public void setCashierShiftId(int v) { this.cashierShiftId = v; }
@@ -49,8 +51,29 @@ public class CashierShift {
     public int getBillCount() { return billCount; }
     public void setBillCount(int v) { this.billCount = v; }
 
-    public BigDecimal getTotalCollected() { return totalCollected; }
-    public void setTotalCollected(BigDecimal v) { this.totalCollected = v; }
+    public BigDecimal getCashCollected() { return cashCollected; }
+    public void setCashCollected(BigDecimal v) {
+        this.cashCollected = v == null ? BigDecimal.ZERO : v;
+    }
+
+    public BigDecimal getExpectedClosingCash() {
+        BigDecimal opening = openingCash == null ? BigDecimal.ZERO : openingCash;
+        return opening.add(cashCollected);
+    }
+
+    public int getPendingReadyOrderCount() { return pendingReadyOrderCount; }
+    public void setPendingReadyOrderCount(int v) { this.pendingReadyOrderCount = Math.max(0, v); }
+
+    public int getPendingInProgressOrderCount() { return pendingInProgressOrderCount; }
+    public void setPendingInProgressOrderCount(int v) {
+        this.pendingInProgressOrderCount = Math.max(0, v);
+    }
+
+    public int getPendingHandoverOrderCount() {
+        return pendingReadyOrderCount + pendingInProgressOrderCount;
+    }
+
+    public boolean isHandoverRequired() { return getPendingHandoverOrderCount() > 0; }
 
     public boolean isOpen() { return closedAt == null; }
 }

@@ -5,7 +5,6 @@ import com.cafe.common.BusinessDay;
 import com.cafe.controller.manager.InventoryDashboardServlet;
 import com.cafe.model.ShiftClockStatus;
 import com.cafe.model.User;
-import com.cafe.service.barista.HandoverService;
 import com.cafe.service.manager.AttendanceService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -20,9 +19,6 @@ import java.sql.SQLException;
  */
 public final class BaristaShift {
 
-    /** Màn bàn giao ca — tan ca phải đi qua đây khi ca chưa được bàn giao. */
-    public static final String HANDOVER_PATH = "/barista/handover";
-
     /** Lời báo khi thao tác ghi bị chặn vì ngoài ca — dùng chung cho cả nhánh redirect lẫn AJAX. */
     public static final String OFF_SHIFT_MESSAGE = "Bạn đang ngoài ca — cần vào ca trước khi thao tác.";
 
@@ -30,37 +26,21 @@ public final class BaristaShift {
     public static final String MY_QUEUE_PATH = "/barista/kds?owner=mine";
 
     private static final AttendanceService attendance = new AttendanceService();
-    private static final HandoverService handover = new HandoverService();
     private static final com.cafe.service.shared.OrderService orders = new com.cafe.service.shared.OrderService();
 
     private BaristaShift() {}
 
     /**
-     * Nạp trạng thái chấm công cho JSP: clockStatus, onShift, clockPostUrl, handoverUrl.
+     * Nạp trạng thái chấm công cho JSP: clockStatus, onShift, clockPostUrl.
      *
      * <p>clockPostUrl chỉ có tác dụng ở màn "Ca làm của tôi" — nơi duy nhất còn form chấm công.
      * Các màn vận hành chỉ dùng clockStatus/onShift để dựng banner trỏ sang màn đó.
      */
     public static void expose(HttpServletRequest req, String selfPath) throws SQLException {
-        expose(req, selfPath, true);
-    }
-
-    /**
-     * Nạp trạng thái trực ca dùng chung. Fragment AJAX của KDS không render cảnh báo bàn giao nên
-     * có thể bỏ truy vấn đếm; các trang đầy đủ luôn dùng overload mặc định ở trên.
-     */
-    public static void expose(HttpServletRequest req, String selfPath, boolean includeHandoverCount)
-            throws SQLException {
         ShiftClockStatus status = status(req);
         req.setAttribute("clockStatus", status);
         req.setAttribute("onShift", status != null && status.isCanClockOut());
         req.setAttribute("clockPostUrl", req.getContextPath() + selfPath);
-        req.setAttribute("handoverUrl", req.getContextPath() + HANDOVER_PATH);
-        User user = SessionUtil.currentUser(req);
-        if (includeHandoverCount && user != null) {
-            req.setAttribute("pendingHandoverCount", handover.countUnacknowledgedForUser(
-                    InventoryDashboardServlet.branchId(req), user.getUserId()));
-        }
     }
 
     /** True nếu barista đang trong ca (đã vào, chưa tan). Lỗi → coi như ngoài ca (fail-closed, an toàn). */
@@ -108,7 +88,7 @@ public final class BaristaShift {
 
     /**
      * Xử lý vào ca / tan ca. Trả về path cần redirect nếu action là clockIn/clockOut (đã consume),
-     * null nếu action khác. Tan ca khi ca chưa bàn giao → không chấm công, đẩy sang màn bàn giao.
+     * null nếu action khác.
      */
     public static String handleClock(HttpServletRequest req, String action, String selfPath) {
         if (!"clockIn".equals(action) && !"clockOut".equals(action)) return null;
@@ -121,10 +101,6 @@ public final class BaristaShift {
                 req.getSession().setAttribute("flashOk", "Đã vào ca.");
             } else if (pendingBrewBlock(req, branchId, userId)) {
                 return MY_QUEUE_PATH;
-            } else if (handover.requiresHandoverBeforeClockOut(branchId, userId)) {
-                req.getSession().setAttribute("flashError",
-                        "Bạn cần bàn giao ca trước khi tan ca. Nhập việc cần bàn giao rồi bấm “Lưu bàn giao & Tan ca”.");
-                return HANDOVER_PATH;
             } else {
                 attendance.clockOut(userId, branchId);
                 req.getSession().setAttribute("flashOk", "Đã tan ca.");

@@ -4,7 +4,6 @@ import com.cafe.config.DBConnection;
 import com.cafe.dao.cashier.CashierShiftDao;
 import com.cafe.dao.manager.AttendanceDao;
 import com.cafe.model.Attendance;
-import com.cafe.model.CashierShift;
 import com.cafe.model.ShiftAssignment;
 import com.cafe.service.manager.AttendanceService;
 
@@ -26,11 +25,12 @@ public class CashierDutyService {
     private final AttendanceDao attendanceDao = new AttendanceDao();
     private final AttendanceService attendanceService = new AttendanceService();
     private final CashierShiftDao cashierShiftDao = new CashierShiftDao();
+    private final CashierShiftService cashierShiftService = new CashierShiftService();
 
     public DutyState getDutyState(int userId, int branchId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) {
             boolean clockedIn = isClockedIn(c, userId, branchId);
-            boolean tillOpen = cashierShiftDao.findOpenByCashier(c, userId) != null;
+            boolean tillOpen = cashierShiftDao.findOpenByCashier(c, userId, branchId) != null;
             if (clockedIn && tillOpen) return DutyState.ON_DUTY;
             if (clockedIn) return DutyState.CLOCKED_NO_TILL;
             if (tillOpen) return DutyState.TILL_ONLY;
@@ -40,14 +40,12 @@ public class CashierDutyService {
 
     /** Bắt đầu ca = vào ca chấm công + mở két trong cùng transaction. */
     public int startDuty(int userId, int branchId, BigDecimal openingCash) throws SQLException {
+        CashierCashReconciliation.requireValidMoney(openingCash, "Quỹ đầu ca");
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
             try {
+                int id = cashierShiftService.openShift(c, branchId, userId, openingCash);
                 attendanceService.clockIn(c, userId, branchId);
-                CashierShift open = cashierShiftDao.findOpenByCashier(c, userId);
-                int id = open != null
-                        ? open.getCashierShiftId()
-                        : cashierShiftDao.insertOpen(c, branchId, userId, openingCash);
                 c.commit();
                 return id;
             } catch (SQLException | RuntimeException e) {
@@ -60,15 +58,13 @@ public class CashierDutyService {
     }
 
     /** Kết ca = đóng két + tan ca trong cùng transaction. */
-    public void closeDuty(int userId, int branchId, int shiftId, BigDecimal closingCash) throws SQLException {
+    public void closeDuty(int userId, int branchId, int shiftId, BigDecimal closingCash,
+                          boolean handoverConfirmed) throws SQLException {
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
             try {
-                CashierShift open = cashierShiftDao.findOpenByCashier(c, userId);
-                if (open == null || open.getCashierShiftId() != shiftId) {
-                    throw new IllegalStateException("Không tìm thấy ca két đang mở của bạn.");
-                }
-                cashierShiftDao.close(c, shiftId, closingCash);
+                cashierShiftService.closeShift(
+                        c, shiftId, userId, branchId, closingCash, handoverConfirmed);
                 attendanceService.clockOut(c, userId, branchId);
                 c.commit();
             } catch (SQLException | RuntimeException e) {

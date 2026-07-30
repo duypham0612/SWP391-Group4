@@ -19,6 +19,7 @@ import com.cafe.model.ModifierGroup;
 import com.cafe.model.ModifierIngredientImpact;
 import com.cafe.model.ModifierOption;
 import com.cafe.model.PosMenuItem;
+import com.cafe.model.ProductStockStatus;
 import com.cafe.model.PrepRecipe;
 import com.cafe.model.Product;
 import com.cafe.model.ProductModifierGroup;
@@ -47,34 +48,49 @@ public class CatalogReadService {
     private final CategoryDao categoryDao = new CategoryDao();
     private final HomeSettingDao homeSettingDao = new HomeSettingDao();
 
-    /** Menu bán được của chi nhánh: published + available + chưa 86, kèm nhóm modifier. */
+    /**
+     * Menu của chi nhánh. Món OUT/86 vẫn được trả về để Cashier/khách biết lý do,
+     * nhưng được đánh dấu orderable=false; món Manager ngừng bán vẫn ẩn.
+     */
     public List<PosMenuItem> getPosMenu(int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            // Hết theo kho = tự động ẩn (bản chất 1): tính từ tồn, không phải cờ 86 thủ công.
-            java.util.Set<Integer> depleted = productRecipeDao.findDepletedProductIds(conn, branchId);
+            java.util.Map<Integer, ProductStockStatus> stockByProduct =
+                    productRecipeDao.findProductStockStatuses(conn, branchId);
             List<PosMenuItem> out = new ArrayList<>();
             for (BranchMenuItem bm : branchMenuDao.listForBranch(conn, branchId)) {
-                if (!bm.isPublished() || !bm.isAvailable() || bm.isIs86()
-                        || depleted.contains(bm.getProductId())) continue;
+                if (!bm.isPublished() || !bm.isAvailable()) continue;
                 PosMenuItem item = new PosMenuItem();
                 item.setProductId(bm.getProductId());
                 item.setName(bm.getProductName());
                 item.setImageUrl(bm.getImageUrl());
                 item.setPrice(bm.getLocalPrice() != null ? bm.getLocalPrice() : bm.getBasePrice());
 
-                for (ProductModifierGroup pmg : pmgDao.findByProduct(conn, bm.getProductId())) {
-                    ModifierGroup g = groupDao.findById(conn, pmg.getModifierGroupId());
-                    if (g == null || !isChoiceGroup(g.getName())) continue;
-                    PosMenuItem.Group grp = new PosMenuItem.Group();
-                    grp.setGroupId(g.getModifierGroupId());
-                    grp.setName(g.getName());
-                    grp.setRequired(g.isRequired());
-                    grp.setMinSelect(g.getMinSelect());
-                    grp.setMaxSelect(g.getMaxSelect());
-                    for (ModifierOption o : optionDao.findByGroup(conn, g.getModifierGroupId())) {
-                        if (o.isActive()) grp.getOptions().add(o);
+                ProductStockStatus stock = stockByProduct.get(bm.getProductId());
+                if (bm.isIs86()) {
+                    item.setAvailabilityState("EIGHTY_SIX");
+                    item.setStockMessage("Tạm ngừng bán");
+                    item.setOrderable(false);
+                } else if (stock != null) {
+                    item.setAvailabilityState(stock.getState());
+                    item.setStockMessage(stock.getMessage());
+                    item.setOrderable(!stock.isOut());
+                }
+
+                if (item.isOrderable()) {
+                    for (ProductModifierGroup pmg : pmgDao.findByProduct(conn, bm.getProductId())) {
+                        ModifierGroup g = groupDao.findById(conn, pmg.getModifierGroupId());
+                        if (g == null || !isChoiceGroup(g.getName())) continue;
+                        PosMenuItem.Group grp = new PosMenuItem.Group();
+                        grp.setGroupId(g.getModifierGroupId());
+                        grp.setName(g.getName());
+                        grp.setRequired(g.isRequired());
+                        grp.setMinSelect(g.getMinSelect());
+                        grp.setMaxSelect(g.getMaxSelect());
+                        for (ModifierOption o : optionDao.findByGroup(conn, g.getModifierGroupId())) {
+                            if (o.isActive()) grp.getOptions().add(o);
+                        }
+                        if (!grp.getOptions().isEmpty()) item.getGroups().add(grp);
                     }
-                    if (!grp.getOptions().isEmpty()) item.getGroups().add(grp);
                 }
                 out.add(item);
             }
