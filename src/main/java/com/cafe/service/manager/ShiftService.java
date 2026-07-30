@@ -11,6 +11,7 @@ import com.cafe.model.ShiftTemplate;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -19,6 +20,8 @@ import java.util.List;
 
 /** M2 · ShiftService — ca làm + ★ Shift Conflict Resolver. */
 public class ShiftService {
+
+    public static final Duration LATE_ASSIGNMENT_GRACE = Duration.ofMinutes(10);
 
     private final ShiftTemplateDao templateDao = new ShiftTemplateDao();
     private final ShiftAssignmentDao assignmentDao = new ShiftAssignmentDao();
@@ -73,10 +76,10 @@ public class ShiftService {
         return tx(c -> {
             ShiftTemplate target = templateDao.findById(c, templateId);
             if (target == null) throw new ShiftConflictException("Ca làm không tồn tại.");
-            LocalDate today = LocalDate.now();
-            if (date.isBefore(today)
-                    || (date.equals(today) && !LocalDateTime.now().isBefore(LocalDateTime.of(date, target.getStartTime())))) {
-                throw new ShiftConflictException("Không thể xếp nhân viên vào ca đã bắt đầu hoặc đã diễn ra.");
+            LocalDateTime nowVn = LocalDateTime.now(com.cafe.common.BusinessDay.VN_ZONE);
+            if (!canAssign(date, target.getStartTime(), nowVn)) {
+                throw new ShiftConflictException(
+                        "Chỉ có thể xếp nhân viên trước hoặc trong vòng 10 phút sau khi ca bắt đầu.");
             }
 
             List<ShiftAssignment> sameDay = assignmentDao.findByUserAndDate(c, userId, date);
@@ -137,6 +140,14 @@ public class ShiftService {
     /** Báo lỗi nghiệp vụ khi xung đột ca — servlet bắt để hiển thị. */
     public static class ShiftConflictException extends BusinessException {
         public ShiftConflictException(String msg) { super(msg); }
+    }
+
+    /**
+     * Cho phép xếp muộn đến đúng mốc 10 phút sau khi ca bắt đầu.
+     */
+    public static boolean canAssign(LocalDate workDate, java.time.LocalTime startTime, LocalDateTime nowVn) {
+        LocalDateTime deadline = LocalDateTime.of(workDate, startTime).plus(LATE_ASSIGNMENT_GRACE);
+        return !nowVn.isAfter(deadline);
     }
 
     private ShiftAssignment detectConflict(Connection c, int userId, LocalDate date, ShiftTemplate target) throws SQLException {
