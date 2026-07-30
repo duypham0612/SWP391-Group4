@@ -44,6 +44,13 @@ public class PickupServlet extends HttpServlet {
                 else req.getSession().setAttribute("flashOk", "Đã nhận " + done + " dòng món khỏi quầy.");
             } else if ("serve".equals(action)) {
                 if (!service.serveItem(intParam(req, "orderItemId"), userId, branchId)) flashConflict(req);
+            } else if ("serveAll".equals(action)) {
+                int done = service.serveAllPickedUp(
+                        positiveDistinctInts(req.getParameterValues("orderId")),
+                        req.getParameter("tableNumber"), userId, branchId);
+                if (done == 0) flashConflict(req);
+                else req.getSession().setAttribute("flashOk",
+                        "Đã giao tất cả " + done + " dòng món của bàn.");
             }
             renderResult(req, resp, branchId);
         } catch (SQLException e) {
@@ -66,7 +73,7 @@ public class PickupServlet extends HttpServlet {
     /** Nạp ticket sẵn lấy + món vừa giao (để hoàn tác) cho cả trang đầy đủ lẫn fragment AJAX. */
     private void loadBoard(HttpServletRequest req, int branchId) throws SQLException {
         req.setAttribute("tickets", service.getReadyTickets(branchId));
-        req.setAttribute("pickedUpItems", service.getPickedUpItems(branchId));
+        req.setAttribute("pickedUpGroups", service.getPickedUpGroups(branchId));
     }
 
     private static void flashConflict(HttpServletRequest req) {
@@ -75,5 +82,19 @@ public class PickupServlet extends HttpServlet {
 
     private static int intParam(HttpServletRequest req, String name) {
         return Integer.parseInt(req.getParameter(name));
+    }
+
+    private static java.util.List<Integer> positiveDistinctInts(String[] values) {
+        if (values == null) return java.util.List.of();
+        return java.util.Arrays.stream(values)
+                .map(value -> {
+                    try { return Integer.valueOf(value); }
+                    catch (NumberFormatException e) { return null; }
+                })
+                .filter(java.util.Objects::nonNull)
+                .filter(value -> value > 0)
+                .distinct()
+                .limit(50)
+                .toList();
     }
 }

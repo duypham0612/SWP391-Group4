@@ -1398,6 +1398,7 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
 /* ----- Pickup (Món chờ giao) — tái dùng .kds-card, nhấn theo trạng thái đủ/thiếu món ----- */
 .pickup-card{border-left-color:var(--st-ready)}
 .pickup-card--partial{border-left-color:var(--st-making)}
+.pickup-card--carrying{border-left-color:var(--caramel)}
 .pickup-line--pending{opacity:.62}                 /* món chưa pha xong: mờ, chỉ để đối chiếu */
 .pickup-line--pending strong{font-weight:600}
 .pickup-line-form{margin-top:var(--s1)}
