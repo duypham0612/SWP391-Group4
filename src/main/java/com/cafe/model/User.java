@@ -24,6 +24,7 @@ public class User implements Serializable {
     private String roleName;
     private String branchName;
     private Boolean branchActive;
+    private Boolean branchManaged;
 
     public int getUserId() { return userId; }
     public void setUserId(int userId) { this.userId = userId; }
@@ -63,4 +64,7 @@ public class User implements Serializable {
 
     public Boolean getBranchActive() { return branchActive; }
     public void setBranchActive(Boolean branchActive) { this.branchActive = branchActive; }
+
+    public Boolean getBranchManaged() { return branchManaged; }
+    public void setBranchManaged(Boolean branchManaged) { this.branchManaged = branchManaged; }
 }

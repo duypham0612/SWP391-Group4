@@ -2,6 +2,7 @@ package com.cafe.service.auth;
 
 import com.cafe.common.PasswordHasher;
 import com.cafe.common.BusinessException;
+import com.cafe.common.BranchAccessPolicy;
 import com.cafe.config.DBConnection;
 import com.cafe.dao.admin.UserDao;
 import com.cafe.model.User;
@@ -24,8 +25,10 @@ public class AuthService {
             if (u == null) return null;
             if (!"ACTIVE".equals(u.getStatus())) return null;
             if (!PasswordHasher.verifyPassword(rawPwd, u.getPasswordHash())) return null;
-            if (u.getBranchId() != null && !Boolean.TRUE.equals(u.getBranchActive())) {
-                throw new BusinessException("Chi nhánh đã ngừng hoạt động. Vui lòng liên hệ quản trị viên.");
+            if (u.getBranchId() != null) {
+                String blockedMessage = BranchAccessPolicy.blockedMessage(
+                        u.getBranchActive(), u.getBranchManaged());
+                if (blockedMessage != null) throw new BusinessException(blockedMessage);
             }
             u.setPasswordHash(null); // không giữ hash trong session
             return u;

@@ -7,13 +7,22 @@ import java.sql.SQLException;
 
 public class BranchStatusDao {
 
-    public boolean isActive(Connection conn, int branchId) throws SQLException {
+    public record AccessStatus(boolean active, boolean managerAssigned) {}
+
+    public AccessStatus findAccessStatus(Connection conn, int branchId) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "SELECT IsActive FROM org.Branch WHERE BranchId=?")) {
+                "SELECT IsActive, ManagerUserId FROM org.Branch WHERE BranchId=?")) {
             ps.setInt(1, branchId);
             try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() && rs.getBoolean("IsActive");
+                if (!rs.next()) return new AccessStatus(false, false);
+                return new AccessStatus(
+                        rs.getBoolean("IsActive"),
+                        rs.getObject("ManagerUserId") != null);
             }
         }
+    }
+
+    public boolean isActive(Connection conn, int branchId) throws SQLException {
+        return findAccessStatus(conn, branchId).active();
     }
 }

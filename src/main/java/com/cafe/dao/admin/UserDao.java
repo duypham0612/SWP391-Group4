@@ -20,7 +20,8 @@ public class UserDao {
     private static final String BASE_SELECT =
         "SELECT u.UserId, u.Username, u.PasswordHash, u.FullName, u.Email, u.Phone, " +
         "       u.RoleId, u.BranchId, u.Status, " +
-        "       r.Code AS RoleCode, r.Name AS RoleName, b.Name AS BranchName, b.IsActive AS BranchActive " +
+        "       r.Code AS RoleCode, r.Name AS RoleName, b.Name AS BranchName, " +
+        "       b.IsActive AS BranchActive, b.ManagerUserId AS BranchManagerUserId " +
         "FROM iam.[User] u " +
         "JOIN iam.Role r       ON u.RoleId = r.RoleId " +
         "LEFT JOIN org.Branch b ON u.BranchId = b.BranchId ";
@@ -264,6 +265,8 @@ public class UserDao {
         u.setBranchName(rs.getString("BranchName"));
         Object branchActive = rs.getObject("BranchActive");
         u.setBranchActive(branchActive == null ? null : rs.getBoolean("BranchActive"));
+        u.setBranchManaged(u.getBranchId() == null
+                ? null : rs.getObject("BranchManagerUserId") != null);
         return u;
     }
 }
