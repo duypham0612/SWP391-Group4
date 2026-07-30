@@ -4,7 +4,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Bán hàng</div><h1>Sơ đồ bàn</h1><p>sales.DiningTable · TableSession — mở bàn để bắt đầu đặt món</p></div>
+    <div><div class="eyebrow">Bán hàng</div><h1>Sơ đồ bàn</h1></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
         <a class="btn btn-ghost" href="${ctx}/cashier/table-qr">In QR bàn</a>
         <a class="btn btn-ghost" href="${ctx}/cashier/pos">POS đem về (takeaway)</a>

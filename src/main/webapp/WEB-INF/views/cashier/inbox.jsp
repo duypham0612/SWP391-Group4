@@ -5,7 +5,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Thu ngân</div><h1>Đơn đến &amp; Bàn giao</h1><p>Theo dõi đơn, nhận món đã pha và xác nhận giao khách trên cùng một màn hình.</p></div>
+    <div><div class="eyebrow">Thu ngân</div><h1>Đơn đến &amp; Bàn giao</h1></div>
     <a class="btn btn-ghost btn-sm" href="${ctx}/cashier/inbox#handoff">↻ Làm mới</a>
 </div>
 
