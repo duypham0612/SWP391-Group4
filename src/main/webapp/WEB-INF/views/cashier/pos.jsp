@@ -5,7 +5,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Bán hàng</div><h1>POS — Đặt món</h1><p>Cashier sở hữu order entry · gửi bếp khi bấm "Gửi đơn"</p></div>
+    <div><div class="eyebrow">Bán hàng</div><h1>POS — Đặt món</h1></div>
     <a class="btn btn-ghost" href="${ctx}/cashier/table">← Sơ đồ bàn</a>
 </div>
 

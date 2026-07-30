@@ -5,7 +5,7 @@
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
-    <div><div class="eyebrow">Bán hàng</div><h1>Ca thu ngân</h1><p>payment.CashierShift — mở quỹ đầu ca, đóng &amp; chốt cuối ca</p></div>
+    <div><div class="eyebrow">Bán hàng</div><h1>Ca thu ngân</h1></div>
 </div>
 
 <c:if test="${not empty sessionScope.flashOk}">
