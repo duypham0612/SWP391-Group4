@@ -218,7 +218,7 @@
   }
 
   function captureViewState() {
-    var state = { handoffs: {}, menus: {}, focus: focusDescriptor(document.activeElement) };
+    var state = { menus: {}, focus: focusDescriptor(document.activeElement) };
     // Hàng chờ dài thì phải giữ chỗ đang xem qua mỗi lần làm mới, không thì trang nhảy về đầu
     // và barista mất vị trí đang đọc. Trên màn quầy, vùng cuộn là chính danh sách (khung cố
     // định cao 100dvh) nên phải nhớ cả scrollTop của nó, không chỉ scroll của cửa sổ.
@@ -226,8 +226,6 @@
     var queue = document.getElementById('kdsQueue');
     state.queueScroll = queue ? queue.scrollTop : 0;
     board.querySelectorAll('[data-kds-item-id]').forEach(function (card) {
-      var select = card.querySelector('[name="handoverLocation"]');
-      if (select && select.value) state.handoffs[card.dataset.kdsItemId] = select.value;
       var openMenus = [];
       card.querySelectorAll('.kds-card-menu').forEach(function (menu, index) { if (menu.open) openMenus.push(index); });
       if (openMenus.length) state.menus[card.dataset.kdsItemId] = openMenus;
@@ -259,11 +257,6 @@
 
   function restoreViewState(state) {
     if (!state) return;
-    Object.keys(state.handoffs).forEach(function (id) {
-      var card = itemById(id);
-      var select = card && card.querySelector('[name="handoverLocation"]');
-      if (select) select.value = state.handoffs[id];
-    });
     Object.keys(state.menus).forEach(function (id) {
       var card = itemById(id);
       if (!card) return;

@@ -41,9 +41,9 @@ public class DashboardServlet extends HttpServlet {
             resp.sendRedirect(req.getContextPath() + "/cashier/dashboard");
             return;
         }
-        // Barista có dashboard ca riêng: KDS KPI + tồn thấp + món 86.
+        // Barista không có bảng điều khiển riêng → landing thẳng vào Quầy pha chế.
         if (Constants.ROLE_BARISTA.equals(u.getRoleCode())) {
-            resp.sendRedirect(req.getContextPath() + "/barista/dashboard");
+            resp.sendRedirect(req.getContextPath() + "/barista/kds");
             return;
         }
         String view;

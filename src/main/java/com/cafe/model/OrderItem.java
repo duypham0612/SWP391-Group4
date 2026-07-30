@@ -31,7 +31,6 @@ public class OrderItem {
     private String issueReason;
     private int remakeCount;
     private boolean remakeInventoryReserved;
-    private String handoverLocation;
 
     // join / hiển thị
     private String productName;
@@ -108,8 +107,6 @@ public class OrderItem {
     public void setRemakeCount(int v) { this.remakeCount = Math.max(0, v); }
     public boolean isRemakeInventoryReserved() { return remakeInventoryReserved; }
     public void setRemakeInventoryReserved(boolean v) { this.remakeInventoryReserved = v; }
-    public String getHandoverLocation() { return handoverLocation; }
-    public void setHandoverLocation(String v) { this.handoverLocation = v; }
 
     public String getProductName() { return productName; }
     public void setProductName(String v) { this.productName = v; }

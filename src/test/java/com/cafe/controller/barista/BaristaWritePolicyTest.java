@@ -13,7 +13,6 @@ class BaristaWritePolicyTest {
         assertTrue(BaristaWritePolicy.isPrepAction("createBatch"));
         assertTrue(BaristaWritePolicy.isWasteAction("void"));
         assertTrue(BaristaWritePolicy.isEightySixAction("report86"));
-        assertTrue(BaristaWritePolicy.isHandoverAction("createAndClockOut"));
         assertTrue(BaristaWritePolicy.isShiftAction("clockIn"));
     }
 
@@ -24,14 +23,13 @@ class BaristaWritePolicyTest {
         assertFalse(BaristaWritePolicy.isPrepAction("markReady"));
         assertFalse(BaristaWritePolicy.isWasteAction("report86"));
         assertFalse(BaristaWritePolicy.isEightySixAction("void"));
-        assertFalse(BaristaWritePolicy.isHandoverAction("clockOut"));
         assertFalse(BaristaWritePolicy.isShiftAction("create"));
     }
 
     /**
-     * Chấm công là bước có ngữ cảnh (thấy ca được xếp + bàn giao đang chờ) nên chỉ màn
-     * "Ca làm của tôi" nhận. Màn vận hành chỉ trỏ sang đó, và chốt nằm ở server chứ không
-     * phải chỉ ẩn nút — POST tự soạn tới các màn này phải bị từ chối.
+     * Chấm công là bước có ngữ cảnh (thấy ca được xếp) nên chỉ màn "Ca làm của tôi" nhận.
+     * Màn vận hành chỉ trỏ sang đó, và chốt nằm ở server chứ không phải chỉ ẩn nút — POST
+     * tự soạn tới các màn này phải bị từ chối.
      */
     @Test
     void operational_surfaces_reject_clock_actions() {
@@ -40,7 +38,6 @@ class BaristaWritePolicyTest {
             assertFalse(BaristaWritePolicy.isPrepAction(action), "Prep phải từ chối " + action);
             assertFalse(BaristaWritePolicy.isWasteAction(action), "Waste phải từ chối " + action);
             assertFalse(BaristaWritePolicy.isEightySixAction(action), "86 phải từ chối " + action);
-            assertFalse(BaristaWritePolicy.isHandoverAction(action), "Handover phải từ chối " + action);
 
             assertTrue(BaristaWritePolicy.isShiftAction(action), "Ca làm của tôi phải nhận " + action);
         }

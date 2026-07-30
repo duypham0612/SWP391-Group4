@@ -22,7 +22,6 @@
 </c:if>
 
 <jsp:include page="/WEB-INF/views/layout/_baristaShiftBanner.jsp" />
-<jsp:include page="/WEB-INF/views/layout/_handoverPendingAlert.jsp" />
 
 <div class="${onShift ? '' : 'is-viewonly'}">
     <c:if test="${expiredBatchCount > 0}">

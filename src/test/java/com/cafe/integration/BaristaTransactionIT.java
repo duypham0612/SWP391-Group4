@@ -2,7 +2,6 @@ package com.cafe.integration;
 
 import com.cafe.service.shared.OrderService;
 import com.cafe.service.shared.InventoryService;
-import com.cafe.service.barista.HandoverService;
 import com.cafe.common.BusinessException;
 import com.cafe.common.TxnType;
 import org.junit.jupiter.api.Test;
@@ -14,7 +13,6 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.List;
 import java.util.UUID;
-import java.time.LocalDate;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -213,31 +211,6 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
                 consumed.branchId, consumedBatch, consumed.baristaOneId));
         assertEquals("ACTIVE", scalarString(
                 "SELECT Status FROM inventory.PrepBatch WHERE PrepBatchId=?", consumedBatch));
-    }
-
-    @Test
-    void late_shift_cannot_create_handover_or_clock_out() throws Exception {
-        Fixture f = fixture(false);
-        LocalDate yesterday = LocalDate.now(com.cafe.common.BusinessDay.VN_ZONE).minusDays(1);
-        int sourceAssignmentId;
-        try (Connection conn = connection(); Statement st = conn.createStatement()) {
-            st.executeUpdate("INSERT hr.ShiftTemplate(BranchId,Name,StartTime,EndTime) VALUES (" + f.branchId
-                    + ",N'IT source','07:00','12:00'),(" + f.branchId + ",N'IT receiver','12:00','17:00')");
-            sourceAssignmentId = id(conn, "SELECT MIN(ShiftTemplateId) FROM hr.ShiftTemplate WHERE BranchId=?", f.branchId);
-            int receiverTemplateId = id(conn, "SELECT MAX(ShiftTemplateId) FROM hr.ShiftTemplate WHERE BranchId=?", f.branchId);
-            st.executeUpdate("INSERT hr.ShiftAssignment(ShiftTemplateId,UserId,WorkDate) VALUES (" + sourceAssignmentId
-                    + "," + f.baristaOneId + ",'" + yesterday + "'),(" + receiverTemplateId + "," + f.baristaTwoId + ",'" + yesterday + "')");
-            sourceAssignmentId = id(conn, "SELECT ShiftAssignmentId FROM hr.ShiftAssignment WHERE ShiftTemplateId=? AND UserId=?", sourceAssignmentId, f.baristaOneId);
-            st.executeUpdate("INSERT hr.Attendance(ShiftAssignmentId,CheckInAt) VALUES (" + sourceAssignmentId + ",SYSUTCDATETIME())");
-        }
-
-        HandoverService handover = new HandoverService();
-        assertThrows(IllegalStateException.class, () -> handover.createHandover(
-                f.branchId, f.baristaOneId, "IT late handover", List.of("Kiểm tra máy xay")));
-        assertThrows(IllegalStateException.class, () -> handover.createHandoverAndClockOut(
-                f.branchId, f.baristaOneId, "IT must not clock out late", List.of("Việc khác")));
-        assertEquals(0, scalarInt("SELECT COUNT(*) FROM hr.ShiftHandover WHERE SourceShiftAssignmentId=?", sourceAssignmentId));
-        assertEquals(0, scalarInt("SELECT COUNT(*) FROM hr.Attendance WHERE ShiftAssignmentId=? AND CheckOutAt IS NOT NULL", sourceAssignmentId));
     }
 
     private static List<Boolean> concurrently(Callable<Boolean> first, Callable<Boolean> second) throws Exception {

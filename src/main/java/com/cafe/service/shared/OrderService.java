@@ -352,16 +352,11 @@ public class OrderService {
      * song song; scope chi nhánh chặn thao tác chéo chi nhánh.
      */
     public boolean markItemReady(int orderItemId, Integer userId, int sessionBranchId) throws SQLException {
-        return markItemReady(orderItemId, userId, sessionBranchId, null);
-    }
-
-    public boolean markItemReady(int orderItemId, Integer userId, int sessionBranchId,
-                                 String handoverLocation) throws SQLException {
         if (userId == null) return false;
         return tx(conn -> {
             OrderItem it = itemDao.findById(conn, orderItemId);
             if (it == null) return false;
-            return completeInTx(conn, it, userId, sessionBranchId, handoverLocation);
+            return completeInTx(conn, it, userId, sessionBranchId);
         });
     }
 
@@ -370,10 +365,9 @@ public class OrderService {
      * Tách ra vì đây là điểm auto-deduct: hai bản sao chép logic thì chỉ cần một bên được sửa mà
      * bên kia quên là sổ kho lệch, và lỗi đó không lộ ra cho tới lúc kiểm kê.
      */
-    private boolean completeInTx(Connection conn, OrderItem it, int userId, int sessionBranchId,
-                                 String handoverLocation) throws SQLException {
+    private boolean completeInTx(Connection conn, OrderItem it, int userId, int sessionBranchId) throws SQLException {
         int orderItemId = it.getOrderItemId();
-        int rows = itemDao.completeClaimed(conn, orderItemId, sessionBranchId, userId, handoverLocation);
+        int rows = itemDao.completeClaimed(conn, orderItemId, sessionBranchId, userId);
         if (rows == 0) return false;   // đã READY/SERVED/CANCELLED / khác chi nhánh → không trừ kho
         int branchId = branchOf(it);
         if (!it.isRemakeInventoryReserved()) {
@@ -423,15 +417,14 @@ public class OrderService {
     }
 
     /**
-     * Hoàn thành MỌI món mà chính barista này đang pha trong một đơn, cùng một nơi đặt,
-     * trong MỘT transaction (một đơn = một lần trừ kho trọn gói).
+     * Hoàn thành MỌI món mà chính barista này đang pha trong một đơn, trong MỘT transaction
+     * (một đơn = một lần trừ kho trọn gói).
      *
      * <p>Món chưa khai công thức bị loại TRƯỚC vòng lặp: {@code deductForOrderItem} ném
      * {@link BusinessException} khi công thức rỗng, mà ném giữa vòng lặp thì cả đơn rollback chỉ
      * vì một dòng — các ly đã pha xong thật sẽ quay ngược về "đang pha".
      */
-    public BulkReadyResult markOrderReady(int orderId, Integer userId, int sessionBranchId,
-                                          String handoverLocation) throws SQLException {
+    public BulkReadyResult markOrderReady(int orderId, Integer userId, int sessionBranchId) throws SQLException {
         if (userId == null) return new BulkReadyResult(0, 0);
         return tx(conn -> {
             List<OrderItem> items = itemDao.findByOrder(conn, orderId);
@@ -445,7 +438,7 @@ public class OrderService {
                 if (!"MAKING".equals(it.getStatus())) continue;
                 if (!userId.equals(it.getBaristaId())) continue;          // chỉ món của chính mình
                 if (!withRecipe.contains(it.getProductId())) { skipped++; continue; }
-                if (completeInTx(conn, it, userId, sessionBranchId, handoverLocation)) completed++;
+                if (completeInTx(conn, it, userId, sessionBranchId)) completed++;
             }
             return new BulkReadyResult(completed, skipped);
         });

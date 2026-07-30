@@ -35,10 +35,6 @@ public final class Constants {
     // Vượt ngưỡng → bảng chuyển sang xếp thứ tự thay vì tô đỏ hàng loạt.
     public static final int PEAK_THRESHOLD_CUPS = 12;
 
-    // Vị trí đặt món khi pha xong — để thu ngân biết ra đâu lấy. Whitelist ở server (không tin client).
-    public static final java.util.List<String> HANDOVER_LOCATIONS =
-            java.util.List.of("Bar trái", "Bar phải", "Kệ mang đi");
-
     // Báo tạm hết món (Barista) — ràng buộc form, chặn ở server (HTML required không đủ).
     public static final int MENU86_NOTE_MAX_CHARS = 255;        // khớp NVARCHAR(255)
     public static final int MENU86_OTHER_NOTE_MIN_CHARS = 10;   // lý do "Khác" phải ghi rõ

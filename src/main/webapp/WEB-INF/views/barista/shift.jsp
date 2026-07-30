@@ -20,14 +20,6 @@
 
 <jsp:include page="/WEB-INF/views/layout/_shiftClockCard.jsp" />
 
-<c:if test="${handoverRequired}">
-    <div class="alert alert-info" style="margin-top:var(--s4)">
-        Ca này chưa được bàn giao. Sang <a href="${ctx}/barista/handover">Bàn giao ca</a> để ghi việc cho ca sau, rồi bấm “Lưu bàn giao &amp; Tan ca”.
-    </div>
-</c:if>
-
-<jsp:include page="/WEB-INF/views/layout/_handoverPendingAlert.jsp" />
-
 <c:if test="${not empty monthSummary}">
     <div class="page-header" style="margin-top:var(--s6)">
         <div><h2 style="margin:0">Giờ làm tháng ${month}</h2><p>Lịch đi làm và giờ công đã ghi nhận</p></div>
@@ -91,8 +83,6 @@
         <div class="alert alert-warn">
             Có ${monthSummary.openCount} ca bạn quên bấm Tan ca — những ca này chưa được tính giờ.
             Báo quản lý để chỉnh giúp.
-            <%-- Giờ công cần Quản lý, nhưng việc tồn của ca đó thì barista vẫn tự giao được ngay. --%>
-            Nếu ca đó còn việc chưa giao cho ai, sang <a href="${ctx}/barista/handover">Bàn giao ca</a> lưu lại trước khi quên.
         </div>
     </c:if>
 
