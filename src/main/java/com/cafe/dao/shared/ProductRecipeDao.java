@@ -9,7 +9,10 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import com.cafe.model.ProductStockStatus;
 
 public class ProductRecipeDao {
 
@@ -50,18 +53,38 @@ public class ProductRecipeDao {
      * availability tự động cho POS/QR: món tự ẩn khi tồn cạn, tự hiện khi tồn có lại.
      */
     public java.util.Set<Integer> findDepletedProductIds(Connection conn, int branchId) throws SQLException {
-        final String sql =
-            "SELECT DISTINCT pr.ProductId " +
-            "FROM catalog.ProductRecipe pr " +
-            "JOIN catalog.BranchMenu bm        ON bm.ProductId = pr.ProductId AND bm.BranchId = ? " +
-            "JOIN inventory.BranchInventory bi ON bi.IngredientId = pr.IngredientId AND bi.BranchId = ? " +
-            "WHERE bi.QuantityOnHand <= 0";
         java.util.Set<Integer> out = new java.util.HashSet<>();
+        for (ProductStockStatus status : findProductStockStatuses(conn, branchId).values()) {
+            if (status.isOut()) out.add(status.getProductId());
+        }
+        return out;
+    }
+
+    /**
+     * Tính trạng thái món từ tất cả nguyên liệu công thức:
+     * OUT nếu thiếu dòng tồn hoặc có tồn <= 0; LOW nếu chưa OUT và có tồn <= ngưỡng.
+     */
+    public Map<Integer, ProductStockStatus> findProductStockStatuses(Connection conn, int branchId)
+            throws SQLException {
+        final String sql =
+            "SELECT pr.ProductId, i.Name AS IngredientName, " +
+            "       CASE WHEN bi.IngredientId IS NULL OR bi.QuantityOnHand <= 0 THEN 'OUT' " +
+            "            WHEN bi.QuantityOnHand <= bi.MinThreshold THEN 'LOW' ELSE 'AVAILABLE' END AS StockState " +
+            "FROM catalog.ProductRecipe pr " +
+            "JOIN catalog.BranchMenu bm ON bm.ProductId = pr.ProductId AND bm.BranchId = ? " +
+            "JOIN catalog.Ingredient i ON i.IngredientId = pr.IngredientId " +
+            "LEFT JOIN inventory.BranchInventory bi ON bi.IngredientId = pr.IngredientId AND bi.BranchId = ? " +
+            "ORDER BY pr.ProductId, i.Name";
+        Map<Integer, ProductStockStatus> out = new LinkedHashMap<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, branchId);
             ps.setInt(2, branchId);
             try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) out.add(rs.getInt("ProductId"));
+                while (rs.next()) {
+                    int productId = rs.getInt("ProductId");
+                    out.computeIfAbsent(productId, ProductStockStatus::new)
+                            .include(rs.getString("StockState"), rs.getString("IngredientName"));
+                }
             }
         }
         return out;
@@ -151,18 +174,22 @@ public class ProductRecipeDao {
         }
     }
 
-    public void update(Connection conn, int productRecipeId, BigDecimal quantity) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("UPDATE catalog.ProductRecipe SET Quantity=? WHERE ProductRecipeId=?")) {
+    public int update(Connection conn, int productRecipeId, int productId, BigDecimal quantity) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE catalog.ProductRecipe SET Quantity=? WHERE ProductRecipeId=? AND ProductId=?")) {
             ps.setBigDecimal(1, quantity);
             ps.setInt(2, productRecipeId);
-            ps.executeUpdate();
+            ps.setInt(3, productId);
+            return ps.executeUpdate();
         }
     }
 
-    public void delete(Connection conn, int productRecipeId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM catalog.ProductRecipe WHERE ProductRecipeId = ?")) {
+    public int delete(Connection conn, int productRecipeId, int productId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM catalog.ProductRecipe WHERE ProductRecipeId = ? AND ProductId = ?")) {
             ps.setInt(1, productRecipeId);
-            ps.executeUpdate();
+            ps.setInt(2, productId);
+            return ps.executeUpdate();
         }
     }
 }

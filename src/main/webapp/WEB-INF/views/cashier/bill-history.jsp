@@ -42,7 +42,14 @@
                     <tr>
                         <td>${b.billId}</td>
                         <td><c:choose><c:when test="${not empty b.tableNumber}">${b.tableNumber}</c:when><c:otherwise><span class="muted">Đem về</span></c:otherwise></c:choose></td>
-                        <td><strong><fmt:formatNumber value="${b.totalAmount}" maxFractionDigits="0"/> ₫</strong></td>
+                        <td>
+                            <strong><fmt:formatNumber value="${b.totalAmount}" maxFractionDigits="0"/> ₫</strong>
+                            <c:if test="${b.paymentMethod == 'CASH' and not empty b.paidAmount and b.roundingAdjustment != 0}">
+                                <div class="muted" style="font-size:.82rem">
+                                    Thực thu: <fmt:formatNumber value="${b.paidAmount}" maxFractionDigits="0"/> ₫
+                                </div>
+                            </c:if>
+                        </td>
                         <td>
                             <c:choose>
                                 <c:when test="${b.paymentMethod == 'CASH'}">Tiền mặt</c:when>

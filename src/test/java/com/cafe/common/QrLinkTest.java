@@ -79,4 +79,15 @@ class QrLinkTest {
         assertEquals("https://shop.vn/qr/menu?t=QR+T%2F01%3F",
                 QrLink.menuUrl("https://shop.vn", "QR T/01?"));
     }
+
+    @Test
+    void normalizesConfiguredPublicBase() {
+        assertEquals("http://10.33.74.42:8080/cafe-shop",
+                QrLink.normalizeConfiguredBase(" http://10.33.74.42:8080/cafe-shop/ "));
+    }
+
+    @Test
+    void rejectsMalformedConfiguredPublicBase() {
+        assertEquals(null, QrLink.normalizeConfiguredBase("localhost:8080/cafe-shop"));
+    }
 }

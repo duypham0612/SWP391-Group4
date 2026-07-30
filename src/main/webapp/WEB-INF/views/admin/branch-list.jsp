@@ -37,14 +37,14 @@
 
         <table class="table">
             <thead><tr>
-                <th style="width:60px">#</th><th style="width:100px">Mã</th><th>Tên</th><th>Địa chỉ</th>
+                <th style="width:70px">STT</th><th style="width:100px">Mã</th><th>Tên</th><th>Địa chỉ</th>
                 <th>Quản lý</th>
                 <th style="width:110px">Trạng thái</th><th style="width:230px">Thao tác</th>
             </tr></thead>
             <tbody id="branchBody">
-                <c:forEach var="b" items="${branches}">
+                <c:forEach var="b" items="${branches}" varStatus="status">
                     <tr data-state="${empty b.managerUserId ? 'unassigned' : (b.active ? 'active' : 'inactive')}">
-                        <td>${b.branchId}</td>
+                        <td>${status.index + 1}</td>
                         <td>${b.code}</td>
                         <td>${b.name}</td>
                         <td>${b.address}</td>

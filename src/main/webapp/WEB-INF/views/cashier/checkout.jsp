@@ -157,7 +157,7 @@
                         <c:choose>
                             <c:when test="${b.readyForPayment}">
                                 <%-- Chỉ mở thanh toán sau khi mọi món trên bill đã SERVED. --%>
-                                <form class="pay-form" action="${ctx}/cashier/checkout" method="post" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap" onsubmit="return confirm(this.querySelector('[name=method]').value === 'QR_BANK' ? 'Xác nhận đã nhận tiền QR?' : 'Xác nhận thu tiền hoá đơn này?');">
+                                <form class="pay-form" action="${ctx}/cashier/checkout" method="post" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
                                     <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                     <input type="hidden" name="action" value="pay">
                                     <input type="hidden" name="sessionId" value="${sessionId}">
@@ -169,6 +169,40 @@
                                             <option value="TRANSFER">Chuyển khoản</option>
                                             <option value="QR_BANK">QR ngân hàng</option>
                                         </select></div>
+                                    <div class="cash-pay-panel"
+                                         data-payable="${cashPayableAmounts[b.billId]}"
+                                         data-adjustment="${cashRoundingAdjustments[b.billId]}"
+                                         style="display:grid;grid-template-columns:repeat(2,minmax(150px,1fr));gap:8px 14px;padding:12px;border:1px solid var(--line);background:var(--paper);min-width:min(100%,390px)">
+                                        <div>
+                                            <div class="muted" style="font-size:.82rem">Tiền mặt cần thu</div>
+                                            <strong class="cash-payable" style="font-size:1.1rem">
+                                                <fmt:formatNumber value="${cashPayableAmounts[b.billId]}" maxFractionDigits="0"/> ₫
+                                            </strong>
+                                        </div>
+                                        <div>
+                                            <div class="muted" style="font-size:.82rem">Điều chỉnh làm tròn</div>
+                                            <strong>
+                                                <c:if test="${cashRoundingAdjustments[b.billId] > 0}">+</c:if><fmt:formatNumber value="${cashRoundingAdjustments[b.billId]}" maxFractionDigits="0"/> ₫
+                                            </strong>
+                                        </div>
+                                        <div class="form-group" style="margin:0;grid-column:1/-1">
+                                            <label>Tiền khách đưa</label>
+                                            <input type="number" name="cashTendered" class="form-control cash-tendered"
+                                                   min="${cashPayableAmounts[b.billId]}" step="1000"
+                                                   inputmode="numeric" autocomplete="off">
+                                        </div>
+                                        <div class="cash-quick" style="grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap">
+                                            <button type="button" class="btn btn-ghost btn-sm" data-cash-exact>Đúng số</button>
+                                            <button type="button" class="btn btn-ghost btn-sm" data-cash-value="50000">50.000</button>
+                                            <button type="button" class="btn btn-ghost btn-sm" data-cash-value="100000">100.000</button>
+                                            <button type="button" class="btn btn-ghost btn-sm" data-cash-value="200000">200.000</button>
+                                            <button type="button" class="btn btn-ghost btn-sm" data-cash-value="500000">500.000</button>
+                                        </div>
+                                        <div style="grid-column:1/-1;display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:8px">
+                                            <span>Tiền thối</span>
+                                            <strong class="cash-change">—</strong>
+                                        </div>
+                                    </div>
                                     <div class="qr-pay-panel" id="qr-panel-${b.billId}" data-payload="<c:out value='${qrPayloads[b.billId]}'/>" style="display:none">
                                         <div class="qr-code" id="qr-code-${b.billId}"></div>
                                         <div class="muted" style="font-size:.85rem;margin-top:6px">
@@ -218,15 +252,42 @@
 document.querySelectorAll('.pay-form').forEach(form => {
   const method = form.querySelector('.pay-method');
   const submit = form.querySelector('.pay-submit');
-  const panel = form.querySelector('.qr-pay-panel');
-  const codeBox = panel ? panel.querySelector('.qr-code') : null;
+  const qrPanel = form.querySelector('.qr-pay-panel');
+  const codeBox = qrPanel ? qrPanel.querySelector('.qr-code') : null;
+  const cashPanel = form.querySelector('.cash-pay-panel');
+  const tendered = form.querySelector('.cash-tendered');
+  const changeBox = form.querySelector('.cash-change');
+  const payable = cashPanel ? Number(cashPanel.dataset.payable || 0) : 0;
   let rendered = false;
+  const money = value => new Intl.NumberFormat('vi-VN', {maximumFractionDigits: 0}).format(value) + ' ₫';
+
+  function syncCashChange(){
+    if (!tendered || !changeBox) return;
+    const value = Number(tendered.value);
+    if (!tendered.value) {
+      changeBox.textContent = '—';
+      changeBox.style.color = '';
+    } else if (value < payable) {
+      changeBox.textContent = 'Thiếu ' + money(payable - value);
+      changeBox.style.color = 'var(--st-cancelled)';
+    } else {
+      changeBox.textContent = money(value - payable);
+      changeBox.style.color = 'var(--st-ready)';
+    }
+  }
+
   function syncPaymentUi(){
     const isQr = method.value === 'QR_BANK';
-    if (panel) panel.style.display = isQr ? 'block' : 'none';
+    const isCash = method.value === 'CASH';
+    if (qrPanel) qrPanel.style.display = isQr ? 'block' : 'none';
+    if (cashPanel) cashPanel.style.display = isCash ? 'grid' : 'none';
+    if (tendered) {
+      tendered.disabled = !isCash;
+      tendered.required = isCash;
+    }
     if (submit) submit.textContent = isQr ? 'Đã nhận tiền' : 'Thu tiền';
-    if (isQr && panel && codeBox && !rendered) {
-      const payload = panel.dataset.payload || '';
+    if (isQr && qrPanel && codeBox && !rendered) {
+      const payload = qrPanel.dataset.payload || '';
       codeBox.innerHTML = '';
       if (window.QRCode && payload) {
         new QRCode(codeBox, {text: payload, width: 180, height: 180, correctLevel: QRCode.CorrectLevel.M});
@@ -235,7 +296,32 @@ document.querySelectorAll('.pay-form').forEach(form => {
       }
       rendered = true;
     }
+    syncCashChange();
   }
+
+  if (tendered) tendered.addEventListener('input', syncCashChange);
+  form.querySelectorAll('[data-cash-value]').forEach(button => {
+    const value = Number(button.dataset.cashValue || 0);
+    button.disabled = value < payable;
+    button.addEventListener('click', () => {
+      tendered.value = value;
+      syncCashChange();
+    });
+  });
+  const exactButton = form.querySelector('[data-cash-exact]');
+  if (exactButton) exactButton.addEventListener('click', () => {
+    tendered.value = payable;
+    syncCashChange();
+  });
+  form.addEventListener('submit', event => {
+    let message = 'Xác nhận thu tiền hoá đơn này?';
+    if (method.value === 'QR_BANK') message = 'Xác nhận đã nhận tiền QR?';
+    if (method.value === 'CASH') {
+      message = 'Xác nhận thu ' + money(payable)
+        + ' và thối ' + money(Number(tendered.value) - payable) + '?';
+    }
+    if (!window.confirm(message)) event.preventDefault();
+  });
   method.addEventListener('change', syncPaymentUi);
   syncPaymentUi();
 });

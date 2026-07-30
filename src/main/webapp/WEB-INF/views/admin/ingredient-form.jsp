@@ -1,5 +1,6 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
+<%@ taglib prefix="fn" uri="jakarta.tags.functions" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <jsp:include page="../layout/header.jsp" />
 
@@ -18,11 +19,19 @@
 
         <div class="form-group">
             <label for="name">Tên nguyên liệu *</label>
-            <input id="name" type="text" name="name" class="form-control" maxlength="120" value="${ingredient.name}" required autofocus>
+            <input id="name" type="text" name="name" class="form-control" minlength="2" maxlength="120"
+                   pattern="[\p{L}\p{M}\p{N}][\p{L}\p{M}\p{N}\s.,&amp;'()/%+\-]*"
+                   title="Từ 2 đến 120 ký tự; chỉ dùng chữ, số và dấu câu thông dụng."
+                   value="${fn:escapeXml(ingredient.name)}" required autofocus>
         </div>
         <div class="form-group">
-            <label for="unit">Đơn vị * (g, ml, kg, L, cái...)</label>
-            <input id="unit" type="text" name="unit" class="form-control" maxlength="20" value="${ingredient.unit}" required>
+            <label for="unit">Đơn vị *</label>
+            <select id="unit" name="unit" class="form-control" required>
+                <option value="">-- Chọn đơn vị --</option>
+                <c:forEach var="unit" items="${supportedUnits}">
+                    <option value="${unit}" <c:if test="${ingredient.unit == unit}">selected</c:if>>${unit}</option>
+                </c:forEach>
+            </select>
         </div>
         <div class="form-group">
             <label for="ingredientType">Loại *</label>

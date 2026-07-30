@@ -32,12 +32,19 @@ public class BillHistoryServlet extends HttpServlet {
         User u = SessionUtil.currentUser(req);
         try {
             if ("view".equals(req.getParameter("action")) && req.getParameter("billId") != null) {
-                req.setAttribute("bill", service.getBill(Integer.parseInt(req.getParameter("billId"))));
+                Bill bill = service.getBill(Integer.parseInt(req.getParameter("billId")));
+                if (bill == null || bill.getBranchId() != branchId) {
+                    req.getSession().setAttribute("flashError", "Không tìm thấy hoá đơn tại chi nhánh này.");
+                    resp.sendRedirect(req.getContextPath() + "/cashier/history");
+                    return;
+                }
+                req.setAttribute("bill", bill);
                 req.setAttribute("pageTitle", "Chi tiết hoá đơn");
                 req.getRequestDispatcher("/WEB-INF/views/cashier/bill-view.jsp").forward(req, resp);
             } else {
                 // Mặc định lọc theo CA hiện tại; "scope=branch" để xem toàn chi nhánh.
-                CashierShift shift = u != null ? shiftService.getCurrentShift(u.getUserId()) : null;
+                CashierShift shift = u != null
+                        ? shiftService.getCurrentShift(u.getUserId(), branchId) : null;
                 boolean byShift = shift != null && !"branch".equals(req.getParameter("scope"));
                 List<Bill> bills;
                 if (byShift) {
@@ -62,6 +69,7 @@ public class BillHistoryServlet extends HttpServlet {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
         User user = SessionUtil.currentUser(req);
         Integer userId = user != null ? user.getUserId() : null;
+        int branchId = InventoryDashboardServlet.branchId(req);
         try {
             String action = req.getParameter("action");
             if ("void".equals(action)) {
@@ -70,7 +78,8 @@ public class BillHistoryServlet extends HttpServlet {
                     req.getSession().setAttribute("flashError", "Phải nhập lý do khi huỷ hoá đơn.");
                 } else {
                     int billId = Integer.parseInt(req.getParameter("billId"));
-                    boolean ok = service.voidBill(billId, reason.trim(), userId);
+                    boolean ok = service.voidBill(
+                            billId, branchId, reason.trim(), userId);
                     req.getSession().setAttribute(ok ? "flashOk" : "flashError",
                             ok ? "Đã huỷ hoá đơn (đã ghi log lý do)."
                                : "Không huỷ được (hoá đơn đã thanh toán?).");

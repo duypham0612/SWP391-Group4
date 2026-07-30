@@ -44,7 +44,7 @@
             <table class="table">
                 <thead>
                     <tr>
-                        <th style="width:70px" data-tt-nosearch>#</th>
+                        <th style="width:70px" data-tt-nosearch>STT</th>
                         <th data-tt-search>Tên</th>
                         <th style="width:120px" data-tt-nosearch>Thứ tự</th>
                         <th style="width:120px" data-tt-nosearch>Trạng thái</th>
@@ -52,9 +52,9 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <c:forEach var="cat" items="${categories}">
+                    <c:forEach var="cat" items="${categories}" varStatus="status">
                         <tr>
-                            <td>${cat.categoryId}</td>
+                            <td data-tt-index>${status.index + 1}</td>
                             <td>${cat.name}</td>
                             <td>${cat.sortOrder}</td>
                             <td data-tt-val="${cat.active}">

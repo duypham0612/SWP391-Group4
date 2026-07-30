@@ -119,7 +119,7 @@
         <c:when test="${empty topProducts}"><p class="muted">Chưa có sản phẩm nào được bán &amp; thanh toán trong kỳ.</p></c:when>
         <c:otherwise>
             <table class="table report-table report-table-top">
-                <thead><tr><th style="width:50px">#</th><th>Sản phẩm</th><th style="width:110px">Số ly</th><th style="width:170px">Doanh thu</th></tr></thead>
+                <thead><tr><th style="width:60px">STT</th><th>Sản phẩm</th><th style="width:110px">Số ly</th><th style="width:170px">Doanh thu</th></tr></thead>
                 <tbody>
                     <c:forEach var="r" items="${topProducts}" varStatus="st">
                         <tr><td>${st.index + 1}</td><td>${r.label}</td><td>${r.count}</td><td><strong><fmt:formatNumber value="${r.amount}" maxFractionDigits="0"/> ₫</strong></td></tr>

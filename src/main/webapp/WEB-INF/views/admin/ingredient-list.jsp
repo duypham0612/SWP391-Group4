@@ -45,13 +45,13 @@
             </div>
             <table class="table">
                 <thead><tr>
-                    <th style="width:60px" data-tt-nosearch>#</th><th data-tt-search>Tên</th><th style="width:100px" data-tt-search>Đơn vị</th>
+                    <th style="width:70px" data-tt-nosearch>STT</th><th data-tt-search>Tên</th><th style="width:100px" data-tt-search>Đơn vị</th>
                     <th style="width:120px" data-tt-nosearch>Loại</th><th style="width:110px" data-tt-nosearch>Trạng thái</th><th style="width:170px" data-tt-nosearch>Thao tác</th>
                 </tr></thead>
                 <tbody>
-                    <c:forEach var="i" items="${ingredients}">
+                    <c:forEach var="i" items="${ingredients}" varStatus="status">
                         <tr>
-                            <td>${i.ingredientId}</td>
+                            <td data-tt-index>${status.index + 1}</td>
                             <td>${i.name}</td>
                             <td>${i.unit}</td>
                             <td data-tt-val="${i.ingredientType}">

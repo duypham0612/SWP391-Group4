@@ -62,7 +62,7 @@
                     <col style="width:150px">
                 </colgroup>
                 <thead><tr>
-                    <th>#</th>
+                    <th>STT</th>
                     <th>Tên đăng nhập</th>
                     <th>Họ tên</th>
                     <th>Liên hệ</th>

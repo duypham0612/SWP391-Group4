@@ -9,6 +9,22 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class PrepRecipeDisplayTest {
 
     @Test
+    void integer_display_removes_the_fractional_part() {
+        PrepRecipe recipe = new PrepRecipe();
+        recipe.setQuantity(new BigDecimal("500.750"));
+
+        assertEquals("500", recipe.getQuantityIntegerDisplay());
+    }
+
+    @Test
+    void integer_display_removes_decimal_zeroes() {
+        PrepRecipe recipe = new PrepRecipe();
+        recipe.setQuantity(new BigDecimal("20.000"));
+
+        assertEquals("20", recipe.getQuantityIntegerDisplay());
+    }
+
+    @Test
     void yield_display_removes_only_unneeded_trailing_zeroes() {
         PrepRecipe recipe = new PrepRecipe();
         recipe.setYieldQty(new BigDecimal("1000.000"));

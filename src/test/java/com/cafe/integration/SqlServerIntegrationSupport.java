@@ -55,8 +55,9 @@ public abstract class SqlServerIntegrationSupport {
     }
 
     private static String cafeJdbcUrl() {
-        String url = usesExternalDatabase() ? EXTERNAL_URL : SQL.getJdbcUrl();
-        return url.replaceFirst("(?i)databaseName=[^;]+", "databaseName=CafeChain");
+        if (usesExternalDatabase()) return EXTERNAL_URL;
+        return SQL.getJdbcUrl().replaceFirst(
+                "(?i)databaseName=[^;]+", "databaseName=CafeChain");
     }
 
     private static boolean usesExternalDatabase() {
