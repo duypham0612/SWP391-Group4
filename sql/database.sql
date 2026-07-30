@@ -25,6 +25,32 @@
    - Luồng deploy mặc định không DROP, DELETE hay reset dữ liệu hiện có.
    - Tạo schema/bảng/cột/constraint/index còn thiếu.
    - Seed demo mặc định tắt; chỉ bật cờ @SeedDemo khi dựng môi trường dev mới.
+   ----------------------------------------------------------------------------
+   BỐN CỜ ĐIỀU KHIỂN (khai báo ngay dưới, MẶC ĐỊNH TẮT — cứ chạy thẳng là an toàn):
+
+     @SeedDemo          PART 8  · Seed gốc: 4 role, 3 chi nhánh, menu, 31 ngày
+                                 lịch sử bán, story hôm nay. Chỉ chạy khi
+                                 database CHƯA có role nào (dựng máy mới).
+
+     @FixtureBarista    PART 9  · Dữ liệu đối chiếu role Barista ở CN01 (checklist
+                                 pha sẵn, mẻ quá hạn, hao hụt, KDS). Ghi đè xếp ca
+                                 hôm nay của barista1/2/4.
+
+     @FixtureDemo       PART 10 · Dữ liệu buổi bảo vệ: dọn KDS/bàn cho sạch sân
+                                 khấu. CẦN chạy cùng @SeedDemo = 1 trên DB mới.
+                                 Dựng lại toàn bộ inventory.BranchInventory từ sổ
+                                 cái và ép MinThreshold — KHÔNG bật trên DB đang
+                                 có dữ liệu thật của team.
+
+     @AdminDemoData     PART 11 · Chi nhánh CN04–CN08 + danh mục/sản phẩm/voucher
+                                 để demo màn Admin (nhánh hoangg).
+                                 CẢNH BÁO: khối này MERGE thẳng QuantityOnHand vào
+                                 inventory.BranchInventory mà KHÔNG ghi
+                                 InventoryTransaction ⇒ phá bất biến "tồn = Σ sổ
+                                 cái". Chỉ dùng cho DB demo màn Admin, tuyệt đối
+                                 không dùng chung với dữ liệu kho đang đối soát.
+
+   Cách bật: sửa số 0 thành 1 ở khối DECLARE bên dưới rồi chạy lại file.
    ============================================================================ */
 
 IF DB_ID('CafeChain') IS NULL CREATE DATABASE CafeChain;
@@ -36,9 +62,19 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 GO
 
--- Chỉ đổi thành 1 khi chủ động dựng database demo mới. Deploy luôn để 0.
-DECLARE @SeedDemo BIT = 0;
-EXEC sys.sp_set_session_context @key = N'CafeChainSeedDemo', @value = @SeedDemo;
+/* ---------------------------------------------------------------------------
+   CỜ ĐIỀU KHIỂN — deploy bình thường để NGUYÊN cả 4 số 0.
+   Dùng session_context vì biến DECLARE không sống qua ranh giới GO.
+   --------------------------------------------------------------------------- */
+DECLARE @SeedDemo      BIT = 0;   -- PART 8  · seed gốc (chỉ khi DB chưa có role)
+DECLARE @FixtureBarista BIT = 0;  -- PART 9  · fixture đối chiếu role Barista, CN01
+DECLARE @FixtureDemo   BIT = 0;   -- PART 10 · dữ liệu buổi bảo vệ (reset tồn kho!)
+DECLARE @AdminDemoData BIT = 0;   -- PART 11 · CN04–CN08 demo màn Admin (phá bất biến sổ cái!)
+
+EXEC sys.sp_set_session_context @key = N'CafeChainSeedDemo',       @value = @SeedDemo;
+EXEC sys.sp_set_session_context @key = N'CafeChainFixtureBarista', @value = @FixtureBarista;
+EXEC sys.sp_set_session_context @key = N'CafeChainFixtureDemo',    @value = @FixtureDemo;
+EXEC sys.sp_set_session_context @key = N'CafeChainAdminDemoData',  @value = @AdminDemoData;
 GO
 
 /* ---------------------------------------------------------------------------
@@ -2663,3 +2699,870 @@ LEFT JOIN catalog.ModifierOption mo   ON mo.ModifierOptionId = oim.ModifierOptio
 WHERE o.BranchId = @b AND o.PickupCode LIKE 'ZT%' AND o.Status = 'ACTIVE'
 GROUP BY o.PickupCode, dt.TableNumber, o.OrderType, oi.Quantity, p.Name, oi.Status, oi.Note, oi.OrderItemId
 ORDER BY o.PickupCode, oi.OrderItemId;
+
+
+/* ===========================================================================
+   PART 9. FIXTURE ĐỐI CHIẾU ROLE BARISTA (CN01)
+   ---------------------------------------------------------------------------
+   Gộp từ sql/fixture_barista_doi_chieu.sql. Bật bằng @FixtureBarista = 1.
+   Chỉ INSERT/UPDATE dữ liệu nghiệp vụ; có ghi đè xếp ca hôm nay của
+   barista1/barista2/barista4 tại CN01. Không đụng sổ cái tồn kho.
+   =========================================================================== */
+GO
+-- Đóng vùng NOEXEC của phần trước để khối này tự quyết định chạy hay không.
+SET NOEXEC OFF;
+GO
+
+IF CONVERT(BIT, SESSION_CONTEXT(N'CafeChainFixtureBarista')) <> 1
+BEGIN
+    PRINT N'Bỏ qua FIXTURE ĐỐI CHIẾU ROLE BARISTA (CN01) (cờ tắt).';
+    SET NOEXEC ON;
+END
+GO
+
+/* ============================================================================
+   FIXTURE ĐỐI CHIẾU ROLE BARISTA  —  chi nhánh CN01, ngày kinh doanh hiện tại
+   ----------------------------------------------------------------------------
+   MỤC ĐÍCH
+     Dựng đủ dữ liệu để đối chiếu toàn bộ nghiệp vụ Barista bằng tài khoản
+     barista1 (CN01), theo tài liệu docs/PHAN_TICH_ROLE_BARISTA.md.
+
+   AN TOÀN
+     - Chỉ INSERT / UPDATE. KHÔNG có DROP, DELETE, TRUNCATE.
+     - Mọi khối đều idempotent (chạy lại nhiều lần không nhân bản dữ liệu).
+     - KHÔNG đụng tới sổ cái tồn kho: chỉ đổi trạng thái các món đang WAITING
+       (WAITING/MAKING/BLOCKED đều CHƯA trừ kho — kho chỉ trừ lúc bấm "Xong").
+     - Giữ nguyên 807 đơn lịch sử và bộ tài khoản test ucb_* của chi nhánh 4.
+
+   CÁCH CHẠY
+     sqlcmd -S localhost,14333 -U sa -P 'YourPassword123' \
+            --encrypt-connection disable -d CafeChain \
+            -i sql/fixture_barista_doi_chieu.sql
+
+   HOÀN TÁC
+     Xem khối ROLLBACK ở cuối file (đã comment sẵn).
+   ============================================================================ */
+
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+GO
+
+USE CafeChain;
+GO
+
+/* Ngày kinh doanh theo giờ Việt Nam (UTC+7) — KHÔNG dùng GETDATE() của server
+   vì container chạy giờ UTC, lệch 7 tiếng sẽ tạo ca sai ngày. */
+DECLARE @todayVn  DATE     = CAST(DATEADD(HOUR, 7, SYSUTCDATETIME()) AS DATE);
+DECLARE @nowVn    TIME(0)  = CAST(DATEADD(HOUR, 7, SYSUTCDATETIME()) AS TIME(0));
+DECLARE @branchId INT = (SELECT BranchId FROM org.Branch WHERE Code = 'CN01');
+
+DECLARE @barista1 INT = (SELECT UserId FROM iam.[User] WHERE Username = 'barista1');
+DECLARE @barista2 INT = (SELECT UserId FROM iam.[User] WHERE Username = 'barista2');
+DECLARE @barista4 INT = (SELECT UserId FROM iam.[User] WHERE Username = 'barista4');
+
+IF @branchId IS NULL THROW 50010, N'Không tìm thấy chi nhánh CN01.', 1;
+IF @barista1 IS NULL THROW 50011, N'Không tìm thấy tài khoản barista1.', 1;
+
+PRINT N'Ngày kinh doanh VN: ' + CONVERT(NVARCHAR(10), @todayVn, 23)
+      + N'  ·  Giờ VN hiện tại: ' + CONVERT(NVARCHAR(8), @nowVn);
+
+/* ---------------------------------------------------------------------------
+   1) CA LÀM HÔM NAY  —  điều kiện tiên quyết để barista thao tác ghi
+
+   Không có ca là "ngoài ca": mọi màn chỉ xem, mọi POST bị chặn ở server.
+   Chọn đúng ca đang phủ giờ hiện tại để nút "Vào ca" bấm được ngay.
+   --------------------------------------------------------------------------- */
+DECLARE @templateId INT = (
+    SELECT TOP 1 ShiftTemplateId
+    FROM hr.ShiftTemplate
+    WHERE BranchId = @branchId
+      AND @nowVn >= StartTime
+      AND @nowVn <  EndTime
+    ORDER BY StartTime);
+
+-- Ngoài mọi khung ca (vd đang 02:00 sáng) thì lấy ca gần nhất để vẫn có gì mà xem.
+IF @templateId IS NULL
+    SET @templateId = (SELECT TOP 1 ShiftTemplateId FROM hr.ShiftTemplate
+                       WHERE BranchId = @branchId ORDER BY StartTime DESC);
+
+INSERT INTO hr.ShiftAssignment (ShiftTemplateId, UserId, WorkDate)
+SELECT @templateId, u.UserId, @todayVn
+FROM (VALUES (@barista1), (@barista2), (@barista4)) AS u(UserId)
+WHERE u.UserId IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM hr.ShiftAssignment sa
+                  WHERE sa.UserId = u.UserId AND sa.WorkDate = @todayVn);
+
+PRINT N'  ✓ Ca hôm nay: barista1, barista2, barista4 @ CN01 (template '
+      + CAST(@templateId AS NVARCHAR(10)) + N')';
+GO
+
+/* ---------------------------------------------------------------------------
+   1b) ĐƯA ĐƠN CÒN DỞ CỦA CN01 VÀO NGÀY KINH DOANH HIỆN TẠI
+
+   Hàng chờ lọc theo `Orders.CreatedAt >= mốc đầu ngày kinh doanh`. Đơn còn dở
+   của CN01 đang mang ngày 2026-07-24 nên KHÔNG lọt vào màn Quầy pha chế —
+   đúng thiết kế (đơn hôm trước thuộc việc của Thu ngân huỷ & hoàn tiền),
+   nhưng khiến không có gì để đối chiếu.
+
+   Rải giờ tạo trong 40 phút gần đây để thứ tự FIFO trên màn nhìn tự nhiên.
+   --------------------------------------------------------------------------- */
+DECLARE @branchId INT = (SELECT BranchId FROM org.Branch WHERE Code = 'CN01');
+
+;WITH openOrders AS (
+    SELECT DISTINCT o.OrderId,
+           ROW_NUMBER() OVER (ORDER BY o.OrderId) AS rn
+    FROM sales.Orders o
+    JOIN sales.OrderItem oi ON oi.OrderId = o.OrderId
+    WHERE o.BranchId = @branchId
+      AND o.Status = 'ACTIVE'
+      AND oi.Status IN ('WAITING','MAKING','READY','BLOCKED')
+)
+UPDATE o
+SET CreatedAt = DATEADD(MINUTE, -40 + (oo.rn * 8), SYSUTCDATETIME())
+FROM sales.Orders o
+JOIN openOrders oo ON oo.OrderId = o.OrderId;
+
+PRINT N'  ✓ Đã đưa ' + CAST(@@ROWCOUNT AS NVARCHAR(10))
+      + N' đơn còn dở của CN01 vào ngày kinh doanh hiện tại';
+GO
+
+/* ---------------------------------------------------------------------------
+   2) MÓN "ĐANG PHA" CỦA NGƯỜI ĐÃ RỜI CA  —  để đối chiếu nút "Thu hồi"
+
+   Nút Thu hồi CHỈ hiện khi chủ món không còn trực. Ta gán món cho barista4
+   rồi ở bước sau XOÁ ca của barista4 đi, để họ thành "đã rời ca".
+   --------------------------------------------------------------------------- */
+DECLARE @branchId INT = (SELECT BranchId FROM org.Branch WHERE Code = 'CN01');
+DECLARE @barista4 INT = (SELECT UserId FROM iam.[User] WHERE Username = 'barista4');
+
+-- Đã có món ĐANG PHA của barista4 rồi thì thôi — nếu không, mỗi lần chạy lại
+-- sẽ ăn thêm một món khỏi hàng chờ cho tới khi hàng chờ rỗng.
+DECLARE @itemMaking INT = (
+    SELECT TOP 1 oi.OrderItemId
+    FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId = oi.OrderId
+    WHERE o.BranchId = @branchId AND oi.Status = 'WAITING'
+      AND NOT EXISTS (SELECT 1 FROM sales.OrderItem m JOIN sales.Orders mo ON mo.OrderId = m.OrderId
+                      WHERE mo.BranchId = @branchId AND m.Status = 'MAKING' AND m.BaristaId = @barista4)
+    ORDER BY oi.OrderItemId);
+
+IF @itemMaking IS NOT NULL
+BEGIN
+    UPDATE sales.OrderItem
+    SET Status    = 'MAKING',
+        BaristaId = @barista4,
+        StartedAt = DATEADD(MINUTE, -12, SYSUTCDATETIME())
+    WHERE OrderItemId = @itemMaking;
+    PRINT N'  ✓ Món #' + CAST(@itemMaking AS NVARCHAR(10))
+          + N' → ĐANG PHA (chủ: barista4, sẽ ở trạng thái đã rời ca)';
+END
+GO
+
+/* ---------------------------------------------------------------------------
+   3) MÓN "CẦN XỬ LÝ"  —  để đối chiếu nhánh sự cố + nút "Bỏ chặn"
+   --------------------------------------------------------------------------- */
+DECLARE @branchId INT = (SELECT BranchId FROM org.Branch WHERE Code = 'CN01');
+DECLARE @barista1 INT = (SELECT UserId FROM iam.[User] WHERE Username = 'barista1');
+
+-- Cùng lý do idempotent như khối 2: đã có món CẦN XỬ LÝ thì không tạo thêm.
+DECLARE @itemBlocked INT = (
+    SELECT TOP 1 oi.OrderItemId
+    FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId = oi.OrderId
+    WHERE o.BranchId = @branchId AND oi.Status = 'WAITING'
+      AND NOT EXISTS (SELECT 1 FROM sales.OrderItem b JOIN sales.Orders bo ON bo.OrderId = b.OrderId
+                      WHERE bo.BranchId = @branchId AND b.Status = 'BLOCKED')
+    ORDER BY oi.OrderItemId DESC);
+
+IF @itemBlocked IS NOT NULL
+BEGIN
+    UPDATE sales.OrderItem
+    SET Status          = 'BLOCKED',
+        HasIssue        = 1,
+        IssueReason     = N'Máy móc gặp sự cố',
+        IssueReportedBy = @barista1,
+        IssueReportedAt = SYSUTCDATETIME()
+    WHERE OrderItemId = @itemBlocked;
+    PRINT N'  ✓ Món #' + CAST(@itemBlocked AS NVARCHAR(10))
+          + N' → CẦN XỬ LÝ (máy móc gặp sự cố)';
+END
+GO
+
+/* ---------------------------------------------------------------------------
+   4) GỠ CA CỦA barista4  —  để họ thành "đã rời ca", mở nút Thu hồi ở bước 2
+
+   Xoá đúng MỘT dòng ca vừa tạo ở bước 1, không đụng lịch sử ca cũ.
+   --------------------------------------------------------------------------- */
+DECLARE @todayVn  DATE = CAST(DATEADD(HOUR, 7, SYSUTCDATETIME()) AS DATE);
+DECLARE @barista4 INT = (SELECT UserId FROM iam.[User] WHERE Username = 'barista4');
+
+DELETE sa
+FROM hr.ShiftAssignment sa
+WHERE sa.UserId = @barista4
+  AND sa.WorkDate = @todayVn
+  AND NOT EXISTS (SELECT 1 FROM hr.Attendance a
+                  WHERE a.ShiftAssignmentId = sa.ShiftAssignmentId);
+
+PRINT N'  ✓ barista4 không còn ca hôm nay → món của họ có nút "Thu hồi"';
+GO
+
+/* ---------------------------------------------------------------------------
+   5) MẺ PHA SẴN QUÁ HẠN  —  để đối chiếu "Ghi hao hụt mẻ quá hạn"
+   --------------------------------------------------------------------------- */
+DECLARE @branchId INT = (SELECT BranchId FROM org.Branch WHERE Code = 'CN01');
+
+IF NOT EXISTS (SELECT 1 FROM inventory.PrepBatch
+               WHERE BranchId = @branchId AND Status = 'ACTIVE'
+                 AND ExpiresAt < SYSUTCDATETIME())
+BEGIN
+    UPDATE TOP (1) inventory.PrepBatch
+    SET ExpiresAt = DATEADD(HOUR, -3, SYSUTCDATETIME())
+    WHERE BranchId = @branchId AND Status = 'ACTIVE';
+    PRINT N'  ✓ Đã đẩy 1 mẻ pha sẵn thành quá hạn';
+END
+ELSE
+    PRINT N'  · Đã có sẵn mẻ quá hạn, bỏ qua';
+GO
+
+/* ---------------------------------------------------------------------------
+   KIỂM TRA KẾT QUẢ
+   --------------------------------------------------------------------------- */
+DECLARE @branchId INT = (SELECT BranchId FROM org.Branch WHERE Code = 'CN01');
+DECLARE @todayVn  DATE = CAST(DATEADD(HOUR, 7, SYSUTCDATETIME()) AS DATE);
+
+PRINT N'';
+PRINT N'=== HÀNG CHỜ CN01 ===';
+SELECT oi.Status AS [Trạng thái], COUNT(*) AS [Số dòng], SUM(oi.Quantity) AS [Số ly]
+FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId = oi.OrderId
+WHERE o.BranchId = @branchId AND oi.Status IN ('WAITING','MAKING','READY','BLOCKED')
+GROUP BY oi.Status;
+
+PRINT N'=== CA HÔM NAY @ CN01 ===';
+SELECT u.Username, st.Name AS [Ca], st.StartTime, st.EndTime
+FROM hr.ShiftAssignment sa
+JOIN iam.[User] u ON u.UserId = sa.UserId
+JOIN hr.ShiftTemplate st ON st.ShiftTemplateId = sa.ShiftTemplateId
+WHERE sa.WorkDate = @todayVn AND st.BranchId = @branchId;
+GO
+
+/* ============================================================================
+   HOÀN TÁC  —  bỏ comment và chạy nếu muốn trả CN01 về trạng thái trước fixture
+   ============================================================================
+
+DECLARE @todayVn DATE = CAST(DATEADD(HOUR, 7, SYSUTCDATETIME()) AS DATE);
+DECLARE @branchId INT = (SELECT BranchId FROM org.Branch WHERE Code = 'CN01');
+
+-- Gỡ ca đã thêm (chỉ những ca CHƯA chấm công)
+DELETE sa FROM hr.ShiftAssignment sa
+JOIN iam.[User] u ON u.UserId = sa.UserId
+WHERE sa.WorkDate = @todayVn
+  AND u.Username IN ('barista1','barista2','barista4')
+  AND NOT EXISTS (SELECT 1 FROM hr.Attendance a WHERE a.ShiftAssignmentId = sa.ShiftAssignmentId);
+
+-- Trả các món về hàng chờ
+UPDATE oi SET Status='WAITING', BaristaId=NULL, StartedAt=NULL,
+              HasIssue=0, IssueReason=NULL, IssueReportedBy=NULL, IssueReportedAt=NULL
+FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId
+WHERE o.BranchId=@branchId AND oi.Status IN ('MAKING','BLOCKED');
+
+============================================================================ */
+GO
+SET NOEXEC OFF;
+GO
+
+
+/* ===========================================================================
+   PART 10. DỮ LIỆU TRÌNH DIỄN BUỔI BẢO VỆ
+   ---------------------------------------------------------------------------
+   Gộp từ sql/fixture_demo_hoi_dong.sql. Bật bằng @FixtureDemo = 1.
+   CHẠY KÈM @SeedDemo = 1 TRÊN DATABASE MỚI DỰNG.
+   Khối [6] xoá sạch inventory.BranchInventory rồi dựng lại từ sổ cái và ép
+   MinThreshold — mất mọi ngưỡng tồn team đã chỉnh tay.
+   =========================================================================== */
+GO
+-- Đóng vùng NOEXEC của phần trước để khối này tự quyết định chạy hay không.
+SET NOEXEC OFF;
+GO
+
+IF CONVERT(BIT, SESSION_CONTEXT(N'CafeChainFixtureDemo')) <> 1
+BEGIN
+    PRINT N'Bỏ qua DỮ LIỆU TRÌNH DIỄN BUỔI BẢO VỆ (cờ tắt).';
+    SET NOEXEC ON;
+END
+GO
+
+/* ===========================================================================
+   fixture_demo_hoi_dong.sql — Dữ liệu trình diễn cho buổi bảo vệ đồ án.
+
+   DỰNG LẠI TỪ ĐẦU TRÊN MÁY MỚI (4 bước — dữ liệu cũ sẽ mất, sao lưu trước nếu cần):
+
+     1) Tạo bản database.sql có bật seed (KHÔNG sửa file gốc, deploy luôn cần @SeedDemo = 0):
+          sed 's/DECLARE @SeedDemo BIT = 0;/DECLARE @SeedDemo BIT = 1;/' \
+              sql/database.sql > /tmp/database-seed-demo.sql
+     2) Dừng Tomcat để nhả kết nối, rồi xoá database cũ:
+          sqlcmd -S <host> -U sa -P '<pass>' -N disable -Q \
+            "ALTER DATABASE CafeChain SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE CafeChain;"
+     3) Dựng schema + dữ liệu seed (script tự CREATE DATABASE và USE):
+          sqlcmd -S <host> -U sa -P '<pass>' -N disable -i /tmp/database-seed-demo.sql
+     4) Chạy file này để dọn main flow và bơm dữ liệu trình diễn:
+          sqlcmd -S <host> -U sa -P '<pass>' -N disable -d CafeChain -i sql/fixture_demo_hoi_dong.sql
+
+   Chạy SAU sql/database.sql (bản đã bật @SeedDemo = 1).
+   IDEMPOTENT: chạy lại nhiều lần không nhân bản — mọi bản ghi do file này sinh ra
+   đều mang tiền tố 'HĐ:' và được kiểm tra trước khi chèn.
+   (Tránh ngoặc vuông trong nhãn — LIKE của T-SQL coi [..] là lớp ký tự.)
+   KHÔNG đổi schema. KHÔNG xoá dữ liệu lịch sử (hoá đơn, chấm công, lương giữ nguyên).
+
+   Ba việc:
+     1) Dọn MAIN FLOW về trạng thái sạch — bàn trống, KDS rỗng — để demo trực tiếp
+        từ đầu. GIỮ NGUYÊN ca thu ngân đang mở.
+     2) Bơm dữ liệu vận hành cho các màn đang mỏng: nhà cung cấp, phiếu nhập kho,
+        mẻ pha sẵn, hao hụt — phân bổ đều cho cả 3 chi nhánh.
+     3) Chốt lại tồn kho = Σ sổ cái, vì InventoryTransaction là nguồn sự thật duy
+        nhất còn BranchInventory chỉ là số dư cache.
+   =========================================================================== */
+USE CafeChain;
+GO
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+GO
+
+/* ---------------------------------------------------------------------------
+   1) DỌN MAIN FLOW
+   Seed sinh sẵn đơn đang chờ + bàn đang phục vụ để test. Khi demo trực tiếp thì
+   đó là nhiễu: đơn mới tạo trên sân khấu sẽ lẫn giữa hàng chục món cũ trong KDS.
+   Huỷ chứ không xoá — sales.Orders/OrderItem có FK ON DELETE CASCADE và app không
+   bao giờ xoá đơn; huỷ là đủ vì KDS lọc theo Status.
+   --------------------------------------------------------------------------- */
+PRINT N'[1] Dọn main flow...';
+
+UPDATE oi SET oi.Status = 'CANCELLED'
+FROM sales.OrderItem oi
+JOIN sales.Orders o ON o.OrderId = oi.OrderId
+WHERE o.Status = 'ACTIVE'
+  AND oi.Status IN ('WAITING','MAKING','READY','BLOCKED','REMAKE');
+
+UPDATE sales.Orders SET Status = 'CANCELLED' WHERE Status = 'ACTIVE';
+
+UPDATE sales.TableSession
+   SET Status = 'CLOSED', ClosedAt = SYSUTCDATETIME()
+ WHERE Status = 'OPEN';
+
+UPDATE sales.DiningTable SET Status = 'EMPTY' WHERE Status <> 'EMPTY';
+
+-- Tín hiệu khách (gọi NV / xin thanh toán / xin mở bàn) còn treo từ lần test trước.
+UPDATE ops.OutboxEvent SET ProcessedAt = SYSUTCDATETIME()
+ WHERE ProcessedAt IS NULL
+   AND EventType IN ('service.call','bill.requested','table.open_requested');
+GO
+
+/* ---------------------------------------------------------------------------
+   2) NHÀ CUNG CẤP — thêm cho danh sách đủ dày để lọc/tìm kiếm có ý nghĩa.
+   --------------------------------------------------------------------------- */
+PRINT N'[2] Nhà cung cấp...';
+
+MERGE inventory.Supplier AS t
+USING (VALUES
+    (N'Công ty Sữa Việt Nam — CN Miền Nam', '02838445678', N'10 Tân Trào, Quận 7, TP.HCM'),
+    (N'HTX Chè Tân Cương Thái Nguyên',      '02083825417', N'Xóm Hồng Thái, Tân Cương, Thái Nguyên'),
+    (N'Công ty CP Đường Biên Hoà',          '02513836199', N'KCN Biên Hoà 1, Đồng Nai'),
+    (N'Nhà máy Nước đá Tinh khiết An Phú',  '02839114455', N'25 An Phú, TP. Thủ Đức, TP.HCM')
+) AS s(Name, Phone, Address)
+ON t.Name = s.Name
+WHEN NOT MATCHED THEN
+    INSERT (Name, Phone, Address, IsActive) VALUES (s.Name, s.Phone, s.Address, 1);
+GO
+
+/* ---------------------------------------------------------------------------
+   3) PHIẾU NHẬP KHO ĐỊNH KỲ
+   Mỗi chi nhánh: 4 phiếu CONFIRMED rải trong 3 tuần + 1 phiếu DRAFT đang chờ
+   duyệt, để màn "Phiếu nhập" có đủ trạng thái chứ không phải một dòng trống trơn.
+   Mỗi phiếu ghi kèm InventoryTransaction 'RECEIPT' — nếu chỉ chèn phiếu mà quên
+   sổ cái thì tồn kho hiển thị sẽ lệch với chứng từ, và đó đúng là thứ hội đồng soi.
+   --------------------------------------------------------------------------- */
+PRINT N'[3] Phiếu nhập kho...';
+
+IF NOT EXISTS (SELECT 1 FROM inventory.StockReceipt WHERE Note LIKE N'HĐ:%')
+BEGIN
+    DECLARE @now DATETIME2 = SYSUTCDATETIME();
+    DECLARE @b INT, @mgr INT, @sup INT, @rid INT, @dayBack INT, @seq INT;
+
+    DECLARE cB CURSOR LOCAL FAST_FORWARD FOR
+        SELECT b.BranchId,
+               (SELECT TOP (1) u.UserId FROM iam.[User] u
+                  JOIN iam.Role r ON r.RoleId = u.RoleId
+                 WHERE u.BranchId = b.BranchId AND r.Code = 'BRANCH_MANAGER'
+                 ORDER BY u.UserId)
+          FROM org.Branch b
+         WHERE b.IsActive = 1;
+
+    OPEN cB;
+    FETCH NEXT FROM cB INTO @b, @mgr;
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        IF @mgr IS NOT NULL
+        BEGIN
+            SET @seq = 0;
+            -- 4 đợt nhập: cách nhau khoảng một tuần.
+            DECLARE cD CURSOR LOCAL FAST_FORWARD FOR
+                SELECT v FROM (VALUES (23),(16),(9),(3)) AS d(v);
+            OPEN cD;
+            FETCH NEXT FROM cD INTO @dayBack;
+            WHILE @@FETCH_STATUS = 0
+            BEGIN
+                SET @seq += 1;
+                -- Xoay vòng nhà cung cấp để chứng từ không bị một mối duy nhất.
+                SET @sup = (SELECT TOP (1) SupplierId FROM inventory.Supplier
+                             WHERE IsActive = 1
+                             ORDER BY (SupplierId + @b + @seq) % 7, SupplierId);
+
+                INSERT INTO inventory.StockReceipt(BranchId, SupplierId, ReceivedBy, Status, TotalCost, Note, ReceiptDate)
+                VALUES (@b, @sup, @mgr, 'CONFIRMED', 0,
+                        N'HĐ: Nhập hàng định kỳ đợt ' + CAST(@seq AS NVARCHAR(2)),
+                        DATEADD(DAY, -@dayBack, @now));
+                SET @rid = SCOPE_IDENTITY();
+
+                -- Nhập nguyên liệu thô, lượng theo mức tiêu thụ thực tế của quán.
+                INSERT INTO inventory.StockReceiptDetail(StockReceiptId, IngredientId, Quantity, UnitCost, Unit)
+                SELECT @rid, i.IngredientId,
+                       CASE i.Name WHEN N'Cà phê hạt'  THEN 5000
+                                   WHEN N'Sữa tươi'    THEN 12000
+                                   WHEN N'Sữa đặc'     THEN 4000
+                                   WHEN N'Đường'       THEN 6000
+                                   WHEN N'Đá'          THEN 25000
+                                   WHEN N'Trà đen'     THEN 1500
+                                   WHEN N'Trà sen'     THEN 1200
+                                   WHEN N'Đào ngâm'    THEN 3000
+                                   WHEN N'Vải ngâm'    THEN 2500
+                                   ELSE 800 END,
+                       CASE i.Name WHEN N'Cà phê hạt'  THEN 0.32
+                                   WHEN N'Sữa tươi'    THEN 0.025
+                                   WHEN N'Sữa đặc'     THEN 0.045
+                                   WHEN N'Đường'       THEN 0.020
+                                   WHEN N'Đá'          THEN 0.002
+                                   ELSE 0.060 END,
+                       i.Unit
+                  FROM catalog.Ingredient i
+                 WHERE i.IngredientType = 'RAW' AND i.IsActive = 1;
+
+                INSERT INTO inventory.InventoryTransaction(BranchId, IngredientId, ChangeQty, TxnType, RefTable, RefId, CreatedBy, CreatedAt)
+                SELECT @b, d.IngredientId, d.Quantity, 'RECEIPT', 'StockReceipt', @rid, @mgr,
+                       DATEADD(DAY, -@dayBack, @now)
+                  FROM inventory.StockReceiptDetail d
+                 WHERE d.StockReceiptId = @rid;
+
+                UPDATE inventory.StockReceipt
+                   SET TotalCost = (SELECT SUM(d.Quantity * d.UnitCost)
+                                      FROM inventory.StockReceiptDetail d
+                                     WHERE d.StockReceiptId = @rid)
+                 WHERE StockReceiptId = @rid;
+
+                FETCH NEXT FROM cD INTO @dayBack;
+            END
+            CLOSE cD; DEALLOCATE cD;
+
+            -- Phiếu DRAFT: hàng đã về, quản lý chưa xác nhận → CHƯA ghi sổ cái.
+            INSERT INTO inventory.StockReceipt(BranchId, SupplierId, ReceivedBy, Status, TotalCost, Note, ReceiptDate)
+            VALUES (@b, @sup, @mgr, 'DRAFT', 1600,
+                    N'HĐ: Phiếu nháp — chờ đối chiếu hoá đơn nhà cung cấp',
+                    DATEADD(DAY, -1, @now));
+            SET @rid = SCOPE_IDENTITY();
+            INSERT INTO inventory.StockReceiptDetail(StockReceiptId, IngredientId, Quantity, UnitCost, Unit)
+            SELECT @rid, i.IngredientId, 5000, 0.32, i.Unit
+              FROM catalog.Ingredient i WHERE i.Name = N'Cà phê hạt';
+        END
+
+        FETCH NEXT FROM cB INTO @b, @mgr;
+    END
+    CLOSE cB; DEALLOCATE cB;
+END
+GO
+
+/* ---------------------------------------------------------------------------
+   4) MẺ PHA SẴN GẦN ĐÂY
+   Màn Prep của barista chỉ có ý nghĩa khi có mẻ còn hạn. Ghi PREP_OUT (trừ thô)
+   + PREP_IN (cộng pha sẵn) để không bị trừ thô hai lần lúc bán.
+   --------------------------------------------------------------------------- */
+PRINT N'[4] Mẻ pha sẵn...';
+
+IF NOT EXISTS (SELECT 1 FROM inventory.PrepBatch pb
+                WHERE pb.MadeAt >= DATEADD(DAY, -3, SYSUTCDATETIME())
+                  AND pb.QuantityProduced = 12000)
+BEGIN
+    DECLARE @now2 DATETIME2 = SYSUTCDATETIME();
+    DECLARE @bp INT, @bar INT, @pb INT;
+    DECLARE @iCafe  INT = (SELECT IngredientId FROM catalog.Ingredient WHERE Name = N'Cà phê hạt');
+    DECLARE @iCold  INT = (SELECT IngredientId FROM catalog.Ingredient WHERE Name = N'Cold Brew');
+
+    DECLARE cP CURSOR LOCAL FAST_FORWARD FOR
+        SELECT b.BranchId,
+               (SELECT TOP (1) u.UserId FROM iam.[User] u
+                  JOIN iam.Role r ON r.RoleId = u.RoleId
+                 WHERE u.BranchId = b.BranchId AND r.Code = 'BARISTA'
+                 ORDER BY u.UserId)
+          FROM org.Branch b WHERE b.IsActive = 1;
+
+    OPEN cP;
+    FETCH NEXT FROM cP INTO @bp, @bar;
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        IF @bar IS NOT NULL AND @iCold IS NOT NULL AND @iCafe IS NOT NULL
+        BEGIN
+            INSERT INTO inventory.PrepBatch(BranchId, PreppedIngredientId, QuantityProduced, MadeBy, MadeAt, ExpiresAt, Status)
+            VALUES (@bp, @iCold, 12000, @bar, DATEADD(HOUR, -20, @now2), DATEADD(DAY, 2, @now2), 'ACTIVE');
+            SET @pb = SCOPE_IDENTITY();
+            INSERT INTO inventory.InventoryTransaction(BranchId, IngredientId, ChangeQty, TxnType, RefTable, RefId, CreatedBy, CreatedAt)
+            VALUES (@bp, @iCafe, -2400, 'PREP_OUT', 'PrepBatch', @pb, @bar, DATEADD(HOUR, -20, @now2)),
+                   (@bp, @iCold, 12000, 'PREP_IN',  'PrepBatch', @pb, @bar, DATEADD(HOUR, -20, @now2));
+        END
+        FETCH NEXT FROM cP INTO @bp, @bar;
+    END
+    CLOSE cP; DEALLOCATE cP;
+END
+GO
+
+/* ---------------------------------------------------------------------------
+   5) HAO HỤT CHO CN2 / CN3
+   Seed chỉ ghi hao hụt cho CN01, nên báo cáo hao hụt của hai chi nhánh kia trống.
+   Lý do viết như nhật ký quán thật, không phải "test 1/test 2".
+   --------------------------------------------------------------------------- */
+PRINT N'[5] Hao hụt CN2/CN3...';
+
+IF NOT EXISTS (SELECT 1 FROM inventory.WasteLog WHERE Reason LIKE N'HĐ:%')
+BEGIN
+    DECLARE @now3 DATETIME2 = SYSUTCDATETIME();
+    INSERT INTO inventory.WasteLog(BranchId, IngredientId, Quantity, WasteType, Reason, LoggedBy, LoggedAt, Status)
+    SELECT b.BranchId, i.IngredientId, w.Qty, w.WType,
+           N'HĐ: ' + w.Reason,
+           (SELECT TOP (1) u.UserId FROM iam.[User] u
+              JOIN iam.Role r ON r.RoleId = u.RoleId
+             WHERE u.BranchId = b.BranchId AND r.Code = 'BARISTA' ORDER BY u.UserId),
+           DATEADD(DAY, -w.DayBack, @now3), 'ACTIVE'
+      FROM org.Branch b
+      CROSS JOIN (VALUES
+            (N'Sữa tươi',   450, 'EXPIRED', N'Sữa mở hộp quá 24 giờ, huỷ theo quy định vệ sinh',  1),
+            (N'Sữa tươi',   300, 'SPILL',   N'Đổ ca sữa khi chuyển bình',                          3),
+            (N'Cà phê hạt', 120, 'REMAKE',  N'Pha lại 2 ly latte do khách báo nhạt',               2),
+            (N'Đá',        2000, 'EXPIRED', N'Máy đá hỏng qua đêm, đá tan phải bỏ',                4),
+            (N'Đào ngâm',   250, 'EXPIRED', N'Hộp đào mở quá 3 ngày',                              5),
+            (N'Trà đen',     80, 'SPILL',   N'Rơi vãi khi cân định lượng',                         6),
+            (N'Sữa đặc',    150, 'OTHER',   N'Lon móp khi nhập, không dùng được',                  7),
+            (N'Vải ngâm',   200, 'EXPIRED', N'Quá hạn sử dụng sau khi mở nắp',                     8)
+        ) AS w(IngName, Qty, WType, Reason, DayBack)
+      JOIN catalog.Ingredient i ON i.Name = w.IngName
+     WHERE b.IsActive = 1
+       AND b.BranchId <> (SELECT MIN(BranchId) FROM org.Branch WHERE IsActive = 1);
+
+    -- Sổ cái phải phản ánh hao hụt, nếu không tồn kho sẽ cao hơn thực tế.
+    INSERT INTO inventory.InventoryTransaction(BranchId, IngredientId, ChangeQty, TxnType, RefTable, RefId, CreatedBy, CreatedAt)
+    SELECT wl.BranchId, wl.IngredientId, -wl.Quantity, 'WASTE', 'WasteLog', wl.WasteLogId, wl.LoggedBy, wl.LoggedAt
+      FROM inventory.WasteLog wl
+     WHERE wl.Reason LIKE N'HĐ:%';
+END
+GO
+
+/* ---------------------------------------------------------------------------
+   6) CHỐT TỒN KHO = Σ SỔ CÁI
+   Bắt buộc chạy cuối: mọi bước trên đều ghi InventoryTransaction, còn
+   BranchInventory chỉ là số dư cache. Giữ nguyên quy ước ngưỡng của seed —
+   đồ PHA SẴN cố ý để dưới ngưỡng nhằm demo được cảnh báo sắp hết.
+   --------------------------------------------------------------------------- */
+PRINT N'[6] Chốt tồn kho từ sổ cái...';
+
+DELETE FROM inventory.BranchInventory;
+INSERT INTO inventory.BranchInventory(BranchId, IngredientId, QuantityOnHand, MinThreshold, UpdatedAt)
+SELECT BranchId, IngredientId, SUM(ChangeQty), 0, SYSUTCDATETIME()
+  FROM inventory.InventoryTransaction
+ GROUP BY BranchId, IngredientId;
+
+UPDATE inventory.BranchInventory SET MinThreshold = 3000;
+
+UPDATE bi SET MinThreshold = bi.QuantityOnHand + 3000
+  FROM inventory.BranchInventory bi
+  JOIN catalog.Ingredient i ON i.IngredientId = bi.IngredientId
+ WHERE i.IngredientType = 'PREPPED';
+
+UPDATE bi SET PrepTargetQty = bi.QuantityOnHand + 5000
+  FROM inventory.BranchInventory bi
+  JOIN catalog.Ingredient i ON i.IngredientId = bi.IngredientId
+ WHERE i.IngredientType = 'PREPPED';
+GO
+
+/* ---------------------------------------------------------------------------
+   7) ẢNH MÓN DÙNG FILE TRONG REPO, KHÔNG HOTLINK
+   Seed để ImageUrl trỏ thẳng Unsplash. Lúc bảo vệ mà phòng máy mất mạng hoặc wifi
+   chậm là 15 ảnh trắng cùng lúc. Ảnh đã tải sẵn vào assets/img/products/p<id>.jpg
+   và đi kèm repo, nên trỏ về đường dẫn nội bộ để không phụ thuộc internet.
+   JSP tự nối contextPath cho đường dẫn không bắt đầu bằng http.
+   --------------------------------------------------------------------------- */
+PRINT N'[7] Ảnh món → file nội bộ...';
+
+UPDATE catalog.Product
+   SET ImageUrl = '/assets/img/products/p' + CAST(ProductId AS VARCHAR(10)) + '.jpg'
+ WHERE ImageUrl LIKE 'http%';
+GO
+
+PRINT N'=== XONG. Kiểm tra nhanh: ===';
+SELECT N'Bàn chưa trống'     = (SELECT COUNT(*) FROM sales.DiningTable  WHERE Status <> 'EMPTY'),
+       N'Phiên còn mở'       = (SELECT COUNT(*) FROM sales.TableSession WHERE Status = 'OPEN'),
+       N'Món treo trong KDS' = (SELECT COUNT(*) FROM sales.OrderItem    WHERE Status IN ('WAITING','MAKING','READY')),
+       N'Ca thu ngân đang mở'= (SELECT COUNT(*) FROM payment.CashierShift WHERE ClosedAt IS NULL),
+       N'Nhà cung cấp'       = (SELECT COUNT(*) FROM inventory.Supplier),
+       N'Phiếu nhập'         = (SELECT COUNT(*) FROM inventory.StockReceipt),
+       N'Mẻ pha sẵn'         = (SELECT COUNT(*) FROM inventory.PrepBatch),
+       N'Dòng hao hụt'       = (SELECT COUNT(*) FROM inventory.WasteLog),
+       N'Tồn <= 0'           = (SELECT COUNT(*) FROM inventory.BranchInventory WHERE QuantityOnHand <= 0),
+       N'Ảnh còn hotlink'    = (SELECT COUNT(*) FROM catalog.Product WHERE ImageUrl LIKE 'http%');
+GO
+GO
+SET NOEXEC OFF;
+GO
+
+
+/* ===========================================================================
+   PART 11. DỮ LIỆU DEMO MÀN ADMIN (CN04–CN08)
+   ---------------------------------------------------------------------------
+   Gộp từ sql/admin-demo-data.sql (nhánh hoangg). Bật bằng @AdminDemoData = 1.
+   CẢNH BÁO BẤT BIẾN: MERGE cuối khối ghi thẳng QuantityOnHand/MinThreshold vào
+   inventory.BranchInventory mà KHÔNG sinh inventory.InventoryTransaction tương
+   ứng. Sau khi chạy, 'tồn = Σ sổ cái' KHÔNG còn đúng và màn đối soát kho của
+   Manager sẽ báo lệch. Chỉ dùng cho DB demo riêng của màn Admin.
+   =========================================================================== */
+GO
+-- Đóng vùng NOEXEC của phần trước để khối này tự quyết định chạy hay không.
+SET NOEXEC OFF;
+GO
+
+IF CONVERT(BIT, SESSION_CONTEXT(N'CafeChainAdminDemoData')) <> 1
+BEGIN
+    PRINT N'Bỏ qua DỮ LIỆU DEMO MÀN ADMIN (CN04–CN08) (cờ tắt).';
+    SET NOEXEC ON;
+END
+GO
+
+USE CafeChain;
+GO
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+
+BEGIN TRAN;
+
+DECLARE @now DATETIME2 = SYSUTCDATETIME();
+
+MERGE org.Branch AS t
+USING (VALUES
+    ('CN04', N'Chi nhánh Phú Nhuận', N'128 Phan Xích Long, Phường 7, Quận Phú Nhuận', '02839990004', '07:00', '22:00'),
+    ('CN05', N'Chi nhánh Tân Bình', N'62 Trường Sơn, Phường 2, Quận Tân Bình', '02839990005', '06:30', '22:30'),
+    ('CN06', N'Chi nhánh Bình Thạnh', N'210 Nguyễn Gia Trí, Phường 25, Quận Bình Thạnh', '02839990006', '07:00', '23:00'),
+    ('CN07', N'Chi nhánh Quận 7', N'45 Nguyễn Thị Thập, Phường Tân Phú, Quận 7', '02839990007', '07:00', '22:00'),
+    ('CN08', N'Chi nhánh Gò Vấp', N'19 Quang Trung, Phường 10, Quận Gò Vấp', '02839990008', '06:30', '22:00')
+) AS s(Code, Name, Address, Phone, OpenTime, CloseTime)
+ON t.Code = s.Code
+WHEN MATCHED THEN UPDATE SET
+    Name = s.Name,
+    Address = s.Address,
+    Phone = s.Phone,
+    OpenTime = CONVERT(time, s.OpenTime),
+    CloseTime = CONVERT(time, s.CloseTime),
+    IsActive = 1
+WHEN NOT MATCHED THEN
+    INSERT (Code, Name, Address, Phone, OpenTime, CloseTime, IsActive)
+    VALUES (s.Code, s.Name, s.Address, s.Phone, CONVERT(time, s.OpenTime), CONVERT(time, s.CloseTime), 1);
+
+MERGE catalog.Category AS t
+USING (VALUES
+    (N'Nước ép', 5),
+    (N'Sinh tố', 6),
+    (N'Trà sữa', 7),
+    (N'Đồ ăn nhẹ', 8),
+    (N'Cà phê đặc sản', 9)
+) AS s(Name, SortOrder)
+ON t.Name = s.Name
+WHEN MATCHED THEN UPDATE SET SortOrder = s.SortOrder, IsActive = 1
+WHEN NOT MATCHED THEN
+    INSERT (Name, SortOrder, IsActive) VALUES (s.Name, s.SortOrder, 1);
+
+MERGE catalog.Ingredient AS t
+USING (VALUES
+    (N'Hạt arabica rang mộc', N'g', 'RAW'),
+    (N'Hạt robusta rang đậm', N'g', 'RAW'),
+    (N'Sữa yến mạch', N'ml', 'RAW'),
+    (N'Nước cam vắt', N'ml', 'RAW'),
+    (N'Xoài chín', N'g', 'RAW'),
+    (N'Dâu tây', N'g', 'RAW'),
+    (N'Trà ô long', N'g', 'RAW'),
+    (N'Trân châu khô', N'g', 'RAW'),
+    (N'Phô mai kem', N'g', 'RAW'),
+    (N'Bột cacao', N'g', 'RAW'),
+    (N'Nền cold brew', N'ml', 'PREPPED'),
+    (N'Siro đào nhà làm', N'ml', 'PREPPED'),
+    (N'Sốt caramel', N'ml', 'PREPPED'),
+    (N'Kem cheese', N'g', 'PREPPED'),
+    (N'Trân châu đen', N'g', 'PREPPED'),
+    (N'Thạch cà phê', N'g', 'PREPPED')
+) AS s(Name, Unit, IngredientType)
+ON t.Name = s.Name
+WHEN MATCHED THEN UPDATE SET Unit = s.Unit, IngredientType = s.IngredientType, IsActive = 1
+WHEN NOT MATCHED THEN
+    INSERT (Name, Unit, IngredientType, IsActive) VALUES (s.Name, s.Unit, s.IngredientType, 1);
+
+DECLARE @products TABLE (
+    CategoryName NVARCHAR(100),
+    ProductName NVARCHAR(150),
+    BasePrice DECIMAL(12,2),
+    PrepSeconds INT
+);
+
+INSERT INTO @products(CategoryName, ProductName, BasePrice, PrepSeconds) VALUES
+    (N'Cà phê đặc sản', N'Espresso nóng', 30000, 240),
+    (N'Cà phê đặc sản', N'Cappuccino nóng', 46000, 480),
+    (N'Cà phê đặc sản', N'Cold Brew cam vàng', 52000, 360),
+    (N'Nước ép', N'Nước ép cam tươi', 45000, 300),
+    (N'Nước ép', N'Nước ép dâu xoài', 49000, 360),
+    (N'Sinh tố', N'Sinh tố xoài sữa', 52000, 420),
+    (N'Trà sữa', N'Trà sữa ô long kem cheese', 56000, 420),
+    (N'Trà sữa', N'Trà sữa trân châu đen', 50000, 360),
+    (N'Đồ ăn nhẹ', N'Bánh mì bơ tỏi', 32000, 240),
+    (N'Đồ ăn nhẹ', N'Bánh phô mai nướng', 39000, 300);
+
+MERGE catalog.Product AS t
+USING (
+    SELECT c.CategoryId, p.ProductName, p.BasePrice, p.PrepSeconds
+    FROM @products p
+    JOIN catalog.Category c ON c.Name = p.CategoryName
+) AS s
+ON t.Name = s.ProductName
+WHEN MATCHED THEN UPDATE SET
+    CategoryId = s.CategoryId,
+    BasePrice = s.BasePrice,
+    PrepSeconds = s.PrepSeconds,
+    ImageUrl = '/assets/img/login-hero.svg',
+    IsActive = 1,
+    ShowOnHome = 1
+WHEN NOT MATCHED THEN
+    INSERT (CategoryId, Name, BasePrice, ImageUrl, IsActive, ShowOnHome, PrepSeconds)
+    VALUES (s.CategoryId, s.ProductName, s.BasePrice, '/assets/img/login-hero.svg', 1, 1, s.PrepSeconds);
+
+DECLARE @prep TABLE (Prepped NVARCHAR(120), RawName NVARCHAR(120), Quantity DECIMAL(12,3), YieldQty DECIMAL(12,3));
+INSERT INTO @prep(Prepped, RawName, Quantity, YieldQty) VALUES
+    (N'Nền cold brew', N'Hạt arabica rang mộc', 500, 2500),
+    (N'Siro đào nhà làm', N'Đường', 600, 1800),
+    (N'Sốt caramel', N'Đường', 700, 1600),
+    (N'Kem cheese', N'Phô mai kem', 800, 1400),
+    (N'Trân châu đen', N'Trân châu khô', 1000, 1800),
+    (N'Thạch cà phê', N'Bột cacao', 400, 1600);
+
+MERGE catalog.PrepRecipe AS t
+USING (
+    SELECT pre.IngredientId AS PreppedIngredientId,
+           raw.IngredientId AS RawIngredientId,
+           p.Quantity,
+           p.YieldQty
+    FROM @prep p
+    JOIN catalog.Ingredient pre ON pre.Name = p.Prepped
+    JOIN catalog.Ingredient raw ON raw.Name = p.RawName
+) AS s
+ON t.PreppedIngredientId = s.PreppedIngredientId AND t.RawIngredientId = s.RawIngredientId
+WHEN MATCHED THEN UPDATE SET Quantity = s.Quantity, YieldQty = s.YieldQty
+WHEN NOT MATCHED THEN
+    INSERT (PreppedIngredientId, RawIngredientId, Quantity, YieldQty)
+    VALUES (s.PreppedIngredientId, s.RawIngredientId, s.Quantity, s.YieldQty);
+
+DECLARE @recipes TABLE (ProductName NVARCHAR(150), IngredientName NVARCHAR(120), Quantity DECIMAL(12,3));
+INSERT INTO @recipes(ProductName, IngredientName, Quantity) VALUES
+    (N'Espresso nóng', N'Hạt arabica rang mộc', 18),
+    (N'Cappuccino nóng', N'Hạt arabica rang mộc', 18),
+    (N'Cappuccino nóng', N'Sữa tươi', 140),
+    (N'Cold Brew cam vàng', N'Nền cold brew', 180),
+    (N'Cold Brew cam vàng', N'Nước cam vắt', 60),
+    (N'Nước ép cam tươi', N'Nước cam vắt', 220),
+    (N'Nước ép dâu xoài', N'Dâu tây', 80),
+    (N'Nước ép dâu xoài', N'Xoài chín', 120),
+    (N'Sinh tố xoài sữa', N'Xoài chín', 160),
+    (N'Sinh tố xoài sữa', N'Sữa tươi', 120),
+    (N'Trà sữa ô long kem cheese', N'Trà ô long', 8),
+    (N'Trà sữa ô long kem cheese', N'Kem cheese', 45),
+    (N'Trà sữa trân châu đen', N'Trà ô long', 8),
+    (N'Trà sữa trân châu đen', N'Trân châu đen', 60),
+    (N'Bánh mì bơ tỏi', N'Bánh croissant', 1),
+    (N'Bánh phô mai nướng', N'Phô mai kem', 35);
+
+MERGE catalog.ProductRecipe AS t
+USING (
+    SELECT p.ProductId, i.IngredientId, r.Quantity
+    FROM @recipes r
+    JOIN catalog.Product p ON p.Name = r.ProductName
+    JOIN catalog.Ingredient i ON i.Name = r.IngredientName
+) AS s
+ON t.ProductId = s.ProductId AND t.IngredientId = s.IngredientId
+WHEN MATCHED THEN UPDATE SET Quantity = s.Quantity
+WHEN NOT MATCHED THEN
+    INSERT (ProductId, IngredientId, Quantity) VALUES (s.ProductId, s.IngredientId, s.Quantity);
+
+MERGE catalog.BranchMenu AS t
+USING (
+    SELECT b.BranchId, p.ProductId
+    FROM org.Branch b
+    CROSS JOIN catalog.Product p
+    WHERE b.IsActive = 1 AND p.IsActive = 1
+) AS s
+ON t.BranchId = s.BranchId AND t.ProductId = s.ProductId
+WHEN MATCHED THEN UPDATE SET IsAvailable = 1, Is86 = 0
+WHEN NOT MATCHED THEN
+    INSERT (BranchId, ProductId, IsAvailable, Is86) VALUES (s.BranchId, s.ProductId, 1, 0);
+
+MERGE payment.Voucher AS t
+USING (VALUES
+    ('MORNING15', 'PERCENT', 15, 45000, 'CHAIN', NULL, DATEADD(DAY, -10, @now), DATEADD(DAY, 20, @now), 300, 1),
+    ('FAMILY30K', 'FIXED', 30000, 150000, 'CHAIN', NULL, DATEADD(DAY, -5, @now), DATEADD(DAY, 45, @now), 120, 1),
+    ('WEEKEND12', 'PERCENT', 12, 60000, 'CHAIN', NULL, DATEADD(DAY, 2, @now), DATEADD(DAY, 30, @now), 200, 1),
+    ('SAIGON25', 'PERCENT', 25, 100000, 'CHAIN', NULL, DATEADD(DAY, -20, @now), DATEADD(DAY, -1, @now), 50, 1),
+    ('DANANG20K', 'FIXED', 20000, 90000, 'CHAIN', NULL, DATEADD(DAY, 7, @now), DATEADD(DAY, 60, @now), 90, 1),
+    ('BRANCHQ7', 'PERCENT', 18, 70000, 'BRANCH', (SELECT BranchId FROM org.Branch WHERE Code = 'CN07'), DATEADD(DAY, -1, @now), DATEADD(DAY, 25, @now), 80, 1),
+    ('LATTE5K', 'FIXED', 5000, 35000, 'CHAIN', NULL, DATEADD(DAY, -30, @now), DATEADD(DAY, 10, @now), 500, 1),
+    ('SUNSET10', 'PERCENT', 10, 50000, 'CHAIN', NULL, DATEADD(DAY, -60, @now), DATEADD(DAY, -5, @now), 100, 1),
+    ('COLDBREW12', 'FIXED', 12000, 65000, 'CHAIN', NULL, DATEADD(DAY, -2, @now), DATEADD(DAY, 28, @now), 160, 1)
+) AS s(Code, DiscountType, DiscountValue, MinOrderAmount, Scope, BranchId, StartDate, EndDate, UsageLimit, IsActive)
+ON t.Code = s.Code
+WHEN MATCHED THEN UPDATE SET
+    DiscountType = s.DiscountType,
+    DiscountValue = s.DiscountValue,
+    MinOrderAmount = s.MinOrderAmount,
+    Scope = s.Scope,
+    BranchId = s.BranchId,
+    StartDate = s.StartDate,
+    EndDate = s.EndDate,
+    UsageLimit = s.UsageLimit,
+    IsActive = s.IsActive
+WHEN NOT MATCHED THEN
+    INSERT (Code, DiscountType, DiscountValue, MinOrderAmount, Scope, BranchId, StartDate, EndDate, UsageLimit, IsActive)
+    VALUES (s.Code, s.DiscountType, s.DiscountValue, s.MinOrderAmount, s.Scope, s.BranchId, s.StartDate, s.EndDate, s.UsageLimit, s.IsActive);
+
+MERGE inventory.BranchInventory AS t
+USING (
+    SELECT b.BranchId, i.IngredientId,
+           CASE i.IngredientType WHEN 'PREPPED' THEN 1200 ELSE 5000 END AS QuantityOnHand,
+           CASE i.IngredientType WHEN 'PREPPED' THEN 200 ELSE 500 END AS MinThreshold
+    FROM org.Branch b
+    CROSS JOIN catalog.Ingredient i
+    WHERE b.IsActive = 1 AND i.IsActive = 1
+) AS s
+ON t.BranchId = s.BranchId AND t.IngredientId = s.IngredientId
+WHEN MATCHED THEN UPDATE SET QuantityOnHand = s.QuantityOnHand, MinThreshold = s.MinThreshold, UpdatedAt = @now
+WHEN NOT MATCHED THEN
+    INSERT (BranchId, IngredientId, QuantityOnHand, MinThreshold, UpdatedAt)
+    VALUES (s.BranchId, s.IngredientId, s.QuantityOnHand, s.MinThreshold, @now);
+
+COMMIT TRAN;
+
+SELECT N'Nhân sự' AS ScreenName, COUNT(*) AS Total FROM iam.[User]
+UNION ALL SELECT N'Chi nhánh', COUNT(*) FROM org.Branch
+UNION ALL SELECT N'Danh mục', COUNT(*) FROM catalog.Category
+UNION ALL SELECT N'Sản phẩm', COUNT(*) FROM catalog.Product
+UNION ALL SELECT N'Nguyên liệu', COUNT(*) FROM catalog.Ingredient
+UNION ALL SELECT N'Công thức món', COUNT(DISTINCT ProductId) FROM catalog.ProductRecipe
+UNION ALL SELECT N'Công thức pha sẵn', COUNT(DISTINCT PreppedIngredientId) FROM catalog.PrepRecipe
+UNION ALL SELECT N'Voucher', COUNT(*) FROM payment.Voucher
+UNION ALL SELECT N'Menu chi nhánh', COUNT(*) FROM catalog.BranchMenu;
+GO
+GO
+SET NOEXEC OFF;
+GO

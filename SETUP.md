@@ -35,7 +35,18 @@
 
 Mở **SSMS** → mở file `sql/database.sql` → **Execute** (F5). Đây là **file SQL duy nhất** của dự án.
 
-Mặc định script chỉ tạo hoặc nâng cấp schema (an toàn cho DB hiện hữu), đồng thời áp dụng mọi migration còn thiếu. Khi dựng DB demo mới, đổi dòng `DECLARE @SeedDemo BIT = 0;` ở đầu file thành `1`, rồi Execute toàn bộ file. Khi bật demo, script tạo catalog 15 món, dữ liệu vận hành, demo hao hụt và bộ KDS size/modifier ZT1–ZT4.
+Mặc định script chỉ tạo hoặc nâng cấp schema (an toàn cho DB hiện hữu), đồng thời áp dụng mọi migration còn thiếu.
+
+Toàn bộ dữ liệu mẫu nằm trong chính file này, sau **4 cờ ở đầu file — mặc định đều là `0`**. Muốn bơm dữ liệu nào thì đổi cờ tương ứng thành `1` rồi Execute lại:
+
+| Cờ | Phần | Nội dung | Lưu ý |
+|---|---|---|---|
+| `@SeedDemo` | PART 8 | 4 role, 3 chi nhánh, catalog 15 món, 31 ngày lịch sử bán, story hôm nay, demo hao hụt, KDS ZT1–ZT4 | Chỉ chạy khi DB **chưa có role nào** |
+| `@FixtureBarista` | PART 9 | Dữ liệu đối chiếu role Barista ở CN01 | Ghi đè xếp ca hôm nay của barista1/2/4 |
+| `@FixtureDemo` | PART 10 | Dữ liệu buổi bảo vệ, dọn sạch KDS/bàn | **Xoá và dựng lại `BranchInventory`** — chỉ dùng trên DB mới, chạy kèm `@SeedDemo = 1` |
+| `@AdminDemoData` | PART 11 | CN04–CN08 + danh mục/sản phẩm/voucher demo màn Admin | **Phá bất biến "tồn = Σ sổ cái"** (ghi tồn không kèm `InventoryTransaction`) — chỉ dùng cho DB demo riêng |
+
+Deploy bình thường: **giữ nguyên cả 4 số `0`**, cứ Execute là an toàn với dữ liệu đang có.
 
 ---
 
