@@ -10,6 +10,9 @@ public class PosMenuItem {
     private String name;
     private BigDecimal price;          // localPrice nếu có, ngược lại basePrice
     private String imageUrl;           // ảnh sản phẩm
+    private String availabilityState = ProductStockStatus.AVAILABLE;
+    private String stockMessage;
+    private boolean orderable = true;
     private List<Group> groups = new ArrayList<>();
 
     public int getProductId() { return productId; }
@@ -23,6 +26,17 @@ public class PosMenuItem {
 
     public BigDecimal getPrice() { return price; }
     public void setPrice(BigDecimal v) { this.price = v; }
+
+    public String getAvailabilityState() { return availabilityState; }
+    public void setAvailabilityState(String v) {
+        this.availabilityState = v == null ? ProductStockStatus.AVAILABLE : v;
+    }
+
+    public String getStockMessage() { return stockMessage; }
+    public void setStockMessage(String v) { this.stockMessage = v; }
+
+    public boolean isOrderable() { return orderable; }
+    public void setOrderable(boolean v) { this.orderable = v; }
 
     public List<Group> getGroups() { return groups; }
     public void setGroups(List<Group> v) { this.groups = v; }

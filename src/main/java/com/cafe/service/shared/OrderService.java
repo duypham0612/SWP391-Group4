@@ -3,6 +3,7 @@ package com.cafe.service.shared;
 import com.cafe.common.EventPublisher;
 import com.cafe.common.EventType;
 import com.cafe.common.BusinessException;
+import com.cafe.common.ItemUnavailableException;
 import com.cafe.config.DBConnection;
 import com.cafe.dao.cashier.BillDao;
 import com.cafe.dao.cashier.BillItemDao;
@@ -25,6 +26,7 @@ import com.cafe.model.PickupTicket;
 import com.cafe.model.ProductRecipe;
 import com.cafe.model.ProductModifierGroup;
 import com.cafe.model.StockAdjustment;
+import com.cafe.model.ProductStockStatus;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -84,7 +86,8 @@ public class OrderService {
      */
     public int placeOrder(int branchId, Integer sessionId, String source, String orderType,
                           Integer createdBy, List<CartLine> lines) throws SQLException {
-        if (lines == null || lines.isEmpty()) throw new IllegalArgumentException("Đơn rỗng");
+        // Guard cuối dùng chung: cả POS, QR và mọi caller khác đều không thể vượt 20 món cùng loại.
+        OrderQuantityValidator.validate(lines);
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
             try {
@@ -103,7 +106,8 @@ public class OrderService {
                     if (!bm.isAvailable()) unavailableProduct.add(bm.getProductId());
                 }
                 // Hết theo kho (bản chất 1): chặn đặt món có nguyên liệu tồn ≤ 0, độc lập với cờ 86 thủ công.
-                java.util.Set<Integer> depletedProduct = productRecipeDao.findDepletedProductIds(conn, branchId);
+                Map<Integer, ProductStockStatus> stockByProduct =
+                        productRecipeDao.findProductStockStatuses(conn, branchId);
 
                 Order o = new Order();
                 o.setBranchId(branchId);
@@ -132,17 +136,22 @@ public class OrderService {
                     // trước đó vẫn giữ món trong giỏ — phải chặn lại ở tầng ghi giống cờ 86.
                     if (unavailableProduct.contains(line.productId)) {
                         String nm = nameByProduct.getOrDefault(line.productId, "#" + line.productId);
-                        throw new IllegalArgumentException("Món \"" + nm + "\" đã ngừng bán — vui lòng bỏ khỏi đơn.");
+                        throw new ItemUnavailableException(line.productId, nm, "DISABLED",
+                                "Món \"" + nm + "\" đã ngừng bán — vui lòng bỏ khỏi đơn.");
                     }
                     // Chặn oversell tại nguồn: món đang 86 (hết) thì không cho vào đơn (Contract #3 — cashier sở hữu order entry).
                     if (Boolean.TRUE.equals(is86ByProduct.get(line.productId))) {
                         String nm = nameByProduct.getOrDefault(line.productId, "#" + line.productId);
-                        throw new IllegalArgumentException("Món \"" + nm + "\" đang hết (86) — vui lòng bỏ khỏi đơn.");
+                        throw new ItemUnavailableException(line.productId, nm, "EIGHTY_SIX",
+                                "Món \"" + nm + "\" đang tạm ngừng bán — vui lòng bỏ khỏi đơn.");
                     }
                     // Hết theo kho: nguyên liệu tồn ≤ 0 → chặn đặt, chờ nhập/pha lại (tự có lại khi tồn > 0).
-                    if (depletedProduct.contains(line.productId)) {
+                    ProductStockStatus stock = stockByProduct.get(line.productId);
+                    if (stock != null && stock.isOut()) {
                         String nm = nameByProduct.getOrDefault(line.productId, "#" + line.productId);
-                        throw new IllegalArgumentException("Món \"" + nm + "\" tạm hết nguyên liệu — vui lòng bỏ khỏi đơn.");
+                        throw new ItemUnavailableException(line.productId, nm, ProductStockStatus.OUT,
+                                "Món \"" + nm + "\" đã hết nguyên liệu (" + stock.getMessage()
+                                        + ") — vui lòng chọn món khác.");
                     }
 
                     List<Integer> optionIds = validateOptions(conn, line.productId, line.optionIds);
@@ -770,20 +779,61 @@ public class OrderService {
      * Mỗi món PICKED_UP→SERVED nguyên tử; món đã bị đổi/khác chi nhánh bị bỏ qua.
      */
     public int serveAllReady(int orderId, Integer userId, int sessionBranchId) throws SQLException {
+        if (userId == null || orderId <= 0) return 0;
         return tx(conn -> {
             int done = 0;
-            Integer branchId = null;
-            for (OrderItem it : itemDao.findByOrder(conn, orderId)) {
+            for (OrderItem it : itemDao.findByOrders(conn, List.of(orderId))) {
                 if (!"PICKED_UP".equals(it.getStatus())) continue;
                 int rows = itemDao.updateStatusIf(conn, it.getOrderItemId(), "SERVED",
                         new String[]{"PICKED_UP"}, sessionBranchId, false, false, true, false);
-                if (rows == 0) continue;   // đổi bởi người khác / khác chi nhánh
-                branchId = branchOf(it);
-                actionDao.insert(conn, it.getOrderItemId(), branchId, "SERVE", "PICKED_UP", "SERVED", null, userId);
+                if (rows == 0) continue;
+                int branchId = branchOf(it);
+                actionDao.insert(conn, it.getOrderItemId(), branchId, "SERVE",
+                        "PICKED_UP", "SERVED", null, userId);
                 publishStatus(conn, it, "SERVED");
                 done++;
             }
-            if (branchId != null) completeOrderIfDone(conn, orderId, branchId);
+            if (done > 0) completeOrderIfDone(conn, orderId, sessionBranchId);
+            return done;
+        });
+    }
+
+    /**
+     * Giao tất cả món PICKED_UP của một hay nhiều đơn thuộc cùng nhóm bàn, trong một transaction.
+     * Danh sách orderId từ client chỉ là gợi ý; updateStatusIf vẫn khóa đúng chi nhánh và trạng thái.
+     */
+    public int serveAllPickedUp(List<Integer> orderIds, String tableNumber,
+                                Integer userId, int sessionBranchId)
+            throws SQLException {
+        if (userId == null || orderIds == null || orderIds.isEmpty()
+                || tableNumber == null || tableNumber.isBlank()) return 0;
+        String expectedTable = tableNumber.trim();
+        List<Integer> safeOrderIds = orderIds.stream()
+                .filter(java.util.Objects::nonNull)
+                .filter(id -> id > 0)
+                .distinct()
+                .limit(50)
+                .toList();
+        if (safeOrderIds.isEmpty()) return 0;
+        return tx(conn -> {
+            int done = 0;
+            java.util.Set<Integer> affectedOrders = new java.util.LinkedHashSet<>();
+            for (OrderItem it : itemDao.findByOrders(conn, safeOrderIds)) {
+                if (!"PICKED_UP".equals(it.getStatus())) continue;
+                if (it.getTableNumber() == null
+                        || !expectedTable.equalsIgnoreCase(it.getTableNumber().trim())) continue;
+                int rows = itemDao.updateStatusIf(conn, it.getOrderItemId(), "SERVED",
+                        new String[]{"PICKED_UP"}, sessionBranchId, false, false, true, false);
+                if (rows == 0) continue;   // đổi bởi người khác / khác chi nhánh
+                int branchId = branchOf(it);
+                actionDao.insert(conn, it.getOrderItemId(), branchId, "SERVE", "PICKED_UP", "SERVED", null, userId);
+                publishStatus(conn, it, "SERVED");
+                affectedOrders.add(it.getOrderId());
+                done++;
+            }
+            for (Integer orderId : affectedOrders) {
+                completeOrderIfDone(conn, orderId, sessionBranchId);
+            }
             return done;
         });
     }
