@@ -6,7 +6,7 @@
 <div class="page-header">
     <div>
         <h1>Công thức pha sẵn: ${prepped.name}</h1>
-        <p>Nguyên liệu và định mức cho một ${prepped.unit} thành phẩm.</p>
+        <p>Nguyên liệu thô cho một mẻ và sản lượng ${prepped.unit} thu được.</p>
     </div>
     <a class="btn btn-ghost" href="${ctx}/admin/recipe">← Chọn nguyên liệu khác</a>
 </div>
@@ -14,6 +14,22 @@
 <c:if test="${not empty errorMsg}">
     <div class="alert alert-error"><c:out value="${errorMsg}"/></div>
 </c:if>
+
+<div class="card form-card" style="margin-bottom:18px">
+    <form action="${ctx}/admin/recipe" method="post"
+          style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
+        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+        <input type="hidden" name="action" value="updatePrepYield">
+        <input type="hidden" name="preppedId" value="${prepped.ingredientId}">
+        <div class="form-group" style="margin:0">
+            <label for="yieldQty">Sản lượng một mẻ (${prepped.unit})</label>
+            <input id="yieldQty" type="number" name="yieldQty" class="form-control"
+                   min="0.001" max="999999999.999" step="0.001"
+                   value="${view.plain(prepRecipe.yieldQty)}" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Lưu sản lượng</button>
+    </form>
+</div>
 <c:if test="${not empty sessionScope.flashError}">
     <div class="alert alert-error"><c:out value="${sessionScope.flashError}"/></div>
     <c:remove var="flashError" scope="session" />
@@ -24,6 +40,9 @@
 </c:if>
 
 <c:choose>
+    <c:when test="${empty prepRecipe}">
+        <div class="alert alert-info">Hãy lưu sản lượng một mẻ trước khi thêm nguyên liệu thô.</div>
+    </c:when>
     <c:when test="${empty rawIngredients}">
         <div class="alert alert-info">Tất cả nguyên liệu thô đang hoạt động đã có trong công thức.</div>
     </c:when>
@@ -37,6 +56,7 @@
                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                 <input type="hidden" name="action" value="addPrepLines">
                 <input type="hidden" name="preppedId" value="${prepped.ingredientId}">
+                <input type="hidden" name="yieldQty" value="${view.plain(prepRecipe.yieldQty)}">
                 <div class="table-wrap">
                     <table class="table recipe-draft-table">
                         <thead>
@@ -103,10 +123,10 @@
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                 <input type="hidden" name="action" value="updatePrepLine">
                                 <input type="hidden" name="preppedId" value="${prepped.ingredientId}">
-                                <input type="hidden" name="lineId" value="${line.prepRecipeId}">
+                                <input type="hidden" name="lineId" value="${line.prepRecipeIngredientId}">
                                 <input type="number" name="quantity" class="form-control"
                                        style="width:120px" min="2" max="999999999"
-                                       step="1" value="${line.quantityIntegerDisplay}" required>
+                                       step="1" value="${view.integer(line.quantity)}" required>
                                 <span class="muted">${line.rawIngredientUnit}/${prepped.unit}</span>
                                 <button type="submit" class="btn btn-ghost btn-sm">Lưu</button>
                             </form>
@@ -117,7 +137,7 @@
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                 <input type="hidden" name="action" value="deletePrepLine">
                                 <input type="hidden" name="preppedId" value="${prepped.ingredientId}">
-                                <input type="hidden" name="lineId" value="${line.prepRecipeId}">
+                                <input type="hidden" name="lineId" value="${line.prepRecipeIngredientId}">
                                 <button type="submit" class="btn btn-ghost btn-sm">Xóa</button>
                             </form>
                         </td>

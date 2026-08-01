@@ -2,6 +2,7 @@ package com.cafe.service.manager;
 
 import com.cafe.model.MonthlyAttendanceRow;
 import com.cafe.model.MonthlyWorkSummary;
+import com.cafe.web.viewmodel.ViewFormatter;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -59,8 +60,9 @@ class AttendanceMonthlySummaryTest {
         MonthlyAttendanceRow r = absent("PENDING");
         MonthlyWorkSummary s = AttendanceService.summarize(List.of(r));
 
-        assertEquals("Vắng", r.getStateLabel());
-        assertEquals("badge-served", r.getStateBadge());
+        ViewFormatter view = new ViewFormatter();
+        assertEquals("Vắng", view.attendanceState(r));
+        assertEquals("badge-served", view.attendanceBadge(r));
         assertEquals(1, s.getAbsentCount());
         assertEquals(0, s.getPendingHours());
     }

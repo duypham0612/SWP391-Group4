@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Truy vấn iam.[User]. DAO nhận Connection từ Service — không tự mở/đóng,
+ * Truy vấn iam.UserAccount. DAO nhận Connection từ Service — không tự mở/đóng,
  * không chứa nghiệp vụ.
  */
 public class UserDao {
@@ -22,7 +22,7 @@ public class UserDao {
         "       u.RoleId, u.BranchId, u.Status, " +
         "       r.Code AS RoleCode, r.Name AS RoleName, b.Name AS BranchName, " +
         "       b.IsActive AS BranchActive, b.ManagerUserId AS BranchManagerUserId " +
-        "FROM iam.[User] u " +
+        "FROM iam.UserAccount u " +
         "JOIN iam.Role r       ON u.RoleId = r.RoleId " +
         "LEFT JOIN org.Branch b ON u.BranchId = b.BranchId ";
 
@@ -38,7 +38,7 @@ public class UserDao {
 
     public List<User> findUsersWithoutRealHash(Connection conn) throws SQLException {
         // BCrypt hash thật dài đúng 60 ký tự; placeholder '$2a$placeholder' (15 ký tự) sẽ lọt vào đây.
-        final String sql = "SELECT UserId, PasswordHash FROM iam.[User] " +
+        final String sql = "SELECT UserId, PasswordHash FROM iam.UserAccount " +
                 "WHERE PasswordHash IS NULL OR LEN(PasswordHash) < 60";
         List<User> list = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql);
@@ -54,7 +54,7 @@ public class UserDao {
     }
 
     public void updatePassword(Connection conn, int userId, String hash) throws SQLException {
-        final String sql = "UPDATE iam.[User] SET PasswordHash = ? WHERE UserId = ?";
+        final String sql = "UPDATE iam.UserAccount SET PasswordHash = ? WHERE UserId = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, hash);
             ps.setInt(2, userId);
@@ -63,7 +63,7 @@ public class UserDao {
     }
 
     public void updateStatus(Connection conn, int userId, String status) throws SQLException {
-        final String sql = "UPDATE iam.[User] SET Status = ? WHERE UserId = ?";
+        final String sql = "UPDATE iam.UserAccount SET Status = ? WHERE UserId = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, status);
             ps.setInt(2, userId);
@@ -111,7 +111,7 @@ public class UserDao {
 
     public int countFiltered(Connection conn, Integer roleId, Integer branchId, String q) throws SQLException {
         StringBuilder sql = new StringBuilder(
-            "SELECT COUNT(*) FROM iam.[User] u " +
+            "SELECT COUNT(*) FROM iam.UserAccount u " +
             "JOIN iam.Role r ON u.RoleId = r.RoleId " +
             "LEFT JOIN org.Branch b ON u.BranchId = b.BranchId " +
             "WHERE 1=1");
@@ -142,8 +142,47 @@ public class UserDao {
         }
     }
 
+    /** Khóa user tới hết transaction khi cập nhật role/branch/trạng thái. */
+    public User findByIdForUpdate(Connection conn, int id) throws SQLException {
+        String lockedSelect = BASE_SELECT.replace(
+                "FROM iam.UserAccount u ",
+                "FROM iam.UserAccount u WITH (UPDLOCK, HOLDLOCK) ");
+        try (PreparedStatement ps = conn.prepareStatement(lockedSelect + "WHERE u.UserId = ?")) {
+            ps.setInt(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? map(rs) : null;
+            }
+        }
+    }
+
+    public boolean isActiveInBranch(Connection conn, int userId, int branchId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT 1 FROM iam.UserAccount WHERE UserId=? AND BranchId=? AND Status='ACTIVE'")) {
+            ps.setInt(1, userId);
+            ps.setInt(2, branchId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next(); }
+        }
+    }
+
+    /** Trả mã lý do chặn chuyển chi nhánh, null nếu có thể chuyển an toàn. */
+    public String findBranchTransferBlock(Connection conn, int userId) throws SQLException {
+        final String sql = "SELECT CASE " +
+                "WHEN EXISTS(SELECT 1 FROM org.Branch WHERE ManagerUserId=?) THEN 'MANAGER' " +
+                "WHEN EXISTS(SELECT 1 FROM payment.CashierShift WHERE CashierId=? AND ClosedAt IS NULL) THEN 'CASHIER_SHIFT' " +
+                "WHEN EXISTS(SELECT 1 FROM hr.Attendance a JOIN hr.ShiftAssignment sa " +
+                " ON sa.ShiftAssignmentId=a.ShiftAssignmentId WHERE sa.UserId=? " +
+                " AND a.CheckInAt IS NOT NULL AND a.CheckOutAt IS NULL) THEN 'ATTENDANCE' " +
+                "WHEN EXISTS(SELECT 1 FROM hr.ShiftAssignment WHERE UserId=? AND WorkDate>= " +
+                " CONVERT(date,DATEADD(hour,7,SYSUTCDATETIME()))) " +
+                "THEN 'FUTURE_SHIFT' ELSE NULL END";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (int i = 1; i <= 4; i++) ps.setInt(i, userId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getString(1) : null; }
+        }
+    }
+
     public boolean usernameExists(Connection conn, String username, int excludeId) throws SQLException {
-        final String sql = "SELECT 1 FROM iam.[User] WHERE Username = ? AND UserId <> ?";
+        final String sql = "SELECT 1 FROM iam.UserAccount WHERE Username = ? AND UserId <> ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, username);
             ps.setInt(2, excludeId);
@@ -152,7 +191,7 @@ public class UserDao {
     }
 
     public boolean emailExists(Connection conn, String email, int excludeId) throws SQLException {
-        final String sql = "SELECT 1 FROM iam.[User] WHERE LOWER(Email) = LOWER(?) AND UserId <> ?";
+        final String sql = "SELECT 1 FROM iam.UserAccount WHERE LOWER(Email) = LOWER(?) AND UserId <> ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, email);
             ps.setInt(2, excludeId);
@@ -161,7 +200,7 @@ public class UserDao {
     }
 
     public boolean phoneExists(Connection conn, String phone, int excludeId) throws SQLException {
-        final String sql = "SELECT 1 FROM iam.[User] WHERE Phone = ? AND UserId <> ?";
+        final String sql = "SELECT 1 FROM iam.UserAccount WHERE Phone = ? AND UserId <> ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, phone);
             ps.setInt(2, excludeId);
@@ -181,7 +220,7 @@ public class UserDao {
     }
 
     public int insert(Connection conn, User u, String passwordHash) throws SQLException {
-        final String sql = "INSERT INTO iam.[User](Username, PasswordHash, FullName, Email, Phone, RoleId, BranchId, Status) " +
+        final String sql = "INSERT INTO iam.UserAccount(Username, PasswordHash, FullName, Email, Phone, RoleId, BranchId, Status) " +
                 "VALUES (?,?,?,?,?,?,?,?)";
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, u.getUsername());
@@ -201,7 +240,7 @@ public class UserDao {
 
     /** Cập nhật hồ sơ (không đổi mật khẩu). */
     public void update(Connection conn, User u) throws SQLException {
-        final String sql = "UPDATE iam.[User] SET FullName=?, Email=?, Phone=?, RoleId=?, BranchId=?, Status=? WHERE UserId=?";
+        final String sql = "UPDATE iam.UserAccount SET FullName=?, Email=?, Phone=?, RoleId=?, BranchId=?, Status=? WHERE UserId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, u.getFullName());
             ps.setString(2, u.getEmail());
@@ -216,7 +255,7 @@ public class UserDao {
 
     /** Cập nhật thông tin cá nhân; không đổi role/branch/status/password. */
     public void updateProfile(Connection conn, int userId, String fullName, String email, String phone) throws SQLException {
-        final String sql = "UPDATE iam.[User] SET FullName=?, Email=?, Phone=? WHERE UserId=?";
+        final String sql = "UPDATE iam.UserAccount SET FullName=?, Email=?, Phone=? WHERE UserId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, fullName);
             ps.setString(2, email);

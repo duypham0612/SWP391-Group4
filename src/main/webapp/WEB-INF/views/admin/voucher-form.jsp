@@ -61,12 +61,12 @@
             </select>
         </div>
         <div class="form-group">
-            <label for="startDate">Bắt đầu</label>
-            <input id="startDate" type="datetime-local" name="startDate" class="form-control" value="${voucher.startInput}">
+            <label for="startAtLocal">Bắt đầu (giờ Việt Nam)</label>
+            <input id="startAtLocal" type="datetime-local" name="startAtLocal" class="form-control" value="${view.voucherInput(voucher.startAtUtc)}">
         </div>
         <div class="form-group">
-            <label for="endDate">Kết thúc</label>
-            <input id="endDate" type="datetime-local" name="endDate" class="form-control" value="${voucher.endInput}">
+            <label for="endAtLocal">Kết thúc (giờ Việt Nam, không bao gồm mốc này)</label>
+            <input id="endAtLocal" type="datetime-local" name="endAtLocal" class="form-control" value="${view.voucherInput(voucher.endAtUtc)}">
         </div>
         <div class="form-group">
             <label for="usageLimit">Giới hạn lượt dùng <span class="muted">(trống = không giới hạn)</span></label>

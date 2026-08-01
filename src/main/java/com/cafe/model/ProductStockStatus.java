@@ -2,7 +2,7 @@ package com.cafe.model;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
-import java.util.StringJoiner;
+import java.util.Collections;
 
 /** Trạng thái bán của một món suy ra từ tồn các nguyên liệu trong công thức. */
 public class ProductStockStatus {
@@ -20,14 +20,13 @@ public class ProductStockStatus {
     }
 
     public void include(String ingredientState, String ingredientName) {
-        String name = ingredientName == null || ingredientName.isBlank()
-                ? "nguyên liệu chưa xác định" : ingredientName.trim();
+        String name = ingredientName == null ? "" : ingredientName.trim();
         if (OUT.equals(ingredientState)) {
             state = OUT;
-            outIngredients.add(name);
+            if (!name.isEmpty()) outIngredients.add(name);
         } else if (LOW.equals(ingredientState)) {
             if (!OUT.equals(state)) state = LOW;
-            lowIngredients.add(name);
+            if (!name.isEmpty()) lowIngredients.add(name);
         }
     }
 
@@ -35,16 +34,6 @@ public class ProductStockStatus {
     public String getState() { return state; }
     public boolean isOut() { return OUT.equals(state); }
     public boolean isLow() { return LOW.equals(state); }
-
-    public String getMessage() {
-        if (isOut()) return "Hết " + join(outIngredients);
-        if (isLow()) return "Sắp hết " + join(lowIngredients);
-        return "";
-    }
-
-    private static String join(Set<String> names) {
-        StringJoiner joiner = new StringJoiner(", ");
-        for (String name : names) joiner.add(name);
-        return joiner.length() == 0 ? "nguyên liệu" : joiner.toString();
-    }
+    public Set<String> getLowIngredients() { return Collections.unmodifiableSet(lowIngredients); }
+    public Set<String> getOutIngredients() { return Collections.unmodifiableSet(outIngredients); }
 }

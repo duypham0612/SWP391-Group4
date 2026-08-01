@@ -67,7 +67,7 @@ public class TableSessionDao {
     /** Đổi mọi đơn của phiên nguồn sang phiên đích (gộp bill). */
     public void reassignOrders(Connection conn, int srcSessionId, int dstSessionId) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE sales.Orders SET TableSessionId=? WHERE TableSessionId=?")) {
+                "UPDATE sales.SalesOrder SET TableSessionId=? WHERE TableSessionId=?")) {
             ps.setInt(1, dstSessionId);
             ps.setInt(2, srcSessionId);
             ps.executeUpdate();

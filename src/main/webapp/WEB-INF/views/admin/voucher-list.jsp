@@ -86,11 +86,11 @@
                             </td>
                             <td>${v.usedCount}<c:if test="${not empty v.usageLimit}">/${v.usageLimit}</c:if></td>
                             <td>
-                                <div><span class="muted">Bắt đầu:</span> ${v.startDisplay}</div>
-                                <div><span class="muted">Kết thúc:</span> ${v.endDisplay}</div>
+                                <div><span class="muted">Bắt đầu:</span> ${view.voucherDate(v.startAtUtc)}</div>
+                                <div><span class="muted">Kết thúc:</span> ${view.voucherDate(v.endAtUtc)}</div>
                             </td>
                             <td data-tt-val="${v.lifecycleStatusCode}">
-                                <span class="badge ${v.lifecycleBadgeClass}">${v.lifecycleStatusLabel}</span>
+                                <span class="badge ${view.voucherBadge(v.lifecycleStatusCode)}">${view.voucherStatusLabel(v.lifecycleStatusCode)}</span>
                             </td>
                             <td>
                                 <c:choose>

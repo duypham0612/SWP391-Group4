@@ -20,17 +20,17 @@ import java.util.List;
 public class AttendanceDao {
 
     private static final String SELECT =
-        "SELECT a.AttendanceId, a.ShiftAssignmentId, a.CheckInAt, a.CheckOutAt, a.Status, a.ApprovedBy, " +
+        "SELECT a.AttendanceId, a.ShiftAssignmentId, a.CheckInAt, a.CheckOutAt, a.Status, a.ApprovedBy, a.ApprovedAt, " +
         "       sa.WorkDate, sa.UserId, st.BranchId, st.Name AS TemplateName, st.StartTime, st.EndTime, " +
         "       u.FullName AS UserName, u.Phone AS UserPhone, r.Name AS RoleName, b.Name AS BranchName, " +
         "       ap.FullName AS ApproverName " +
         "FROM hr.Attendance a " +
         "JOIN hr.ShiftAssignment sa ON sa.ShiftAssignmentId = a.ShiftAssignmentId " +
         "JOIN hr.ShiftTemplate   st ON st.ShiftTemplateId  = sa.ShiftTemplateId " +
-        "JOIN iam.[User] u          ON u.UserId = sa.UserId " +
+        "JOIN iam.UserAccount u          ON u.UserId = sa.UserId " +
         "JOIN iam.Role   r          ON r.RoleId = u.RoleId " +
         "JOIN org.Branch b          ON b.BranchId = st.BranchId " +
-        "LEFT JOIN iam.[User] ap    ON ap.UserId = a.ApprovedBy ";
+        "LEFT JOIN iam.UserAccount ap    ON ap.UserId = a.ApprovedBy ";
 
     /**
      * Ca dùng để chấm công: thêm ca hôm trước vì ca đêm chỉ kết thúc vào sáng hôm sau.
@@ -47,7 +47,7 @@ public class AttendanceDao {
             "       st.Name AS TemplateName, st.StartTime, st.EndTime, u.FullName AS UserName " +
             "FROM hr.ShiftAssignment sa " +
             "JOIN hr.ShiftTemplate st ON st.ShiftTemplateId = sa.ShiftTemplateId " +
-            "JOIN iam.[User] u        ON u.UserId = sa.UserId " +
+            "JOIN iam.UserAccount u        ON u.UserId = sa.UserId " +
             "WHERE sa.UserId=? AND st.BranchId=? AND sa.WorkDate BETWEEN ? AND ? " +
             "ORDER BY sa.WorkDate, st.StartTime";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -60,7 +60,7 @@ public class AttendanceDao {
         return out;
     }
 
-    /** Bản chấm công của một assignment. UQ_Att_ShiftAssignment bảo đảm tối đa một dòng. */
+    /** Bản chấm công của một assignment. UQ_Attendance_ShiftAssignment bảo đảm tối đa một dòng. */
     public Attendance findByAssignment(Connection conn, int assignmentId) throws SQLException {
         final String sql = SELECT + "WHERE a.ShiftAssignmentId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -71,7 +71,7 @@ public class AttendanceDao {
 
     /**
      * Khoá dòng (hoặc key-range khi chưa có dòng) đến hết transaction để hai tab không cùng tạo Attendance.
-     * Cần unique index UQ_Att_ShiftAssignment để SQL Server khóa đúng key-range.
+     * Cần unique index UQ_Attendance_ShiftAssignment để SQL Server khóa đúng key-range.
      */
     public Attendance findByAssignmentForUpdate(Connection conn, int assignmentId) throws SQLException {
         final String sql = SELECT.replace("FROM hr.Attendance a ", "FROM hr.Attendance a WITH (UPDLOCK, HOLDLOCK) ") +
@@ -134,11 +134,32 @@ public class AttendanceDao {
     /** Đổi trạng thái + người duyệt (null khi trả về PENDING). */
     public void updateApproval(Connection conn, int id, String status, Integer approverId) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE hr.Attendance SET Status=?, ApprovedBy=? WHERE AttendanceId=?")) {
+                "UPDATE hr.Attendance SET Status=?, ApprovedBy=?, " +
+                "ApprovedAt=CASE WHEN ?='PENDING' THEN NULL ELSE SYSUTCDATETIME() END WHERE AttendanceId=?")) {
             ps.setString(1, status);
             if (approverId == null) ps.setNull(2, java.sql.Types.INTEGER); else ps.setInt(2, approverId);
-            ps.setInt(3, id);
+            ps.setString(3, status);
+            ps.setInt(4, id);
             ps.executeUpdate();
+        }
+    }
+
+    /** Manager mutation scoped by the branch of the assignment template. */
+    public int updateApprovalByBranch(Connection conn, int id, int branchId,
+                                      String status, Integer approverId) throws SQLException {
+        final String sql = "UPDATE a SET Status=?, ApprovedBy=?, " +
+                "ApprovedAt=CASE WHEN ?='PENDING' THEN NULL ELSE SYSUTCDATETIME() END " +
+                "FROM hr.Attendance a " +
+                "JOIN hr.ShiftAssignment sa ON sa.ShiftAssignmentId=a.ShiftAssignmentId " +
+                "JOIN hr.ShiftTemplate st ON st.ShiftTemplateId=sa.ShiftTemplateId " +
+                "WHERE a.AttendanceId=? AND st.BranchId=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, status);
+            if (approverId == null) ps.setNull(2, java.sql.Types.INTEGER); else ps.setInt(2, approverId);
+            ps.setString(3, status);
+            ps.setInt(4, id);
+            ps.setInt(5, branchId);
+            return ps.executeUpdate();
         }
     }
 
@@ -161,16 +182,6 @@ public class AttendanceDao {
         }
     }
 
-    public void updateStatus(Connection conn, int id, String status, int approverId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE hr.Attendance SET Status=?, ApprovedBy=? WHERE AttendanceId=?")) {
-            ps.setString(1, status);
-            ps.setInt(2, approverId);
-            ps.setInt(3, id);
-            ps.executeUpdate();
-        }
-    }
-
     /** Sửa giờ check-in/out (Manager chỉnh tay). */
     public void update(Connection conn, int id, Timestamp checkIn, Timestamp checkOut) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
@@ -179,6 +190,23 @@ public class AttendanceDao {
             ps.setTimestamp(2, checkOut);
             ps.setInt(3, id);
             ps.executeUpdate();
+        }
+    }
+
+    /** Sửa giờ bằng ID nhưng vẫn bắt buộc attendance thuộc chi nhánh của Manager. */
+    public int updateByBranch(Connection conn, int id, int branchId,
+                              Timestamp checkIn, Timestamp checkOut) throws SQLException {
+        final String sql = "UPDATE a SET CheckInAt=?, CheckOutAt=? " +
+                "FROM hr.Attendance a " +
+                "JOIN hr.ShiftAssignment sa ON sa.ShiftAssignmentId=a.ShiftAssignmentId " +
+                "JOIN hr.ShiftTemplate st ON st.ShiftTemplateId=sa.ShiftTemplateId " +
+                "WHERE a.AttendanceId=? AND st.BranchId=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setTimestamp(1, checkIn);
+            ps.setTimestamp(2, checkOut);
+            ps.setInt(3, id);
+            ps.setInt(4, branchId);
+            return ps.executeUpdate();
         }
     }
 
@@ -205,7 +233,7 @@ public class AttendanceDao {
             "FROM hr.Attendance a " +
             "JOIN hr.ShiftAssignment sa ON sa.ShiftAssignmentId=a.ShiftAssignmentId " +
             "JOIN hr.ShiftTemplate   st ON st.ShiftTemplateId=sa.ShiftTemplateId " +
-            "JOIN iam.[User] u          ON u.UserId=sa.UserId " +
+            "JOIN iam.UserAccount u          ON u.UserId=sa.UserId " +
             "JOIN iam.Role   r          ON r.RoleId=u.RoleId " +
             "WHERE st.BranchId=? AND a.Status='APPROVED' " +
             "  AND sa.WorkDate >= ? AND sa.WorkDate < ? " +
@@ -355,6 +383,8 @@ public class AttendanceDao {
         a.setStatus(rs.getString("Status"));
         int ab = rs.getInt("ApprovedBy");
         if (!rs.wasNull()) a.setApprovedBy(ab);
+        Timestamp aa = rs.getTimestamp("ApprovedAt");
+        if (aa != null) a.setApprovedAt(aa.toLocalDateTime());
         Date d = rs.getDate("WorkDate");
         if (d != null) a.setWorkDate(d.toLocalDate());
         a.setUserId(rs.getInt("UserId"));

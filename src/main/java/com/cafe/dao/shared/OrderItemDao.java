@@ -25,7 +25,7 @@ public class OrderItemDao {
     }
 
     private static final String SELECT =
-        "SELECT oi.OrderItemId, oi.OrderId, oi.ProductId, oi.Quantity, oi.UnitPrice, oi.Note, oi.Status, " +
+        "SELECT oi.OrderItemId, oi.OrderId, oi.BranchId, oi.ProductId, oi.Quantity, oi.UnitPrice, oi.Note, oi.Status, " +
         "       oi.StartedAt, oi.DoneAt, oi.ServedAt, oi.BaristaId, oi.PreparedBy, " +
         "       oi.HasIssue, oi.IssueReason, oi.IssueReportedBy, oi.IssueReportedAt, " +
         "       oi.RemakeCount, oi.RemakeInventoryReserved, oi.PickedUpBy, oi.PickedUpAt, " +
@@ -34,17 +34,17 @@ public class OrderItemDao {
         "            ELSE DATEDIFF(SECOND, oi.StartedAt, SYSUTCDATETIME()) END AS MakingSeconds, " +
         "       CASE WHEN oi.DoneAt IS NULL THEN NULL " +
         "            ELSE DATEDIFF(SECOND, oi.DoneAt, SYSUTCDATETIME()) END AS ServeWaitSeconds, " +
-        "       p.Name AS ProductName, p.PrepSeconds, c.Name AS CategoryName, o.BranchId AS OrderBranchId, " +
+        "       oi.ProductNameAtOrder AS ProductName, p.PrepSeconds, c.Name AS CategoryName, o.BranchId AS OrderBranchId, " +
         "       o.OrderType, o.CreatedAt AS OrderCreatedAt, o.PickupCode, dt.TableNumber, ts.Status AS SessionStatus, " +
         "       bu.FullName AS BaristaName, cu.FullName AS PreparedByName " +
         "FROM sales.OrderItem oi " +
         "JOIN catalog.Product p ON p.ProductId=oi.ProductId " +
         "JOIN catalog.Category c ON c.CategoryId=p.CategoryId " +
-        "JOIN sales.Orders o    ON o.OrderId=oi.OrderId " +
+        "JOIN sales.SalesOrder o    ON o.OrderId=oi.OrderId " +
         "LEFT JOIN sales.TableSession ts ON ts.TableSessionId=o.TableSessionId " +
         "LEFT JOIN sales.DiningTable  dt ON dt.DiningTableId=ts.DiningTableId " +
-        "LEFT JOIN iam.[User] bu ON bu.UserId=oi.BaristaId " +
-        "LEFT JOIN iam.[User] cu ON cu.UserId=oi.PreparedBy ";
+        "LEFT JOIN iam.UserAccount bu ON bu.UserId=oi.BaristaId " +
+        "LEFT JOIN iam.UserAccount cu ON cu.UserId=oi.PreparedBy ";
 
     /**
      * Dashboard preparation metrics. Keeping this query here preserves one DAO owner for
@@ -62,7 +62,7 @@ public class OrderItemDao {
             + "COALESCE(SUM(CASE WHEN o.Status='ACTIVE' AND oi.Status='MAKING' THEN oi.Quantity ELSE 0 END),0) AS MakingCups, "
             + "COALESCE(SUM(CASE WHEN o.Status='ACTIVE' AND oi.Status='READY' THEN oi.Quantity ELSE 0 END),0) AS ReadyCups, "
             + "COALESCE(SUM(CASE WHEN o.Status='ACTIVE' AND oi.Status='BLOCKED' THEN oi.Quantity ELSE 0 END),0) AS BlockedCups "
-            + "FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId "
+            + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
             + "WHERE o.BranchId=? AND o.CreatedAt>=? "
             + "AND oi.Status IN ('WAITING','MAKING','READY','PICKED_UP','SERVED','BLOCKED')";
         Timestamp from = Timestamp.valueOf(businessDayStartUtc);
@@ -89,15 +89,16 @@ public class OrderItemDao {
     }
 
     public int insert(Connection conn, OrderItem it) throws SQLException {
-        final String sql = "INSERT INTO sales.OrderItem(OrderId, ProductId, Quantity, UnitPrice, Note, Status) " +
-                "VALUES (?,?,?,?,?,?)";
+        final String sql = "INSERT INTO sales.OrderItem(OrderId,BranchId,ProductId,Quantity,UnitPrice,Note,Status,ProductNameAtOrder) " +
+                "SELECT o.OrderId,o.BranchId,?,?,?,?,?,? FROM sales.SalesOrder o WHERE o.OrderId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            ps.setInt(1, it.getOrderId());
-            ps.setInt(2, it.getProductId());
-            ps.setInt(3, it.getQuantity());
-            ps.setBigDecimal(4, it.getUnitPrice());
-            if (it.getNote() == null) ps.setNull(5, java.sql.Types.NVARCHAR); else ps.setString(5, it.getNote());
-            ps.setString(6, it.getStatus() == null ? "WAITING" : it.getStatus());
+            ps.setInt(1, it.getProductId());
+            ps.setInt(2, it.getQuantity());
+            ps.setBigDecimal(3, it.getUnitPrice());
+            if (it.getNote() == null) ps.setNull(4, java.sql.Types.NVARCHAR); else ps.setString(4, it.getNote());
+            ps.setString(5, it.getStatus() == null ? "WAITING" : it.getStatus());
+            ps.setString(6, it.getProductNameAtOrder());
+            ps.setInt(7, it.getOrderId());
             ps.executeUpdate();
             try (ResultSet k = ps.getGeneratedKeys()) { return k.next() ? k.getInt(1) : 0; }
         }
@@ -274,7 +275,7 @@ public class OrderItemDao {
     /** WAITING → MAKING, lưu chủ sở hữu trong cùng câu UPDATE để khóa claim. */
     public int claim(Connection conn, int orderItemId, int branchId, int baristaId) throws SQLException {
         final String sql = "UPDATE oi SET oi.Status='MAKING',oi.BaristaId=?,oi.StartedAt=SYSUTCDATETIME() "
-                + "FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId "
+                + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
                 + "WHERE oi.OrderItemId=? AND o.BranchId=? AND o.Status='ACTIVE' AND oi.Status='WAITING'";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, baristaId); ps.setInt(2, orderItemId); ps.setInt(3, branchId);
@@ -286,7 +287,7 @@ public class OrderItemDao {
     public int completeClaimed(Connection conn, int orderItemId, int branchId, int baristaId) throws SQLException {
         final String sql = "UPDATE oi SET oi.Status='READY',oi.DoneAt=SYSUTCDATETIME(),oi.PreparedBy=?,"
                 + "oi.HasIssue=0,oi.IssueReason=NULL,oi.RemakeInventoryReserved=0 "
-                + "FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId "
+                + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
                 + "WHERE oi.OrderItemId=? AND o.BranchId=? AND oi.Status='MAKING' AND oi.BaristaId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, baristaId);
@@ -301,7 +302,7 @@ public class OrderItemDao {
      * barista bằng thứ chính họ không gỡ được (phải chờ nhập nguyên liệu hoặc Thu ngân huỷ).
      */
     public int countMakingByBarista(Connection conn, int branchId, int baristaId) throws SQLException {
-        final String sql = "SELECT COUNT(*) FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId "
+        final String sql = "SELECT COUNT(*) FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
                 + "WHERE o.BranchId=? AND o.Status='ACTIVE' AND oi.Status='MAKING' AND oi.BaristaId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, branchId); ps.setInt(2, baristaId);
@@ -316,7 +317,7 @@ public class OrderItemDao {
      */
     public int reclaim(Connection conn, int orderItemId, int branchId, int expectedBaristaId) throws SQLException {
         final String sql = "UPDATE oi SET oi.Status='WAITING',oi.BaristaId=NULL,oi.StartedAt=NULL "
-                + "FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId "
+                + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
                 + "WHERE oi.OrderItemId=? AND o.BranchId=? AND o.Status='ACTIVE' "
                 + "  AND oi.Status='MAKING' AND oi.BaristaId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -327,7 +328,7 @@ public class OrderItemDao {
 
     public int returnToQueue(Connection conn, int orderItemId, int branchId, int baristaId) throws SQLException {
         final String sql = "UPDATE oi SET oi.Status='WAITING',oi.BaristaId=NULL,oi.StartedAt=NULL "
-                + "FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId "
+                + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
                 + "WHERE oi.OrderItemId=? AND o.BranchId=? AND oi.Status='MAKING' AND oi.BaristaId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, orderItemId); ps.setInt(2, branchId); ps.setInt(3, baristaId);
@@ -338,7 +339,7 @@ public class OrderItemDao {
     /** Gắn cờ sự cố nhưng giữ trạng thái để card không biến mất khỏi người đang xử lý. */
     public int reportIssue(Connection conn, int orderItemId, int branchId, int userId, String reason) throws SQLException {
         final String sql = "UPDATE oi SET oi.HasIssue=1,oi.IssueReason=?,oi.IssueReportedBy=?,oi.IssueReportedAt=SYSUTCDATETIME() "
-                + "FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId "
+                + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
                 + "WHERE oi.OrderItemId=? AND o.BranchId=? AND oi.Status IN ('WAITING','MAKING') "
                 + "AND (oi.Status='WAITING' OR oi.BaristaId=?)";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -356,7 +357,7 @@ public class OrderItemDao {
     public int blockItem(Connection conn, int orderItemId, int branchId, int userId, String reason) throws SQLException {
         final String sql = "UPDATE oi SET oi.Status='BLOCKED',oi.HasIssue=1,oi.IssueReason=?,"
                 + "oi.IssueReportedBy=?,oi.IssueReportedAt=SYSUTCDATETIME(),oi.BaristaId=NULL,oi.StartedAt=NULL "
-                + "FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId "
+                + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
                 + "WHERE oi.OrderItemId=? AND o.BranchId=? AND o.Status='ACTIVE' "
                 + "AND oi.Status IN ('WAITING','MAKING') AND (oi.Status='WAITING' OR oi.BaristaId=?)";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -370,7 +371,7 @@ public class OrderItemDao {
     public int unblockItem(Connection conn, int orderItemId, int branchId) throws SQLException {
         final String sql = "UPDATE oi SET oi.Status='WAITING',oi.HasIssue=0,oi.IssueReason=NULL,"
                 + "oi.IssueReportedBy=NULL,oi.IssueReportedAt=NULL "
-                + "FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId "
+                + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
                 + "WHERE oi.OrderItemId=? AND o.BranchId=? AND o.Status='ACTIVE' AND oi.Status='BLOCKED'";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, orderItemId); ps.setInt(2, branchId);
@@ -387,7 +388,7 @@ public class OrderItemDao {
         final String sql =
             "SELECT COUNT(DISTINCT oi.OrderItemId) " +
             "FROM sales.OrderItem oi " +
-            "JOIN sales.Orders o ON o.OrderId = oi.OrderId " +
+            "JOIN sales.SalesOrder o ON o.OrderId = oi.OrderId " +
             "JOIN catalog.ProductRecipe pr ON pr.ProductId = oi.ProductId " +
             "WHERE o.BranchId = ? AND o.Status = 'ACTIVE' AND oi.Status = 'BLOCKED' " +
             "AND pr.IngredientId IN (" + in + ")";
@@ -402,7 +403,7 @@ public class OrderItemDao {
     /** READY → REMAKE là claim chuyển tiếp, chống hai người tạo remake trùng. */
     public int beginRemake(Connection conn, int orderItemId, int branchId) throws SQLException {
         final String sql = "UPDATE oi SET oi.Status='REMAKE' FROM sales.OrderItem oi "
-                + "JOIN sales.Orders o ON o.OrderId=oi.OrderId WHERE oi.OrderItemId=? AND o.BranchId=? AND oi.Status='READY'";
+                + "JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId WHERE oi.OrderItemId=? AND o.BranchId=? AND oi.Status='READY'";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, orderItemId); ps.setInt(2, branchId); return ps.executeUpdate();
         }
@@ -411,7 +412,7 @@ public class OrderItemDao {
     /** MAKING → REMAKE chỉ barista đang giữ món được báo pha lỗi/làm lại. */
     public int beginRemakeClaimed(Connection conn, int orderItemId, int branchId, int baristaId) throws SQLException {
         final String sql = "UPDATE oi SET oi.Status='REMAKE' FROM sales.OrderItem oi "
-                + "JOIN sales.Orders o ON o.OrderId=oi.OrderId WHERE oi.OrderItemId=? AND o.BranchId=? AND oi.Status='MAKING' AND oi.BaristaId=?";
+                + "JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId WHERE oi.OrderItemId=? AND o.BranchId=? AND oi.Status='MAKING' AND oi.BaristaId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, orderItemId); ps.setInt(2, branchId); ps.setInt(3, baristaId); return ps.executeUpdate();
         }
@@ -424,10 +425,10 @@ public class OrderItemDao {
     public void finishRemake(Connection conn, int orderItemId, int branchId, boolean inventoryReserved)
             throws SQLException {
         final String sql = "UPDATE oi SET oi.Status='WAITING',oi.Priority=(SELECT ISNULL(MAX(x.Priority),0)+1 "
-                + "FROM sales.OrderItem x JOIN sales.Orders xo ON xo.OrderId=x.OrderId WHERE xo.BranchId=?),"
+                + "FROM sales.OrderItem x JOIN sales.SalesOrder xo ON xo.OrderId=x.OrderId WHERE xo.BranchId=?),"
                 + "oi.RemakeCount=oi.RemakeCount+1,oi.RemakeInventoryReserved=?,oi.BaristaId=NULL,oi.PreparedBy=NULL,"
                 + "oi.StartedAt=NULL,oi.DoneAt=NULL,oi.HasIssue=0,oi.IssueReason=NULL "
-                + "FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId "
+                + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
                 + "WHERE oi.OrderItemId=? AND o.BranchId=? AND oi.Status='REMAKE'";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, branchId); ps.setBoolean(2, inventoryReserved);
@@ -437,7 +438,7 @@ public class OrderItemDao {
 
     public int pickUp(Connection conn, int orderItemId, int branchId, int userId) throws SQLException {
         final String sql = "UPDATE oi SET oi.Status='PICKED_UP',oi.PickedUpBy=?,oi.PickedUpAt=SYSUTCDATETIME() "
-                + "FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId "
+                + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
                 + "WHERE oi.OrderItemId=? AND o.BranchId=? AND oi.Status='READY'";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, userId); ps.setInt(2, orderItemId); ps.setInt(3, branchId); return ps.executeUpdate();
@@ -499,7 +500,7 @@ public class OrderItemDao {
         if (stampDone && preparedBy != null && preparedBy > 0) sql.append(", oi.PreparedBy=?");
         if (stampServed)  sql.append(", oi.ServedAt=SYSUTCDATETIME()");
         if (clearServed)  sql.append(", oi.ServedAt=NULL");
-        sql.append(" FROM sales.OrderItem oi JOIN sales.Orders o ON o.OrderId=oi.OrderId ")
+        sql.append(" FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId ")
            .append("WHERE oi.OrderItemId=? AND o.BranchId=? AND oi.Status IN (");
         for (int i = 0; i < expectedStatuses.length; i++) sql.append(i == 0 ? "?" : ",?");
         sql.append(")");
@@ -518,6 +519,7 @@ public class OrderItemDao {
         OrderItem it = new OrderItem();
         it.setOrderItemId(rs.getInt("OrderItemId"));
         it.setOrderId(rs.getInt("OrderId"));
+        it.setBranchId(rs.getInt("BranchId"));
         it.setProductId(rs.getInt("ProductId"));
         it.setQuantity(rs.getInt("Quantity"));
         it.setUnitPrice(rs.getBigDecimal("UnitPrice"));

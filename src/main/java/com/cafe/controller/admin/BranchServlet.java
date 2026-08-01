@@ -1,8 +1,11 @@
 package com.cafe.controller.admin;
 
-import com.cafe.common.CsrfUtil;
+import com.cafe.web.support.CsrfUtil;
+import com.cafe.common.BusinessException;
 import com.cafe.model.Branch;
 import com.cafe.service.admin.BranchService;
+import com.cafe.web.form.BranchForm;
+import com.cafe.web.form.FormBindingException;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -10,14 +13,21 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
-import java.time.LocalTime;
-import java.time.format.DateTimeParseException;
+import java.util.Objects;
 
 /** Admin branch management. */
 @WebServlet("/admin/branch")
 public class BranchServlet extends HttpServlet {
 
-    private final BranchService service = new BranchService();
+    private final BranchService service;
+
+    public BranchServlet() {
+        this(new BranchService());
+    }
+
+    BranchServlet(BranchService service) {
+        this.service = Objects.requireNonNull(service, "service");
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -49,40 +59,12 @@ public class BranchServlet extends HttpServlet {
         try {
             if ("toggleActive".equals(action)) {
                 int id = Integer.parseInt(req.getParameter("id"));
-                Branch branch = service.getBranch(id);
-                if (branch == null) {
-                    resp.sendError(HttpServletResponse.SC_NOT_FOUND);
-                    return;
-                }
-                if (branch.getManagerUserId() == null) {
-                    req.getSession().setAttribute("flashError",
-                            "Vui lòng phân công quản lý trước khi thay đổi trạng thái chi nhánh.");
-                    resp.sendRedirect(ctx + "/admin/branch");
-                    return;
-                }
                 service.toggleActive(id);
                 req.getSession().setAttribute("flashOk", "Đã cập nhật trạng thái chi nhánh.");
                 resp.sendRedirect(ctx + "/admin/branch");
                 return;
             }
-            Branch b = bind(req);
-            if (b.getBranchId() != 0) {
-                Branch existing = service.getBranch(b.getBranchId());
-                if (existing == null) {
-                    resp.sendError(HttpServletResponse.SC_NOT_FOUND);
-                    return;
-                }
-                b.setCode(existing.getCode());
-                b.setManagerUserId(existing.getManagerUserId());
-                b.setManagerName(existing.getManagerName());
-            }
-            String error = validate(b);
-            if (error != null) {
-                req.setAttribute("branch", b);
-                req.setAttribute("errorMsg", error);
-                forwardForm(req, resp, b.getBranchId() == 0 ? "Thêm chi nhánh" : "Sửa chi nhánh");
-                return;
-            }
+            Branch b = BranchForm.from(req).branch();
             if (b.getBranchId() == 0) {
                 service.createBranch(b);
                 req.getSession().setAttribute("flashOk", "Đã thêm chi nhánh thành công.");
@@ -91,36 +73,10 @@ public class BranchServlet extends HttpServlet {
                 req.getSession().setAttribute("flashOk", "Đã cập nhật chi nhánh thành công.");
             }
             resp.sendRedirect(ctx + "/admin/branch");
+        } catch (BusinessException | FormBindingException e) {
+            req.getSession().setAttribute("flashError", e.getMessage());
+            resp.sendRedirect(ctx + "/admin/branch");
         } catch (Exception e) { throw new ServletException(e); }
-    }
-
-    private Branch bind(HttpServletRequest req) {
-        Branch b = new Branch();
-        String id = req.getParameter("branchId");
-        if (id != null && !id.isBlank()) b.setBranchId(Integer.parseInt(id));
-        b.setName(trim(req.getParameter("name")));
-        b.setAddress(trim(req.getParameter("address")));
-        b.setPhone(null);
-        b.setActive(req.getParameter("active") != null);
-        b.setOpenTime(parseTime(req.getParameter("openTime")));
-        b.setCloseTime(parseTime(req.getParameter("closeTime")));
-        b.setManagerUserId(null);
-        return b;
-    }
-
-    private LocalTime parseTime(String s) {
-        if (s == null || s.isBlank()) return null;
-        try { return LocalTime.parse(s); } catch (DateTimeParseException e) { return null; }
-    }
-
-    private String validate(Branch b) throws Exception {
-        if (b.getName() == null || b.getName().isBlank()) return "Tên chi nhánh không được để trống.";
-        if (b.getAddress() == null || b.getAddress().isBlank()) return "Địa chỉ không được để trống.";
-        if ((b.getOpenTime() == null) != (b.getCloseTime() == null))
-            return "Giờ mở cửa và giờ đóng cửa phải nhập cả hai hoặc để trống cả hai.";
-        if (b.getOpenTime() != null && !b.getOpenTime().isBefore(b.getCloseTime()))
-            return "Giờ mở cửa phải trước giờ đóng cửa trong cùng ngày.";
-        return null;
     }
 
     private void forwardForm(HttpServletRequest req, HttpServletResponse resp, String title)
@@ -128,7 +84,5 @@ public class BranchServlet extends HttpServlet {
         req.setAttribute("pageTitle", title);
         req.getRequestDispatcher("/WEB-INF/views/admin/branch-form.jsp").forward(req, resp);
     }
-
-    private String trim(String s) { return s == null ? null : s.trim(); }
 
 }

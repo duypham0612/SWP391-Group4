@@ -17,11 +17,11 @@ public class ShiftAssignmentDao {
 
     /** Join template + user; lọc theo chi nhánh của template. */
     private static final String SELECT =
-        "SELECT sa.ShiftAssignmentId, sa.ShiftTemplateId, sa.UserId, sa.WorkDate, " +
+        "SELECT sa.ShiftAssignmentId, sa.ShiftTemplateId, sa.BranchId, sa.UserId, sa.WorkDate, " +
         "       st.Name AS TemplateName, st.StartTime, st.EndTime, u.FullName AS UserName, r.Code AS RoleCode " +
         "FROM hr.ShiftAssignment sa " +
         "JOIN hr.ShiftTemplate st ON st.ShiftTemplateId = sa.ShiftTemplateId " +
-        "JOIN iam.[User] u        ON u.UserId = sa.UserId " +
+        "JOIN iam.UserAccount u        ON u.UserId = sa.UserId " +
         "JOIN iam.Role r          ON r.RoleId = u.RoleId ";
 
     /** Lịch tuần: tất cả phân công của chi nhánh trong [weekStart, weekStart+7). */
@@ -132,14 +132,21 @@ public class ShiftAssignmentDao {
         }
     }
 
-    public int insert(Connection conn, int templateId, int userId, LocalDate workDate) throws SQLException {
-        final String sql = "INSERT INTO hr.ShiftAssignment(ShiftTemplateId, UserId, WorkDate) VALUES (?,?,?)";
-        try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            ps.setInt(1, templateId);
-            ps.setInt(2, userId);
-            ps.setDate(3, Date.valueOf(workDate));
-            ps.executeUpdate();
-            try (ResultSet k = ps.getGeneratedKeys()) { return k.next() ? k.getInt(1) : 0; }
+    public int insert(Connection conn, int templateId, int userId, LocalDate workDate, int branchId)
+            throws SQLException {
+        final String sql = "INSERT INTO hr.ShiftAssignment(ShiftTemplateId, BranchId, UserId, WorkDate) " +
+                "OUTPUT INSERTED.ShiftAssignmentId " +
+                "SELECT st.ShiftTemplateId, st.BranchId, u.UserId, ? " +
+                "FROM hr.ShiftTemplate st CROSS JOIN iam.UserAccount u " +
+                "WHERE st.ShiftTemplateId=? AND st.BranchId=? " +
+                "AND u.UserId=? AND u.BranchId=? AND u.Status='ACTIVE'";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setDate(1, Date.valueOf(workDate));
+            ps.setInt(2, templateId);
+            ps.setInt(3, branchId);
+            ps.setInt(4, userId);
+            ps.setInt(5, branchId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getInt(1) : 0; }
         }
     }
 
@@ -154,6 +161,7 @@ public class ShiftAssignmentDao {
         ShiftAssignment a = new ShiftAssignment();
         a.setShiftAssignmentId(rs.getInt("ShiftAssignmentId"));
         a.setShiftTemplateId(rs.getInt("ShiftTemplateId"));
+        a.setBranchId(rs.getInt("BranchId"));
         a.setUserId(rs.getInt("UserId"));
         Date d = rs.getDate("WorkDate");
         if (d != null) a.setWorkDate(d.toLocalDate());

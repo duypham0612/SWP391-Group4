@@ -4,6 +4,7 @@ import com.cafe.common.BusinessException;
 import com.cafe.common.ShiftConflict;
 import com.cafe.common.ShiftHours;
 import com.cafe.config.DBConnection;
+import com.cafe.dao.admin.UserDao;
 import com.cafe.dao.shared.ShiftAssignmentDao;
 import com.cafe.dao.manager.ShiftTemplateDao;
 import com.cafe.model.ShiftAssignment;
@@ -23,15 +24,32 @@ public class ShiftService {
 
     public static final Duration LATE_ASSIGNMENT_GRACE = Duration.ofMinutes(10);
 
-    private final ShiftTemplateDao templateDao = new ShiftTemplateDao();
-    private final ShiftAssignmentDao assignmentDao = new ShiftAssignmentDao();
+    private final ShiftTemplateDao templateDao;
+    private final ShiftAssignmentDao assignmentDao;
+    private final UserDao userDao;
+
+    public ShiftService() { this(new ShiftTemplateDao(), new ShiftAssignmentDao(), new UserDao()); }
+    public ShiftService(ShiftTemplateDao templateDao, ShiftAssignmentDao assignmentDao, UserDao userDao) {
+        this.templateDao = java.util.Objects.requireNonNull(templateDao);
+        this.assignmentDao = java.util.Objects.requireNonNull(assignmentDao);
+        this.userDao = java.util.Objects.requireNonNull(userDao);
+    }
 
     public List<ShiftTemplate> getShiftTemplates(int branchId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) { return templateDao.findByBranch(c, branchId); }
     }
 
     public int createShiftTemplate(ShiftTemplate t) throws SQLException {
-        return tx(c -> templateDao.insert(c, t));
+        String name = t.getName() == null ? null : t.getName().trim().replaceAll("\\s+", " ");
+        if (name == null || name.isBlank()) throw new BusinessException("Tên ca làm không được để trống.");
+        t.setName(name);
+        try {
+            return tx(c -> templateDao.insert(c, t));
+        } catch (SQLException e) {
+            if (e.getErrorCode() == 2601 || e.getErrorCode() == 2627)
+                throw new BusinessException("Tên ca làm đã tồn tại trong chi nhánh này.");
+            throw e;
+        }
     }
 
     public void deleteShiftTemplate(int templateId, int branchId) throws SQLException {
@@ -72,10 +90,15 @@ public class ShiftService {
      * Xếp ca cho nhân viên. Chặn trùng giờ (gọi detectConflict trước).
      * @throws ShiftConflictException nếu chồng ca khác.
      */
-    public int assignShift(int templateId, int userId, LocalDate date) throws SQLException {
+    public int assignShift(int templateId, int userId, LocalDate date, int branchId) throws SQLException {
         return tx(c -> {
             ShiftTemplate target = templateDao.findById(c, templateId);
-            if (target == null) throw new ShiftConflictException("Ca làm không tồn tại.");
+            if (target == null || target.getBranchId() != branchId) {
+                throw new ShiftConflictException("Ca làm không tồn tại trong chi nhánh hiện tại.");
+            }
+            if (!userDao.isActiveInBranch(c, userId, branchId)) {
+                throw new ShiftConflictException("Nhân viên không hoạt động tại chi nhánh hiện tại.");
+            }
             LocalDateTime nowVn = LocalDateTime.now(com.cafe.common.BusinessDay.VN_ZONE);
             if (!canAssign(date, target.getStartTime(), nowVn)) {
                 throw new ShiftConflictException(
@@ -104,7 +127,11 @@ public class ShiftService {
                     "Vượt 48 giờ/tuần (" + formatHours(weeklyTotal) + "h). Không thể xếp thêm ca này.");
             }
 
-            return assignmentDao.insert(c, templateId, userId, date);
+            int assignmentId = assignmentDao.insert(c, templateId, userId, date, branchId);
+            if (assignmentId == 0) {
+                throw new ShiftConflictException("Ca làm hoặc nhân viên không còn hợp lệ tại chi nhánh.");
+            }
+            return assignmentId;
         });
     }
 

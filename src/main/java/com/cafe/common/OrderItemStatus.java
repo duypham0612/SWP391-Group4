@@ -2,7 +2,7 @@ package com.cafe.common;
 
 /**
  * Trạng thái dòng món — DÙNG CHUNG cho KDS (Barista), Cashier và QR tracking (khách).
- * Khớp ràng buộc CK_Item_Status ở sales.OrderItem.
+ * Khớp ràng buộc CK_OrderItem_Status ở sales.OrderItem.
  * Không hard-code các chuỗi này rải rác trong code/JSP.
  */
 public enum OrderItemStatus {

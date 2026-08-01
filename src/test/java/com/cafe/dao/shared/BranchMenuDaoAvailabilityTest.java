@@ -49,7 +49,7 @@ class BranchMenuDaoAvailabilityTest {
         String sql = sqlSeen.get(0);
         assertTrue(sql.contains("JOIN catalog.BranchMenu"));
         assertTrue(sql.contains("p.Name COLLATE"));
-        assertTrue(sql.contains("bm.Is86 = 1"));
+        assertTrue(sql.contains("bm.IsTemporarilyUnavailable = 1"));
         assertTrue(sql.contains("ORDER BY p.Name, p.ProductId OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"));
         assertEquals(List.of(
                 "1:int:7",

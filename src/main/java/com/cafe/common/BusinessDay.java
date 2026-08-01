@@ -54,6 +54,12 @@ public final class BusinessDay {
                 : utc.atZone(ZoneOffset.UTC).withZoneSameInstant(VN_ZONE).toLocalDateTime();
     }
 
+    /** Giờ tường Việt Nam (ví dụ từ input {@code datetime-local}) → UTC để lưu DB. */
+    public static LocalDateTime toUtc(LocalDateTime vn) {
+        return vn == null ? null
+                : vn.atZone(VN_ZONE).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
+    }
+
     public static String fmtTimeVn(LocalDateTime utc) {
         return utc == null ? "" : toVn(utc).format(TIME_VN);
     }
@@ -87,12 +93,21 @@ public final class BusinessDay {
         return startUtc(openTime, LocalDateTime.now(VN_ZONE));
     }
 
+    /** Ngày kinh doanh hiện tại theo giờ mở cửa của chi nhánh. */
+    public static LocalDate businessDate(LocalTime openTime) {
+        return businessDate(openTime, LocalDateTime.now(VN_ZONE));
+    }
+
+    static LocalDate businessDate(LocalTime openTime, LocalDateTime nowVn) {
+        LocalTime open = openTime == null ? LocalTime.MIDNIGHT : openTime;
+        LocalDate day = nowVn.toLocalDate();
+        return nowVn.toLocalTime().isBefore(open) ? day.minusDays(1) : day;
+    }
+
     /** Bản nhận "bây giờ" để test được mà không phụ thuộc đồng hồ hệ thống. */
     public static LocalDateTime startUtc(LocalTime openTime, LocalDateTime nowVn) {
         LocalTime open = openTime == null ? LocalTime.MIDNIGHT : openTime;
-        LocalDate day = nowVn.toLocalDate();
-        // Chưa tới giờ mở cửa hôm nay → ca hiện tại vẫn là ca mở từ hôm qua.
-        if (nowVn.toLocalTime().isBefore(open)) day = day.minusDays(1);
+        LocalDate day = businessDate(openTime, nowVn);
         return day.atTime(open).atZone(VN_ZONE).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
 }

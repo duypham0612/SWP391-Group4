@@ -21,8 +21,8 @@
         </div>
         <div class="lb-mid">
             <div class="eyebrow">Khôi phục truy cập</div>
-            <h1>Quên mật khẩu? Đặt lại ngay.</h1>
-            <p>Nhập tên đăng nhập và email đã đăng ký để xác minh và đặt lại mật khẩu mới.</p>
+            <h1>Quên mật khẩu?</h1>
+            <p>Việc đặt lại mật khẩu cần được xác minh bởi quản trị viên hệ thống.</p>
         </div>
         <div class="lb-foot">© 2026 Cà Phê Chain · SWP391</div>
     </div>
@@ -30,38 +30,18 @@
     <div class="login-formwrap">
         <div class="login-card">
             <div class="form-head">
-                <h2>Đặt lại mật khẩu</h2>
-                <p>Xác minh bằng tên đăng nhập và email tài khoản.</p>
+                <h2>Khôi phục tài khoản</h2>
+                <p>Vì hệ thống chưa cấu hình kênh email/OTP an toàn, chức năng tự đặt lại mật khẩu đã được tắt.</p>
             </div>
 
             <c:if test="${not empty errorMsg}">
                 <div class="alert alert-error">${errorMsg}</div>
             </c:if>
 
-            <form action="${ctx}/auth/forgot" method="post">
-                <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                <div class="form-group">
-                    <label for="username">Tên đăng nhập</label>
-                    <input id="username" type="text" name="username" class="form-control"
-                           value="${username}" required autofocus placeholder="admin">
-                </div>
-                <div class="form-group">
-                    <label for="email">Email đăng ký</label>
-                    <input id="email" type="email" name="email" class="form-control"
-                           value="${email}" required placeholder="ban@cafechain.vn">
-                </div>
-                <div class="form-group">
-                    <label for="newPassword">Mật khẩu mới (≥ 6 ký tự)</label>
-                    <input id="newPassword" type="password" name="newPassword" class="form-control"
-                           required minlength="6" placeholder="••••••••">
-                </div>
-                <div class="form-group">
-                    <label for="confirmPassword">Xác nhận mật khẩu mới</label>
-                    <input id="confirmPassword" type="password" name="confirmPassword" class="form-control"
-                           required minlength="6" placeholder="••••••••">
-                </div>
-                <button type="submit" class="btn btn-primary btn-full btn-lg">Đặt lại mật khẩu</button>
-            </form>
+            <div class="alert alert-info">
+                Vui lòng liên hệ quản trị viên để xác minh danh tính và cấp lại mật khẩu.
+                Không gửi mật khẩu hoặc mã xác minh qua kênh công khai.
+            </div>
 
             <div class="login-hint">
                 <a href="${ctx}/auth/login">← Quay lại đăng nhập</a>

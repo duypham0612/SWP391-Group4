@@ -38,8 +38,8 @@
             <c:if test="${not empty clockStatus and clockStatus.hasAssignment}">
                 <div class="shift-clock-meta">
                     <span>${clockStatus.templateName}</span>
-                    <span>${clockStatus.shiftTimeDisplay}</span>
-                    <span>${clockStatus.statusText}</span>
+                    <span>${view.timeRange(clockStatus.startTime, clockStatus.endTime)}</span>
+                    <span>${view.shiftStatus(clockStatus)}</span>
                 </div>
             </c:if>
         </div>
@@ -128,7 +128,7 @@
     <c:when test="${dutyState == 'ON_DUTY' and not empty current}">
         <div class="card form-card">
             <h3 style="margin-top:0">Ca đang mở #${current.cashierShiftId}</h3>
-            <p>Mở lúc ${current.openedAtDisplay} · Quỹ đầu ca <strong><fmt:formatNumber value="${current.openingCash}" maxFractionDigits="0"/> ₫</strong></p>
+            <p>Mở lúc ${view.fullUtc(current.openedAt)} · Quỹ đầu ca <strong><fmt:formatNumber value="${current.openingCash}" maxFractionDigits="0"/> ₫</strong></p>
             <div style="display:flex;gap:10px">
                 <a class="btn btn-primary" href="${ctx}/cashier/checkout">Tới thanh toán →</a>
             </div>
@@ -154,8 +154,8 @@
                         <tr>
                             <td><a href="${ctx}/cashier/shift?action=report&shiftId=${s.cashierShiftId}">#${s.cashierShiftId}</a></td>
                             <td>${s.cashierName}</td>
-                            <td>${s.openedAtDisplay}</td>
-                            <td><c:choose><c:when test="${s.open}"><span class="badge badge-making">Đang mở</span></c:when><c:otherwise>${s.closedAtDisplay}</c:otherwise></c:choose></td>
+                            <td>${view.fullUtc(s.openedAt)}</td>
+                            <td><c:choose><c:when test="${s.open}"><span class="badge badge-making">Đang mở</span></c:when><c:otherwise>${view.fullUtc(s.closedAt)}</c:otherwise></c:choose></td>
                             <td><c:choose><c:when test="${s.open}"><span class="badge badge-waiting">OPEN</span></c:when><c:otherwise><span class="badge badge-served">Đã đóng</span></c:otherwise></c:choose></td>
                         </tr>
                     </c:forEach>

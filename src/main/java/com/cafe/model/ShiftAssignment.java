@@ -7,6 +7,7 @@ import java.time.LocalTime;
 public class ShiftAssignment {
     private int shiftAssignmentId;
     private int shiftTemplateId;
+    private int branchId;
     private int userId;
     private LocalDate workDate;
 
@@ -22,6 +23,9 @@ public class ShiftAssignment {
 
     public int getShiftTemplateId() { return shiftTemplateId; }
     public void setShiftTemplateId(int v) { this.shiftTemplateId = v; }
+
+    public int getBranchId() { return branchId; }
+    public void setBranchId(int v) { this.branchId = v; }
 
     public int getUserId() { return userId; }
     public void setUserId(int v) { this.userId = v; }

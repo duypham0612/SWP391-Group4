@@ -10,9 +10,9 @@ public class BranchMenuItem {
     private String productName;
     private BigDecimal basePrice;
     private boolean published;        // đã có dòng catalog.BranchMenu chưa
-    private boolean available = true;
+    private boolean listed = true;
     private BigDecimal localPrice;    // NULL = dùng BasePrice
-    private boolean is86;
+    private boolean temporarilyUnavailable;
     private LocalDateTime backInEta;  // B3.F3 — dự kiến có lại (NULL = chưa rõ)
     private String imageUrl;          // ảnh sản phẩm (catalog.Product.ImageUrl)
 
@@ -27,24 +27,16 @@ public class BranchMenuItem {
 
     public BigDecimal getBasePrice() { return basePrice; }
     public void setBasePrice(BigDecimal basePrice) { this.basePrice = basePrice; }
-    public String getBasePriceDisplay() {
-        return com.cafe.common.QuantityFormat.groupedVi(basePrice);
-    }
-
     public boolean isPublished() { return published; }
     public void setPublished(boolean published) { this.published = published; }
 
-    public boolean isAvailable() { return available; }
-    public void setAvailable(boolean available) { this.available = available; }
+    public boolean isListed() { return listed; }
+    public void setListed(boolean listed) { this.listed = listed; }
 
     public BigDecimal getLocalPrice() { return localPrice; }
     public void setLocalPrice(BigDecimal localPrice) { this.localPrice = localPrice; }
-    public String getLocalPriceDisplay() {
-        return com.cafe.common.QuantityFormat.groupedVi(localPrice);
-    }
-
-    public boolean isIs86() { return is86; }
-    public void setIs86(boolean is86) { this.is86 = is86; }
+    public boolean isTemporarilyUnavailable() { return temporarilyUnavailable; }
+    public void setTemporarilyUnavailable(boolean v) { this.temporarilyUnavailable = v; }
 
     public LocalDateTime getBackInEta() { return backInEta; }
     public void setBackInEta(LocalDateTime backInEta) { this.backInEta = backInEta; }
@@ -52,9 +44,4 @@ public class BranchMenuItem {
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
 
-    /** Chuỗi ETA gọn cho JSP (dd/MM HH:mm); rỗng nếu chưa rõ. */
-    public String getBackInEtaText() {
-        return backInEta == null ? "" :
-                backInEta.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM HH:mm"));
-    }
 }

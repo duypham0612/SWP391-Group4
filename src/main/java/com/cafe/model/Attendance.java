@@ -13,6 +13,7 @@ public class Attendance {
     private LocalDateTime checkOutAt;
     private String status;          // PENDING | APPROVED | REJECTED
     private Integer approvedBy;
+    private LocalDateTime approvedAt;
 
     // join hiển thị
     private LocalDate workDate;
@@ -43,6 +44,9 @@ public class Attendance {
 
     public Integer getApprovedBy() { return approvedBy; }
     public void setApprovedBy(Integer v) { this.approvedBy = v; }
+
+    public LocalDateTime getApprovedAt() { return approvedAt; }
+    public void setApprovedAt(LocalDateTime v) { this.approvedAt = v; }
 
     public LocalDate getWorkDate() { return workDate; }
     public void setWorkDate(LocalDate v) { this.workDate = v; }

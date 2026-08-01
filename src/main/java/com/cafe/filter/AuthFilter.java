@@ -1,6 +1,6 @@
 package com.cafe.filter;
 
-import com.cafe.common.SessionUtil;
+import com.cafe.web.support.SessionUtil;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -32,6 +32,7 @@ public class AuthFilter implements Filter {
 
     private boolean isPublic(String path) {
         return path.equals("/")
+            || path.equals("/start")
             || path.equals("/home")
             || path.equals("/auth/login")
             || path.equals("/auth/logout")

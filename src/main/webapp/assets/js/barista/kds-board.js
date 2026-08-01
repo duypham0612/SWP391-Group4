@@ -39,7 +39,7 @@
     return {
       owner: validChoice(params.get('owner'), ['all', 'mine', 'unassigned'], 'all'),
       station: validChoice(params.get('station'), ['all', 'COFFEE', 'TEA', 'BLENDER'], 'all'),
-      orderType: validChoice(params.get('orderType'), ['all', 'DINE_IN', 'TAKEAWAY', 'DELIVERY'], 'all')
+      orderType: validChoice(params.get('orderType'), ['all', 'DINE_IN', 'TAKEAWAY'], 'all')
     };
   }
 
@@ -53,7 +53,7 @@
         return {
           owner: validChoice(parsed.owner, ['all', 'mine', 'unassigned'], 'all'),
           station: validChoice(parsed.station, ['all', 'COFFEE', 'TEA', 'BLENDER'], 'all'),
-          orderType: validChoice(parsed.orderType, ['all', 'DINE_IN', 'TAKEAWAY', 'DELIVERY'], 'all')
+          orderType: validChoice(parsed.orderType, ['all', 'DINE_IN', 'TAKEAWAY'], 'all')
         };
       } catch (ignore) { /* migrate the former single filter below */ }
     }
@@ -63,7 +63,7 @@
     var old = storageGet('kdsFilter');
     if (old === 'mine' || old === 'unassigned') migrated.owner = old;
     else if (old && old.indexOf('station:') === 0) migrated.station = validChoice(old.slice(8), ['COFFEE', 'TEA', 'BLENDER'], 'all');
-    else if (old && old.indexOf('type:') === 0) migrated.orderType = validChoice(old.slice(5), ['DINE_IN', 'TAKEAWAY', 'DELIVERY'], 'all');
+    else if (old && old.indexOf('type:') === 0) migrated.orderType = validChoice(old.slice(5), ['DINE_IN', 'TAKEAWAY'], 'all');
     return migrated;
   }
 

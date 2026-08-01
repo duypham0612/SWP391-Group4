@@ -57,7 +57,7 @@
                             <tr>
                                 <td><strong>${o.pickupCode}</strong></td>
                                 <td>#${o.orderId}</td>
-                                <td>${o.createdAtDisplay}</td>
+                                <td>${view.fullUtc(o.createdAt)}</td>
                                 <td><fmt:formatNumber value="${o.total}" maxFractionDigits="0"/> ₫</td>
                                 <td>
                                     <c:choose>

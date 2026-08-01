@@ -53,11 +53,11 @@
                             </form>
                         </td>
                         <td><fmt:formatNumber value="${m.basePrice}" maxFractionDigits="0"/> ₫</td>
-                        <td><label class="check-cell"><input form="menuForm${m.productId}" type="checkbox" name="available" value="1" <c:if test="${m.available}">checked</c:if>> Bán</label></td>
+                        <td><label class="check-cell"><input form="menuForm${m.productId}" type="checkbox" name="available" value="1" <c:if test="${m.listed}">checked</c:if>> Bán</label></td>
                         <td><input form="menuForm${m.productId}" type="text" name="localPrice" class="form-control" placeholder="Giá gốc" value="${m.localPrice}" data-money-input></td>
                         <td>
                             <c:choose>
-                                <c:when test="${m.is86}"><span class="badge badge-cancelled">Tạm hết</span></c:when>
+                                <c:when test="${m.temporarilyUnavailable}"><span class="badge badge-cancelled">Tạm hết</span></c:when>
                                 <c:otherwise><span class="muted">—</span></c:otherwise>
                             </c:choose>
                         </td>

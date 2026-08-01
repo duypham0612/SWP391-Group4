@@ -48,7 +48,7 @@
                                     <c:otherwise><span class="badge badge-cancelled">Đã huỷ</span></c:otherwise>
                                 </c:choose>
                             </td>
-                            <td>${r.totalCostDisplay} ₫</td>
+                            <td>${view.grouped(r.totalCost)} ₫</td>
                             <td>${r.receivedByName}</td>
                             <td><a class="btn btn-ghost btn-sm" href="${ctx}/manager/receipt?action=view&id=${r.stockReceiptId}">Xem</a></td>
                         </tr>

@@ -2,7 +2,7 @@ package com.cafe.model;
 
 import java.time.LocalDateTime;
 
-/** Sự cố hao hụt cấp nghiệp vụ; một event có thể sinh nhiều WasteLog nguyên liệu. */
+/** Sự cố hao hụt cấp nghiệp vụ; một event có thể sinh nhiều WasteEventItem nguyên liệu. */
 public class WasteEvent {
     private long wasteEventId;
     private int branchId;
@@ -18,7 +18,6 @@ public class WasteEvent {
     private LocalDateTime createdAt;
     private String clientRequestId;
     private String productName;
-    private String sourceLabel;
 
     public long getWasteEventId() { return wasteEventId; } public void setWasteEventId(long v) { wasteEventId=v; }
     public int getBranchId() { return branchId; } public void setBranchId(int v) { branchId=v; }
@@ -34,6 +33,5 @@ public class WasteEvent {
     public LocalDateTime getCreatedAt() { return createdAt; } public void setCreatedAt(LocalDateTime v) { createdAt=v; }
     public String getClientRequestId() { return clientRequestId; } public void setClientRequestId(String v) { clientRequestId=v; }
     public String getProductName() { return productName; } public void setProductName(String v) { productName=v; }
-    public String getSourceLabel() { return "KDS".equals(source) ? "KDS" : "Thủ công"; }
     public boolean isRemake() { return "REMAKE".equals(eventKind); }
 }

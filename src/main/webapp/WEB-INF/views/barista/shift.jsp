@@ -140,12 +140,12 @@
                             <c:otherwise>
                                 <c:forEach var="r" items="${historyPage.rows}">
                                     <tr>
-                                        <td>${r.workDateDisplay}</td>
-                                        <td>${fn:escapeXml(r.templateName)} <span class="muted">${r.shiftTimeDisplay}</span></td>
-                                        <td>${r.checkInDisplay}</td>
-                                        <td>${r.checkOutDisplay}</td>
-                                        <td>${r.workHoursDisplay}</td>
-                                        <td><span class="badge ${r.stateBadge}">${r.stateLabel}</span></td>
+                                        <td>${view.localDate(r.workDate)}</td>
+                                        <td>${fn:escapeXml(r.templateName)} <span class="muted">${view.timeRange(r.shiftStart, r.shiftEnd)}</span></td>
+                                        <td>${view.timeUtc(r.checkInAt)}</td>
+                                        <td>${view.timeUtc(r.checkOutAt)}</td>
+                                        <td>${view.attendanceHours(r)}</td>
+                                        <td><span class="badge ${view.attendanceBadge(r)}">${view.attendanceState(r)}</span></td>
                                     </tr>
                                 </c:forEach>
                             </c:otherwise>

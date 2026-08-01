@@ -47,17 +47,25 @@ public class IngredientDao {
         }
     }
 
-    public boolean existsByName(Connection conn, String name, int excludeId) throws SQLException {
+    public boolean existsByNameAndUnit(Connection conn, String name, String unit, int excludeId) throws SQLException {
         final String sql =
                 "SELECT 1 FROM catalog.Ingredient " +
-                "WHERE LOWER(LTRIM(RTRIM(Name))) = LOWER(LTRIM(RTRIM(?))) AND IngredientId <> ?";
+                "WHERE UPPER(LTRIM(RTRIM(Name)))=UPPER(LTRIM(RTRIM(?))) " +
+                "AND UPPER(LTRIM(RTRIM(Unit)))=UPPER(LTRIM(RTRIM(?))) AND IngredientId<>?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, name);
-            ps.setInt(2, excludeId);
+            ps.setString(2, unit);
+            ps.setInt(3, excludeId);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }
         }
+    }
+
+    public boolean hasInventoryHistory(Connection conn,int ingredientId)throws SQLException{
+        String sql="SELECT 1 WHERE EXISTS(SELECT 1 FROM inventory.InventoryTransaction WHERE IngredientId=?) "
+                + "OR EXISTS(SELECT 1 FROM inventory.BranchInventory WHERE IngredientId=?)";
+        try(PreparedStatement ps=conn.prepareStatement(sql)){ps.setInt(1,ingredientId);ps.setInt(2,ingredientId);try(ResultSet rs=ps.executeQuery()){return rs.next();}}
     }
 
     public int insert(Connection conn, Ingredient i) throws SQLException {

@@ -6,7 +6,7 @@ public class DiningTable {
     private int branchId;
     private String tableNumber;
     private String qrCode;
-    private String status;             // EMPTY | OCCUPIED | CLEANING
+    private String status;             // EMPTY | OCCUPIED
 
     // join: phiên đang OPEN (nếu có)
     private Integer activeSessionId;

@@ -15,7 +15,7 @@ public class BranchDao {
     private static final String SELECT =
         "SELECT b.BranchId, b.Code, b.Name, b.Address, b.Phone, b.IsActive, " +
         "       b.OpenTime, b.CloseTime, b.ManagerUserId, b.PeakThresholdCups, u.FullName AS ManagerName " +
-        "FROM org.Branch b LEFT JOIN iam.[User] u ON u.UserId = b.ManagerUserId ";
+        "FROM org.Branch b LEFT JOIN iam.UserAccount u ON u.UserId = b.ManagerUserId ";
 
     public List<Branch> findAll(Connection conn) throws SQLException {
         List<Branch> out = new ArrayList<>();

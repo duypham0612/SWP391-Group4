@@ -10,6 +10,8 @@
 </div>
 
 <c:if test="${not empty errorMsg}"><div class="alert alert-error">${errorMsg}</div></c:if>
+<c:if test="${not empty sessionScope.flashError}"><div class="alert alert-error">${sessionScope.flashError}</div><c:remove var="flashError" scope="session" /></c:if>
+<c:if test="${not empty sessionScope.flashOk}"><div class="alert alert-success">${sessionScope.flashOk}</div><c:remove var="flashOk" scope="session" /></c:if>
 
 <div class="card form-card">
     <form action="${ctx}/admin/ingredient" method="post">
@@ -43,7 +45,7 @@
         <div class="form-group" id="shelfLifeGroup">
             <label for="shelfLifeHours">Thời hạn bảo quản (giờ) *</label>
             <input id="shelfLifeHours" type="number" name="shelfLifeHours" class="form-control"
-                   min="1" max="720" step="1" value="${ingredient.shelfLifeHoursDisplay}">
+                   min="1" max="720" step="1" value="${view.shelfLifeHours(ingredient.shelfLifeMinutes)}">
             <small class="muted">Chỉ áp dụng cho nguyên liệu pha sẵn; hệ thống tự tính hạn dùng của mẻ.</small>
         </div>
         <div class="form-group">
@@ -52,6 +54,50 @@
         <button type="submit" class="btn btn-primary btn-lg">Lưu</button>
     </form>
 </div>
+
+<c:if test="${ingredient.ingredientId > 0}">
+    <div class="card" style="margin-top:18px">
+        <h3>Đơn vị đóng gói và quy đổi</h3>
+        <p class="muted">Tồn kho luôn lưu theo <strong>${ingredient.unit}</strong>. Chứng từ đã tạo giữ nguyên hệ số snapshot dù hệ số dưới đây thay đổi.</p>
+        <table class="table">
+            <thead><tr><th>Đơn vị</th><th>Hệ số về ${ingredient.unit}</th><th>Trạng thái</th><th></th></tr></thead>
+            <tbody>
+                <c:forEach var="u" items="${unitConversions}">
+                    <tr>
+                        <c:choose>
+                            <c:when test="${u.baseUnit}">
+                                <td>${u.unitName} <span class="badge badge-ready">Đơn vị gốc</span></td>
+                                <td>1</td><td>Đang dùng</td><td></td>
+                            </c:when>
+                            <c:otherwise>
+                                <td colspan="4">
+                                    <form action="${ctx}/admin/ingredient" method="post" style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:10px;align-items:center">
+                                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                        <input type="hidden" name="action" value="updateConversion">
+                                        <input type="hidden" name="ingredientId" value="${ingredient.ingredientId}">
+                                        <input type="hidden" name="conversionId" value="${u.ingredientUnitConversionId}">
+                                        <input type="text" name="unitName" class="form-control" maxlength="20" value="${fn:escapeXml(u.unitName)}" required>
+                                        <input type="number" name="factorToBase" class="form-control" min="0.000001" step="0.000001" value="${u.factorToBase}" required>
+                                        <label><input type="checkbox" name="active" value="1" <c:if test="${u.active}">checked</c:if>> Hoạt động</label>
+                                        <button class="btn btn-ghost btn-sm" type="submit">Lưu</button>
+                                    </form>
+                                </td>
+                            </c:otherwise>
+                        </c:choose>
+                    </tr>
+                </c:forEach>
+            </tbody>
+        </table>
+        <form action="${ctx}/admin/ingredient" method="post" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+            <input type="hidden" name="action" value="addConversion">
+            <input type="hidden" name="ingredientId" value="${ingredient.ingredientId}">
+            <div class="form-group" style="margin:0"><label>Tên đơn vị mới</label><input type="text" name="unitName" class="form-control" maxlength="20" placeholder="Túi, thùng, chai..." required></div>
+            <div class="form-group" style="margin:0"><label>1 đơn vị này = bao nhiêu ${ingredient.unit}</label><input type="number" name="factorToBase" class="form-control" min="0.000001" step="0.000001" required></div>
+            <button class="btn btn-primary" type="submit">+ Thêm quy đổi</button>
+        </form>
+    </div>
+</c:if>
 
 <script>
   (function(){

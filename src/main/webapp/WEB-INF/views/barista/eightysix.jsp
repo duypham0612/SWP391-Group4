@@ -69,20 +69,20 @@
                     <c:if test="${m.published}">
                         <c:set var="imgSrc" value="${empty m.imageUrl ? ctx.concat('/assets/img/products/_placeholder.svg') : (m.imageUrl.startsWith('http') ? m.imageUrl : ctx.concat(m.imageUrl))}" />
                         <c:set var="openReq" value="${openRequests[m.productId]}" />
-                        <tr data-name="${m.productName}" data-state="${m.is86 ? 'out' : 'available'}">
+                        <tr data-name="${m.productName}" data-state="${m.temporarilyUnavailable ? 'out' : 'available'}">
                             <td style="display:flex;align-items:center;gap:10px">
                                 <img class="prod-thumb" src="${imgSrc}" alt="${m.productName}" loading="lazy" onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
                                 ${m.productName}
                             </td>
                             <td>
                                 <c:choose>
-                                    <c:when test="${m.is86}">
+                                    <c:when test="${m.temporarilyUnavailable}">
                                         <span class="badge badge-cancelled">Tạm hết</span>
-                                        <c:if test="${not empty m.backInEtaText}">
-                                            <div class="muted" style="font-size:.82em;margin-top:4px">Có lại: ${m.backInEtaText}</div>
+                                        <c:if test="${not empty m.backInEta}">
+                                            <div class="muted" style="font-size:.82em;margin-top:4px">Có lại: ${view.shortUtc(m.backInEta)}</div>
                                         </c:if>
                                         <c:if test="${not empty openReq}">
-                                            <div class="muted" style="font-size:.82em;margin-top:4px">${openReq.statusLabel}</div>
+                                            <div class="muted" style="font-size:.82em;margin-top:4px">${view.menuStatus(openReq.status)}</div>
                                         </c:if>
                                     </c:when>
                                     <c:otherwise><span class="badge badge-ready">Còn bán</span></c:otherwise>
@@ -90,7 +90,7 @@
                             </td>
                             <td>
                                 <c:choose>
-                                    <c:when test="${m.is86}">
+                                    <c:when test="${m.temporarilyUnavailable}">
                                         <c:choose>
                                             <c:when test="${not empty openReq && not empty openReq.reopenRequestedAt}">
                                                 <div class="muted" style="font-size:.9em">Đã gửi yêu cầu mở bán — chờ quản lý</div>

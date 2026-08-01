@@ -30,7 +30,6 @@
                     <option value="all">Tất cả loại đơn</option>
                     <option value="DINE_IN">Tại bàn</option>
                     <option value="TAKEAWAY">Mang đi</option>
-                    <option value="DELIVERY">Giao hàng</option>
                 </select>
             </label>
             <button type="button" class="btn btn-ghost btn-sm btn-full" id="kdsClearFilters">Xóa bộ lọc</button>

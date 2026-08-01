@@ -10,7 +10,7 @@ public class TableSession {
     private Integer openedBy;
     private LocalDateTime openedAt;
     private LocalDateTime closedAt;
-    private String status;             // OPEN | BILLED | CLOSED
+    private String status;             // OPEN | CLOSED
 
     // join
     private String tableNumber;

@@ -48,7 +48,7 @@
             <section class="kds-ticket-item">
               <div class="kds-ticket-item__head">
                 <strong>${it.quantity} × <c:out value="${it.productName}" /></strong>
-                <span class="pickup-sla pickup-sla--${it.serveTier}">Chờ nhận ${it.serveWaitDisplay}</span>
+                <span class="pickup-sla pickup-sla--${view.serveTier(it.serveWaitSeconds)}">Chờ nhận ${view.durationMinutes(it.serveWaitSeconds)}</span>
               </div>
               <c:if test="${not empty it.note}"><div class="kds-note"><c:out value="${it.note}" /></div></c:if>
               <form action="${ctx}/cashier/inbox" method="post">
@@ -85,8 +85,8 @@
         <div class="kds-card__top">
           <div>
             <div>
-              <c:if test="${not empty g.pickupCodesLabel}">
-                <span class="kds-code kds-code--lg"><c:out value="${g.pickupCodesLabel}" /></span>
+              <c:if test="${not empty g.pickupCodes}">
+                <span class="kds-code kds-code--lg"><c:out value="${view.pickupCodes(g.pickupCodes)}" /></span>
               </c:if>
               <strong class="kds-table">
                 <c:choose>

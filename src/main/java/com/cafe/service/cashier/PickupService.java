@@ -17,7 +17,12 @@ import java.util.Map;
  */
 public class PickupService {
 
-    private final OrderService orderService = new OrderService();
+    private final OrderService orderService;
+
+    public PickupService() { this(new OrderService()); }
+    public PickupService(OrderService orderService) {
+        this.orderService = java.util.Objects.requireNonNull(orderService);
+    }
 
     /** Món cho phép hoàn tác giao nhầm hiển thị trong ~10 phút gần nhất. */
     private static final int UNDO_WINDOW_MINUTES = 10;

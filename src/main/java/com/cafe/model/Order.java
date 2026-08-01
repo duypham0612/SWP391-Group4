@@ -1,23 +1,22 @@
 package com.cafe.model;
 
-import com.cafe.common.BusinessDay;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
-/** sales.Orders — đơn (COUNTER hoặc QR, cùng một bảng). */
+/** sales.SalesOrder — đơn (COUNTER hoặc QR, cùng một bảng). */
 public class Order {
     private int orderId;
     private int branchId;
     private Integer tableSessionId;
-    private Integer customerId;
     private String source;             // COUNTER | QR
     private String orderType;          // DINE_IN | TAKEAWAY
     private String status;             // ACTIVE | COMPLETED | CANCELLED
     private Integer createdBy;
     private LocalDateTime createdAt;
+    private LocalDate businessDate;
     private String pickupCode;         // mã gọi món (vd D12/T07/G03), sinh lúc tạo đơn
 
     // join / computed
@@ -35,8 +34,6 @@ public class Order {
     public Integer getTableSessionId() { return tableSessionId; }
     public void setTableSessionId(Integer v) { this.tableSessionId = v; }
 
-    public Integer getCustomerId() { return customerId; }
-    public void setCustomerId(Integer v) { this.customerId = v; }
 
     public String getSource() { return source; }
     public void setSource(String v) { this.source = v; }
@@ -52,7 +49,8 @@ public class Order {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime v) { this.createdAt = v; }
-    public String getCreatedAtDisplay() { return BusinessDay.fmtFullDateTimeVn(createdAt); }
+    public LocalDate getBusinessDate() { return businessDate; }
+    public void setBusinessDate(LocalDate v) { this.businessDate = v; }
 
     public String getPickupCode() { return pickupCode; }
     public void setPickupCode(String v) { this.pickupCode = v; }

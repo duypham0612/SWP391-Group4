@@ -1,9 +1,10 @@
 package com.cafe.controller.admin;
 
 import com.cafe.common.BusinessException;
-import com.cafe.common.CsrfUtil;
+import com.cafe.web.support.CsrfUtil;
 import com.cafe.model.Ingredient;
 import com.cafe.model.PrepRecipe;
+import com.cafe.model.PrepRecipeIngredient;
 import com.cafe.model.Product;
 import com.cafe.model.ProductRecipe;
 import com.cafe.service.admin.IngredientService;
@@ -26,9 +27,16 @@ import java.util.Set;
 @WebServlet("/admin/recipe")
 public class RecipeServlet extends HttpServlet {
 
-    private final RecipeService service = new RecipeService();
-    private final ProductService productService = new ProductService();
-    private final IngredientService ingredientService = new IngredientService();
+    private final RecipeService service;
+    private final ProductService productService;
+    private final IngredientService ingredientService;
+
+    public RecipeServlet() { this(new RecipeService(), new ProductService(), new IngredientService()); }
+    RecipeServlet(RecipeService service, ProductService productService, IngredientService ingredientService) {
+        this.service = java.util.Objects.requireNonNull(service);
+        this.productService = java.util.Objects.requireNonNull(productService);
+        this.ingredientService = java.util.Objects.requireNonNull(ingredientService);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -101,9 +109,23 @@ public class RecipeServlet extends HttpServlet {
                 case "addPrepLines": {
                     int preppedId = Integer.parseInt(req.getParameter("preppedId"));
                     try {
-                        int added = service.addPrepRecipeLines(preppedId, bindRecipeLines(req));
+                        int added = service.addPrepRecipeLines(
+                                preppedId, decimal(req.getParameter("yieldQty")), bindRecipeLines(req));
                         req.getSession().setAttribute(
                                 "flashOk", "Đã thêm " + added + " nguyên liệu vào công thức pha sẵn.");
+                    } catch (BusinessException e) {
+                        showPrepRecipe(req, resp, preppedId, e.getMessage());
+                        return;
+                    }
+                    resp.sendRedirect(ctx + "/admin/recipe?preppedId=" + preppedId);
+                    return;
+                }
+                case "updatePrepYield": {
+                    int preppedId = Integer.parseInt(req.getParameter("preppedId"));
+                    try {
+                        service.updatePrepRecipeYield(
+                                preppedId, decimal(req.getParameter("yieldQty")));
+                        req.getSession().setAttribute("flashOk", "Đã cập nhật sản lượng một mẻ.");
                     } catch (BusinessException e) {
                         showPrepRecipe(req, resp, preppedId, e.getMessage());
                         return;
@@ -172,10 +194,12 @@ public class RecipeServlet extends HttpServlet {
             return;
         }
 
-        List<PrepRecipe> lines = service.getPrepRecipe(preppedId);
+        PrepRecipe recipe = service.getPrepRecipe(preppedId);
+        List<PrepRecipeIngredient> lines = recipe == null ? List.of() : recipe.getIngredients();
         Set<Integer> usedIngredientIds = new HashSet<>();
-        for (PrepRecipe line : lines) usedIngredientIds.add(line.getRawIngredientId());
+        for (PrepRecipeIngredient line : lines) usedIngredientIds.add(line.getRawIngredientId());
         req.setAttribute("prepped", prepped);
+        req.setAttribute("prepRecipe", recipe);
         req.setAttribute("prepLines", lines);
         req.setAttribute("rawIngredients",
                 ingredientService.getIngredientListByType("RAW").stream()

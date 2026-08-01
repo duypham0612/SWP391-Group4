@@ -1,8 +1,7 @@
 package com.cafe.controller.cashier;
-import com.cafe.controller.manager.InventoryDashboardServlet;
 
-import com.cafe.common.CsrfUtil;
-import com.cafe.common.SessionUtil;
+import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.SessionUtil;
 import com.cafe.model.User;
 import com.cafe.model.PosMenuItem;
 import com.cafe.service.cashier.PickupService;
@@ -24,14 +23,22 @@ import java.io.IOException;
 @WebServlet("/cashier/inbox")
 public class OrderInboxServlet extends HttpServlet {
 
-    private final OrderService orderService = new OrderService();
-    private final PickupService pickupService = new PickupService();
-    private final CatalogReadService catalogReadService = new CatalogReadService();
+    private final OrderService orderService;
+    private final PickupService pickupService;
+    private final CatalogReadService catalogReadService;
+
+    public OrderInboxServlet() { this(new OrderService(), new PickupService(), new CatalogReadService()); }
+    OrderInboxServlet(OrderService orderService, PickupService pickupService,
+                      CatalogReadService catalogReadService) {
+        this.orderService = java.util.Objects.requireNonNull(orderService);
+        this.pickupService = java.util.Objects.requireNonNull(pickupService);
+        this.catalogReadService = java.util.Objects.requireNonNull(catalogReadService);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         try {
             java.util.List<com.cafe.model.Order> orders = orderService.getIncomingOrders(branchId);
             // Đơn treo đã được service xếp lên đầu; đếm ở đây để có một dòng nhắc gọn trên cùng —
@@ -57,12 +64,12 @@ public class OrderInboxServlet extends HttpServlet {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
         User u = SessionUtil.currentUser(req);
         Integer userId = u != null ? u.getUserId() : null;
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         String action = req.getParameter("action");
         try {
             if ("void".equals(action)) {
                 int orderId = Integer.parseInt(req.getParameter("orderId"));
-                boolean ok = orderService.voidOrder(orderId, userId);
+                boolean ok = orderService.voidOrder(orderId, userId, branchId);
                 req.getSession().setAttribute(ok ? "flashOk" : "flashError",
                         ok ? "Đã huỷ đơn — các món chưa pha chuyển CANCELLED (không đụng tồn)."
                            : "Không thể huỷ — đơn đã được pha (hoặc đã xử lý).");

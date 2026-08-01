@@ -1,6 +1,6 @@
 package com.cafe.service.barista;
 
-import com.cafe.model.WasteLog;
+import com.cafe.model.WasteEventItem;
 import com.cafe.service.shared.InventoryService;
 import com.cafe.service.shared.WasteSummary;
 import org.junit.jupiter.api.Test;
@@ -22,9 +22,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class WasteSummaryTest {
 
     /** Tạo 1 dòng waste. unitCost = null → coi như chưa có giá. */
-    private static WasteLog log(String type, String status, String ingName, int ingId,
+    private static WasteEventItem log(String type, String status, String ingName, int ingId,
                                 String qty, String unitCost) {
-        WasteLog w = new WasteLog();
+        WasteEventItem w = new WasteEventItem();
         w.setWasteType(type);
         w.setStatus(status);
         w.setIngredientName(ingName);
@@ -77,8 +77,8 @@ class WasteSummaryTest {
     /** Một lần remake có nhiều nguyên liệu chỉ được tính là một lần/ly trên KPI mới. */
     @Test
     void remake_event_is_counted_once_even_when_it_has_many_ingredients() {
-        WasteLog coffee = log("REMAKE", "ACTIVE", "Cà phê", 1, "1", "5000"); coffee.setWasteEventId(91L);
-        WasteLog milk = log("REMAKE", "ACTIVE", "Sữa", 2, "2", "1000"); milk.setWasteEventId(91L);
+        WasteEventItem coffee = log("REMAKE", "ACTIVE", "Cà phê", 1, "1", "5000"); coffee.setWasteEventId(91L);
+        WasteEventItem milk = log("REMAKE", "ACTIVE", "Sữa", 2, "2", "1000"); milk.setWasteEventId(91L);
         WasteSummary s = WasteSummary.from(List.of(coffee, milk));
         assertEquals(1, s.getRemakeCount());
         assertMoney(s.getRemakeCost(), "7000");
@@ -86,7 +86,7 @@ class WasteSummaryTest {
 
     @Test
     void snapshot_cost_wins_over_later_estimate() {
-        WasteLog w = log("SPILL", "ACTIVE", "Sữa", 2, "2", "9999");
+        WasteEventItem w = log("SPILL", "ACTIVE", "Sữa", 2, "2", "9999");
         w.setCostBasis("SNAPSHOT"); w.setUnitCostAtLog(new BigDecimal("1000"));
         WasteSummary s = WasteSummary.from(List.of(w));
         assertMoney(s.getTotalCost(), "2000");
@@ -167,18 +167,18 @@ class WasteSummaryTest {
     }
 
     private static class FakeInventoryService extends InventoryService {
-        private final List<WasteLog> logs;
+        private final List<WasteEventItem> logs;
         private int branchId;
         private LocalDateTime fromUtc;
         private LocalDateTime toUtc;
         private boolean ingredientOnly;
 
-        FakeInventoryService(List<WasteLog> logs) {
+        FakeInventoryService(List<WasteEventItem> logs) {
             this.logs = logs;
         }
 
         @Override
-        public List<WasteLog> getWasteLogs(int branchId, LocalDateTime fromUtc, LocalDateTime toUtc,
+        public List<WasteEventItem> getWasteLogs(int branchId, LocalDateTime fromUtc, LocalDateTime toUtc,
                                            boolean ingredientOnly) throws SQLException {
             this.branchId = branchId;
             this.fromUtc = fromUtc;

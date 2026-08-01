@@ -2,6 +2,7 @@ package com.cafe.service.manager;
 
 import com.cafe.config.DBConnection;
 import com.cafe.common.BusinessDay;
+import com.cafe.common.BusinessException;
 import com.cafe.common.ShiftHours;
 import com.cafe.common.ShiftWindow;
 import com.cafe.dao.manager.AttendanceDao;
@@ -29,8 +30,14 @@ import java.util.Set;
 /** M3 · AttendanceService — duyệt chấm công. */
 public class AttendanceService {
 
-    private final AttendanceDao dao = new AttendanceDao();
-    private final PayrollDao payrollDao = new PayrollDao();
+    private final AttendanceDao dao;
+    private final PayrollDao payrollDao;
+
+    public AttendanceService() { this(new AttendanceDao(), new PayrollDao()); }
+    public AttendanceService(AttendanceDao dao, PayrollDao payrollDao) {
+        this.dao = java.util.Objects.requireNonNull(dao);
+        this.payrollDao = java.util.Objects.requireNonNull(payrollDao);
+    }
 
     public List<Attendance> getPendingAttendance(int branchId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) { return dao.findByStatus(c, branchId, "PENDING"); }
@@ -49,37 +56,50 @@ public class AttendanceService {
      * Chấm công bằng tickbox: với mỗi bản ghi hiển thị (shownIds, không tính REJECTED),
      * tick = APPROVED (ghi người duyệt), bỏ tick = PENDING (xoá người duyệt). Tất cả 1 transaction.
      */
-    public void setApprovalStates(List<Integer> shownIds, Set<Integer> checkedIds, int approverId) throws SQLException {
+    public void setApprovalStates(List<Integer> shownIds, Set<Integer> checkedIds,
+                                  int approverId, int branchId) throws SQLException {
         txVoid(c -> {
             for (Integer id : shownIds) {
-                if (checkedIds.contains(id)) dao.updateApproval(c, id, "APPROVED", approverId);
-                else dao.updateApproval(c, id, "PENDING", null);
+                int rows = checkedIds.contains(id)
+                        ? dao.updateApprovalByBranch(c, id, branchId, "APPROVED", approverId)
+                        : dao.updateApprovalByBranch(c, id, branchId, "PENDING", null);
+                requireScopedUpdate(rows);
             }
         });
     }
 
     /** Mở lại bản ghi đã từ chối → PENDING. */
-    public void reopenAttendance(int id) throws SQLException {
-        txVoid(c -> dao.updateApproval(c, id, "PENDING", null));
+    public void reopenAttendance(int id, int branchId) throws SQLException {
+        txVoid(c -> requireScopedUpdate(
+                dao.updateApprovalByBranch(c, id, branchId, "PENDING", null)));
     }
 
     public Attendance getAttendance(int id) throws SQLException {
         try (Connection c = DBConnection.getConnection()) { return dao.findById(c, id); }
     }
 
-    public void approveAttendance(int id, int approverId) throws SQLException {
-        txVoid(c -> dao.updateStatus(c, id, "APPROVED", approverId));
+    public void approveAttendance(int id, int approverId, int branchId) throws SQLException {
+        txVoid(c -> requireScopedUpdate(
+                dao.updateApprovalByBranch(c, id, branchId, "APPROVED", approverId)));
     }
 
-    public void rejectAttendance(int id, int approverId) throws SQLException {
-        txVoid(c -> dao.updateStatus(c, id, "REJECTED", approverId));
+    public void rejectAttendance(int id, int approverId, int branchId) throws SQLException {
+        txVoid(c -> requireScopedUpdate(
+                dao.updateApprovalByBranch(c, id, branchId, "REJECTED", approverId)));
     }
 
     /** Manager sửa giờ check-in/out tay. */
-    public void updateAttendance(int id, LocalDateTime checkIn, LocalDateTime checkOut) throws SQLException {
+    public void updateAttendance(int id, int branchId,
+                                 LocalDateTime checkIn, LocalDateTime checkOut) throws SQLException {
         Timestamp ci = checkIn == null ? null : Timestamp.valueOf(checkIn);
         Timestamp co = checkOut == null ? null : Timestamp.valueOf(checkOut);
-        txVoid(c -> dao.update(c, id, ci, co));
+        txVoid(c -> requireScopedUpdate(dao.updateByBranch(c, id, branchId, ci, co)));
+    }
+
+    private static void requireScopedUpdate(int rows) {
+        if (rows != 1) {
+            throw new BusinessException("Bản chấm công không thuộc chi nhánh hiện tại.");
+        }
     }
 
     /** Số giờ làm của 1 bản ghi chấm công (đọc lại từ DB). */
@@ -213,7 +233,7 @@ public class AttendanceService {
             throws SQLException {
         MonthlyWorkSummary s = summarize(rows);
         try (Connection c = DBConnection.getConnection()) {
-            Payroll p = payrollDao.findByMonth(c, branchId, ym.toString()).get(userId);
+            Payroll p = payrollDao.findByMonth(c, branchId, ym).get(userId);
             if (p != null) {
                 s.setLockedHours(p.getWorkedHours());
                 s.setHourlyRate(p.getHourlyRate());
@@ -336,7 +356,6 @@ public class AttendanceService {
         if (assignments.isEmpty()) {
             ShiftClockStatus status = new ShiftClockStatus();
             status.setWorkDate(date);
-            status.setStatusText("Hôm nay bạn chưa được xếp ca.");
             return status;
         }
 
@@ -371,14 +390,12 @@ public class AttendanceService {
 
         if (attendance == null || attendance.getCheckInAt() == null) {
             status.setCanClockIn(true);
-            status.setStatusText("Chưa vào ca.");
             return status;
         }
 
         status.setCheckInAt(attendance.getCheckInAt());
         if (attendance.getCheckOutAt() == null) {
             status.setCanClockOut(true);
-            status.setStatusText("Đang trong ca từ " + BusinessDay.fmtTimeVn(attendance.getCheckInAt()) + ".");
             status.setWorkHours(hoursBetween(attendance.getCheckInAt(), dao.currentUtc(c).toLocalDateTime()));
             return status;
         }
@@ -386,7 +403,6 @@ public class AttendanceService {
         status.setClockedOut(true);
         status.setCheckOutAt(attendance.getCheckOutAt());
         status.setWorkHours(hoursBetween(attendance.getCheckInAt(), attendance.getCheckOutAt()));
-        status.setStatusText("Đã tan ca.");
         return status;
     }
 

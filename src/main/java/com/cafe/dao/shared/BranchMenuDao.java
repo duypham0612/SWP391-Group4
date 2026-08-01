@@ -15,7 +15,7 @@ public class BranchMenuDao {
 
     private static final String AVAILABILITY_SELECT =
             "SELECT p.ProductId, p.Name, p.BasePrice, p.ImageUrl, " +
-            "       bm.IsAvailable, bm.LocalPrice, bm.Is86, bm.BackInEta, " +
+            "       bm.IsListed, bm.LocalPrice, bm.IsTemporarilyUnavailable, bm.BackInEta, " +
             "       1 AS Published " +
             "FROM catalog.Product p " +
             "JOIN catalog.BranchMenu bm ON bm.ProductId = p.ProductId AND bm.BranchId = ? " +
@@ -24,7 +24,7 @@ public class BranchMenuDao {
     public List<BranchMenuItem> listForBranch(Connection conn, int branchId) throws SQLException {
         final String sql =
             "SELECT p.ProductId, p.Name, p.BasePrice, p.ImageUrl, " +
-            "       bm.IsAvailable, bm.LocalPrice, bm.Is86, bm.BackInEta, " +
+            "       bm.IsListed, bm.LocalPrice, bm.IsTemporarilyUnavailable, bm.BackInEta, " +
             "       CASE WHEN bm.ProductId IS NULL THEN 0 ELSE 1 END AS Published " +
             "FROM catalog.Product p " +
             "LEFT JOIN catalog.BranchMenu bm ON bm.ProductId = p.ProductId AND bm.BranchId = ? " +
@@ -43,9 +43,9 @@ public class BranchMenuDao {
                     boolean published = rs.getInt("Published") == 1;
                     m.setPublished(published);
                     if (published) {
-                        m.setAvailable(rs.getBoolean("IsAvailable"));
+                        m.setListed(rs.getBoolean("IsListed"));
                         m.setLocalPrice(rs.getBigDecimal("LocalPrice"));
-                        m.setIs86(rs.getBoolean("Is86"));
+                        m.setTemporarilyUnavailable(rs.getBoolean("IsTemporarilyUnavailable"));
                         java.sql.Timestamp eta = rs.getTimestamp("BackInEta");
                         if (eta != null) m.setBackInEta(eta.toLocalDateTime());
                     }
@@ -95,8 +95,8 @@ public class BranchMenuDao {
             sql.append("AND p.Name COLLATE SQL_Latin1_General_CP1_CI_AI " +
                     "LIKE ? COLLATE SQL_Latin1_General_CP1_CI_AI ESCAPE '\\' ");
         }
-        if ("out".equals(state)) sql.append("AND bm.Is86 = 1 ");
-        else if ("available".equals(state)) sql.append("AND bm.Is86 = 0 ");
+        if ("out".equals(state)) sql.append("AND bm.IsTemporarilyUnavailable = 1 ");
+        else if ("available".equals(state)) sql.append("AND bm.IsTemporarilyUnavailable = 0 ");
     }
 
     private int bindAvailabilityFilters(PreparedStatement ps, int startIndex, int branchId,
@@ -127,9 +127,9 @@ public class BranchMenuDao {
         boolean published = rs.getInt("Published") == 1;
         m.setPublished(published);
         if (published) {
-            m.setAvailable(rs.getBoolean("IsAvailable"));
+            m.setListed(rs.getBoolean("IsListed"));
             m.setLocalPrice(rs.getBigDecimal("LocalPrice"));
-            m.setIs86(rs.getBoolean("Is86"));
+            m.setTemporarilyUnavailable(rs.getBoolean("IsTemporarilyUnavailable"));
             java.sql.Timestamp eta = rs.getTimestamp("BackInEta");
             if (eta != null) m.setBackInEta(eta.toLocalDateTime());
         }
@@ -146,7 +146,7 @@ public class BranchMenuDao {
     }
 
     /**
-     * Cấu hình menu chi nhánh: bật/tắt bán + giá riêng. CỐ Ý không đụng {@code Is86}/{@code BackInEta} —
+     * Cấu hình menu chi nhánh: bật/tắt bán + giá riêng. CỐ Ý không đụng {@code IsTemporarilyUnavailable}/{@code BackInEta} —
      * cờ hết món chỉ do luồng báo hết ghi ({@code request86}/{@code reopen86}), vì nó phải khớp với
      * yêu cầu còn mở trong {@code catalog.MenuBlockRequest}. Ghi từ hai đường sẽ làm lệch hai bên:
      * món mở bán lại mà yêu cầu vẫn treo thì barista vướng unique index, không báo hết lại được.
@@ -154,7 +154,7 @@ public class BranchMenuDao {
     public void upsert(Connection conn, int branchId, int productId,
                        boolean available, BigDecimal localPrice) throws SQLException {
         if (exists(conn, branchId, productId)) {
-            final String sql = "UPDATE catalog.BranchMenu SET IsAvailable=?, LocalPrice=? WHERE BranchId=? AND ProductId=?";
+            final String sql = "UPDATE catalog.BranchMenu SET IsListed=?, LocalPrice=? WHERE BranchId=? AND ProductId=?";
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setBoolean(1, available);
                 if (localPrice == null) ps.setNull(2, Types.DECIMAL); else ps.setBigDecimal(2, localPrice);
@@ -163,8 +163,8 @@ public class BranchMenuDao {
                 ps.executeUpdate();
             }
         } else {
-            // Món vừa lên menu thì chưa hết — để cột Is86 dùng DEFAULT 0 của schema.
-            final String sql = "INSERT INTO catalog.BranchMenu(BranchId, ProductId, IsAvailable, LocalPrice) VALUES (?,?,?,?)";
+            // Món vừa lên menu thì chưa hết — để cột IsTemporarilyUnavailable dùng DEFAULT 0 của schema.
+            final String sql = "INSERT INTO catalog.BranchMenu(BranchId, ProductId, IsListed, LocalPrice) VALUES (?,?,?,?)";
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setInt(1, branchId);
                 ps.setInt(2, productId);
@@ -179,7 +179,7 @@ public class BranchMenuDao {
      *  Mở bán lại (is86=false) luôn xoá ETA; báo hết (is86=true) ghi ETA nếu có. */
     public int updateIs86(Connection conn, int branchId, int productId, boolean is86,
                            java.sql.Timestamp backInEta) throws SQLException {
-        final String sql = "UPDATE catalog.BranchMenu SET Is86=?, BackInEta=? WHERE BranchId=? AND ProductId=?";
+        final String sql = "UPDATE catalog.BranchMenu SET IsTemporarilyUnavailable=?, BackInEta=? WHERE BranchId=? AND ProductId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setBoolean(1, is86);
             if (!is86 || backInEta == null) ps.setNull(2, Types.TIMESTAMP);

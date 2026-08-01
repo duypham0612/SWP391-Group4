@@ -22,7 +22,7 @@
     <div class="alert alert-error">
         <strong>Món hiện không nhận đặt:</strong>
         <c:forEach var="m" items="${outOfStockItems}" varStatus="loop">
-            <c:out value="${m.name}" /> (<c:out value="${m.stockMessage}" />)${loop.last ? '' : ' · '}
+            <c:out value="${m.name}" /> (<c:out value="${view.stockMessage(m)}" />)${loop.last ? '' : ' · '}
         </c:forEach>
         — nếu đơn đang xử lý có món bị chặn, hãy thông báo khách để đổi hoặc huỷ món.
     </div>
@@ -31,7 +31,7 @@
     <div class="alert alert-info">
         <strong>Cảnh báo sắp hết — vẫn nhận đặt:</strong>
         <c:forEach var="m" items="${lowStockItems}" varStatus="loop">
-            <c:out value="${m.name}" /> (<c:out value="${m.stockMessage}" />)${loop.last ? '' : ' · '}
+            <c:out value="${m.name}" /> (<c:out value="${view.stockMessage(m)}" />)${loop.last ? '' : ' · '}
         </c:forEach>
     </div>
 </c:if>
@@ -75,7 +75,7 @@
                                 </c:choose>
                             </strong>
                         </div>
-                        <div class="muted">Đơn #${o.orderId} · ${o.createdAtDisplay} · ${o.items.size()} dòng món</div>
+                        <div class="muted">Đơn #${o.orderId} · ${view.fullUtc(o.createdAt)} · ${o.items.size()} dòng món</div>
                         <div class="muted">Tổng <strong><fmt:formatNumber value="${o.total}" type="number"/>đ</strong></div>
                     </div>
                     <div class="pickup-card__badges">

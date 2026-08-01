@@ -1,11 +1,12 @@
 package com.cafe.controller.barista;
-import com.cafe.controller.manager.InventoryDashboardServlet;
 
 import com.cafe.common.BusinessException;
 import com.cafe.common.Constants;
-import com.cafe.common.CsrfUtil;
+import com.cafe.web.support.CsrfUtil;
 import com.cafe.common.Reason86;
-import com.cafe.common.SessionUtil;
+import com.cafe.web.support.SessionUtil;
+import com.cafe.web.support.BaristaShiftSupport;
+import com.cafe.web.support.BaristaWritePolicy;
 import com.cafe.model.User;
 import com.cafe.service.shared.BranchMenuService;
 import jakarta.servlet.ServletException;
@@ -25,13 +26,20 @@ import java.time.format.DateTimeParseException;
 @WebServlet("/barista/eightysix")
 public class EightySixServlet extends HttpServlet {
 
-    private final BranchMenuService service = new BranchMenuService();
+    private final BranchMenuService service;
+    private final BaristaShiftSupport shiftSupport;
     private static final DateTimeFormatter HTML_DT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm");
+
+    public EightySixServlet() { this(new BranchMenuService(), new BaristaShiftSupport()); }
+    EightySixServlet(BranchMenuService service, BaristaShiftSupport shiftSupport) {
+        this.service = java.util.Objects.requireNonNull(service);
+        this.shiftSupport = java.util.Objects.requireNonNull(shiftSupport);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         String query = textParam(req, "q", 100);
         String state = normalizeState(req.getParameter("state"));
         int pageSize = normalizePageSize(positiveIntParam(req, "pageSize", 10));
@@ -49,7 +57,7 @@ public class EightySixServlet extends HttpServlet {
             req.setAttribute("etaMin", now.plusMinutes(Constants.MENU86_ETA_MIN_MINUTES).format(HTML_DT));
             req.setAttribute("etaMax", now.plusDays(Constants.MENU86_ETA_MAX_DAYS).format(HTML_DT));
             req.setAttribute("pageTitle", "Báo hết món");
-            BaristaShift.expose(req, "/barista/eightysix");   // trực ca: banner + khoá thao tác khi ngoài ca
+            shiftSupport.expose(req, "/barista/eightysix");   // trực ca: banner + khoá thao tác khi ngoài ca
             req.getRequestDispatcher("/WEB-INF/views/barista/eightysix.jsp").forward(req, resp);
         } catch (Exception e) { throw new ServletException(e); }
     }
@@ -65,8 +73,8 @@ public class EightySixServlet extends HttpServlet {
             resp.sendRedirect(redirect);
             return;
         }
-        if (BaristaShift.guardWrite(req, resp, "/barista/eightysix")) return;   // ngoài ca → chặn ghi
-        int branchId = InventoryDashboardServlet.branchId(req);
+        if (shiftSupport.guardWrite(req, resp, "/barista/eightysix")) return;   // ngoài ca → chặn ghi
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         User u = SessionUtil.currentUser(req);
         int userId = u != null ? u.getUserId() : 0;
         try {

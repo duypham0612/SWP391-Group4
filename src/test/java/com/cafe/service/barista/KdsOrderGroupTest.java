@@ -1,6 +1,7 @@
 package com.cafe.service.barista;
 
 import com.cafe.model.OrderItem;
+import com.cafe.web.viewmodel.ViewFormatter;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -105,8 +106,9 @@ class KdsOrderGroupTest {
 
         KdsService.annotateOrderLines(queue, 7);
 
-        assertEquals("Mang đi", queue.get(0).getGroupInfo().getDestinationLabel());
-        assertEquals("Bàn 02", queue.get(1).getGroupInfo().getDestinationLabel());
+        ViewFormatter view = new ViewFormatter();
+        assertEquals("Mang đi", view.destination(queue.get(0).getGroupInfo()));
+        assertEquals("Bàn 02", view.destination(queue.get(1).getGroupInfo()));
     }
 
     @Test

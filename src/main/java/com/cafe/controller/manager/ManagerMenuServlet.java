@@ -1,7 +1,7 @@
 package com.cafe.controller.manager;
 
 import com.cafe.common.BusinessException;
-import com.cafe.common.CsrfUtil;
+import com.cafe.web.support.CsrfUtil;
 import com.cafe.common.LocalizedNumber;
 import com.cafe.model.BranchMenuItem;
 import com.cafe.service.shared.BranchMenuService;
@@ -24,12 +24,17 @@ import java.util.Set;
 @WebServlet("/manager/menu")
 public class ManagerMenuServlet extends HttpServlet {
 
-    private final BranchMenuService service = new BranchMenuService();
+    private final BranchMenuService service;
+
+    public ManagerMenuServlet() { this(new BranchMenuService()); }
+    ManagerMenuServlet(BranchMenuService service) {
+        this.service = java.util.Objects.requireNonNull(service);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         try {
             req.setAttribute("items", service.listForBranch(branchId));
             req.setAttribute("openRequests", service.getOpenRequests(branchId));
@@ -44,7 +49,7 @@ public class ManagerMenuServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         String action = req.getParameter("action");
         try {
             if ("hideMany".equals(action)) {   // ẩn (ngừng bán) nhiều món đã tick cùng lúc
@@ -60,7 +65,7 @@ public class ManagerMenuServlet extends HttpServlet {
             }
             int productId = Integer.parseInt(req.getParameter("productId"));
             BranchMenuItem cur = findItem(branchId, productId);
-            boolean available = cur != null && cur.isAvailable();
+            boolean available = cur != null && cur.isListed();
             BigDecimal localPrice = cur != null ? cur.getLocalPrice() : null;
 
             // Không có nhánh toggle86: mở bán lại món đang tạm hết phải đi qua panel "Món tạm hết"

@@ -12,7 +12,7 @@
     <div class="alert alert-error">${sessionScope.flashError}</div><c:remove var="flashError" scope="session" />
 </c:if>
 
-<div class="alert alert-info">Tick các nguyên liệu cần kiểm kê, nhập <strong>tồn thực tế</strong> (và đơn vị/lý do nếu cần). Chênh lệch (thực tế − hệ thống) sẽ được ghi 1 dòng <code>ADJUST</code> vào sổ cái và cập nhật tồn. Dòng được tick nhưng chưa nhập tồn thực tế sẽ bỏ qua.</div>
+<div class="alert alert-info">Tick các nguyên liệu cần kiểm kê, chọn đơn vị đóng gói và nhập <strong>tồn thực tế</strong>. Hệ thống tự quy đổi về đơn vị gốc trước khi tính chênh lệch và ghi <code>ADJUST</code>. Dòng được tick nhưng chưa nhập số lượng sẽ bỏ qua.</div>
 
 <div class="card">
     <form action="${ctx}/manager/reconciliation" method="post">
@@ -30,7 +30,11 @@
                     <tr>
                         <td><input class="pickbox" type="checkbox" name="pick" value="${i.ingredientId}"></td>
                         <td>${i.name} <span class="muted">· ${i.ingredientType == 'PREPPED' ? 'Đã sơ chế' : 'Nguyên liệu thô'}</span></td>
-                        <td><input type="text" name="unit_${i.ingredientId}" class="form-control" maxlength="20" value="${i.unit}"></td>
+                        <td><select name="unitConversionId_${i.ingredientId}" class="form-control" required>
+                            <c:forEach var="u" items="${unitConversionsByIngredient[i.ingredientId]}">
+                                <option value="${u.ingredientUnitConversionId}">${u.unitName}</option>
+                            </c:forEach>
+                        </select></td>
                         <td><input type="text" name="actual_${i.ingredientId}" class="form-control" placeholder="0" data-vi-number></td>
                         <td><input type="text" name="reason_${i.ingredientId}" class="form-control" maxlength="255" placeholder="Kiểm kê cuối ca..."></td>
                     </tr>

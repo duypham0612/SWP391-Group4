@@ -1,11 +1,9 @@
 package com.cafe.controller.manager;
 
 import com.cafe.common.BusinessException;
-import com.cafe.common.CsrfUtil;
+import com.cafe.web.support.CsrfUtil;
 import com.cafe.common.LocalizedNumber;
-import com.cafe.common.SessionUtil;
 import com.cafe.model.BranchInventory;
-import com.cafe.model.User;
 import com.cafe.service.admin.IngredientService;
 import com.cafe.service.shared.InventoryService;
 import jakarta.servlet.ServletException;
@@ -22,13 +20,19 @@ import java.util.List;
 @WebServlet("/manager/inventory")
 public class InventoryDashboardServlet extends HttpServlet {
 
-    private final InventoryService inventoryService = new InventoryService();
-    private final IngredientService ingredientService = new IngredientService();
+    private final InventoryService inventoryService;
+    private final IngredientService ingredientService;
+
+    public InventoryDashboardServlet() { this(new InventoryService(), new IngredientService()); }
+    InventoryDashboardServlet(InventoryService inventoryService, IngredientService ingredientService) {
+        this.inventoryService = java.util.Objects.requireNonNull(inventoryService);
+        this.ingredientService = java.util.Objects.requireNonNull(ingredientService);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         String action = req.getParameter("action");
         try {
             if ("ledger".equals(action)) {
@@ -56,7 +60,7 @@ public class InventoryDashboardServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
-        int branchId = branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         try {
             if ("setThreshold".equals(req.getParameter("action"))) {
                 int ingredientId = Integer.parseInt(req.getParameter("ingredientId"));
@@ -80,20 +84,4 @@ public class InventoryDashboardServlet extends HttpServlet {
         } catch (Exception e) { throw new ServletException(e); }
     }
 
-    /**
-     * Chi nhánh của user đăng nhập. ADMIN không gắn chi nhánh nên mới đọc tới tham số branchId;
-     * tham số hỏng thì lùi về chi nhánh mặc định thay vì ném NumberFormatException ra thành lỗi 500.
-     */
-    public static int branchId(HttpServletRequest req) {
-        User u = SessionUtil.currentUser(req);
-        if (u != null && u.getBranchId() != null) return u.getBranchId();
-        String p = req.getParameter("branchId");
-        if (p == null || p.isBlank()) return 1;
-        try {
-            int parsed = Integer.parseInt(p.trim());
-            return parsed > 0 ? parsed : 1;
-        } catch (NumberFormatException e) {
-            return 1;
-        }
-    }
 }

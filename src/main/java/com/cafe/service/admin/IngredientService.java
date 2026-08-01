@@ -3,7 +3,9 @@ package com.cafe.service.admin;
 import com.cafe.common.BusinessException;
 import com.cafe.config.DBConnection;
 import com.cafe.dao.admin.IngredientDao;
+import com.cafe.dao.shared.IngredientUnitConversionDao;
 import com.cafe.model.Ingredient;
+import com.cafe.model.IngredientUnitConversion;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -23,7 +25,14 @@ public class IngredientService {
     private static final Set<String> TYPES = Set.of("RAW", "PREPPED");
     private static final Pattern NAME_PATTERN =
             Pattern.compile("^[\\p{L}\\p{M}\\p{N}][\\p{L}\\p{M}\\p{N}\\s.,&'()/%+\\-]*$");
-    private final IngredientDao dao = new IngredientDao();
+    private final IngredientDao dao;
+    private final IngredientUnitConversionDao conversionDao;
+
+    public IngredientService() { this(new IngredientDao(), new IngredientUnitConversionDao()); }
+    public IngredientService(IngredientDao dao, IngredientUnitConversionDao conversionDao) {
+        this.dao = java.util.Objects.requireNonNull(dao);
+        this.conversionDao = java.util.Objects.requireNonNull(conversionDao);
+    }
 
     public List<Ingredient> getIngredientList() throws SQLException {
         try (Connection conn = DBConnection.getConnection()) { return dao.findAll(conn); }
@@ -50,7 +59,12 @@ public class IngredientService {
                 conn.commit();
                 return id;
             }
-            catch (SQLException e) { conn.rollback(); throw e; }
+            catch (SQLException e) {
+                conn.rollback();
+                if (e.getErrorCode() == 2601 || e.getErrorCode() == 2627)
+                    throw new BusinessException("Tên và đơn vị nguyên liệu đã tồn tại.");
+                throw e;
+            }
             catch (RuntimeException e) { conn.rollback(); throw e; }
             finally { conn.setAutoCommit(true); }
         }
@@ -60,16 +74,76 @@ public class IngredientService {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
             try {
-                if (dao.findById(conn, i.getIngredientId()) == null) {
+                Ingredient existing = dao.findById(conn, i.getIngredientId());
+                if (existing == null) {
                     throw new BusinessException("Không tìm thấy nguyên liệu cần cập nhật.");
                 }
                 validateAndNormalize(conn, i);
+                if (!existing.getUnit().equalsIgnoreCase(i.getUnit()) && dao.hasInventoryHistory(conn,i.getIngredientId())) {
+                    throw new BusinessException(
+                            "Không thể đổi đơn vị gốc khi nguyên liệu đã có tồn kho/giao dịch; hãy tạo nguyên liệu mới.");
+                }
                 dao.update(conn, i);
+                if (!existing.getUnit().equals(i.getUnit())) {
+                    conversionDao.renameBase(conn,i.getIngredientId(),i.getUnit(),null);
+                }
                 conn.commit();
             }
-            catch (SQLException e) { conn.rollback(); throw e; }
+            catch (SQLException e) {
+                conn.rollback();
+                if (e.getErrorCode() == 2601 || e.getErrorCode() == 2627)
+                    throw new BusinessException("Tên và đơn vị nguyên liệu đã tồn tại.");
+                throw e;
+            }
             catch (RuntimeException e) { conn.rollback(); throw e; }
             finally { conn.setAutoCommit(true); }
+        }
+    }
+
+    public List<IngredientUnitConversion> getUnitConversions(int ingredientId,boolean activeOnly)throws SQLException{
+        try(Connection conn=DBConnection.getConnection()){return conversionDao.findByIngredient(conn,ingredientId,activeOnly);}
+    }
+
+    public java.util.Map<Integer,List<IngredientUnitConversion>> getActiveUnitConversionsByIngredient()throws SQLException{
+        try(Connection conn=DBConnection.getConnection()){
+            java.util.Map<Integer,List<IngredientUnitConversion>> out=new java.util.LinkedHashMap<>();
+            for(IngredientUnitConversion c:conversionDao.findAllActive(conn))
+                out.computeIfAbsent(c.getIngredientId(),ignored->new java.util.ArrayList<>()).add(c);
+            return out;
+        }
+    }
+
+    public int addUnitConversion(int ingredientId,String unitName,java.math.BigDecimal factor,int userId)throws SQLException{
+        String cleanUnit=normalizeConversionUnit(unitName);validateConversionFactor(factor);
+        try(Connection conn=DBConnection.getConnection()){
+            conn.setAutoCommit(false);
+            try{
+                if(dao.findById(conn,ingredientId)==null)throw new BusinessException("Nguyên liệu không tồn tại.");
+                int id=conversionDao.insert(conn,ingredientId,cleanUnit,factor,false,true,userId);conn.commit();return id;
+            }catch(SQLException e){conn.rollback();if(e.getErrorCode()==2601||e.getErrorCode()==2627)throw new BusinessException("Đơn vị quy đổi đã tồn tại cho nguyên liệu này.");throw e;}
+            catch(RuntimeException e){conn.rollback();throw e;}finally{conn.setAutoCommit(true);}
+        }
+    }
+
+    public void updateUnitConversion(int id,int ingredientId,String unitName,java.math.BigDecimal factor,
+                                     boolean active,int userId)throws SQLException{
+        String cleanUnit=normalizeConversionUnit(unitName);validateConversionFactor(factor);
+        try(Connection conn=DBConnection.getConnection()){
+            conn.setAutoCommit(false);try{
+                if(conversionDao.update(conn,id,ingredientId,cleanUnit,factor,active,userId)!=1)
+                    throw new BusinessException("Không tìm thấy đơn vị quy đổi hoặc đây là đơn vị gốc.");
+                conn.commit();
+            }catch(SQLException|RuntimeException e){conn.rollback();throw e;}finally{conn.setAutoCommit(true);}
+        }
+    }
+
+    public void deactivateUnitConversion(int id,int ingredientId,int userId)throws SQLException{
+        try(Connection conn=DBConnection.getConnection()){
+            conn.setAutoCommit(false);try{
+                if(conversionDao.deactivate(conn,id,ingredientId,userId)!=1)
+                    throw new BusinessException("Không thể tắt đơn vị gốc hoặc đơn vị không tồn tại.");
+                conn.commit();
+            }catch(SQLException|RuntimeException e){conn.rollback();throw e;}finally{conn.setAutoCommit(true);}
         }
     }
 
@@ -109,12 +183,24 @@ public class IngredientService {
         if ("RAW".equals(ingredient.getIngredientType())) {
             ingredient.setShelfLifeMinutes(null);
         }
-        if (dao.existsByName(conn, name, ingredient.getIngredientId())) {
-            throw new BusinessException("Tên nguyên liệu đã tồn tại.");
+        if (dao.existsByNameAndUnit(conn, name, unit, ingredient.getIngredientId())) {
+            throw new BusinessException("Tên và đơn vị nguyên liệu đã tồn tại.");
         }
 
         ingredient.setName(name);
         ingredient.setUnit(unit);
+    }
+
+    private String normalizeConversionUnit(String value){
+        String normalized=normalizeSpaces(value);
+        if(normalized==null||normalized.isBlank()||normalized.length()>20)
+            throw new BusinessException("Tên đơn vị quy đổi phải có từ 1 đến 20 ký tự.");
+        return normalized;
+    }
+
+    private void validateConversionFactor(java.math.BigDecimal factor){
+        if(factor==null||factor.signum()<=0||factor.scale()>6)
+            throw new BusinessException("Hệ số quy đổi phải lớn hơn 0 và có tối đa 6 chữ số thập phân.");
     }
 
     private String normalizeSpaces(String value) {

@@ -14,17 +14,17 @@ public class OrderGroupInfo {
     private final int orderId;
     private final String tableNumber;
     private final String pickupCode;
-    private final String orderTypeLabel;
+    private final String orderType;
     private int lineCount;          // tổng số dòng món của đơn đang có trên quầy
     private int doneCount;          // số dòng đã pha xong (READY)
     private int waitingCount;       // số dòng còn chờ pha — điều kiện hiện nút "Nhận pha cả đơn"
     private int mineMakingCount;    // số dòng CHÍNH tôi đang pha — điều kiện hiện nút "Xong cả đơn"
 
-    public OrderGroupInfo(int orderId, String tableNumber, String pickupCode, String orderTypeLabel) {
+    public OrderGroupInfo(int orderId, String tableNumber, String pickupCode, String orderType) {
         this.orderId = orderId;
         this.tableNumber = tableNumber;
         this.pickupCode = pickupCode;
-        this.orderTypeLabel = orderTypeLabel;
+        this.orderType = orderType;
     }
 
     /** Cộng dồn một dòng của đơn vào các con số. */
@@ -38,7 +38,7 @@ public class OrderGroupInfo {
     public int getOrderId() { return orderId; }
     public String getTableNumber() { return tableNumber; }
     public String getPickupCode() { return pickupCode; }
-    public String getOrderTypeLabel() { return orderTypeLabel; }
+    public String getOrderType() { return orderType; }
     public int getLineCount() { return lineCount; }
     public int getDoneCount() { return doneCount; }
     public int getWaitingCount() { return waitingCount; }
@@ -53,8 +53,4 @@ public class OrderGroupInfo {
      */
     public boolean isGrouped() { return lineCount > 1; }
 
-    /** Nhãn đích đến: đơn tại bàn hiện số bàn, đơn mang đi/giao hiện loại đơn. */
-    public String getDestinationLabel() {
-        return tableNumber == null || tableNumber.isBlank() ? orderTypeLabel : tableNumber;
-    }
 }

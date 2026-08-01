@@ -13,7 +13,7 @@
     <div class="alert alert-error">
         <strong>Món hiện không nhận đặt:</strong>
         <c:forEach var="m" items="${outOfStockItems}" varStatus="loop">
-            <c:out value="${m.name}" /> (<c:out value="${m.stockMessage}" />)${loop.last ? '' : ' · '}
+            <c:out value="${m.name}" /> (<c:out value="${view.stockMessage(m)}" />)${loop.last ? '' : ' · '}
         </c:forEach>
     </div>
 </c:if>
@@ -21,7 +21,7 @@
     <div class="alert alert-info">
         <strong>Cảnh báo sắp hết — vẫn có thể đặt:</strong>
         <c:forEach var="m" items="${lowStockItems}" varStatus="loop">
-            <c:out value="${m.name}" /> (<c:out value="${m.stockMessage}" />)${loop.last ? '' : ' · '}
+            <c:out value="${m.name}" /> (<c:out value="${view.stockMessage(m)}" />)${loop.last ? '' : ' · '}
         </c:forEach>
     </div>
 </c:if>
@@ -45,13 +45,13 @@
                         <span class="muted"><fmt:formatNumber value="${m.price}" maxFractionDigits="0"/> ₫</span>
                     </div>
                     <c:if test="${m.availabilityState == 'LOW'}">
-                        <div class="badge badge-waiting" style="margin-top:8px">⚠ <c:out value="${m.stockMessage}" /></div>
+                        <div class="badge badge-waiting" style="margin-top:8px">⚠ <c:out value="${view.stockMessage(m)}" /></div>
                     </c:if>
                     <c:if test="${m.availabilityState == 'OUT'}">
-                        <div class="badge badge-cancelled" style="margin-top:8px">Hết món · <c:out value="${m.stockMessage}" /></div>
+                        <div class="badge badge-cancelled" style="margin-top:8px">Hết món · <c:out value="${view.stockMessage(m)}" /></div>
                     </c:if>
                     <c:if test="${m.availabilityState == 'EIGHTY_SIX'}">
-                        <div class="badge badge-cancelled" style="margin-top:8px"><c:out value="${m.stockMessage}" /></div>
+                        <div class="badge badge-cancelled" style="margin-top:8px"><c:out value="${view.stockMessage(m)}" /></div>
                     </c:if>
                     <c:forEach var="g" items="${m.groups}">
                         <div class="pos-group" style="margin-top:8px"

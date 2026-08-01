@@ -38,7 +38,7 @@
                     <div class="prep-expired__item">
                         <div class="prep-expired__main">
                             <strong>${batch.preppedIngredientName}</strong>
-                            <span>Mẻ #${batch.prepBatchId} · hết hạn ${batch.expiresAtDisplay}</span>
+                            <span>Mẻ #${batch.prepBatchId} · hết hạn ${view.shortUtc(batch.expiresAt)}</span>
                         </div>
                         <c:choose>
                             <c:when test="${batch.hasSuggestedWaste}">
@@ -48,7 +48,7 @@
                                     <input type="hidden" name="action" value="writeOffExpired">
                                     <input type="hidden" name="prepBatchId" value="${batch.prepBatchId}">
                                     <button type="submit" class="btn btn-ghost btn-sm">
-                                        Xác nhận loại bỏ ${batch.suggestedWasteQuantityDisplay} ${batch.preppedIngredientUnit}
+                                        Xác nhận loại bỏ ${view.plain(batch.suggestedWasteQuantity)} ${batch.preppedIngredientUnit}
                                     </button>
                                 </form>
                             </c:when>
@@ -92,10 +92,10 @@
                                     data-id="${item.ingredientId}"
                                     data-name="${fn:escapeXml(item.name)}"
                                     data-unit="${fn:escapeXml(item.unit)}"
-                                    data-suggested="${item.suggestedQtyDisplay}">
+                                    data-suggested="${view.plain(item.suggestedQty)}">
                                 <strong>${item.name}</strong>
-                                <span>Còn ${item.onHandDisplay} · mục tiêu ${item.targetQtyDisplay} ${item.unit}</span>
-                                <em style="color:var(--st-ready)">Nên pha ${item.suggestedQtyDisplay} ${item.unit} →</em>
+                                <span>Còn ${view.plain(item.onHand)} · mục tiêu ${view.plain(item.targetQty)} ${item.unit}</span>
+                                <em style="color:var(--st-ready)">Nên pha ${view.plain(item.suggestedQty)} ${item.unit} →</em>
                             </button>
                         </c:if>
                     </c:forEach>
@@ -111,8 +111,8 @@
                         <c:if test="${not item.readyToPrep and (item.needPrep or item.oversold or not item.hasTarget or not item.hasRecipe or not item.hasShelfLife)}">
                             <div class="prep-chip prep-chip--norecipe">
                                 <strong>${item.name}</strong>
-                                <span>Tồn ${item.onHandDisplay} ${item.unit}</span>
-                                <em>${item.blockedReason}</em>
+                                <span>Tồn ${view.plain(item.onHand)} ${item.unit}</span>
+                                <em>${view.checklistBlockedReason(item)}</em>
                             </div>
                         </c:if>
                     </c:forEach>
@@ -171,10 +171,10 @@
                         <tr class="${batch.status == 'CANCELLED' ? 'row-muted' : ''}">
                             <td>${batch.prepBatchId}</td>
                             <td>${batch.preppedIngredientName}</td>
-                            <td><strong>${batch.quantityProducedDisplay}</strong> ${batch.preppedIngredientUnit}</td>
+                            <td><strong>${view.plain(batch.quantityProduced)}</strong> ${batch.preppedIngredientUnit}</td>
                             <td>${batch.madeByName}</td>
-                            <td>${batch.madeAtDisplay}</td>
-                            <td>${empty batch.expiresAtDisplay ? '—' : batch.expiresAtDisplay}</td>
+                            <td>${view.shortUtc(batch.madeAt)}</td>
+                            <td>${empty batch.expiresAt ? '—' : view.shortUtc(batch.expiresAt)}</td>
                             <td>
                                 <c:choose>
                                     <c:when test="${batch.status == 'PENDING'}"><span class="badge badge-waiting">Chờ duyệt</span></c:when>

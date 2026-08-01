@@ -1,11 +1,11 @@
 package com.cafe.service.cashier;
 
 import com.cafe.common.BusinessDay;
-import com.cafe.common.EventPublisher;
 import com.cafe.common.EventType;
 import com.cafe.config.DBConnection;
 import com.cafe.dao.cashier.BillDao;
 import com.cafe.dao.cashier.CashierShiftDao;
+import com.cafe.dao.shared.OutboxEventDao;
 import com.cafe.model.CashierShift;
 
 import java.math.BigDecimal;
@@ -18,8 +18,16 @@ import java.util.List;
 /** C1 · CashierShiftService — mở/đóng ca thu ngân. */
 public class CashierShiftService {
 
-    private final CashierShiftDao dao = new CashierShiftDao();
-    private final BillDao billDao = new BillDao();
+    private final CashierShiftDao dao;
+    private final BillDao billDao;
+    private final OutboxEventDao outboxEventDao;
+
+    public CashierShiftService() { this(new CashierShiftDao(), new BillDao(), new OutboxEventDao()); }
+    public CashierShiftService(CashierShiftDao dao, BillDao billDao, OutboxEventDao outboxEventDao) {
+        this.dao = java.util.Objects.requireNonNull(dao);
+        this.billDao = java.util.Objects.requireNonNull(billDao);
+        this.outboxEventDao = java.util.Objects.requireNonNull(outboxEventDao);
+    }
 
     /** Mở ca (idempotent: nếu đã có ca mở thì trả về ca đó). */
     public int openShift(int branchId, int cashierId, BigDecimal openingCash) throws SQLException {
@@ -96,7 +104,7 @@ public class CashierShiftService {
         CashierShiftDao.PendingHandover pending = dao.pendingHandoverForClose(c, branchId);
         requireHandoverConfirmed(pending, handoverConfirmed);
         if (pending.totalOrderCount() > 0) {
-            EventPublisher.publish(c, EventType.CASHIER_SHIFT_HANDOVER, String.valueOf(shiftId), branchId,
+            outboxEventDao.insert(c, EventType.CASHIER_SHIFT_HANDOVER, String.valueOf(shiftId), branchId,
                     "{\"shiftId\":" + shiftId
                             + ",\"cashierId\":" + cashierId
                             + ",\"readyOrders\":" + pending.readyOrderCount()

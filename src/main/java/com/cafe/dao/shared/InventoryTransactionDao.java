@@ -1,5 +1,6 @@
 package com.cafe.dao.shared;
 
+import com.cafe.common.InventoryReferenceType;
 import com.cafe.model.InventoryTransaction;
 
 import java.math.BigDecimal;
@@ -18,16 +19,17 @@ import java.util.Map;
 public class InventoryTransactionDao {
 
     public void insert(Connection conn, int branchId, int ingredientId, BigDecimal changeQty,
-                       String txnType, String refTable, Long refId, Integer createdBy) throws SQLException {
+                       String txnType, InventoryReferenceType referenceType, Long referenceId,
+                       Integer createdBy) throws SQLException {
         final String sql = "INSERT INTO inventory.InventoryTransaction" +
-                "(BranchId, IngredientId, ChangeQty, TxnType, RefTable, RefId, CreatedBy) VALUES (?,?,?,?,?,?,?)";
+                "(BranchId, IngredientId, ChangeQty, TxnType, ReferenceType, ReferenceId, CreatedBy) VALUES (?,?,?,?,?,?,?)";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, branchId);
             ps.setInt(2, ingredientId);
             ps.setBigDecimal(3, changeQty);
             ps.setString(4, txnType);
-            if (refTable == null) ps.setNull(5, Types.VARCHAR); else ps.setString(5, refTable);
-            if (refId == null) ps.setNull(6, Types.BIGINT); else ps.setLong(6, refId);
+            if (referenceType == null) ps.setNull(5, Types.VARCHAR); else ps.setString(5, referenceType.name());
+            if (referenceId == null) ps.setNull(6, Types.BIGINT); else ps.setLong(6, referenceId);
             if (createdBy == null) ps.setNull(7, Types.INTEGER); else ps.setInt(7, createdBy);
             ps.executeUpdate();
         }
@@ -38,16 +40,17 @@ public class InventoryTransactionDao {
      * Dùng khi cần ĐẢO một chứng từ: hoàn đúng lượng sổ cái đã ghi thay vì tính lại theo công thức —
      * định mức có thể đã đổi từ lúc ghi, và số ghi sổ đã bị làm tròn về DECIMAL(12,3).
      */
-    public Map<Integer, BigDecimal> sumByRef(Connection conn, int branchId, String refTable, long refId,
+    public Map<Integer, BigDecimal> sumByRef(Connection conn, int branchId,
+                                             InventoryReferenceType referenceType, long referenceId,
                                              String txnType) throws SQLException {
         final String sql =
             "SELECT t.IngredientId, SUM(t.ChangeQty) AS TotalQty FROM inventory.InventoryTransaction t " +
-            "WHERE t.BranchId = ? AND t.RefTable = ? AND t.RefId = ? AND t.TxnType = ? GROUP BY t.IngredientId";
+            "WHERE t.BranchId = ? AND t.ReferenceType = ? AND t.ReferenceId = ? AND t.TxnType = ? GROUP BY t.IngredientId";
         Map<Integer, BigDecimal> out = new LinkedHashMap<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, branchId);
-            ps.setString(2, refTable);
-            ps.setLong(3, refId);
+            ps.setString(2, referenceType.name());
+            ps.setLong(3, referenceId);
             ps.setString(4, txnType);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
@@ -61,12 +64,12 @@ public class InventoryTransactionDao {
 
     public List<InventoryTransaction> findByBranchIngredient(Connection conn, int branchId, int ingredientId) throws SQLException {
         final String sql =
-            "SELECT t.InventoryTxnId, t.BranchId, t.IngredientId, t.ChangeQty, t.TxnType, t.RefTable, t.RefId, " +
+            "SELECT t.InventoryTransactionId, t.BranchId, t.IngredientId, t.ChangeQty, t.TxnType, t.ReferenceType, t.ReferenceId, " +
             "       t.CreatedBy, t.CreatedAt, i.Name AS IngredientName, i.Unit AS IngredientUnit, u.FullName AS CreatedByName " +
             "FROM inventory.InventoryTransaction t " +
             "JOIN catalog.Ingredient i ON t.IngredientId = i.IngredientId " +
-            "LEFT JOIN iam.[User] u ON t.CreatedBy = u.UserId " +
-            "WHERE t.BranchId = ? AND t.IngredientId = ? ORDER BY t.InventoryTxnId DESC";
+            "LEFT JOIN iam.UserAccount u ON t.CreatedBy = u.UserId " +
+            "WHERE t.BranchId = ? AND t.IngredientId = ? ORDER BY t.InventoryTransactionId DESC";
         List<InventoryTransaction> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, branchId);
@@ -90,14 +93,15 @@ public class InventoryTransactionDao {
 
     private InventoryTransaction map(ResultSet rs) throws SQLException {
         InventoryTransaction t = new InventoryTransaction();
-        t.setInventoryTxnId(rs.getLong("InventoryTxnId"));
+        t.setInventoryTransactionId(rs.getLong("InventoryTransactionId"));
         t.setBranchId(rs.getInt("BranchId"));
         t.setIngredientId(rs.getInt("IngredientId"));
         t.setChangeQty(rs.getBigDecimal("ChangeQty"));
         t.setTxnType(rs.getString("TxnType"));
-        t.setRefTable(rs.getString("RefTable"));
-        long rid = rs.getLong("RefId");
-        t.setRefId(rs.wasNull() ? null : rid);
+        String referenceType = rs.getString("ReferenceType");
+        t.setReferenceType(referenceType == null ? null : InventoryReferenceType.valueOf(referenceType));
+        long referenceId = rs.getLong("ReferenceId");
+        t.setReferenceId(rs.wasNull() ? null : referenceId);
         int cb = rs.getInt("CreatedBy");
         t.setCreatedBy(rs.wasNull() ? null : cb);
         Timestamp ts = rs.getTimestamp("CreatedAt");

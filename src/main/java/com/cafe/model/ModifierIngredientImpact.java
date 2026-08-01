@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 
 /** catalog.ModifierIngredientImpact — option ảnh hưởng định mức nguyên liệu (QtyDelta +/-). */
 public class ModifierIngredientImpact {
-    private int impactId;
+    private int modifierIngredientImpactId;
     private int modifierOptionId;
     private int ingredientId;
     private BigDecimal qtyDelta;
@@ -14,8 +14,8 @@ public class ModifierIngredientImpact {
     private String ingredientUnit;
     private String ingredientType;
 
-    public int getImpactId() { return impactId; }
-    public void setImpactId(int impactId) { this.impactId = impactId; }
+    public int getModifierIngredientImpactId() { return modifierIngredientImpactId; }
+    public void setModifierIngredientImpactId(int v) { this.modifierIngredientImpactId = v; }
 
     public int getModifierOptionId() { return modifierOptionId; }
     public void setModifierOptionId(int modifierOptionId) { this.modifierOptionId = modifierOptionId; }

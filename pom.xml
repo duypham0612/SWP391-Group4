@@ -14,7 +14,8 @@
     <properties>
         <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <testcontainers.version>1.20.6</testcontainers.version>
+        <testcontainers.version>1.21.4</testcontainers.version>
+        <flyway.version>13.1.0</flyway.version>
     </properties>
 
     <dependencies>
@@ -63,7 +64,7 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
-            <version>2.0.13</version>
+            <version>1.7.36</version>
         </dependency>
 
         <!-- BCrypt for password hashing -->
@@ -77,20 +78,32 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.15.2</version>
+            <version>2.22.1</version>
         </dependency>
 
         <!-- JUnit 5 — unit test logic rủi ro (deduction, shift conflict...) -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter</artifactId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <version>5.10.2</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5</artifactId>
+            <version>1.4.1</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
             <version>5.10.2</version>
             <scope>test</scope>
         </dependency>
         <!-- Chỉ các lớp *IT chạy khi bật profile integration; dependency vẫn phải có để test compile. -->
         <dependency>
             <groupId>org.testcontainers</groupId>
-            <artifactId>junit-jupiter</artifactId>
+            <artifactId>testcontainers</artifactId>
             <version>${testcontainers.version}</version>
             <scope>test</scope>
         </dependency>
@@ -98,6 +111,19 @@
             <groupId>org.testcontainers</groupId>
             <artifactId>mssqlserver</artifactId>
             <version>${testcontainers.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- Flyway chỉ nằm trong test/runtime migration tooling; webapp không tự migrate lúc start. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+            <version>${flyway.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-sqlserver</artifactId>
+            <version>${flyway.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -117,6 +143,47 @@
     </build>
 
     <profiles>
+        <!--
+          Migration là một deployment step tách khỏi WAR. Credential chỉ truyền qua
+          -Dflyway.url/-Dflyway.user/-Dflyway.password hoặc environment của CI.
+        -->
+        <profile>
+            <id>db-migrate</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.flywaydb</groupId>
+                        <artifactId>flyway-maven-plugin</artifactId>
+                        <version>${flyway.version}</version>
+                        <configuration>
+                            <locations>
+                                <location>filesystem:src/main/resources/db/migration</location>
+                            </locations>
+                            <schemas><schema>ops</schema></schemas>
+                            <defaultSchema>ops</defaultSchema>
+                            <table>flyway_schema_history</table>
+                            <cleanDisabled>true</cleanDisabled>
+                            <outOfOrder>false</outOfOrder>
+                            <validateOnMigrate>true</validateOnMigrate>
+                            <baselineOnMigrate>false</baselineOnMigrate>
+                        </configuration>
+                        <dependencies>
+                            <dependency>
+                                <groupId>org.flywaydb</groupId>
+                                <artifactId>flyway-sqlserver</artifactId>
+                                <version>${flyway.version}</version>
+                            </dependency>
+                            <dependency>
+                                <groupId>com.microsoft.sqlserver</groupId>
+                                <artifactId>mssql-jdbc</artifactId>
+                                <version>12.4.2.jre11</version>
+                            </dependency>
+                        </dependencies>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
         <!-- Không chạy DB container trong mvn test thường ngày. Bật rõ ràng ở CI/local Docker. -->
         <profile>
             <id>integration</id>

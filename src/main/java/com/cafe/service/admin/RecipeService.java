@@ -8,6 +8,7 @@ import com.cafe.dao.shared.PrepRecipeDao;
 import com.cafe.dao.shared.ProductRecipeDao;
 import com.cafe.model.Ingredient;
 import com.cafe.model.PrepRecipe;
+import com.cafe.model.PrepRecipeIngredient;
 import com.cafe.model.ProductRecipe;
 
 import java.math.BigDecimal;
@@ -23,10 +24,21 @@ import java.util.Set;
 public class RecipeService {
 
     private static final BigDecimal MAX_QUANTITY = new BigDecimal("999999999");
-    private final ProductRecipeDao productRecipeDao = new ProductRecipeDao();
-    private final PrepRecipeDao prepRecipeDao = new PrepRecipeDao();
-    private final IngredientDao ingredientDao = new IngredientDao();
-    private final ProductDao productDao = new ProductDao();
+    private final ProductRecipeDao productRecipeDao;
+    private final PrepRecipeDao prepRecipeDao;
+    private final IngredientDao ingredientDao;
+    private final ProductDao productDao;
+
+    public RecipeService() {
+        this(new ProductRecipeDao(), new PrepRecipeDao(), new IngredientDao(), new ProductDao());
+    }
+    public RecipeService(ProductRecipeDao productRecipeDao, PrepRecipeDao prepRecipeDao,
+                         IngredientDao ingredientDao, ProductDao productDao) {
+        this.productRecipeDao = java.util.Objects.requireNonNull(productRecipeDao);
+        this.prepRecipeDao = java.util.Objects.requireNonNull(prepRecipeDao);
+        this.ingredientDao = java.util.Objects.requireNonNull(ingredientDao);
+        this.productDao = java.util.Objects.requireNonNull(productDao);
+    }
 
     public record RecipeLineInput(int ingredientId, BigDecimal quantity) {}
 
@@ -119,17 +131,19 @@ public class RecipeService {
         }
     }
 
-    public List<PrepRecipe> getPrepRecipe(int preppedIngredientId) throws SQLException {
+    public PrepRecipe getPrepRecipe(int preppedIngredientId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             return prepRecipeDao.findByPrepped(conn, preppedIngredientId);
         }
     }
 
-    public int addPrepRecipeLines(int preppedIngredientId, List<RecipeLineInput> inputs)
+    public int addPrepRecipeLines(int preppedIngredientId, BigDecimal yieldQty,
+                                  List<RecipeLineInput> inputs)
             throws SQLException {
         if (preppedIngredientId <= 0) {
             throw new BusinessException("Nguyên liệu pha sẵn không hợp lệ.");
         }
+        validateYield(yieldQty);
         validateInputCount(inputs);
 
         try (Connection conn = DBConnection.getConnection()) {
@@ -142,8 +156,19 @@ public class RecipeService {
                             "Không tìm thấy nguyên liệu pha sẵn cần tạo công thức.");
                 }
 
+                PrepRecipe recipe = prepRecipeDao.findByPrepped(conn, preppedIngredientId);
+                if (recipe == null) {
+                    recipe = new PrepRecipe();
+                    recipe.setPrepRecipeId(prepRecipeDao.insertHeader(conn, preppedIngredientId, yieldQty));
+                    recipe.setPreppedIngredientId(preppedIngredientId);
+                    recipe.setYieldQty(yieldQty);
+                } else if (recipe.getYieldQty().compareTo(yieldQty) != 0) {
+                    prepRecipeDao.updateYield(conn, recipe.getPrepRecipeId(), preppedIngredientId, yieldQty);
+                    recipe.setYieldQty(yieldQty);
+                }
+
                 Set<Integer> existingIds = new HashSet<>();
-                for (PrepRecipe line : prepRecipeDao.findByPrepped(conn, preppedIngredientId)) {
+                for (PrepRecipeIngredient line : recipe.getIngredients()) {
                     existingIds.add(line.getRawIngredientId());
                 }
 
@@ -166,12 +191,11 @@ public class RecipeService {
                 }
 
                 for (RecipeLineInput input : inputs) {
-                    PrepRecipe recipe = new PrepRecipe();
-                    recipe.setPreppedIngredientId(preppedIngredientId);
-                    recipe.setRawIngredientId(input.ingredientId());
-                    recipe.setQuantity(input.quantity());
-                    recipe.setYieldQty(BigDecimal.ONE);
-                    prepRecipeDao.insert(conn, recipe);
+                    PrepRecipeIngredient line = new PrepRecipeIngredient();
+                    line.setPrepRecipeId(recipe.getPrepRecipeId());
+                    line.setRawIngredientId(input.ingredientId());
+                    line.setQuantity(input.quantity());
+                    prepRecipeDao.insertIngredient(conn, line);
                 }
                 conn.commit();
                 return inputs.size();
@@ -179,6 +203,33 @@ public class RecipeService {
                 conn.rollback();
                 throw e;
             } catch (RuntimeException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        }
+    }
+
+    public void updatePrepRecipeYield(int preppedIngredientId, BigDecimal yieldQty) throws SQLException {
+        validateYield(yieldQty);
+        try (Connection conn = DBConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                Ingredient prepped = ingredientDao.findById(conn, preppedIngredientId);
+                if (prepped == null || !prepped.isActive()
+                        || !"PREPPED".equals(prepped.getIngredientType())) {
+                    throw new BusinessException("Không tìm thấy nguyên liệu pha sẵn cần cập nhật.");
+                }
+                PrepRecipe recipe = prepRecipeDao.findByPrepped(conn, preppedIngredientId);
+                if (recipe == null) {
+                    prepRecipeDao.insertHeader(conn, preppedIngredientId, yieldQty);
+                } else if (prepRecipeDao.updateYield(
+                        conn, recipe.getPrepRecipeId(), preppedIngredientId, yieldQty) != 1) {
+                    throw new BusinessException("Công thức vừa được thay đổi. Vui lòng tải lại.");
+                }
+                conn.commit();
+            } catch (SQLException | RuntimeException e) {
                 conn.rollback();
                 throw e;
             } finally {
@@ -248,6 +299,18 @@ public class RecipeService {
         }
         if (quantity.compareTo(MAX_QUANTITY) > 0) {
             throw new BusinessException("Định mức nguyên liệu vượt quá giới hạn cho phép.");
+        }
+    }
+
+    private void validateYield(BigDecimal yieldQty) {
+        if (yieldQty == null || yieldQty.signum() <= 0) {
+            throw new BusinessException("Sản lượng một mẻ phải lớn hơn 0.");
+        }
+        if (yieldQty.compareTo(new BigDecimal("999999999.999")) > 0) {
+            throw new BusinessException("Sản lượng một mẻ vượt quá giới hạn cho phép.");
+        }
+        if (yieldQty.scale() > 3) {
+            throw new BusinessException("Sản lượng một mẻ chỉ được có tối đa 3 chữ số thập phân.");
         }
     }
 }

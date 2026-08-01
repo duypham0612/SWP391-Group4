@@ -67,7 +67,7 @@ public class PrepBatchDao {
 
     private static final String COLUMNS =
         "pb.PrepBatchId, pb.BranchId, pb.PreppedIngredientId, pb.QuantityProduced, pb.MadeBy, pb.MadeAt, " +
-        "pb.ExpiresAt, pb.Status, pb.VoidedAt, pb.WrittenOffAt, pb.WriteOffWasteLogId, pb.ClientRequestId, " +
+        "pb.ExpiresAt, pb.Status, pb.VoidedAt, pb.WrittenOffAt, pb.WriteOffWasteEventItemId, pb.ClientRequestId, " +
         "pb.RequiresApproval, pb.ReviewedAt, pb.ReviewedBy, " +
         "i.Name AS IngName, i.Unit AS IngUnit, u.FullName AS MadeByName, ru.FullName AS ReviewedByName ";
 
@@ -75,8 +75,8 @@ public class PrepBatchDao {
         "SELECT " + COLUMNS +
         "FROM inventory.PrepBatch pb " +
         "JOIN catalog.Ingredient i ON i.IngredientId=pb.PreppedIngredientId " +
-        "JOIN iam.[User] u ON u.UserId=pb.MadeBy " +
-        "LEFT JOIN iam.[User] ru ON ru.UserId=pb.ReviewedBy ";
+        "JOIN iam.UserAccount u ON u.UserId=pb.MadeBy " +
+        "LEFT JOIN iam.UserAccount ru ON ru.UserId=pb.ReviewedBy ";
 
     public List<PrepBatch> findByBranch(Connection conn, int branchId) throws SQLException {
         List<PrepBatch> out = new ArrayList<>();
@@ -145,7 +145,7 @@ public class PrepBatchDao {
         Timestamp[] range = todayRange();
         String sql = "SELECT COUNT(*) FROM inventory.PrepBatch pb "
                 + "JOIN catalog.Ingredient i ON i.IngredientId=pb.PreppedIngredientId "
-                + "JOIN iam.[User] u ON u.UserId=pb.MadeBy "
+                + "JOIN iam.UserAccount u ON u.UserId=pb.MadeBy "
                 + todayFilteredWhere(query, ingredientId, expiry, status);
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             bindTodayFilters(ps, 1, branchId, range[0], range[1], query, ingredientId, expiry, status);
@@ -180,8 +180,8 @@ public class PrepBatchDao {
             "SELECT " + COLUMNS + ", ISNULL(bi.QuantityOnHand, 0) AS BranchQuantityOnHand " +
             "FROM inventory.PrepBatch pb " +
             "JOIN catalog.Ingredient i ON i.IngredientId=pb.PreppedIngredientId " +
-            "JOIN iam.[User] u ON u.UserId=pb.MadeBy " +
-            "LEFT JOIN iam.[User] ru ON ru.UserId=pb.ReviewedBy " +
+            "JOIN iam.UserAccount u ON u.UserId=pb.MadeBy " +
+            "LEFT JOIN iam.UserAccount ru ON ru.UserId=pb.ReviewedBy " +
             "LEFT JOIN inventory.BranchInventory bi ON bi.BranchId=pb.BranchId AND bi.IngredientId=pb.PreppedIngredientId " +
             "WHERE pb.BranchId=? AND pb.Status='ACTIVE' AND pb.WrittenOffAt IS NULL AND pb.ExpiresAt<SYSUTCDATETIME() " +
             "ORDER BY pb.ExpiresAt ASC, pb.MadeAt ASC, pb.PrepBatchId ASC";
@@ -240,11 +240,11 @@ public class PrepBatchDao {
      * Đóng vòng đời mẻ quá hạn: gắn dòng hao hụt đã ghi. Điều kiện WrittenOffAt IS NULL là chốt
      * nguyên tử — bấm hai lần hoặc hai barista cùng xử lý một mẻ thì chỉ một lần trừ tồn được ghi nhận.
      */
-    public int markWrittenOff(Connection conn, int prepBatchId, int branchId, int wasteLogId) throws SQLException {
+    public int markWrittenOff(Connection conn, int prepBatchId, int branchId, int wasteEventItemId) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE inventory.PrepBatch SET WrittenOffAt=SYSUTCDATETIME(), WriteOffWasteLogId=? "
+                "UPDATE inventory.PrepBatch SET WrittenOffAt=SYSUTCDATETIME(), WriteOffWasteEventItemId=? "
                         + "WHERE PrepBatchId=? AND BranchId=? AND Status='ACTIVE' AND WrittenOffAt IS NULL")) {
-            ps.setInt(1, wasteLogId);
+            ps.setInt(1, wasteEventItemId);
             ps.setInt(2, prepBatchId);
             ps.setInt(3, branchId);
             return ps.executeUpdate();
@@ -396,8 +396,8 @@ public class PrepBatchDao {
         if (va != null) b.setVoidedAt(va.toLocalDateTime());
         Timestamp wo = rs.getTimestamp("WrittenOffAt");
         if (wo != null) b.setWrittenOffAt(wo.toLocalDateTime());
-        int wasteLogId = rs.getInt("WriteOffWasteLogId");
-        b.setWriteOffWasteLogId(rs.wasNull() ? null : wasteLogId);
+        int wasteEventItemId = rs.getInt("WriteOffWasteEventItemId");
+        b.setWriteOffWasteEventItemId(rs.wasNull() ? null : wasteEventItemId);
         b.setClientRequestId(rs.getString("ClientRequestId"));
         b.setRequiresApproval(rs.getBoolean("RequiresApproval"));
         Timestamp rv = rs.getTimestamp("ReviewedAt");

@@ -2,6 +2,7 @@ package com.cafe.model;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 /** inventory.StockReceipt — phiếu nhập kho. */
 public class StockReceipt {
@@ -9,7 +10,8 @@ public class StockReceipt {
     private int branchId;
     private Integer supplierId;
     private int receivedBy;
-    private LocalDateTime receiptDate;
+    private LocalDate documentDate;
+    private LocalDateTime createdAt;
     private String status;          // DRAFT | CONFIRMED | CANCELLED
     private BigDecimal totalCost = BigDecimal.ZERO;
     private String note;
@@ -30,16 +32,16 @@ public class StockReceipt {
     public int getReceivedBy() { return receivedBy; }
     public void setReceivedBy(int receivedBy) { this.receivedBy = receivedBy; }
 
-    public LocalDateTime getReceiptDate() { return receiptDate; }
-    public void setReceiptDate(LocalDateTime receiptDate) { this.receiptDate = receiptDate; }
+    public LocalDate getDocumentDate() { return documentDate; }
+    public void setDocumentDate(LocalDate documentDate) { this.documentDate = documentDate; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
 
     public BigDecimal getTotalCost() { return totalCost; }
     public void setTotalCost(BigDecimal totalCost) { this.totalCost = totalCost; }
-    public String getTotalCostDisplay() { return com.cafe.common.QuantityFormat.groupedVi(totalCost); }
-
     public String getNote() { return note; }
     public void setNote(String note) { this.note = note; }
 

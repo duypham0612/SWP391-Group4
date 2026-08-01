@@ -11,7 +11,7 @@
 
 <div class="page-header">
     <div><div class="eyebrow">Hoá đơn #${bill.billId}</div><h1>Chi tiết hoá đơn</h1>
-        <p><c:if test="${not empty bill.tableNumber}">${bill.tableNumber} · </c:if>${bill.transactionAtDisplay}</p></div>
+        <p><c:if test="${not empty bill.tableNumber}">${bill.tableNumber} · </c:if>${view.fullUtc(not empty bill.paidAt ? bill.paidAt : bill.createdAt)}</p></div>
     <span>
         <button type="button" class="btn btn-ghost no-print" onclick="window.print()">In / Tái in</button>
         <a class="btn btn-ghost" href="${ctx}/cashier/history">← Lịch sử</a>
@@ -51,7 +51,6 @@
         <c:choose>
             <c:when test="${bill.status == 'PAID'}"><span class="badge badge-ready">Đã thu (${bill.paymentMethod})</span></c:when>
             <c:when test="${bill.status == 'VOID'}"><span class="badge badge-cancelled">Huỷ</span></c:when>
-            <c:when test="${bill.status == 'REFUND'}"><span class="badge badge-cancelled">Đã hoàn</span></c:when>
             <c:otherwise><span class="badge badge-waiting">Chưa thu</span></c:otherwise>
         </c:choose>
     </p>

@@ -1,9 +1,10 @@
 package com.cafe.controller.barista;
 
 import com.cafe.common.BusinessDay;
-import com.cafe.common.CsrfUtil;
-import com.cafe.common.SessionUtil;
-import com.cafe.controller.manager.InventoryDashboardServlet;
+import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.SessionUtil;
+import com.cafe.web.support.BaristaShiftSupport;
+import com.cafe.web.support.BaristaWritePolicy;
 import com.cafe.model.MonthlyAttendanceRow;
 import com.cafe.model.User;
 import com.cafe.service.manager.AttendanceService;
@@ -23,19 +24,26 @@ import java.util.List;
 public class MyShiftServlet extends HttpServlet {
 
     static final String PATH = "/barista/shift";
-    private final AttendanceService attendanceService = new AttendanceService();
+    private final AttendanceService attendanceService;
+    private final BaristaShiftSupport shiftSupport;
+
+    public MyShiftServlet() { this(new AttendanceService(), new BaristaShiftSupport()); }
+    MyShiftServlet(AttendanceService attendanceService, BaristaShiftSupport shiftSupport) {
+        this.attendanceService = java.util.Objects.requireNonNull(attendanceService);
+        this.shiftSupport = java.util.Objects.requireNonNull(shiftSupport);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         User u = SessionUtil.currentUser(req);
         YearMonth ym = parseMonth(req.getParameter("month"));
         String query = textParam(req, "q", 100);
         String state = stateParam(req);
         int pageSize = pageSizeParam(req);
         try {
-            BaristaShift.expose(req, PATH);
+            shiftSupport.expose(req, PATH);
             if (u != null) {
                 // Tổng hợp tháng đọc cả tháng; bảng lịch sử chỉ lấy đúng trang đang xem từ DB.
                 List<MonthlyAttendanceRow> monthRows =
@@ -66,7 +74,7 @@ public class MyShiftServlet extends HttpServlet {
             resp.sendRedirect(req.getContextPath() + PATH);
             return;
         }
-        String redirect = BaristaShift.handleClock(req, action, PATH);
+        String redirect = shiftSupport.handleClock(req, action, PATH);
         resp.sendRedirect(req.getContextPath() + (redirect == null ? PATH : redirect));
     }
 

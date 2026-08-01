@@ -52,7 +52,7 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
         assertEquals("READY", scalarString("SELECT Status FROM sales.OrderItem WHERE OrderItemId=?", f.orderItemId));
         // 2 ly × (10 RAW theo công thức + 2 RAW từ modifier) = 24; ledger phải chỉ có một lần trừ.
         assertEquals(new BigDecimal("-24.000"), scalarDecimal(
-                "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction WHERE RefTable='OrderItem' AND RefId=? AND TxnType='DEDUCT'", f.orderItemId));
+                "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction WHERE ReferenceType='ORDER_ITEM' AND ReferenceId=? AND TxnType='DEDUCT'", f.orderItemId));
         assertEquals(1, scalarInt("SELECT COUNT(*) FROM ops.OrderItemActionLog WHERE OrderItemId=? AND ActionType='COMPLETE'", f.orderItemId));
     }
 
@@ -69,21 +69,21 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
         assertEquals(1, results.stream().filter(Boolean::booleanValue).count());
         assertEquals("WAITING", scalarString("SELECT Status FROM sales.OrderItem WHERE OrderItemId=?", f.orderItemId));
         assertEquals(1, scalarInt("SELECT COUNT(*) FROM inventory.WasteEvent WHERE OrderItemId=? AND EventKind='REMAKE'", f.orderItemId));
-        assertEquals(1, scalarInt("SELECT COUNT(*) FROM inventory.WasteLog WHERE WasteEventId IN (SELECT WasteEventId FROM inventory.WasteEvent WHERE OrderItemId=?)", f.orderItemId));
+        assertEquals(1, scalarInt("SELECT COUNT(*) FROM inventory.WasteEventItem WHERE WasteEventId IN (SELECT WasteEventId FROM inventory.WasteEvent WHERE OrderItemId=?)", f.orderItemId));
     }
 
     @Test
     void voiding_manual_waste_keeps_audit_and_nets_ledger_to_zero() throws Exception {
         Fixture f = fixture(false);
         InventoryService inventory = new InventoryService();
-        int wasteLogId = inventory.logWaste(f.branchId, f.rawIngredientId, new BigDecimal("5"), "SPILL", "IT spill", f.baristaOneId);
+        int wasteEventItemId = inventory.logWaste(f.branchId, f.rawIngredientId, new BigDecimal("5"), "SPILL", "IT spill", f.baristaOneId);
 
-        inventory.voidWaste(f.branchId, wasteLogId, f.baristaOneId);
+        inventory.voidWaste(f.branchId, wasteEventItemId, f.baristaOneId);
 
-        assertEquals("VOIDED", scalarString("SELECT Status FROM inventory.WasteLog WHERE WasteLogId=?", wasteLogId));
+        assertEquals("VOIDED", scalarString("SELECT Status FROM inventory.WasteEventItem WHERE WasteEventItemId=?", wasteEventItemId));
         assertEquals(new BigDecimal("0.000"), scalarDecimal(
-                "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction WHERE RefTable='WasteLog' AND RefId=?", wasteLogId));
-        assertEquals(2, scalarInt("SELECT COUNT(*) FROM inventory.InventoryTransaction WHERE RefTable='WasteLog' AND RefId=?", wasteLogId));
+                "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction WHERE ReferenceType='WASTE_EVENT_ITEM' AND ReferenceId=?", wasteEventItemId));
+        assertEquals(2, scalarInt("SELECT COUNT(*) FROM inventory.InventoryTransaction WHERE ReferenceType='WASTE_EVENT_ITEM' AND ReferenceId=?", wasteEventItemId));
     }
 
     @Test
@@ -97,7 +97,7 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
         assertFalse(inventory.cancelPrepBatch(f.branchId, prepBatchId, f.baristaOneId));
         assertEquals("CANCELLED", scalarString("SELECT Status FROM inventory.PrepBatch WHERE PrepBatchId=?", prepBatchId));
         assertEquals(new BigDecimal("0.000"), scalarDecimal(
-                "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction WHERE RefTable='PrepBatch' AND RefId=?", prepBatchId));
+                "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction WHERE ReferenceType='PREP_BATCH' AND ReferenceId=?", prepBatchId));
     }
 
     @Test
@@ -105,14 +105,19 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
         Fixture f = fixture(false);
         InventoryService inventory = new InventoryService();
         int prepBatchId = inventory.createPrepBatch(f.branchId, f.preppedIngredientId,
-                new BigDecimal("100"), java.time.LocalDateTime.now(java.time.ZoneOffset.UTC).minusHours(1), f.baristaOneId);
+                new BigDecimal("100"), java.time.LocalDateTime.now(java.time.ZoneOffset.UTC).plusHours(1), f.baristaOneId);
+        // Keep the historical batch lifecycle valid (MadeAt <= ExpiresAt), while making it expired now.
+        execute("UPDATE inventory.PrepBatch "
+                        + "SET MadeAt=DATEADD(hour,-2,SYSUTCDATETIME()), "
+                        + "ExpiresAt=DATEADD(hour,-1,SYSUTCDATETIME()) WHERE PrepBatchId=?",
+                prepBatchId);
 
-        int wasteLogId = inventory.writeOffExpiredPrepBatch(f.branchId, prepBatchId, new BigDecimal("100"), f.baristaOneId);
+        int wasteEventItemId = inventory.writeOffExpiredPrepBatch(f.branchId, prepBatchId, new BigDecimal("100"), f.baristaOneId);
 
-        assertTrue(wasteLogId > 0);
+        assertTrue(wasteEventItemId > 0);
         assertThrows(BusinessException.class, () -> inventory.writeOffExpiredPrepBatch(
                 f.branchId, prepBatchId, new BigDecimal("100"), f.baristaOneId));
-        assertEquals(1, scalarInt("SELECT COUNT(*) FROM inventory.WasteLog WHERE WasteLogId=?", wasteLogId));
+        assertEquals(1, scalarInt("SELECT COUNT(*) FROM inventory.WasteEventItem WHERE WasteEventItemId=?", wasteEventItemId));
     }
 
     @Test
@@ -131,10 +136,10 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
                 "SELECT COUNT(*) FROM inventory.PrepBatch WHERE PrepBatchId=?", first.getPrepBatchId()));
         assertEquals(new BigDecimal("100.000"), scalarDecimal(
                 "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction "
-                        + "WHERE RefTable='PrepBatch' AND RefId=? AND TxnType='PREP_IN'", first.getPrepBatchId()));
+                        + "WHERE ReferenceType='PREP_BATCH' AND ReferenceId=? AND TxnType='PREP_IN'", first.getPrepBatchId()));
         assertEquals(new BigDecimal("-10.000"), scalarDecimal(
                 "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction "
-                        + "WHERE RefTable='PrepBatch' AND RefId=? AND TxnType='PREP_OUT'", first.getPrepBatchId()));
+                        + "WHERE ReferenceType='PREP_BATCH' AND ReferenceId=? AND TxnType='PREP_OUT'", first.getPrepBatchId()));
         assertEquals(1, scalarInt(
                 "SELECT CASE WHEN ExpiresAt IS NULL THEN 0 ELSE 1 END FROM inventory.PrepBatch WHERE PrepBatchId=?",
                 first.getPrepBatchId()));
@@ -194,7 +199,7 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
                 reversible.branchId, reversibleBatch.getPrepBatchId(), reversible.baristaOneId));
         assertEquals(new BigDecimal("0.000"), scalarDecimal(
                 "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction "
-                        + "WHERE RefTable='PrepBatch' AND RefId=?", reversibleBatch.getPrepBatchId()));
+                        + "WHERE ReferenceType='PREP_BATCH' AND ReferenceId=?", reversibleBatch.getPrepBatchId()));
 
         Fixture consumed = fixture(false);
         PrepBatch consumedBatch = inventory.createSuggestedPrepBatch(
@@ -203,7 +208,8 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
         try (Connection conn = connection()) {
             conn.setAutoCommit(false);
             inventory.applyTxn(conn, consumed.branchId, consumed.preppedIngredientId,
-                    new BigDecimal("-10"), TxnType.DEDUCT, "OrderItem",
+                    new BigDecimal("-10"), TxnType.DEDUCT,
+                    com.cafe.common.InventoryReferenceType.ORDER_ITEM,
                     (long) consumed.orderItemId, consumed.baristaOneId);
             conn.commit();
         }
@@ -246,32 +252,37 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
             st.executeUpdate("INSERT org.Branch(Code,Name,OpenTime,CloseTime) VALUES ('B" + key + "',N'IT Branch','00:00','23:59')");
             int roleId = id(conn, "SELECT RoleId FROM iam.Role WHERE Code=?", "BARISTA");
             int branchId = id(conn, "SELECT BranchId FROM org.Branch WHERE Code=?", "B" + key);
-            st.executeUpdate("INSERT iam.[User](Username,PasswordHash,FullName,RoleId,BranchId) VALUES ('b1" + key + "','x',N'Barista One'," + roleId + "," + branchId + "),('b2" + key + "','x',N'Barista Two'," + roleId + "," + branchId + ")");
-            int one = id(conn, "SELECT UserId FROM iam.[User] WHERE Username=?", "b1" + key);
-            int two = id(conn, "SELECT UserId FROM iam.[User] WHERE Username=?", "b2" + key);
-            st.executeUpdate("INSERT catalog.Category(Name) VALUES (N'IT Category')");
+            st.executeUpdate("INSERT iam.UserAccount(Username,PasswordHash,FullName,RoleId,BranchId) VALUES ('b1" + key + "','x',N'Barista One'," + roleId + "," + branchId + "),('b2" + key + "','x',N'Barista Two'," + roleId + "," + branchId + ")");
+            int one = id(conn, "SELECT UserId FROM iam.UserAccount WHERE Username=?", "b1" + key);
+            int two = id(conn, "SELECT UserId FROM iam.UserAccount WHERE Username=?", "b2" + key);
+            st.executeUpdate("INSERT catalog.Category(Name) VALUES (N'IT Category " + key + "')");
             int category = id(conn, "SELECT MAX(CategoryId) FROM catalog.Category");
-            st.executeUpdate("INSERT catalog.Product(CategoryId,Name,BasePrice) VALUES (" + category + ",N'IT Drink',10000)");
+            st.executeUpdate("INSERT catalog.Product(CategoryId,Name,BasePrice) VALUES (" + category + ",N'IT Drink " + key + "',10000)");
             int product = id(conn, "SELECT MAX(ProductId) FROM catalog.Product");
             st.executeUpdate("INSERT catalog.Ingredient(Name,Unit,IngredientType,ShelfLifeMinutes) VALUES "
                     + "(N'IT Raw " + key + "',N'g','RAW',NULL),(N'IT Prepped " + key + "',N'ml','PREPPED',1440)");
             int ingredient = id(conn, "SELECT IngredientId FROM catalog.Ingredient WHERE Name=?", "IT Raw " + key);
             int prepped = id(conn, "SELECT IngredientId FROM catalog.Ingredient WHERE Name=?", "IT Prepped " + key);
             st.executeUpdate("INSERT catalog.ProductRecipe(ProductId,IngredientId,Quantity) VALUES (" + product + "," + ingredient + ",10)");
-            st.executeUpdate("INSERT catalog.PrepRecipe(PreppedIngredientId,RawIngredientId,Quantity,YieldQty) VALUES (" + prepped + "," + ingredient + ",10,100)");
+            st.executeUpdate("INSERT catalog.PrepRecipe(PreppedIngredientId,YieldQty) VALUES (" + prepped + ",100)");
+            st.executeUpdate("INSERT catalog.PrepRecipeIngredient(PrepRecipeId,RawIngredientId,Quantity) "
+                    + "SELECT PrepRecipeId," + ingredient + ",10 FROM catalog.PrepRecipe WHERE PreppedIngredientId=" + prepped);
             st.executeUpdate("INSERT inventory.BranchInventory(BranchId,IngredientId,QuantityOnHand,MinThreshold,PrepTargetQty) "
                     + "VALUES (" + branchId + "," + ingredient + ",1000,0,NULL),(" + branchId + "," + prepped + ",0,300,1000)");
-            st.executeUpdate("INSERT sales.Orders(BranchId,Source,OrderType,Status,CreatedBy) VALUES (" + branchId + ",'COUNTER','TAKEAWAY','ACTIVE'," + one + ")");
-            int orderId = id(conn, "SELECT MAX(OrderId) FROM sales.Orders");
-            st.executeUpdate("INSERT sales.OrderItem(OrderId,ProductId,Quantity,UnitPrice,Status) VALUES (" + orderId + "," + product + ",2,10000,'WAITING')");
+            st.executeUpdate("INSERT sales.SalesOrder(BranchId,Source,OrderType,Status,CreatedBy,BusinessDate) VALUES ("
+                    + branchId + ",'QR','TAKEAWAY','ACTIVE',NULL"
+                    + ",CONVERT(date,DATEADD(hour,7,SYSUTCDATETIME())))");
+            int orderId = id(conn, "SELECT MAX(OrderId) FROM sales.SalesOrder");
+            st.executeUpdate("INSERT sales.OrderItem(OrderId,BranchId,ProductId,Quantity,UnitPrice,Status,ProductNameAtOrder) VALUES ("
+                    + orderId + "," + branchId + "," + product + ",2,10000,'WAITING',N'IT Drink " + key + "')");
             int itemId = id(conn, "SELECT MAX(OrderItemId) FROM sales.OrderItem");
             if (withModifier) {
-                st.executeUpdate("INSERT catalog.ModifierGroup(Name) VALUES (N'IT Extra')");
+                st.executeUpdate("INSERT catalog.ModifierGroup(Name) VALUES (N'IT Extra " + key + "')");
                 int groupId = id(conn, "SELECT MAX(ModifierGroupId) FROM catalog.ModifierGroup");
-                st.executeUpdate("INSERT catalog.ModifierOption(ModifierGroupId,Name,PriceDelta) VALUES (" + groupId + ",N'IT Extra',0)");
+                st.executeUpdate("INSERT catalog.ModifierOption(ModifierGroupId,Name,PriceDelta) VALUES (" + groupId + ",N'IT Extra " + key + "',0)");
                 int optionId = id(conn, "SELECT MAX(ModifierOptionId) FROM catalog.ModifierOption");
                 st.executeUpdate("INSERT catalog.ModifierIngredientImpact(ModifierOptionId,IngredientId,QtyDelta) VALUES (" + optionId + "," + ingredient + ",2)");
-                st.executeUpdate("INSERT sales.OrderItemModifier(OrderItemId,ModifierOptionId,PriceDelta) VALUES (" + itemId + "," + optionId + ",0)");
+                st.executeUpdate("INSERT sales.OrderItemModifier(OrderItemId,ModifierOptionId,PriceDelta,ModifierOptionNameAtOrder) VALUES (" + itemId + "," + optionId + ",0,N'IT Extra " + key + "')");
             }
             return new Fixture(branchId, one, two, itemId, ingredient, prepped);
         }

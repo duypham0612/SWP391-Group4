@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.StringJoiner;
 
 /** Nhóm món nhân viên đã nhận khỏi quầy và đang mang tới cùng một bàn. */
 public class PickedUpGroup {
@@ -29,18 +28,13 @@ public class PickedUpGroup {
     public String getTableNumber() { return tableNumber; }
     public List<OrderItem> getItems() { return items; }
     public List<Integer> getOrderIds() { return new ArrayList<>(orderIds); }
+    public Set<String> getPickupCodes() { return new LinkedHashSet<>(pickupCodes); }
     public int getOrderCount() { return orderIds.size(); }
     public int getItemCount() { return items.size(); }
     public int getCupCount() {
         int total = 0;
         for (OrderItem item : items) total += item.getQuantity();
         return total;
-    }
-
-    public String getPickupCodesLabel() {
-        StringJoiner joiner = new StringJoiner(" · ");
-        for (String code : pickupCodes) joiner.add(code);
-        return joiner.toString();
     }
 
     /** Nút giao tất cả chỉ xuất hiện khi thật sự có nhiều dòng món cùng một bàn. */

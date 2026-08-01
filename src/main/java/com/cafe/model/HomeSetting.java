@@ -1,6 +1,6 @@
 package com.cafe.model;
 
-/** catalog.HomeSetting — nội dung hero của trang Home công khai (singleton, Id=1). */
+/** catalog.HomeSetting — nội dung hero của trang Home công khai (singleton, HomeSettingId=1). */
 public class HomeSetting {
     private String heroEyebrow;
     private String heroTitle;

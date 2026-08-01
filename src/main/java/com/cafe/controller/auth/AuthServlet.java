@@ -1,8 +1,8 @@
 package com.cafe.controller.auth;
 
 import com.cafe.common.Constants;
-import com.cafe.common.CsrfUtil;
-import com.cafe.common.SessionUtil;
+import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.SessionUtil;
 import com.cafe.common.BusinessException;
 import com.cafe.model.User;
 import com.cafe.service.auth.AuthService;
@@ -22,7 +22,12 @@ import java.io.IOException;
 @WebServlet({"/auth/login", "/auth/logout", "/auth/forgot"})
 public class AuthServlet extends HttpServlet {
 
-    private final AuthService authService = new AuthService();
+    private final AuthService authService;
+
+    public AuthServlet() { this(new AuthService()); }
+    AuthServlet(AuthService authService) {
+        this.authService = java.util.Objects.requireNonNull(authService);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -39,8 +44,6 @@ public class AuthServlet extends HttpServlet {
         String path = req.getServletPath();
         if (path.equals("/auth/login")) {
             login(req, resp);
-        } else if (path.equals("/auth/forgot")) {
-            forgot(req, resp);
         } else {
             resp.sendError(HttpServletResponse.SC_METHOD_NOT_ALLOWED);
         }
@@ -89,34 +92,6 @@ public class AuthServlet extends HttpServlet {
             return;
         }
         CsrfUtil.getToken(req);
-        req.getRequestDispatcher("/WEB-INF/views/auth/forgot.jsp").forward(req, resp);
-    }
-
-    private void forgot(HttpServletRequest req, HttpServletResponse resp)
-            throws ServletException, IOException {
-        if (!CsrfUtil.isValid(req)) { forgotFail(req, resp, "Phiên không hợp lệ, vui lòng thử lại."); return; }
-        String username = req.getParameter("username");
-        String email = req.getParameter("email");
-        String pwd = req.getParameter("newPassword");
-        String confirm = req.getParameter("confirmPassword");
-        if (pwd == null || pwd.length() < 6) { forgotFail(req, resp, "Mật khẩu mới tối thiểu 6 ký tự."); return; }
-        if (!pwd.equals(confirm)) { forgotFail(req, resp, "Xác nhận mật khẩu không khớp."); return; }
-        try {
-            boolean ok = authService.resetPasswordSelfService(username, email, pwd);
-            if (!ok) { forgotFail(req, resp, "Tên đăng nhập và email không khớp tài khoản hợp lệ."); return; }
-            req.getSession().setAttribute("flashOk", "Đặt lại mật khẩu thành công. Vui lòng đăng nhập.");
-            resp.sendRedirect(req.getContextPath() + "/auth/login");
-        } catch (Exception e) {
-            forgotFail(req, resp, "Lỗi hệ thống: " + e.getMessage());
-        }
-    }
-
-    private void forgotFail(HttpServletRequest req, HttpServletResponse resp, String msg)
-            throws ServletException, IOException {
-        CsrfUtil.getToken(req);
-        req.setAttribute("errorMsg", msg);
-        req.setAttribute("username", req.getParameter("username"));
-        req.setAttribute("email", req.getParameter("email"));
         req.getRequestDispatcher("/WEB-INF/views/auth/forgot.jsp").forward(req, resp);
     }
 

@@ -148,10 +148,10 @@ public class CashierShiftTransactionIT extends SqlServerIntegrationSupport {
         int shiftId;
         int billId = 0;
         try (Connection connection = connection(); Statement statement = connection.createStatement()) {
-            statement.executeUpdate("INSERT iam.[User](Username,PasswordHash,FullName,RoleId,BranchId) "
+            statement.executeUpdate("INSERT iam.UserAccount(Username,PasswordHash,FullName,RoleId,BranchId) "
                     + "VALUES ('cash" + key + "','x',N'IT Cashier'," + roleId + "," + branchId + ")");
             cashierId = id(connection,
-                    "SELECT UserId FROM iam.[User] WHERE Username=?", "cash" + key);
+                    "SELECT UserId FROM iam.UserAccount WHERE Username=?", "cash" + key);
             statement.executeUpdate("INSERT payment.CashierShift(BranchId,CashierId,OpeningCash) "
                     + "VALUES (" + branchId + "," + cashierId + ",500000)");
             shiftId = id(connection,
@@ -159,25 +159,29 @@ public class CashierShiftTransactionIT extends SqlServerIntegrationSupport {
                             + "WHERE BranchId=? AND ClosedAt IS NULL", branchId);
 
             if (orderStatus != null) {
-                statement.executeUpdate("INSERT catalog.Category(Name) VALUES (N'IT Cashier Category')");
+                statement.executeUpdate("INSERT catalog.Category(Name) VALUES (N'IT Cashier Category " + key + "')");
                 int categoryId = id(connection, "SELECT MAX(CategoryId) FROM catalog.Category");
                 statement.executeUpdate("INSERT catalog.Product(CategoryId,Name,BasePrice) VALUES ("
-                        + categoryId + ",N'IT Cashier Drink',10000)");
+                        + categoryId + ",N'IT Cashier Drink " + key + "',10000)");
                 int productId = id(connection, "SELECT MAX(ProductId) FROM catalog.Product");
-                statement.executeUpdate("INSERT sales.Orders(BranchId,Source,OrderType,Status,CreatedBy) VALUES ("
-                        + branchId + ",'COUNTER','TAKEAWAY','" + orderStatus + "'," + cashierId + ")");
-                int orderId = id(connection, "SELECT MAX(OrderId) FROM sales.Orders");
+                statement.executeUpdate("INSERT sales.SalesOrder(BranchId,Source,OrderType,Status,CreatedBy,BusinessDate) VALUES ("
+                        + branchId + ",'COUNTER','TAKEAWAY','" + orderStatus + "'," + cashierId
+                        + ",CONVERT(date,DATEADD(hour,7,SYSUTCDATETIME())))");
+                int orderId = id(connection, "SELECT MAX(OrderId) FROM sales.SalesOrder");
                 String itemStatus = "COMPLETED".equals(orderStatus) ? "SERVED" : "WAITING";
-                statement.executeUpdate("INSERT sales.OrderItem(OrderId,ProductId,Quantity,UnitPrice,Status) VALUES ("
-                        + orderId + "," + productId + ",1,10000,'" + itemStatus + "')");
+                String lifecycle = "SERVED".equals(itemStatus)
+                        ? ",ProductNameAtOrder,StartedAt,DoneAt,PickedUpAt,ServedAt) VALUES (" + orderId + "," + branchId + ","
+                          + productId + ",1,10000,'SERVED',N'IT Cashier Drink " + key + "',SYSUTCDATETIME(),SYSUTCDATETIME(),SYSUTCDATETIME(),SYSUTCDATETIME())"
+                        : ",ProductNameAtOrder) VALUES (" + orderId + "," + branchId + "," + productId + ",1,10000,'WAITING',N'IT Cashier Drink " + key + "')";
+                statement.executeUpdate("INSERT sales.OrderItem(OrderId,BranchId,ProductId,Quantity,UnitPrice,Status" + lifecycle);
                 int orderItemId = id(connection, "SELECT MAX(OrderItemId) FROM sales.OrderItem");
                 if ("COMPLETED".equals(orderStatus)) {
                     statement.executeUpdate("INSERT payment.Bill("
                             + "BranchId,CashierShiftId,Subtotal,VatAmount,TotalAmount,Status) VALUES ("
                             + branchId + "," + shiftId + ",10000,0,10000,'UNPAID')");
                     billId = id(connection, "SELECT MAX(BillId) FROM payment.Bill");
-                    statement.executeUpdate("INSERT payment.BillItem(BillId,OrderItemId,Amount) VALUES ("
-                            + billId + "," + orderItemId + ",10000)");
+                    statement.executeUpdate("INSERT payment.BillItem(BillId,BranchId,OrderItemId,Amount) VALUES ("
+                            + billId + "," + branchId + "," + orderItemId + ",10000)");
                 }
             }
         }

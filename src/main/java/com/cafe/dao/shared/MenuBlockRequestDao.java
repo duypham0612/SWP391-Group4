@@ -16,14 +16,14 @@ import java.util.List;
 public class MenuBlockRequestDao {
 
     private static final String SELECT_JOIN =
-        "SELECT mbr.RequestId, mbr.BranchId, mbr.ProductId, mbr.Reason, mbr.Note, mbr.BackInEta, " +
+        "SELECT mbr.MenuBlockRequestId, mbr.BranchId, mbr.ProductId, mbr.Reason, mbr.Note, mbr.BackInEta, " +
         "       mbr.RequestedBy, mbr.RequestedAt, mbr.ReopenRequestedAt, mbr.Status, " +
         "       mbr.ReviewedBy, mbr.ReviewedAt, mbr.ReviewNote, mbr.ClosedAt, " +
         "       p.Name AS ProductName, req.FullName AS RequesterName, rev.FullName AS ReviewerName " +
         "FROM catalog.MenuBlockRequest mbr " +
         "JOIN catalog.Product p ON p.ProductId = mbr.ProductId " +
-        "JOIN iam.[User] req ON req.UserId = mbr.RequestedBy " +
-        "LEFT JOIN iam.[User] rev ON rev.UserId = mbr.ReviewedBy ";
+        "JOIN iam.UserAccount req ON req.UserId = mbr.RequestedBy " +
+        "LEFT JOIN iam.UserAccount rev ON rev.UserId = mbr.ReviewedBy ";
 
     public int insert(Connection conn, MenuBlockRequest r) throws SQLException {
         final String sql =
@@ -59,7 +59,7 @@ public class MenuBlockRequestDao {
 
     public MenuBlockRequest findOpenById(Connection conn, int requestId, int branchId) throws SQLException {
         final String sql = SELECT_JOIN +
-            "WHERE mbr.RequestId=? AND mbr.BranchId=? AND mbr.ClosedAt IS NULL";
+            "WHERE mbr.MenuBlockRequestId=? AND mbr.BranchId=? AND mbr.ClosedAt IS NULL";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, requestId);
             ps.setInt(2, branchId);
@@ -72,7 +72,7 @@ public class MenuBlockRequestDao {
     public List<MenuBlockRequest> findOpenByBranch(Connection conn, int branchId) throws SQLException {
         final String sql = SELECT_JOIN +
             "WHERE mbr.BranchId=? AND mbr.ClosedAt IS NULL " +
-            "ORDER BY CASE WHEN mbr.BackInEta < SYSDATETIME() THEN 0 ELSE 1 END, mbr.BackInEta";
+            "ORDER BY CASE WHEN mbr.BackInEta < SYSUTCDATETIME() THEN 0 ELSE 1 END, mbr.BackInEta";
         List<MenuBlockRequest> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, branchId);
@@ -100,8 +100,8 @@ public class MenuBlockRequestDao {
 
     public int markReopenRequested(Connection conn, int requestId, int branchId) throws SQLException {
         final String sql =
-            "UPDATE catalog.MenuBlockRequest SET ReopenRequestedAt = SYSDATETIME() " +
-            "WHERE RequestId=? AND BranchId=? AND ClosedAt IS NULL AND ReopenRequestedAt IS NULL";
+            "UPDATE catalog.MenuBlockRequest SET ReopenRequestedAt = SYSUTCDATETIME() " +
+            "WHERE MenuBlockRequestId=? AND BranchId=? AND ClosedAt IS NULL AND ReopenRequestedAt IS NULL";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, requestId);
             ps.setInt(2, branchId);
@@ -116,8 +116,8 @@ public class MenuBlockRequestDao {
     public int closeOpenByProduct(Connection conn, int branchId, int productId, String reviewNote)
             throws SQLException {
         final String sql =
-            "UPDATE catalog.MenuBlockRequest SET Status='RESOLVED', ReviewedAt=SYSDATETIME(), " +
-            "       ReviewNote=?, ClosedAt=SYSDATETIME() " +
+            "UPDATE catalog.MenuBlockRequest SET Status='RESOLVED', ReviewedAt=SYSUTCDATETIME(), " +
+            "       ReviewNote=?, ClosedAt=SYSUTCDATETIME() " +
             "WHERE BranchId=? AND ProductId=? AND ClosedAt IS NULL";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             if (reviewNote == null || reviewNote.isBlank()) ps.setNull(1, Types.NVARCHAR);
@@ -131,9 +131,9 @@ public class MenuBlockRequestDao {
     public int review(Connection conn, int requestId, int branchId, String newStatus,
                       int reviewerId, String reviewNote, boolean close) throws SQLException {
         final String sql =
-            "UPDATE catalog.MenuBlockRequest SET Status=?, ReviewedBy=?, ReviewedAt=SYSDATETIME(), ReviewNote=?, " +
-            "       ClosedAt = CASE WHEN ? = 1 THEN SYSDATETIME() ELSE NULL END " +
-            "WHERE RequestId=? AND BranchId=? AND ClosedAt IS NULL";
+            "UPDATE catalog.MenuBlockRequest SET Status=?, ReviewedBy=?, ReviewedAt=SYSUTCDATETIME(), ReviewNote=?, " +
+            "       ClosedAt = CASE WHEN ? = 1 THEN SYSUTCDATETIME() ELSE NULL END " +
+            "WHERE MenuBlockRequestId=? AND BranchId=? AND ClosedAt IS NULL";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, newStatus);
             ps.setInt(2, reviewerId);
@@ -148,7 +148,7 @@ public class MenuBlockRequestDao {
 
     private MenuBlockRequest map(ResultSet rs) throws SQLException {
         MenuBlockRequest r = new MenuBlockRequest();
-        r.setRequestId(rs.getInt("RequestId"));
+        r.setMenuBlockRequestId(rs.getInt("MenuBlockRequestId"));
         r.setBranchId(rs.getInt("BranchId"));
         r.setProductId(rs.getInt("ProductId"));
         r.setReason(rs.getString("Reason"));

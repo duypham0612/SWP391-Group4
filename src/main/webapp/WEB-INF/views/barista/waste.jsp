@@ -11,8 +11,8 @@
         <p>Ghi nguyên liệu bị đổ, rơi, hỏng hoặc hết hạn để trừ khỏi sổ kho — theo dõi & cắt giảm thất thoát.</p>
     </div>
     <div class="waste-scope">
-        <strong>${scope.label}</strong>
-        <span>${scope.windowDisplay}</span>
+        <strong>${view.scopeLabel(scope.kind)}</strong>
+        <span>${view.scopeWindow(scope.kind, scope.fromUtc, scope.toUtc)}</span>
     </div>
 </div>
 
@@ -34,7 +34,7 @@
 <%-- Bốn ô dưới đây tính cho trọn phạm vi đang xem, không đổi theo bộ lọc/phân trang của nhật ký. --%>
 <section class="waste-summary">
     <div class="card stat">
-        <span class="label">${scope.label}</span>
+        <span class="label">${view.scopeLabel(scope.kind)}</span>
         <span class="value">${summary.ingredientWasteCount}</span>
         <small>dòng hao hụt hiệu lực</small>
     </div>
@@ -130,18 +130,18 @@
     <div id="editWaste" class="card waste-edit-card">
         <div>
             <h3>Sửa bản ghi hao hụt</h3>
-            <p>${editLog.ingredientName} · ${editLog.loggedAtDisplay}</p>
+            <p>${editLog.ingredientName} · ${view.timeDateUtc(editLog.loggedAt)}</p>
         </div>
         <form action="${ctx}/barista/waste" method="post" class="waste-edit-form">
             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
             <input type="hidden" name="action" value="update">
-            <input type="hidden" name="wasteLogId" value="${editLog.wasteLogId}">
+            <input type="hidden" name="wasteEventItemId" value="${editLog.wasteEventItemId}">
             <input type="hidden" name="q" value="${fn:escapeXml(wasteLogQuery)}">
             <input type="hidden" name="logType" value="${wasteLogWasteType}">
             <input type="hidden" name="status" value="${wasteLogStatus}">
             <input type="hidden" name="pageSize" value="${wasteLogPage.pageSize}">
             <input type="hidden" name="page" value="${wasteLogPage.page}">
-            <c:set var="editQty" value="${empty requestScope.editQuantity ? editLog.quantityInput : requestScope.editQuantity}" />
+            <c:set var="editQty" value="${empty requestScope.editQuantity ? view.plain(editLog.quantity) : requestScope.editQuantity}" />
             <c:set var="editType" value="${empty requestScope.editWasteType ? editLog.wasteType : requestScope.editWasteType}" />
             <c:set var="editReasonValue" value="${empty requestScope.editReason ? editLog.reason : requestScope.editReason}" />
             <div class="form-group">
@@ -176,7 +176,7 @@
 
 <%-- Nhật ký chỉ để đọc/tra cứu nên vẫn tìm và lật trang được khi ngoài ca;
      riêng nút Sửa/Huỷ từng dòng vẫn bị khoá bên dưới. --%>
-<h3 class="section-title">Nhật ký hao hụt · ${scope.label}</h3>
+<h3 class="section-title">Nhật ký hao hụt · ${view.scopeLabel(scope.kind)}</h3>
 <div>
             <form id="wasteLogFilters" class="table-toolbar" action="${ctx}/barista/waste" method="get">
                 <input type="hidden" name="page" value="1">
@@ -236,13 +236,13 @@
                             <c:otherwise>
                                 <c:forEach var="w" items="${logs}">
                                     <tr class="${w.status == 'VOIDED' ? 'row-muted' : ''}">
-                                        <td>${w.loggedAtDisplay}</td>
+                                        <td>${view.timeDateUtc(w.loggedAt)}</td>
                                         <td>
                                             <strong>${w.ingredientName}</strong>
                                             <c:if test="${w.ingredientType == 'PREPPED'}"><span class="badge badge-making">Pha sẵn</span></c:if>
                                         </td>
-                                        <td><strong>${w.quantityDisplay}</strong> ${w.ingredientUnit}</td>
-                                        <td>${w.wasteTypeLabel}</td>
+                                        <td><strong>${view.plain(w.quantity)}</strong> ${w.ingredientUnit}</td>
+                                        <td>${view.wasteType(w.wasteType)}</td>
                                         <td>${fn:escapeXml(w.reason)}</td>
                                         <td>${w.loggedByName}</td>
                                         <td>
@@ -258,7 +258,7 @@
                                                     <c:url var="editWasteUrl" value="/barista/waste">
                                                         <c:param name="q" value="${wasteLogQuery}" /><c:param name="logType" value="${wasteLogWasteType}" />
                                                         <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" />
-                                                        <c:param name="page" value="${wasteLogPage.page}" /><c:param name="edit" value="${w.wasteLogId}" />
+                                                        <c:param name="page" value="${wasteLogPage.page}" /><c:param name="edit" value="${w.wasteEventItemId}" />
                                                     </c:url>
                                                     <a class="btn btn-ghost btn-sm" href="${editWasteUrl}#editWaste">Sửa</a>
                                                 </c:if>
@@ -266,7 +266,7 @@
                                                     <form action="${ctx}/barista/waste" method="post" onsubmit="return confirm('Huỷ bản ghi này? Tồn kho sẽ được hoàn lại qua sổ cái.');">
                                                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                                         <input type="hidden" name="action" value="void">
-                                                        <input type="hidden" name="wasteLogId" value="${w.wasteLogId}">
+                                                        <input type="hidden" name="wasteEventItemId" value="${w.wasteEventItemId}">
                                                         <input type="hidden" name="q" value="${fn:escapeXml(wasteLogQuery)}">
                                                         <input type="hidden" name="logType" value="${wasteLogWasteType}">
                                                         <input type="hidden" name="status" value="${wasteLogStatus}">

@@ -9,7 +9,7 @@
      Thao tác gộp đặt ở đây vì chúng là việc của CẢ ĐƠN, không phải của một ly. --%>
 <c:if test="${cardItem.groupStart}">
     <div class="kds-qgroup">
-        <span class="kds-qgroup__dest"><c:out value="${cardItem.groupInfo.destinationLabel}" /></span>
+        <span class="kds-qgroup__dest"><c:out value="${view.destination(cardItem.groupInfo)}" /></span>
         <c:if test="${not empty cardItem.groupInfo.pickupCode}">
             <span class="kds-code"><c:out value="${cardItem.groupInfo.pickupCode}" /></span>
         </c:if>
@@ -63,7 +63,7 @@
     <span class="kds-qrow__table">
         <c:choose>
             <c:when test="${not empty cardItem.tableNumber}"><c:out value="${cardItem.tableNumber}" /></c:when>
-            <c:otherwise><span class="kds-qrow__away">${cardItem.orderTypeLabel}</span></c:otherwise>
+            <c:otherwise><span class="kds-qrow__away">${view.orderType(cardItem.orderType)}</span></c:otherwise>
         </c:choose>
     </span>
 
@@ -110,7 +110,7 @@
             </c:when>
             <%-- ĐANG PHA --%>
             <c:when test="${cardItem.status == 'MAKING'}">
-                <c:if test="${onShift and cardItem.baristaId == currentUserId}">
+                <c:if test="${onShift and cardItem.baristaId == board.currentUserId}">
                     <form action="${ctx}/barista/kds" method="post" class="kds-qrow__ready">
                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="markReady"><input type="hidden" name="orderItemId" value="${cardItem.orderItemId}">
                         <button type="submit" class="btn btn-primary btn-sm" ${cardItem.recipeMissing ? 'disabled' : ''}>Xong</button>
@@ -127,7 +127,7 @@
                 <%-- Món của người khác: bình thường chỉ xem. Nhưng nếu chủ món đã rời ca thì ly này
                      đang bị khoá dưới tên họ (Xong/Trả lại chờ đều guard theo BaristaId) — phải có
                      lối gỡ tại quầy, không thì khách ngồi đợi tới lúc Thu ngân huỷ món. --%>
-                <c:if test="${onShift and cardItem.baristaId != currentUserId}">
+                <c:if test="${onShift and cardItem.baristaId != board.currentUserId}">
                     <span class="kds-qrow__by">Đang pha: <c:out value="${cardItem.baristaName}" /><c:if test="${cardItem.ownerOffDuty}"> · đã rời ca</c:if></span>
                     <c:if test="${cardItem.ownerOffDuty}">
                         <form action="${ctx}/barista/kds" method="post" data-confirm="Người pha món này đã rời ca. Thu hồi món về hàng chờ để pha lại từ đầu?">

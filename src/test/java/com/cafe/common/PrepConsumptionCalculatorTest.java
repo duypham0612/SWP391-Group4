@@ -1,6 +1,7 @@
 package com.cafe.common;
 
 import com.cafe.model.PrepRecipe;
+import com.cafe.model.PrepRecipeIngredient;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -9,12 +10,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class PrepConsumptionCalculatorTest {
 
-    private static PrepRecipe recipe(int rawIngredientId, String quantity, String yieldQty) {
+    private static PrepRecipe recipe(String yieldQty) {
         PrepRecipe r = new PrepRecipe();
-        r.setRawIngredientId(rawIngredientId);
-        r.setQuantity(new BigDecimal(quantity));
         r.setYieldQty(new BigDecimal(yieldQty));
         return r;
+    }
+
+    private static PrepRecipeIngredient ingredient(int rawIngredientId, String quantity) {
+        PrepRecipeIngredient line = new PrepRecipeIngredient();
+        line.setRawIngredientId(rawIngredientId);
+        line.setQuantity(new BigDecimal(quantity));
+        return line;
     }
 
     private static void assertQty(String expected, BigDecimal actual) {
@@ -25,7 +31,7 @@ class PrepConsumptionCalculatorTest {
     @Test
     void dividesByYieldAndRoundsHalfUpToSixPlacesBeforeMultiplyingRawQuantity() {
         BigDecimal consumed = PrepConsumptionCalculator.consumedRaw(
-                new BigDecimal("10"), recipe(1, "2", "3"));
+                new BigDecimal("10"), recipe("3"), ingredient(1, "2"));
 
         assertQty("6.666666", consumed);
     }
@@ -33,17 +39,18 @@ class PrepConsumptionCalculatorTest {
     @Test
     void handlesProducedQuantitySmallerThanYield() {
         BigDecimal consumed = PrepConsumptionCalculator.consumedRaw(
-                new BigDecimal("0.5"), recipe(1, "12", "4"));
+                new BigDecimal("0.5"), recipe("4"), ingredient(1, "12"));
 
         assertQty("1.500000", consumed);
     }
 
     @Test
     void appliesSameFormulaForEachRawLineInAPreppedRecipe() {
+        PrepRecipe recipe = recipe("20");
         BigDecimal coffee = PrepConsumptionCalculator.consumedRaw(
-                new BigDecimal("30"), recipe(1, "8", "20"));
+                new BigDecimal("30"), recipe, ingredient(1, "8"));
         BigDecimal sugar = PrepConsumptionCalculator.consumedRaw(
-                new BigDecimal("30"), recipe(2, "3", "20"));
+                new BigDecimal("30"), recipe, ingredient(2, "3"));
 
         assertQty("12.000000", coffee);
         assertQty("4.500000", sugar);

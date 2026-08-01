@@ -12,7 +12,10 @@ import java.util.List;
 /** M6 · SupplierService (đặc tả mục 5). */
 public class SupplierService {
 
-    private final SupplierDao dao = new SupplierDao();
+    private final SupplierDao dao;
+
+    public SupplierService() { this(new SupplierDao()); }
+    public SupplierService(SupplierDao dao) { this.dao = java.util.Objects.requireNonNull(dao); }
 
     public List<Supplier> getSupplierList() throws SQLException {
         try (Connection c = DBConnection.getConnection()) { return dao.findAll(c); }
@@ -39,10 +42,23 @@ public class SupplierService {
     }
 
     static void validate(Supplier supplier) {
-        String phone = supplier == null ? null : supplier.getPhone();
-        if (phone == null || !phone.matches("0\\d{9}")) {
+        if (supplier == null) throw new BusinessException("Thông tin nhà cung cấp là bắt buộc.");
+        String name = clean(supplier.getName());
+        String phone = clean(supplier.getPhone());
+        String address = clean(supplier.getAddress());
+        if (name == null) throw new BusinessException("Tên nhà cung cấp không được để trống.");
+        if (phone == null) throw new BusinessException("Số điện thoại không được để trống.");
+        if (!phone.matches("0\\d{9}")) {
             throw new BusinessException("Số điện thoại không hợp lệ. Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng 0.");
         }
+        if (address == null) throw new BusinessException("Địa chỉ không được để trống.");
+        supplier.setName(name);
+        supplier.setPhone(phone);
+        supplier.setAddress(address);
+    }
+
+    private static String clean(String value) {
+        return value == null || value.isBlank() ? null : value.trim().replaceAll("\\s+", " ");
     }
 
     private interface Fn<T>{ T run(Connection c) throws SQLException; }

@@ -7,15 +7,32 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Đọc ops.OutboxEvent (EventPublisher là điểm ghi duy nhất).
- * Dùng cho tín hiệu khách → quầy: yêu cầu mở bàn quét từ QR.
+ * Truy cập ops.OutboxEvent. Mọi câu SQL của outbox được giữ tại DAO này;
+ * Service truyền Connection hiện tại để event tham gia cùng transaction nghiệp vụ.
  */
 public class OutboxEventDao {
+
+    public void insert(Connection conn, EventType type, String aggregateId,
+                       Integer branchId, String payloadJson) throws SQLException {
+        final String sql =
+                "INSERT INTO ops.OutboxEvent(EventType, AggregateId, BranchId, Payload) VALUES (?,?,?,?)";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, type.wire());
+            if (aggregateId == null) ps.setNull(2, Types.VARCHAR);
+            else ps.setString(2, aggregateId);
+            if (branchId == null) ps.setNull(3, Types.INTEGER);
+            else ps.setInt(3, branchId);
+            if (payloadJson == null) ps.setNull(4, Types.NVARCHAR);
+            else ps.setString(4, payloadJson);
+            ps.executeUpdate();
+        }
+    }
 
     /**
      * Bàn đang có yêu cầu mở (chưa xử lý) của chi nhánh → thời điểm yêu cầu SỚM NHẤT.

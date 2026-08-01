@@ -17,19 +17,21 @@ import java.util.Map;
 public class OrderItemModifierDao {
 
     private static final String SELECT =
-        "SELECT oim.OrderItemModifierId, oim.OrderItemId, oim.ModifierOptionId, oim.PriceDelta, mo.Name AS OptionName " +
-        "FROM sales.OrderItemModifier oim " +
-        "JOIN catalog.ModifierOption mo ON mo.ModifierOptionId=oim.ModifierOptionId ";
+        "SELECT oim.OrderItemModifierId, oim.OrderItemId, oim.ModifierOptionId, oim.PriceDelta, " +
+        "       oim.ModifierOptionNameAtOrder AS OptionName " +
+        "FROM sales.OrderItemModifier oim ";
 
     /** SQL Server chỉ nhận 2100 tham số cho một câu lệnh — chia lô để danh sách dài không vỡ. */
     private static final int ID_CHUNK = 1000;
 
-    public void insert(Connection conn, int orderItemId, int modifierOptionId, BigDecimal priceDelta) throws SQLException {
-        final String sql = "INSERT INTO sales.OrderItemModifier(OrderItemId, ModifierOptionId, PriceDelta) VALUES (?,?,?)";
+    public void insert(Connection conn, int orderItemId, int modifierOptionId,
+                       BigDecimal priceDelta, String optionNameAtOrder) throws SQLException {
+        final String sql = "INSERT INTO sales.OrderItemModifier(OrderItemId, ModifierOptionId, PriceDelta,ModifierOptionNameAtOrder) VALUES (?,?,?,?)";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, orderItemId);
             ps.setInt(2, modifierOptionId);
             ps.setBigDecimal(3, priceDelta == null ? BigDecimal.ZERO : priceDelta);
+            ps.setString(4, optionNameAtOrder);
             ps.executeUpdate();
         }
     }

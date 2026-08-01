@@ -7,11 +7,11 @@
             <div>
                 <div class="eyebrow">Chấm công ca hôm nay</div>
                 <h3>Vào ca / Tan ca</h3>
-                <p>${clockStatus.statusText}</p>
+                <p>${view.shiftStatus(clockStatus)}</p>
                 <c:if test="${clockStatus.hasAssignment}">
                     <div class="shift-clock-meta">
                         <span>${clockStatus.templateName}</span>
-                        <span>${clockStatus.shiftTimeDisplay}</span>
+                        <span>${view.timeRange(clockStatus.startTime, clockStatus.endTime)}</span>
                     </div>
                 </c:if>
             </div>
@@ -34,15 +34,15 @@
         <div class="shift-clock-facts">
             <div>
                 <span>Vào ca</span>
-                <strong>${clockStatus.checkInDisplay}</strong>
+                <strong>${view.dateTimeUtc(clockStatus.checkInAt)}</strong>
             </div>
             <div>
                 <span>Tan ca</span>
-                <strong>${clockStatus.checkOutDisplay}</strong>
+                <strong>${view.dateTimeUtc(clockStatus.checkOutAt)}</strong>
             </div>
             <div>
                 <span>Giờ làm</span>
-                <strong>${clockStatus.workHoursDisplay}h</strong>
+                <strong>${view.oneDecimal(clockStatus.workHours)}h</strong>
             </div>
         </div>
 

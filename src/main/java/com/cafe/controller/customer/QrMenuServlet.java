@@ -1,13 +1,13 @@
 package com.cafe.controller.customer;
 
-import com.cafe.common.CsrfUtil;
+import com.cafe.web.support.CsrfUtil;
 import com.cafe.common.ItemUnavailableException;
 import com.cafe.service.shared.OrderService;
-import com.cafe.service.shared.OrderQuantityValidator;
 import com.cafe.service.customer.QrOrderService;
+import com.cafe.web.form.FormBindingException;
+import com.cafe.web.form.OrderCartForm;
 import com.cafe.model.DiningTable;
 import com.cafe.model.TableSession;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -17,7 +17,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -25,8 +24,13 @@ import java.util.Map;
 @WebServlet("/qr/menu")
 public class QrMenuServlet extends HttpServlet {
 
-    private final QrOrderService qrService = new QrOrderService();
+    private final QrOrderService qrService;
     private final ObjectMapper mapper = new ObjectMapper();
+
+    public QrMenuServlet() { this(new QrOrderService()); }
+    QrMenuServlet(QrOrderService qrService) {
+        this.qrService = java.util.Objects.requireNonNull(qrService);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -123,21 +127,8 @@ public class QrMenuServlet extends HttpServlet {
                 resp.getWriter().write("{\"error\":\"Bàn đã được thanh toán hoặc đóng. Vui lòng quét lại QR hoặc gọi nhân viên.\"}");
                 return;
             }
-            JsonNode body = mapper.readTree(req.getInputStream());
-            List<OrderService.CartLine> lines = new ArrayList<>();
-            JsonNode items = body.get("items");
-            if (items != null && items.isArray()) {
-                for (JsonNode n : items) {
-                    OrderService.CartLine line = new OrderService.CartLine();
-                    line.productId = n.get("productId").asInt();
-                    line.quantity = n.has("quantity") ? n.get("quantity").asInt() : 1;
-                    line.note = n.hasNonNull("note") ? n.get("note").asText() : null;
-                    JsonNode opts = n.get("optionIds");
-                    if (opts != null && opts.isArray()) for (JsonNode o : opts) line.optionIds.add(o.asInt());
-                    lines.add(line);
-                }
-            }
-            OrderQuantityValidator.validate(lines);
+            OrderCartForm form = OrderCartForm.fromJson(req, mapper);
+            List<OrderService.CartLine> lines = form.toCartLines();
             int orderId = qrService.placeCustomerOrder(branchId, sessionId, lines);
             resp.getWriter().write("{\"orderId\":" + orderId + ",\"sessionId\":" + sessionId + "}");
         } catch (ItemUnavailableException e) {
@@ -148,7 +139,7 @@ public class QrMenuServlet extends HttpServlet {
                     "productName", e.getProductName(),
                     "state", e.getState(),
                     "error", e.getReason()));
-        } catch (IllegalArgumentException e) {                 // đơn rỗng/dữ liệu sai → lỗi client
+        } catch (IllegalArgumentException | FormBindingException e) { // đơn rỗng/dữ liệu sai → lỗi client
             resp.setStatus(400);
             resp.getWriter().write("{\"error\":\"" + (e.getMessage() == null ? "Lỗi" : e.getMessage().replace("\"","'")) + "\"}");
         } catch (Exception e) {

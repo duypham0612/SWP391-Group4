@@ -2,7 +2,9 @@ package com.cafe.model;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /** Một món trên màn POS: giá hiệu lực + các nhóm modifier áp dụng. */
 public class PosMenuItem {
@@ -11,7 +13,8 @@ public class PosMenuItem {
     private BigDecimal price;          // localPrice nếu có, ngược lại basePrice
     private String imageUrl;           // ảnh sản phẩm
     private String availabilityState = ProductStockStatus.AVAILABLE;
-    private String stockMessage;
+    private Set<String> lowIngredients = new LinkedHashSet<>();
+    private Set<String> outIngredients = new LinkedHashSet<>();
     private boolean orderable = true;
     private List<Group> groups = new ArrayList<>();
 
@@ -32,8 +35,10 @@ public class PosMenuItem {
         this.availabilityState = v == null ? ProductStockStatus.AVAILABLE : v;
     }
 
-    public String getStockMessage() { return stockMessage; }
-    public void setStockMessage(String v) { this.stockMessage = v; }
+    public Set<String> getLowIngredients() { return lowIngredients; }
+    public void setLowIngredients(Set<String> v) { lowIngredients = v == null ? new LinkedHashSet<>() : new LinkedHashSet<>(v); }
+    public Set<String> getOutIngredients() { return outIngredients; }
+    public void setOutIngredients(Set<String> v) { outIngredients = v == null ? new LinkedHashSet<>() : new LinkedHashSet<>(v); }
 
     public boolean isOrderable() { return orderable; }
     public void setOrderable(boolean v) { this.orderable = v; }

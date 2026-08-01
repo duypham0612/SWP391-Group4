@@ -2,12 +2,13 @@ package com.cafe.controller.manager;
 
 import com.cafe.common.BusinessException;
 import com.cafe.common.Constants;
-import com.cafe.common.CsrfUtil;
-import com.cafe.common.SessionUtil;
+import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.SessionUtil;
 import com.cafe.model.Payroll;
 import com.cafe.model.PayrollRow;
 import com.cafe.model.User;
 import com.cafe.service.manager.PayrollService;
+import com.cafe.web.renderer.PayrollCsvRenderer;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -15,30 +16,39 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /** M4 · PayrollServlet → /manager/payroll. show | save (chốt giờ+lương/giờ) | export (CSV/Excel). */
 @WebServlet("/manager/payroll")
 public class PayrollServlet extends HttpServlet {
 
-    private final PayrollService service = new PayrollService();
+    private final PayrollService service;
+    private final PayrollCsvRenderer csvRenderer;
+
+    public PayrollServlet() {
+        this(new PayrollService(), new PayrollCsvRenderer());
+    }
+
+    PayrollServlet(PayrollService service, PayrollCsvRenderer csvRenderer) {
+        this.service = Objects.requireNonNull(service, "service");
+        this.csvRenderer = Objects.requireNonNull(csvRenderer, "csvRenderer");
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         YearMonth ym = parseMonth(req.getParameter("month"));
-        LocalDate monthStart = ym.atDay(1);
         try {
-            List<PayrollRow> rows = service.getMonthlyPayroll(branchId, monthStart, ym.toString());
+            List<PayrollRow> rows = service.getMonthlyPayroll(branchId, ym);
             if ("export".equals(req.getParameter("action"))) {
-                exportCsv(resp, ym, rows);
+                csvRenderer.render(resp, ym, rows);
                 return;
             }
             req.setAttribute("month", ym.toString());
@@ -55,7 +65,7 @@ public class PayrollServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         User u = SessionUtil.currentUser(req);
         YearMonth ym = parseMonth(req.getParameter("month"));
         try {
@@ -70,7 +80,7 @@ public class PayrollServlet extends HttpServlet {
                 p.setHourlyRate(dec(req.getParameter("rate_" + uid)));
                 lines.add(p);
             }
-            service.savePayroll(branchId, ym.toString(), lines, u != null ? u.getUserId() : 0);
+            service.savePayroll(branchId, ym, lines, u != null ? u.getUserId() : 0);
             req.getSession().setAttribute("flashOk", "Đã lưu bảng lương tháng " + ym + ".");
             resp.sendRedirect(req.getContextPath() + "/manager/payroll?month=" + ym);
         } catch (BusinessException e) {
@@ -82,31 +92,8 @@ public class PayrollServlet extends HttpServlet {
         } catch (Exception e) { throw new ServletException(e); }
     }
 
-    /** Xuất CSV (mở được bằng Excel) — BOM UTF-8 để hiển thị tiếng Việt đúng. */
-    private void exportCsv(HttpServletResponse resp, YearMonth ym, List<PayrollRow> rows) throws IOException {
-        resp.setContentType("text/csv; charset=UTF-8");
-        resp.setCharacterEncoding("UTF-8");
-        resp.setHeader("Content-Disposition", "attachment; filename=\"payroll-" + ym + ".csv\"");
-        PrintWriter w = resp.getWriter();
-        w.write('﻿');   // BOM
-        w.println("Mã NV,Họ tên,Vai trò,Số ca duyệt,Tổng giờ,Lương/giờ,Thành tiền");
-        for (PayrollRow r : rows) {
-            w.println(r.getUserId() + "," + csv(r.getUserName()) + "," + csv(r.getRoleName())
-                    + "," + r.getApprovedShifts() + "," + String.format(java.util.Locale.US, "%.2f", r.getTotalHours())
-                    + "," + r.getHourlyRate().toPlainString() + "," + r.getSalary().toPlainString());
-        }
-        w.flush();
-    }
-
     private BigDecimal dec(String s) {
         return s == null || s.isBlank() ? BigDecimal.ZERO : new BigDecimal(s.trim());
-    }
-
-    private String csv(String s) {
-        if (s == null) return "";
-        if (s.contains(",") || s.contains("\"") || s.contains("\n"))
-            return "\"" + s.replace("\"", "\"\"") + "\"";
-        return s;
     }
 
     private YearMonth parseMonth(String month) {

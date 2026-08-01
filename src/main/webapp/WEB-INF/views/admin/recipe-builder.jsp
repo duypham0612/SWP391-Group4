@@ -90,7 +90,7 @@
                                 <input type="hidden" name="lineId" value="${l.productRecipeId}">
                                 <input type="number" name="quantity" class="form-control"
                                        style="width:100px" min="2" max="999999999"
-                                       step="1" value="${l.quantityIntegerDisplay}" required>
+                                       step="1" value="${view.integer(l.quantity)}" required>
                                 <span class="muted">${l.ingredientUnit}</span>
                                 <button type="submit" class="btn btn-ghost btn-sm">Lưu</button>
                             </form>

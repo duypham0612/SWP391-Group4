@@ -22,10 +22,21 @@ public class CashierDutyService {
         TILL_ONLY
     }
 
-    private final AttendanceDao attendanceDao = new AttendanceDao();
-    private final AttendanceService attendanceService = new AttendanceService();
-    private final CashierShiftDao cashierShiftDao = new CashierShiftDao();
-    private final CashierShiftService cashierShiftService = new CashierShiftService();
+    private final AttendanceDao attendanceDao;
+    private final AttendanceService attendanceService;
+    private final CashierShiftDao cashierShiftDao;
+    private final CashierShiftService cashierShiftService;
+
+    public CashierDutyService() {
+        this(new AttendanceDao(), new AttendanceService(), new CashierShiftDao(), new CashierShiftService());
+    }
+    public CashierDutyService(AttendanceDao attendanceDao, AttendanceService attendanceService,
+                              CashierShiftDao cashierShiftDao, CashierShiftService cashierShiftService) {
+        this.attendanceDao = java.util.Objects.requireNonNull(attendanceDao);
+        this.attendanceService = java.util.Objects.requireNonNull(attendanceService);
+        this.cashierShiftDao = java.util.Objects.requireNonNull(cashierShiftDao);
+        this.cashierShiftService = java.util.Objects.requireNonNull(cashierShiftService);
+    }
 
     public DutyState getDutyState(int userId, int branchId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) {

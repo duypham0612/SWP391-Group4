@@ -1,7 +1,7 @@
 package com.cafe.controller.manager;
 
 import com.cafe.common.BusinessException;
-import com.cafe.common.CsrfUtil;
+import com.cafe.web.support.CsrfUtil;
 import com.cafe.model.ShiftTemplate;
 import com.cafe.service.manager.ShiftService;
 import com.cafe.service.admin.UserService;
@@ -22,13 +22,19 @@ import java.time.temporal.TemporalAdjusters;
 @WebServlet("/manager/shift")
 public class ShiftServlet extends HttpServlet {
 
-    private final ShiftService shiftService = new ShiftService();
-    private final UserService userService = new UserService();
+    private final ShiftService shiftService;
+    private final UserService userService;
+
+    public ShiftServlet() { this(new ShiftService(), new UserService()); }
+    ShiftServlet(ShiftService shiftService, UserService userService) {
+        this.shiftService = java.util.Objects.requireNonNull(shiftService);
+        this.userService = java.util.Objects.requireNonNull(userService);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         LocalDate weekStart = parseWeekStart(req.getParameter("week"));
         try {
             req.setAttribute("weekStart", weekStart);
@@ -47,7 +53,7 @@ public class ShiftServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         String action = req.getParameter("action");
         String week = req.getParameter("week");
         String redirect = req.getContextPath() + "/manager/shift" + (week != null && !week.isBlank() ? "?week=" + week : "");
@@ -69,7 +75,7 @@ public class ShiftServlet extends HttpServlet {
                 int templateId = Integer.parseInt(req.getParameter("templateId"));
                 int userId = Integer.parseInt(req.getParameter("userId"));
                 LocalDate date = LocalDate.parse(req.getParameter("workDate"));
-                shiftService.assignShift(templateId, userId, date);
+                shiftService.assignShift(templateId, userId, date, branchId);
             } else if ("unassign".equals(action)) {
                 shiftService.unassignShift(Integer.parseInt(req.getParameter("assignmentId")), branchId);
             }

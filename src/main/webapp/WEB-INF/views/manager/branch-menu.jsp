@@ -44,7 +44,7 @@
                     <tr>
                         <td>
                             <c:choose>
-                                <c:when test="${m.available}">
+                                <c:when test="${m.listed}">
                                     <input class="menupick" type="checkbox" form="bulkHide" name="pick" value="${m.productId}">
                                 </c:when>
                                 <c:otherwise><span class="muted">—</span></c:otherwise>
@@ -54,14 +54,14 @@
                             <img class="prod-thumb" src="${imgSrc}" alt="${m.productName}" loading="lazy" onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
                             <span>${m.productName}</span>
                         </td>
-                        <td>${m.basePriceDisplay} ₫</td>
+                        <td>${view.grouped(m.basePrice)} ₫</td>
                         <td>
                             <form action="${ctx}/manager/menu" method="post" style="display:flex;gap:6px;align-items:center;margin:0">
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                 <input type="hidden" name="action" value="setLocalPrice">
                                 <input type="hidden" name="productId" value="${m.productId}">
                                 <input type="text" name="localPrice" class="form-control" style="width:130px"
-                                       value="${m.localPriceDisplay}" placeholder="Dùng giá gốc" data-vi-number>
+                                       value="${view.grouped(m.localPrice)}" placeholder="Dùng giá gốc" data-vi-number>
                                 <button type="submit" class="btn btn-ghost btn-sm">Lưu</button>
                             </form>
                         </td>
@@ -70,14 +70,14 @@
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                 <input type="hidden" name="action" value="toggleAvailable">
                                 <input type="hidden" name="productId" value="${m.productId}">
-                                <button type="submit" class="btn btn-sm ${m.available ? 'btn-primary' : 'btn-ghost'}">
-                                    ${m.available ? 'Đang bán' : 'Ngừng bán'}
+                                <button type="submit" class="btn btn-sm ${m.listed ? 'btn-primary' : 'btn-ghost'}">
+                                    ${m.listed ? 'Đang bán' : 'Ngừng bán'}
                                 </button>
                             </form>
                         </td>
                         <td>
                             <c:choose>
-                                <c:when test="${m.is86}">
+                                <c:when test="${m.temporarilyUnavailable}">
                                     <span class="badge badge-cancelled">Hết tạm thời</span>
                                     <a href="#menu86" class="muted" style="display:block;font-size:.82em;margin-top:4px">Xử lý ở "Món tạm hết"</a>
                                 </c:when>

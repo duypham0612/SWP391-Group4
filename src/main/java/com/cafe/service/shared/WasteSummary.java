@@ -1,6 +1,6 @@
 package com.cafe.service.shared;
 
-import com.cafe.model.WasteLog;
+import com.cafe.model.WasteEventItem;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
@@ -10,7 +10,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Tổng hợp hao hụt/làm lại từ một danh sách WasteLog — hàm thuần, không đụng DB.
+ * Tổng hợp hao hụt/làm lại từ một danh sách WasteEventItem — hàm thuần, không đụng DB.
  * Đặt ở service.shared vì cả Pha chế lẫn Quản lý chi nhánh đều dùng.
  */
 public final class WasteSummary {
@@ -29,12 +29,12 @@ public final class WasteSummary {
 
     private WasteSummary() { }
 
-    public static WasteSummary from(List<WasteLog> logs) {
+    public static WasteSummary from(List<WasteEventItem> logs) {
         WasteSummary s = new WasteSummary();
         Map<String, BigDecimal> byIngredient = new LinkedHashMap<>();
         Set<Long> remakeEvents = new HashSet<>();
         if (logs == null) return s;
-        for (WasteLog log : logs) {
+        for (WasteEventItem log : logs) {
             if (log == null || !log.isActive()) continue;
             s.activeCount++;
             if (log.isRemake()) {

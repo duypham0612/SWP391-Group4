@@ -1,19 +1,17 @@
 package com.cafe.filter;
 
 import com.cafe.common.Constants;
-import com.cafe.common.CsrfUtil;
+import com.cafe.web.support.CsrfUtil;
 import com.cafe.common.BranchAccessPolicy;
-import com.cafe.config.DBConnection;
-import com.cafe.dao.shared.BranchStatusDao;
 import com.cafe.model.User;
+import com.cafe.service.shared.BranchAccessService;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 
 import java.io.IOException;
-import java.sql.Connection;
-import java.sql.SQLException;
+import java.util.Objects;
 
 /**
  * Đặt branchId của user đang đăng nhập vào request attribute để tầng dưới lọc dữ liệu.
@@ -21,7 +19,15 @@ import java.sql.SQLException;
  */
 public class BranchScopeFilter implements Filter {
 
-    private final BranchStatusDao branchStatusDao = new BranchStatusDao();
+    private final BranchAccessService branchAccessService;
+
+    public BranchScopeFilter() {
+        this(new BranchAccessService());
+    }
+
+    BranchScopeFilter(BranchAccessService branchAccessService) {
+        this.branchAccessService = Objects.requireNonNull(branchAccessService, "branchAccessService");
+    }
 
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
@@ -31,7 +37,7 @@ public class BranchScopeFilter implements Filter {
         User u = (User) req.getSession().getAttribute(Constants.SESSION_USER);
         if (u != null) {
             if (u.getBranchId() != null && requiresActiveBranch(req)) {
-                BranchStatusDao.AccessStatus status = getBranchAccessStatus(u.getBranchId());
+                BranchAccessService.Status status = getBranchAccessStatus(u.getBranchId());
                 String blockedMessage = BranchAccessPolicy.blockedMessage(
                         status.active(), status.managerAssigned());
                 if (blockedMessage != null) {
@@ -48,11 +54,11 @@ public class BranchScopeFilter implements Filter {
         chain.doFilter(request, response);
     }
 
-    private BranchStatusDao.AccessStatus getBranchAccessStatus(int branchId)
+    private BranchAccessService.Status getBranchAccessStatus(int branchId)
             throws ServletException {
-        try (Connection conn = DBConnection.getConnection()) {
-            return branchStatusDao.findAccessStatus(conn, branchId);
-        } catch (SQLException e) {
+        try {
+            return branchAccessService.getStatus(branchId);
+        } catch (Exception e) {
             throw new ServletException("Không thể kiểm tra quyền hoạt động của chi nhánh.", e);
         }
     }

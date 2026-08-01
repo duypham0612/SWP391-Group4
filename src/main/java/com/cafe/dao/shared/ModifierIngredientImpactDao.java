@@ -12,7 +12,7 @@ import java.util.List;
 public class ModifierIngredientImpactDao {
 
     private static final String SELECT =
-        "SELECT mii.ImpactId, mii.ModifierOptionId, mii.IngredientId, mii.QtyDelta, " +
+        "SELECT mii.ModifierIngredientImpactId, mii.ModifierOptionId, mii.IngredientId, mii.QtyDelta, " +
         "       i.Name AS IngredientName, i.Unit AS IngredientUnit, i.IngredientType " +
         "FROM catalog.ModifierIngredientImpact mii JOIN catalog.Ingredient i ON mii.IngredientId = i.IngredientId ";
 
@@ -44,7 +44,7 @@ public class ModifierIngredientImpactDao {
 
     private ModifierIngredientImpact map(ResultSet rs) throws SQLException {
         ModifierIngredientImpact m = new ModifierIngredientImpact();
-        m.setImpactId(rs.getInt("ImpactId"));
+        m.setModifierIngredientImpactId(rs.getInt("ModifierIngredientImpactId"));
         m.setModifierOptionId(rs.getInt("ModifierOptionId"));
         m.setIngredientId(rs.getInt("IngredientId"));
         m.setQtyDelta(rs.getBigDecimal("QtyDelta"));
@@ -54,7 +54,7 @@ public class ModifierIngredientImpactDao {
         return m;
     }
 
-    /** Đã có định mức cho cặp (option, ingredient) chưa — để chặn trùng UQ_MII. */
+    /** Đã có định mức cho cặp (option, ingredient) chưa — để chặn trùng UQ_ModifierIngredientImpact_OptionIngredient. */
     public boolean exists(Connection conn, int optionId, int ingredientId) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
                 "SELECT 1 FROM catalog.ModifierIngredientImpact WHERE ModifierOptionId = ? AND IngredientId = ?")) {
@@ -75,7 +75,7 @@ public class ModifierIngredientImpactDao {
     }
 
     public void delete(Connection conn, int impactId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM catalog.ModifierIngredientImpact WHERE ImpactId = ?")) {
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM catalog.ModifierIngredientImpact WHERE ModifierIngredientImpactId = ?")) {
             ps.setInt(1, impactId);
             ps.executeUpdate();
         }

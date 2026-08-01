@@ -1,9 +1,8 @@
 package com.cafe.controller.cashier;
-import com.cafe.controller.manager.InventoryDashboardServlet;
 
-import com.cafe.common.CsrfUtil;
-import com.cafe.common.QrLink;
-import com.cafe.common.SessionUtil;
+import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.QrLink;
+import com.cafe.web.support.SessionUtil;
 import com.cafe.model.User;
 import com.cafe.service.cashier.TableSessionService;
 import jakarta.servlet.ServletException;
@@ -18,12 +17,17 @@ import java.io.IOException;
 @WebServlet("/cashier/table")
 public class TableServlet extends HttpServlet {
 
-    private final TableSessionService service = new TableSessionService();
+    private final TableSessionService service;
+
+    public TableServlet() { this(new TableSessionService()); }
+    TableServlet(TableSessionService service) {
+        this.service = java.util.Objects.requireNonNull(service);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         try {
             java.util.List<com.cafe.model.DiningTable> tables = service.getFloorMap(branchId);
             req.setAttribute("tables", tables);
@@ -50,7 +54,7 @@ public class TableServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         User u = SessionUtil.currentUser(req);
         Integer userId = u != null ? u.getUserId() : null;
         String action = req.getParameter("action");

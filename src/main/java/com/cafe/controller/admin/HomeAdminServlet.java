@@ -1,6 +1,6 @@
 package com.cafe.controller.admin;
 
-import com.cafe.common.CsrfUtil;
+import com.cafe.web.support.CsrfUtil;
 import com.cafe.model.HomeSetting;
 import com.cafe.service.admin.HomeAdminService;
 import jakarta.servlet.ServletException;
@@ -15,7 +15,12 @@ import java.io.IOException;
 @WebServlet("/admin/home")
 public class HomeAdminServlet extends HttpServlet {
 
-    private final HomeAdminService service = new HomeAdminService();
+    private final HomeAdminService service;
+
+    public HomeAdminServlet() { this(new HomeAdminService()); }
+    HomeAdminServlet(HomeAdminService service) {
+        this.service = java.util.Objects.requireNonNull(service);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -55,7 +60,7 @@ public class HomeAdminServlet extends HttpServlet {
         } catch (Exception e) { throw new ServletException(e); }
     }
 
-    private void saveHomeProducts(HttpServletRequest req) throws java.sql.SQLException {
+    private void saveHomeProducts(HttpServletRequest req) throws Exception {
         String[] pids = req.getParameterValues("pid");
         if (pids == null || pids.length == 0) return;
         java.util.List<Integer> idList = new java.util.ArrayList<>();

@@ -24,8 +24,8 @@ public final class DBConnection {
             Properties p = loadFallbackProperties();
 
             HikariConfig cfg = new HikariConfig();
-            // System property chỉ dành cho môi trường deploy/CI (đặc biệt Testcontainers).
-            // File db.properties vẫn là fallback cho developer chạy Tomcat cục bộ.
+            // Secret lấy từ system property hoặc biến môi trường DB_URL/DB_USERNAME/DB_PASSWORD.
+            // db.properties chỉ giữ cấu hình không nhạy cảm, không còn chứa credential.
             cfg.setJdbcUrl(value("db.url", p));
             cfg.setUsername(value("db.username", p));
             cfg.setPassword(value("db.password", p));
@@ -80,7 +80,9 @@ public final class DBConnection {
 
     private static String value(String key, Properties properties) {
         String override = System.getProperty(key);
-        return override == null || override.isBlank() ? properties.getProperty(key) : override;
+        if (override != null && !override.isBlank()) return override;
+        String environment = System.getenv(key.toUpperCase(java.util.Locale.ROOT).replace('.', '_'));
+        return environment == null || environment.isBlank() ? properties.getProperty(key) : environment;
     }
 
     /**
@@ -92,8 +94,11 @@ public final class DBConnection {
         String[] required = {"db.url", "db.username", "db.password", "db.driver"};
         boolean allProvided = true;
         for (String key : required) {
-            String value = System.getProperty(key);
-            if (value == null || value.isBlank()) {
+            String configured = System.getProperty(key);
+            if (configured == null || configured.isBlank()) {
+                configured = System.getenv(key.toUpperCase(java.util.Locale.ROOT).replace('.', '_'));
+            }
+            if (configured == null || configured.isBlank()) {
                 allProvided = false;
                 break;
             }

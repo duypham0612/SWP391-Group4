@@ -1,6 +1,7 @@
 package com.cafe.service.barista;
 
 import org.junit.jupiter.api.Test;
+import com.cafe.web.viewmodel.ViewFormatter;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -18,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 class WasteScopeTest {
 
     private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    private final ViewFormatter view = new ViewFormatter();
 
     /** TODAY: cửa sổ đúng 24h và mốc đầu = 00:00 giờ VN (quy về UTC). */
     @Test
@@ -25,7 +27,7 @@ class WasteScopeTest {
         WasteService.WasteScope scope = WasteService.WasteScope.today();
 
         assertEquals("TODAY", scope.getKind());
-        assertEquals("Hôm nay", scope.getLabel());
+        assertEquals("Hôm nay", view.scopeLabel(scope.getKind()));
 
         LocalDateTime fromUtc = scope.getFromUtc();
         LocalDateTime toUtc = scope.getToUtc();

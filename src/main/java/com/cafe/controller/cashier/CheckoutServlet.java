@@ -1,8 +1,7 @@
 package com.cafe.controller.cashier;
-import com.cafe.controller.manager.InventoryDashboardServlet;
 
-import com.cafe.common.CsrfUtil;
-import com.cafe.common.SessionUtil;
+import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.SessionUtil;
 import com.cafe.common.Constants;
 import com.cafe.common.VietQrUtil;
 import com.cafe.model.Bill;
@@ -13,6 +12,7 @@ import com.cafe.service.cashier.BillingService;
 import com.cafe.service.cashier.CashPaymentCalculator;
 import com.cafe.service.cashier.CashierShiftService;
 import com.cafe.service.cashier.TableSessionService;
+import com.cafe.web.viewmodel.PaymentViewModelAssembler;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -21,25 +21,38 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 /** C5 · CheckoutServlet → /cashier/checkout. ★ showBill | applyVoucher | splitBill | mergeBill | pay. */
 @WebServlet("/cashier/checkout")
 public class CheckoutServlet extends HttpServlet {
 
-    private final BillingService billingService = new BillingService();
-    private final CashierShiftService shiftService = new CashierShiftService();
-    private final TableSessionService tableSessionService = new TableSessionService();
+    private final BillingService billingService;
+    private final CashierShiftService shiftService;
+    private final TableSessionService tableSessionService;
+    private final PaymentViewModelAssembler paymentAssembler;
+
+    public CheckoutServlet() {
+        this(new BillingService(), new CashierShiftService(), new TableSessionService(),
+                new PaymentViewModelAssembler());
+    }
+
+    CheckoutServlet(BillingService billingService, CashierShiftService shiftService,
+                    TableSessionService tableSessionService, PaymentViewModelAssembler paymentAssembler) {
+        this.billingService = Objects.requireNonNull(billingService, "billingService");
+        this.shiftService = Objects.requireNonNull(shiftService, "shiftService");
+        this.tableSessionService = Objects.requireNonNull(tableSessionService, "tableSessionService");
+        this.paymentAssembler = Objects.requireNonNull(paymentAssembler, "paymentAssembler");
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         User u = SessionUtil.currentUser(req);
         try {
             String sid = req.getParameter("sessionId");
@@ -63,9 +76,8 @@ public class CheckoutServlet extends HttpServlet {
                 req.setAttribute("takeawayCheckout", true);
             } else if (sid != null && !sid.isBlank()) {
                 int sessionId = Integer.parseInt(sid);
-                TableSession tableSession = tableSessionService.getSession(sessionId);
-                if (tableSession == null || !"OPEN".equals(tableSession.getStatus())
-                        || tableSession.getBranchId() != branchId) {
+                TableSession tableSession = billingService.getOpenSessionForCheckout(sessionId, branchId);
+                if (tableSession == null) {
                     req.getSession().setAttribute("flashError", "Bàn trống, không thể thanh toán.");
                     resp.sendRedirect(req.getContextPath() + "/cashier/table");
                     return;
@@ -94,7 +106,7 @@ public class CheckoutServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         User u = SessionUtil.currentUser(req);
         String action = req.getParameter("action");
         String sessionId = req.getParameter("sessionId");
@@ -118,7 +130,7 @@ public class CheckoutServlet extends HttpServlet {
                         intList(req.getParameterValues("billId")), branchId);
             } else if ("pay".equals(action)) {
                 int billId = Integer.parseInt(req.getParameter("billId"));
-                String err = validatePayable(billId, branchId);
+                String err = billingService.validatePayable(billId, branchId);
                 if (err != null) {
                     req.getSession().setAttribute("flashError", err);
                 } else {
@@ -134,7 +146,7 @@ public class CheckoutServlet extends HttpServlet {
                     if (!result.paid()) {
                         req.getSession().setAttribute("flashError", "Hoá đơn không thể thanh toán.");
                     } else {
-                        req.getSession().setAttribute("flashOk", paymentSuccessMessage(method, result));
+                        req.getSession().setAttribute("flashOk", paymentAssembler.successMessage(method, result));
                         if (hasText(orderId)) {
                             back = req.getContextPath() + "/cashier/history";
                         } else if (hasText(sessionId)) {
@@ -221,29 +233,4 @@ public class CheckoutServlet extends HttpServlet {
         }
     }
 
-    private String paymentSuccessMessage(String method, BillingService.PaymentResult result) {
-        if (!"CASH".equals(method)) return "Đã ghi nhận thanh toán thành công.";
-        return "Đã thu tiền mặt " + formatMoney(result.paidAmount())
-                + " đ. Tiền thối lại khách: " + formatMoney(result.cashChange()) + " đ.";
-    }
-
-    private String formatMoney(BigDecimal value) {
-        NumberFormat format = NumberFormat.getIntegerInstance(Locale.forLanguageTag("vi-VN"));
-        return format.format(value);
-    }
-
-    private String validatePayable(int billId, int branchId) throws Exception {
-        Bill bill = billingService.getBill(billId);
-        if (bill == null || bill.getBranchId() != branchId) return "Không tìm thấy hoá đơn.";
-        if (!"UNPAID".equals(bill.getStatus())) return "Hoá đơn đã được thanh toán hoặc đã huỷ.";
-        if (bill.getItems() == null || bill.getItems().isEmpty()) return "Hoá đơn chưa có món, không thể thanh toán.";
-        if (!bill.isReadyForPayment()) {
-            return "Chưa thể thanh toán — Barista phải pha xong và Cashier phải bàn giao đủ món trước.";
-        }
-        BigDecimal total = bill.getTotalAmount() == null ? BigDecimal.ZERO : bill.getTotalAmount();
-        if (total.compareTo(BigDecimal.ZERO) <= 0) return "Tổng tiền hoá đơn phải lớn hơn 0.";
-        String voucherError = billingService.validateBillVoucher(billId, branchId);
-        if (voucherError != null) return voucherError;
-        return null;
-    }
 }

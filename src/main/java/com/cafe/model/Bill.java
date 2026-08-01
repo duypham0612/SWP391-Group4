@@ -1,7 +1,5 @@
 package com.cafe.model;
 
-import com.cafe.common.BusinessDay;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -82,10 +80,6 @@ public class Bill {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime v) { this.createdAt = v; }
-    public String getTransactionAtDisplay() {
-        return BusinessDay.fmtFullDateTimeVn(paidAt != null ? paidAt : createdAt);
-    }
-
     public String getTableNumber() { return tableNumber; }
     public void setTableNumber(String v) { this.tableNumber = v; }
 

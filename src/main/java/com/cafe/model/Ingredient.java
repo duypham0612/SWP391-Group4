@@ -23,13 +23,6 @@ public class Ingredient {
 
     public Integer getShelfLifeMinutes() { return shelfLifeMinutes; }
     public void setShelfLifeMinutes(Integer shelfLifeMinutes) { this.shelfLifeMinutes = shelfLifeMinutes; }
-    public String getShelfLifeHoursDisplay() {
-        if (shelfLifeMinutes == null || shelfLifeMinutes < 0) return "";
-        return java.math.BigDecimal.valueOf(shelfLifeMinutes)
-                .divide(java.math.BigDecimal.valueOf(60), 2, java.math.RoundingMode.HALF_UP)
-                .stripTrailingZeros().toPlainString();
-    }
-
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
 }

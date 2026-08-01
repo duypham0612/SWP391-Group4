@@ -3,7 +3,7 @@ package com.cafe.model;
 import java.io.Serializable;
 
 /**
- * iam.[User] + thông tin join (roleCode, roleName, branchName) phục vụ hiển thị/RBAC.
+ * iam.UserAccount + thông tin join (roleCode, roleName, branchName) phục vụ hiển thị/RBAC.
  * Lưu vào session sau khi đăng nhập (đã xoá passwordHash).
  */
 public class User implements Serializable {

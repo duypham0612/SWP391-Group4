@@ -1,8 +1,10 @@
 package com.cafe.controller.admin;
 
-import com.cafe.common.CsrfUtil;
+import com.cafe.web.support.CsrfUtil;
 import com.cafe.common.BusinessException;
+import com.cafe.web.support.SessionUtil;
 import com.cafe.model.Ingredient;
+import com.cafe.model.User;
 import com.cafe.service.admin.IngredientService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -15,7 +17,12 @@ import java.io.IOException;
 @WebServlet("/admin/ingredient")
 public class IngredientServlet extends HttpServlet {
 
-    private final IngredientService service = new IngredientService();
+    private final IngredientService service;
+
+    public IngredientServlet() { this(new IngredientService()); }
+    IngredientServlet(IngredientService service) {
+        this.service = java.util.Objects.requireNonNull(service);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -45,6 +52,33 @@ public class IngredientServlet extends HttpServlet {
         String ctx = req.getContextPath();
         String action = req.getParameter("action");
         try {
+            if ("addConversion".equals(action) || "updateConversion".equals(action)
+                    || "deactivateConversion".equals(action)) {
+                int ingredientId = Integer.parseInt(req.getParameter("ingredientId"));
+                User actor = SessionUtil.currentUser(req);
+                int userId = actor == null ? 0 : actor.getUserId();
+                try {
+                    if ("addConversion".equals(action)) {
+                        service.addUnitConversion(ingredientId, req.getParameter("unitName"),
+                                decimal(req.getParameter("factorToBase")), userId);
+                        req.getSession().setAttribute("flashOk", "Đã thêm đơn vị quy đổi.");
+                    } else if ("updateConversion".equals(action)) {
+                        service.updateUnitConversion(Integer.parseInt(req.getParameter("conversionId")),
+                                ingredientId, req.getParameter("unitName"),
+                                decimal(req.getParameter("factorToBase")),
+                                req.getParameter("active") != null, userId);
+                        req.getSession().setAttribute("flashOk", "Đã cập nhật đơn vị quy đổi.");
+                    } else {
+                        service.deactivateUnitConversion(
+                                Integer.parseInt(req.getParameter("conversionId")), ingredientId, userId);
+                        req.getSession().setAttribute("flashOk", "Đã tắt đơn vị quy đổi.");
+                    }
+                } catch (BusinessException e) {
+                    req.getSession().setAttribute("flashError", e.getMessage());
+                }
+                resp.sendRedirect(ctx + "/admin/ingredient?action=edit&id=" + ingredientId);
+                return;
+            }
             if ("delete".equals(action)) {
                 service.deleteIngredient(Integer.parseInt(req.getParameter("id")));
                 req.getSession().setAttribute("flashOk", "Đã xoá nguyên liệu thành công.");
@@ -98,9 +132,22 @@ public class IngredientServlet extends HttpServlet {
     private void forwardForm(HttpServletRequest req, HttpServletResponse resp, String title)
             throws ServletException, IOException {
         req.setAttribute("supportedUnits", IngredientService.SUPPORTED_UNITS);
+        Ingredient ingredient = (Ingredient) req.getAttribute("ingredient");
+        if (ingredient != null && ingredient.getIngredientId() > 0) {
+            try {
+                req.setAttribute("unitConversions",
+                        service.getUnitConversions(ingredient.getIngredientId(), false));
+            } catch (Exception e) {
+                throw new ServletException(e);
+            }
+        }
         req.setAttribute("pageTitle", title);
         req.getRequestDispatcher("/WEB-INF/views/admin/ingredient-form.jsp").forward(req, resp);
     }
 
     private String trim(String s) { return s == null ? null : s.trim(); }
+    private java.math.BigDecimal decimal(String value) {
+        try { return value == null ? null : new java.math.BigDecimal(value.trim()); }
+        catch (RuntimeException e) { throw new BusinessException("Hệ số quy đổi không hợp lệ."); }
+    }
 }

@@ -36,10 +36,10 @@
             <tr>
                 <td>${batch.prepBatchId}</td>
                 <td>${batch.preppedIngredientName}</td>
-                <td><strong>${batch.quantityProducedDisplay}</strong> ${batch.preppedIngredientUnit}</td>
+                <td><strong>${view.plain(batch.quantityProduced)}</strong> ${batch.preppedIngredientUnit}</td>
                 <td>${batch.madeByName}</td>
-                <td>${batch.madeAtDisplay}</td>
-                <td>${empty batch.expiresAtDisplay ? '—' : batch.expiresAtDisplay}
+                <td>${view.shortUtc(batch.madeAt)}</td>
+                <td>${empty batch.expiresAt ? '—' : view.shortUtc(batch.expiresAt)}
                     <c:if test="${batch.expiredWhilePending}"><br><span class="badge badge-cancelled">Đã hết hạn — chỉ có thể Từ chối</span></c:if>
                 </td>
                 <td>
@@ -70,9 +70,9 @@
             <tr>
                 <td>${batch.prepBatchId}</td>
                 <td>${batch.preppedIngredientName}</td>
-                <td><strong>${batch.quantityProducedDisplay}</strong> ${batch.preppedIngredientUnit}</td>
+                <td><strong>${view.plain(batch.quantityProduced)}</strong> ${batch.preppedIngredientUnit}</td>
                 <td>${batch.madeByName}</td>
-                <td>${batch.madeAtDisplay}</td>
+                <td>${view.shortUtc(batch.madeAt)}</td>
                 <td>
                     <form action="${ctx}/manager/prep" method="post" style="display:inline">
                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
@@ -100,10 +100,10 @@
                     <tr class="${batch.status == 'CANCELLED' ? 'row-muted' : ''}">
                         <td>${batch.prepBatchId}</td>
                         <td>${batch.preppedIngredientName}</td>
-                        <td><strong>${batch.quantityProducedDisplay}</strong> ${batch.preppedIngredientUnit}</td>
+                        <td><strong>${view.plain(batch.quantityProduced)}</strong> ${batch.preppedIngredientUnit}</td>
                         <td>${batch.madeByName}</td>
-                        <td>${batch.madeAtDisplay}</td>
-                        <td>${empty batch.expiresAtDisplay ? '—' : batch.expiresAtDisplay}</td>
+                        <td>${view.shortUtc(batch.madeAt)}</td>
+                        <td>${empty batch.expiresAt ? '—' : view.shortUtc(batch.expiresAt)}</td>
                         <td>
                             <c:choose>
                                 <c:when test="${batch.status == 'CANCELLED'}"><span class="badge badge-cancelled">Đã hủy</span></c:when>

@@ -16,7 +16,12 @@ import java.io.IOException;
 @WebServlet("/home")
 public class HomeServlet extends HttpServlet {
 
-    private final CatalogReadService catalog = new CatalogReadService();
+    private final CatalogReadService catalog;
+
+    public HomeServlet() { this(new CatalogReadService()); }
+    HomeServlet(CatalogReadService catalog) {
+        this.catalog = java.util.Objects.requireNonNull(catalog);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)

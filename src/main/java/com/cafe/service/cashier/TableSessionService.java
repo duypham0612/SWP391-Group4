@@ -1,5 +1,6 @@
 package com.cafe.service.cashier;
 
+import com.cafe.common.BusinessException;
 import com.cafe.config.DBConnection;
 import com.cafe.dao.cashier.DiningTableDao;
 import com.cafe.dao.cashier.TableSessionDao;
@@ -16,10 +17,22 @@ import java.util.Map;
 /** C3 · TableSessionService — phiên bàn (xương sống dine-in). */
 public class TableSessionService {
 
-    private final DiningTableDao tableDao = new DiningTableDao();
-    private final TableSessionDao sessionDao = new TableSessionDao();
-    private final OrderItemDao orderItemDao = new OrderItemDao();
-    private final com.cafe.dao.shared.OutboxEventDao outboxDao = new com.cafe.dao.shared.OutboxEventDao();
+    private final DiningTableDao tableDao;
+    private final TableSessionDao sessionDao;
+    private final OrderItemDao orderItemDao;
+    private final com.cafe.dao.shared.OutboxEventDao outboxDao;
+
+    public TableSessionService() {
+        this(new DiningTableDao(), new TableSessionDao(), new OrderItemDao(),
+                new com.cafe.dao.shared.OutboxEventDao());
+    }
+    public TableSessionService(DiningTableDao tableDao, TableSessionDao sessionDao,
+                               OrderItemDao orderItemDao, com.cafe.dao.shared.OutboxEventDao outboxDao) {
+        this.tableDao = java.util.Objects.requireNonNull(tableDao);
+        this.sessionDao = java.util.Objects.requireNonNull(sessionDao);
+        this.orderItemDao = java.util.Objects.requireNonNull(orderItemDao);
+        this.outboxDao = java.util.Objects.requireNonNull(outboxDao);
+    }
 
     /** Bàn đang có khách quét QR xin mở (tableId → lúc xin sớm nhất) — hiển thị trên sơ đồ bàn. */
     public java.util.Map<Integer, java.time.LocalDateTime> getPendingOpenRequests(int branchId) throws SQLException {
@@ -50,9 +63,16 @@ public class TableSessionService {
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
             try {
+                DiningTable table = tableDao.findByIdForUpdate(c, tableId);
+                if (table == null || table.getBranchId() != branchId) {
+                    throw new BusinessException("Bàn không tồn tại hoặc không thuộc chi nhánh hiện tại.");
+                }
                 TableSession existing = sessionDao.findOpenByTable(c, tableId);
                 int sessionId;
                 if (existing != null) {
+                    if (existing.getBranchId() != branchId) {
+                        throw new BusinessException("Dữ liệu phiên bàn không khớp chi nhánh.");
+                    }
                     sessionId = existing.getTableSessionId();
                 } else {
                     sessionId = sessionDao.insertOpen(c, branchId, tableId, cashierId);
@@ -63,41 +83,19 @@ public class TableSessionService {
                 outboxDao.markOpenRequestsProcessed(c, tableId);
                 c.commit();
                 return sessionId;
-            } catch (SQLException e) { c.rollback(); throw e; }
+            } catch (SQLException | RuntimeException e) { c.rollback(); throw e; }
             finally { c.setAutoCommit(true); }
         }
     }
 
-    /** Đóng phiên + trả bàn về EMPTY (Phase 5 sẽ chốt qua thanh toán; ở đây cho phép đóng thủ công). */
-    public void closeSession(int sessionId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                TableSession s = sessionDao.findById(c, sessionId);
-                if (s != null) {
-                    sessionDao.updateStatus(c, sessionId, "CLOSED", true);
-                    tableDao.updateStatus(c, s.getDiningTableId(), "EMPTY");
-                    outboxDao.markSignalsProcessed(c, sessionId);
-                }
-                c.commit();
-            } catch (SQLException e) { c.rollback(); throw e; }
-            finally { c.setAutoCommit(true); }
-        }
-    }
-
-    /** Close only a still-empty draft session. Returns true when the table was released. */
-    public boolean closeSessionIfNoActiveItems(int sessionId) throws SQLException {
-        return closeSessionIfNoActiveItems(sessionId, null);
-    }
-
-    /** Bản có kiểm tra chi nhánh để controller không thể đóng phiên của chi nhánh khác bằng ID đoán được. */
-    public boolean closeSessionIfNoActiveItems(int sessionId, Integer branchId) throws SQLException {
+    /** Chỉ đóng phiên nháp rỗng thuộc đúng chi nhánh caller. */
+    public boolean closeSessionIfNoActiveItems(int sessionId, int branchId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
             try {
                 TableSession s = sessionDao.findById(c, sessionId);
                 if (s == null || !"OPEN".equals(s.getStatus())
-                        || (branchId != null && s.getBranchId() != branchId)) {
+                        || s.getBranchId() != branchId) {
                     c.rollback();
                     return false;
                 }

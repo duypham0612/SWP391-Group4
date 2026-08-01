@@ -17,7 +17,7 @@ public class DiningTableDao {
             "SELECT dt.DiningTableId, dt.BranchId, dt.TableNumber, dt.QrCode, dt.Status, " +
             "       ts.TableSessionId AS ActiveSessionId, " +
             "       (SELECT COUNT(*) FROM sales.OrderItem oi " +
-            "          JOIN sales.Orders o ON o.OrderId=oi.OrderId " +
+            "          JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId " +
             "        WHERE o.TableSessionId=ts.TableSessionId AND oi.Status<>'CANCELLED') AS ItemCount " +
             "FROM sales.DiningTable dt " +
             "LEFT JOIN sales.TableSession ts ON ts.DiningTableId=dt.DiningTableId AND ts.Status='OPEN' " +
@@ -44,6 +44,24 @@ public class DiningTableDao {
 
     public DiningTable findById(Connection conn, int id) throws SQLException {
         final String sql = "SELECT DiningTableId, BranchId, TableNumber, QrCode, Status FROM sales.DiningTable WHERE DiningTableId=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return null;
+                DiningTable t = new DiningTable();
+                t.setDiningTableId(rs.getInt("DiningTableId"));
+                t.setBranchId(rs.getInt("BranchId"));
+                t.setTableNumber(rs.getString("TableNumber"));
+                t.setQrCode(rs.getString("QrCode"));
+                t.setStatus(rs.getString("Status"));
+                return t;
+            }
+        }
+    }
+
+    public DiningTable findByIdForUpdate(Connection conn, int id) throws SQLException {
+        final String sql = "SELECT DiningTableId, BranchId, TableNumber, QrCode, Status " +
+                "FROM sales.DiningTable WITH (UPDLOCK, HOLDLOCK) WHERE DiningTableId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {

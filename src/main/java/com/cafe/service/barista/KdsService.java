@@ -1,5 +1,9 @@
 package com.cafe.service.barista;
 import com.cafe.service.shared.OrderService;
+import com.cafe.common.BusinessDay;
+import com.cafe.model.Branch;
+import com.cafe.service.admin.BranchService;
+import com.cafe.service.manager.AttendanceService;
 
 import com.cafe.model.OrderGroupInfo;
 import com.cafe.model.OrderItem;
@@ -9,11 +13,30 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /** B1/B2 · KdsService — màn bếp (Barista). Uỷ thác OrderService; auto-deduct nằm ở markReady. */
 public class KdsService {
 
-    private final OrderService orderService = new OrderService();
+    private static final int QUEUE_PAGE_SIZE = 12;
+    private static final Set<String> OWNER_FILTERS = Set.of("all", "mine", "unassigned");
+    private static final Set<String> STATION_FILTERS = Set.of("all", "COFFEE", "TEA", "BLENDER");
+    private static final Set<String> ORDER_TYPE_FILTERS = Set.of("all", "DINE_IN", "TAKEAWAY");
+
+    private final OrderService orderService;
+    private final BranchService branchService;
+    private final AttendanceService attendanceService;
+
+    public KdsService() {
+        this(new OrderService(), new BranchService(), new AttendanceService());
+    }
+
+    KdsService(OrderService orderService, BranchService branchService, AttendanceService attendanceService) {
+        this.orderService = Objects.requireNonNull(orderService, "orderService");
+        this.branchService = Objects.requireNonNull(branchService, "branchService");
+        this.attendanceService = Objects.requireNonNull(attendanceService, "attendanceService");
+    }
 
     public List<OrderItem> getQueue(int branchId) throws SQLException { return orderService.getKdsQueue(branchId); }
 
@@ -57,9 +80,143 @@ public class KdsService {
 
     /** Chi nhánh (giờ mở cửa + ngưỡng cao điểm) — nạp một lần cho cả board. */
     public com.cafe.model.Branch getBranch(int branchId) throws SQLException {
-        try (java.sql.Connection conn = com.cafe.config.DBConnection.getConnection()) {
-            return new com.cafe.dao.shared.BranchDao().findById(conn, branchId);
+        return branchService.getBranch(branchId);
+    }
+
+    /** Toàn bộ query/use case của board; Controller chỉ bind KdsBoardQuery và render kết quả. */
+    public KdsBoardData loadBoard(int branchId, KdsBoardQuery query) throws SQLException {
+        KdsBoardQuery safe = query == null ? new KdsBoardQuery("all", "all", "all", 1, null) : query;
+        Branch branch = branchService.getBranch(branchId);
+        java.time.LocalTime openTime = branch == null ? null : branch.getOpenTime();
+        int peakThreshold = branch == null ? 0 : branch.getPeakThresholdCups();
+        List<OrderItem> queue = getWorkbenchQueue(branchId, BusinessDay.startUtc(openTime));
+
+        annotateOrderLines(queue, safe.currentUserId());
+        Set<Integer> onDuty = attendanceService.getOnDutyUserIds(branchId);
+        for (OrderItem item : queue) {
+            item.setOwnerOffDuty("MAKING".equals(item.getStatus()) && item.getBaristaId() != null
+                    && !onDuty.contains(item.getBaristaId()));
         }
+
+        Map<String, List<OrderItem>> buckets = splitWorkbench(queue);
+        List<OrderItem> waiting = buckets.get("waiting");
+        List<OrderItem> making = buckets.get("inProgress");
+        List<OrderItem> ready = buckets.get("ready");
+        List<OrderItem> blocked = buckets.get("blocked");
+        int waitingCount = cups(waiting);
+        int makingCount = cups(making);
+        int readyCount = cups(ready);
+        int blockedCount = cups(blocked);
+        int queueCups = waitingCount + makingCount;
+
+        List<OrderItem> ordered = pourOrder(queue);
+        int sequence = 1;
+        for (OrderItem item : ordered) if (!"READY".equals(item.getStatus())) item.setSeqNo(sequence++);
+        List<OrderItem> visible = filterWorkbench(ordered, safe.owner(), safe.station(),
+                safe.orderType(), safe.currentUserId());
+        QueuePage page = paginate(visible, safe.page(), QUEUE_PAGE_SIZE);
+        markGroupStarts(page.getItems());
+        return new KdsBoardData(isPeak(queueCups, peakThreshold), queueCups, ordered.size(), page,
+                safe.owner(), safe.station(), safe.orderType(), waiting, making, ready, blocked,
+                waitingCount, makingCount, readyCount, blockedCount,
+                distinctOrders(waiting, making, ready, blocked), safe.currentUserId());
+    }
+
+    public record KdsBoardQuery(String owner, String station, String orderType,
+                                int page, Integer currentUserId) {
+        public KdsBoardQuery {
+            owner = normalize(owner, OWNER_FILTERS);
+            station = normalize(station, STATION_FILTERS);
+            orderType = normalize(orderType, ORDER_TYPE_FILTERS);
+            page = Math.max(1, page);
+        }
+
+        private static String normalize(String value, Set<String> allowed) {
+            return value != null && allowed.contains(value) ? value : "all";
+        }
+    }
+
+    public static final class KdsBoardData {
+        private final boolean peakMode;
+        private final int peakQueueCups;
+        private final int queueTotal;
+        private final QueuePage queuePage;
+        private final String filterOwner;
+        private final String filterStation;
+        private final String filterOrderType;
+        private final List<OrderItem> waitingItems;
+        private final List<OrderItem> inProgressItems;
+        private final List<OrderItem> readyItems;
+        private final List<OrderItem> blockedItems;
+        private final int waitingCount;
+        private final int makingCount;
+        private final int readyCount;
+        private final int blockedCount;
+        private final int openOrderCount;
+        private final int currentUserId;
+
+        KdsBoardData(boolean peakMode, int peakQueueCups, int queueTotal, QueuePage queuePage,
+                     String filterOwner, String filterStation, String filterOrderType,
+                     List<OrderItem> waitingItems, List<OrderItem> inProgressItems,
+                     List<OrderItem> readyItems, List<OrderItem> blockedItems,
+                     int waitingCount, int makingCount, int readyCount, int blockedCount,
+                     int openOrderCount, Integer currentUserId) {
+            this.peakMode = peakMode;
+            this.peakQueueCups = peakQueueCups;
+            this.queueTotal = queueTotal;
+            this.queuePage = queuePage;
+            this.filterOwner = filterOwner;
+            this.filterStation = filterStation;
+            this.filterOrderType = filterOrderType;
+            this.waitingItems = waitingItems;
+            this.inProgressItems = inProgressItems;
+            this.readyItems = readyItems;
+            this.blockedItems = blockedItems;
+            this.waitingCount = waitingCount;
+            this.makingCount = makingCount;
+            this.readyCount = readyCount;
+            this.blockedCount = blockedCount;
+            this.openOrderCount = openOrderCount;
+            this.currentUserId = currentUserId == null ? 0 : currentUserId;
+        }
+
+        public boolean isPeakMode() { return peakMode; }
+        public int getPeakQueueCups() { return peakQueueCups; }
+        public int getQueueTotal() { return queueTotal; }
+        public QueuePage getQueuePage() { return queuePage; }
+        public String getFilterOwner() { return filterOwner; }
+        public String getFilterStation() { return filterStation; }
+        public String getFilterOrderType() { return filterOrderType; }
+        public List<OrderItem> getWaitingItems() { return waitingItems; }
+        public List<OrderItem> getInProgressItems() { return inProgressItems; }
+        public List<OrderItem> getReadyItems() { return readyItems; }
+        public List<OrderItem> getBlockedItems() { return blockedItems; }
+        public int getWaitingCount() { return waitingCount; }
+        public int getMakingCount() { return makingCount; }
+        public int getReadyCount() { return readyCount; }
+        public int getBlockedCount() { return blockedCount; }
+        public int getOpenOrderCount() { return openOrderCount; }
+        public int getCurrentUserId() { return currentUserId; }
+    }
+
+    private static List<OrderItem> pourOrder(List<OrderItem> queue) {
+        List<OrderItem> out = new ArrayList<>(queue.size());
+        for (OrderItem item : queue) if (!"READY".equals(item.getStatus())) out.add(item);
+        for (OrderItem item : queue) if ("READY".equals(item.getStatus())) out.add(item);
+        return out;
+    }
+
+    @SafeVarargs
+    private static int distinctOrders(List<OrderItem>... buckets) {
+        Set<Integer> ids = new java.util.HashSet<>();
+        for (List<OrderItem> bucket : buckets) for (OrderItem item : bucket) ids.add(item.getOrderId());
+        return ids.size();
+    }
+
+    private static int cups(List<OrderItem> items) {
+        int total = 0;
+        for (OrderItem item : items) total += item.getQuantity();
+        return total;
     }
 
     /**
@@ -150,7 +307,7 @@ public class KdsService {
         for (OrderItem item : queue) {
             OrderGroupInfo info = byOrder.computeIfAbsent(item.getOrderId(),
                     id -> new OrderGroupInfo(id, item.getTableNumber(), item.getPickupCode(),
-                            item.getOrderTypeLabel()));
+                            item.getOrderType()));
             boolean mine = currentUserId != null && currentUserId.equals(item.getBaristaId());
             info.add(item.getStatus(), mine);
             item.setGroupInfo(info);

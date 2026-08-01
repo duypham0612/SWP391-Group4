@@ -100,21 +100,27 @@ public class BillDao {
     }
 
     /** Doanh thu PAID hôm nay của chi nhánh (M1 dashboard manager). */
-    public BigDecimal sumPaidToday(Connection conn, int branchId) throws SQLException {
+    public BigDecimal sumPaidToday(Connection conn, int branchId,
+                                   LocalDateTime fromUtc, LocalDateTime toUtc) throws SQLException {
         final String sql = "SELECT ISNULL(SUM(TotalAmount),0) AS Rev FROM payment.Bill " +
-                "WHERE BranchId=? AND Status='PAID' AND CAST(PaidAt AS DATE)=CAST(SYSUTCDATETIME() AS DATE)";
+                "WHERE BranchId=? AND Status='PAID' AND PaidAt>=? AND PaidAt<?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, branchId);
+            ps.setTimestamp(2, Timestamp.valueOf(fromUtc));
+            ps.setTimestamp(3, Timestamp.valueOf(toUtc));
             try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getBigDecimal("Rev") : BigDecimal.ZERO; }
         }
     }
 
     /** Số hoá đơn đã thu (PAID) hôm nay của chi nhánh — "số đơn đã thực hiện" (R1/R2). */
-    public int countPaidToday(Connection conn, int branchId) throws SQLException {
+    public int countPaidToday(Connection conn, int branchId,
+                              LocalDateTime fromUtc, LocalDateTime toUtc) throws SQLException {
         final String sql = "SELECT COUNT(*) FROM payment.Bill " +
-                "WHERE BranchId=? AND Status='PAID' AND CAST(PaidAt AS DATE)=CAST(SYSUTCDATETIME() AS DATE)";
+                "WHERE BranchId=? AND Status='PAID' AND PaidAt>=? AND PaidAt<?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, branchId);
+            ps.setTimestamp(2, Timestamp.valueOf(fromUtc));
+            ps.setTimestamp(3, Timestamp.valueOf(toUtc));
             try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getInt(1) : 0; }
         }
     }
@@ -185,9 +191,10 @@ public class BillDao {
     }
 
     /** Cập nhật số tiền + voucher sau khi gắn dòng / áp voucher. */
-    public void updateAmounts(Connection conn, int billId, BigDecimal subtotal, BigDecimal discount,
-                              BigDecimal vat, BigDecimal total, Integer voucherId) throws SQLException {
-        final String sql = "UPDATE payment.Bill SET Subtotal=?, DiscountAmount=?, VatAmount=?, TotalAmount=?, VoucherId=? WHERE BillId=?";
+    public int updateAmounts(Connection conn, int billId, BigDecimal subtotal, BigDecimal discount,
+                             BigDecimal vat, BigDecimal total, Integer voucherId) throws SQLException {
+        final String sql = "UPDATE payment.Bill SET Subtotal=?, DiscountAmount=?, VatAmount=?, TotalAmount=?, VoucherId=? " +
+                "WHERE BillId=? AND Status='UNPAID'";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setBigDecimal(1, subtotal);
             ps.setBigDecimal(2, discount);
@@ -195,7 +202,7 @@ public class BillDao {
             ps.setBigDecimal(4, total);
             if (voucherId == null) ps.setNull(5, Types.INTEGER); else ps.setInt(5, voucherId);
             ps.setInt(6, billId);
-            ps.executeUpdate();
+            return ps.executeUpdate();
         }
     }
 

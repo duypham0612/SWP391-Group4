@@ -49,10 +49,4 @@ public class Branch {
     public String getManagerName() { return managerName; }
     public void setManagerName(String managerName) { this.managerName = managerName; }
 
-    /** Giờ hoạt động gọn cho JSP: "07:00–22:00" hoặc rỗng nếu chưa đặt. */
-    public String getHoursText() {
-        if (openTime == null || closeTime == null) return "";
-        java.time.format.DateTimeFormatter f = java.time.format.DateTimeFormatter.ofPattern("HH:mm");
-        return openTime.format(f) + "–" + closeTime.format(f);
-    }
 }

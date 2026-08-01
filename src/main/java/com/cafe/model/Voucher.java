@@ -2,13 +2,10 @@ package com.cafe.model;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.time.ZoneOffset;
 
 /** payment.Voucher */
 public class Voucher {
-    private static final DateTimeFormatter INPUT_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm");
-    private static final DateTimeFormatter DISPLAY_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
-
     private int voucherId;
     private String code;
     private String discountType;            // PERCENT | FIXED
@@ -16,8 +13,9 @@ public class Voucher {
     private BigDecimal minOrderAmount = BigDecimal.ZERO;
     private String scope = "CHAIN";         // CHAIN | BRANCH
     private Integer branchId;               // chỉ dùng khi scope = BRANCH
-    private LocalDateTime startDate;
-    private LocalDateTime endDate;
+    /** UTC, lưu trực tiếp trong database. */
+    private LocalDateTime startAtUtc;
+    private LocalDateTime endAtUtc;
     private Integer usageLimit;             // NULL = không giới hạn
     private int usedCount;
     private boolean active = true;
@@ -45,11 +43,11 @@ public class Voucher {
     public Integer getBranchId() { return branchId; }
     public void setBranchId(Integer branchId) { this.branchId = branchId; }
 
-    public LocalDateTime getStartDate() { return startDate; }
-    public void setStartDate(LocalDateTime startDate) { this.startDate = startDate; }
+    public LocalDateTime getStartAtUtc() { return startAtUtc; }
+    public void setStartAtUtc(LocalDateTime value) { startAtUtc = value; }
 
-    public LocalDateTime getEndDate() { return endDate; }
-    public void setEndDate(LocalDateTime endDate) { this.endDate = endDate; }
+    public LocalDateTime getEndAtUtc() { return endAtUtc; }
+    public void setEndAtUtc(LocalDateTime value) { endAtUtc = value; }
 
     public Integer getUsageLimit() { return usageLimit; }
     public void setUsageLimit(Integer usageLimit) { this.usageLimit = usageLimit; }
@@ -63,32 +61,11 @@ public class Voucher {
     public String getBranchName() { return branchName; }
     public void setBranchName(String branchName) { this.branchName = branchName; }
 
-    // Helper cho input datetime-local
-    public String getStartInput() { return startDate == null ? "" : startDate.format(INPUT_FMT); }
-    public String getEndInput()   { return endDate == null ? "" : endDate.format(INPUT_FMT); }
-    public String getStartDisplay() { return startDate == null ? "Không giới hạn" : startDate.format(DISPLAY_FMT); }
-    public String getEndDisplay()   { return endDate == null ? "Không giới hạn" : endDate.format(DISPLAY_FMT); }
-
     public String getLifecycleStatusCode() {
-        LocalDateTime now = LocalDateTime.now();
-        if (endDate != null && now.isAfter(endDate)) return "EXPIRED";
-        if (startDate != null && now.isBefore(startDate)) return "UPCOMING";
+        LocalDateTime nowUtc = LocalDateTime.now(ZoneOffset.UTC);
+        if (endAtUtc != null && !nowUtc.isBefore(endAtUtc)) return "EXPIRED";
+        if (startAtUtc != null && nowUtc.isBefore(startAtUtc)) return "UPCOMING";
         return "RUNNING";
     }
 
-    public String getLifecycleStatusLabel() {
-        return switch (getLifecycleStatusCode()) {
-            case "EXPIRED" -> "H\u1ebft h\u1ea1n";
-            case "UPCOMING" -> "S\u1eafp di\u1ec5n ra";
-            default -> "\u0110ang di\u1ec5n ra";
-        };
-    }
-
-    public String getLifecycleBadgeClass() {
-        return switch (getLifecycleStatusCode()) {
-            case "EXPIRED" -> "badge-cancelled";
-            case "UPCOMING" -> "badge-waiting";
-            default -> "badge-ready";
-        };
-    }
 }

@@ -1,14 +1,16 @@
 package com.cafe.controller.barista;
 
 import com.cafe.common.BusinessException;
-import com.cafe.common.CsrfUtil;
-import com.cafe.common.SessionUtil;
-import com.cafe.controller.manager.InventoryDashboardServlet;
+import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.SessionUtil;
+import com.cafe.web.support.BaristaShiftSupport;
+import com.cafe.web.support.BaristaWritePolicy;
 import com.cafe.model.User;
-import com.cafe.model.WasteLog;
-import com.cafe.model.WasteLogLine;
+import com.cafe.model.WasteEventItem;
 import com.cafe.service.barista.WasteService;
 import com.cafe.service.shared.InventoryService;
+import com.cafe.web.form.FormBindingException;
+import com.cafe.web.form.WasteBatchForm;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -19,12 +21,8 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -34,21 +32,21 @@ import java.util.UUID;
 @WebServlet("/barista/waste")
 public class WasteServlet extends HttpServlet {
 
-    private final WasteService service = new WasteService();
-    private static final int MAX_WASTE_ROWS = 20;
-    private static final Map<String, Set<String>> PRESETS_BY_TYPE = Map.of(
-            "SPILL", Set.of("Đổ khi pha", "Rơi khi thao tác", "Sai định lượng"),
-            "EXPIRED", Set.of("Hết hạn", "Nguyên liệu hỏng", "Bảo quản lỗi", "Quá thời gian mở nắp"),
-            "OTHER", Set.of("Mẫu thử/QC", "Khác"));
-    private static final Map<String, String> INGREDIENT_CAUSES = Map.of(
-            "Đổ khi pha", "SPILL", "Rơi khi thao tác", "SPILL", "Sai định lượng", "WRONG_RECIPE",
-            "Hết hạn", "EXPIRED", "Nguyên liệu hỏng", "EXPIRED", "Bảo quản lỗi", "STORAGE",
-            "Quá thời gian mở nắp", "STORAGE", "Mẫu thử/QC", "QC_SAMPLE", "Khác", "OTHER");
+    private final WasteService service;
+    private final BaristaShiftSupport shiftSupport;
+    public WasteServlet() {
+        this(new WasteService(), new BaristaShiftSupport());
+    }
+
+    WasteServlet(WasteService service, BaristaShiftSupport shiftSupport) {
+        this.service = Objects.requireNonNull(service, "service");
+        this.shiftSupport = Objects.requireNonNull(shiftSupport, "shiftSupport");
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         int userId = currentUserId(req);
         try {
             applyExpiredPrefill(req);
@@ -62,7 +60,7 @@ public class WasteServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         int userId = currentUserId(req);
         String action = req.getParameter("action");
         if (!BaristaWritePolicy.isWasteAction(action)) {
@@ -70,36 +68,44 @@ public class WasteServlet extends HttpServlet {
             resp.sendRedirect(req.getContextPath() + "/barista/waste");
             return;
         }
-        if (BaristaShift.guardWrite(req, resp, "/barista/waste")) return;   // ngoài ca → chặn ghi
+        if (shiftSupport.guardWrite(req, resp, "/barista/waste")) return;   // ngoài ca → chặn ghi
         String editId = null;
 
         try {
             if ("createIngredientWaste".equals(action)) {
-                List<WasteRowForm> submitted = submittedWasteRows(req);
+                WasteBatchForm form = WasteBatchForm.from(req);
+                List<WasteRowForm> submitted = form.lines().stream()
+                        .map(row -> new WasteRowForm(row.ingredientId(), row.quantity(), row.wasteType(),
+                                row.reasonPreset(), row.reasonDetail()))
+                        .toList();
                 req.setAttribute("submittedWasteRows", submitted);
-                String clientRequestId = requestId(req);
-                req.setAttribute("wasteClientRequestId", clientRequestId);
-                int count = service.logIngredientWasteLines(branchId, toWasteLines(submitted), userId, clientRequestId);
+                req.setAttribute("wasteClientRequestId", form.clientRequestId());
+                List<WasteService.WasteLineInput> lines = form.lines().stream()
+                        .map(row -> new WasteService.WasteLineInput(row.ingredientId(), row.quantity(),
+                                row.wasteType(), row.reasonPreset(), row.reasonDetail()))
+                        .toList();
+                int count = service.logIngredientWasteBatch(branchId,
+                        new WasteService.WasteBatchCommand(form.clientRequestId(), lines), userId);
                 req.getSession().setAttribute("flashOk", count == 0 ? "Yêu cầu này đã được ghi trước đó." : "Đã ghi " + count + " dòng hao hụt.");
             } else if ("update".equals(action)) {
-                editId = req.getParameter("wasteLogId");
+                editId = req.getParameter("wasteEventItemId");
                 req.setAttribute("editQuantity", req.getParameter("quantity"));
                 req.setAttribute("editWasteType", req.getParameter("wasteType"));
                 req.setAttribute("editReason", req.getParameter("reason"));
-                int wasteLogId = parseInt(editId, "Bản ghi cần sửa không hợp lệ.");
+                int wasteEventItemId = parseInt(editId, "Bản ghi cần sửa không hợp lệ.");
                 BigDecimal qty = parseQty(req.getParameter("quantity"), "Số lượng phải > 0.");
-                service.updateWaste(branchId, wasteLogId, qty, req.getParameter("wasteType"), req.getParameter("reason"), userId);
+                service.updateWaste(branchId, wasteEventItemId, qty, req.getParameter("wasteType"), req.getParameter("reason"), userId);
                 req.getSession().setAttribute("flashOk", "Đã sửa — chênh lệch ghi vào sổ cái.");
             } else if ("void".equals(action)) {
-                int wasteLogId = parseInt(req.getParameter("wasteLogId"), "Bản ghi cần huỷ không hợp lệ.");
-                service.voidWaste(branchId, wasteLogId, userId);
+                int wasteEventItemId = parseInt(req.getParameter("wasteEventItemId"), "Bản ghi cần huỷ không hợp lệ.");
+                service.voidWaste(branchId, wasteEventItemId, userId);
                 req.getSession().setAttribute("flashOk", "Đã huỷ — tồn kho hoàn lại qua sổ cái (txn bù).");
             } else {
                 throw new BusinessException("Thao tác không hợp lệ.");
             }
             // Dòng vừa ghi nằm trên cùng (LoggedAt DESC) nên về trang 1 mới thấy; sửa/huỷ thì giữ nguyên trang.
             resp.sendRedirect(selfUrlKeepingFilters(req, "createIngredientWaste".equals(action) ? 1 : null));
-        } catch (BusinessException e) {
+        } catch (BusinessException | FormBindingException e) {
             req.setAttribute("flashError", e.getMessage());
             forwardAfterError(req, resp, branchId, userId, editId);
         } catch (NumberFormatException e) {
@@ -108,12 +114,10 @@ public class WasteServlet extends HttpServlet {
         } catch (IllegalArgumentException e) {
             req.setAttribute("flashError", e.getMessage());
             forwardAfterError(req, resp, branchId, userId, editId);
-        } catch (SQLException e) {
+        } catch (Exception e) {
             // Hạ tầng lỗi thì redirect an toàn; không forward lại để tránh truy vấn DB hỏng lần thứ hai.
             req.getSession().setAttribute("flashError", "Không thể cập nhật hao hụt lúc này. Vui lòng thử lại.");
             resp.sendRedirect(selfUrlKeepingFilters(req, null));
-        } catch (Exception e) {
-            throw new ServletException(e);
         }
     }
 
@@ -127,7 +131,7 @@ public class WasteServlet extends HttpServlet {
     }
 
     private void forwardPage(HttpServletRequest req, HttpServletResponse resp, int branchId, int userId, String editId)
-            throws SQLException, ServletException, IOException {
+            throws Exception {
         WasteService.WasteScope scope = service.resolveScope(userId, branchId);
         String logQuery = textParam(req, "q", 100);
         String logWasteType = logTypeParam(req);
@@ -136,7 +140,7 @@ public class WasteServlet extends HttpServlet {
         int requestedLogPage = positiveIntParam(req, "page", 1);
 
         // Tổng quan giữ nguyên toàn bộ phạm vi; bảng nhật ký thì chỉ lấy đúng trang từ DB.
-        List<WasteLog> scopedLogs = service.getWasteLogs(branchId, scope);
+        List<WasteEventItem> scopedLogs = service.getWasteLogs(branchId, scope);
         InventoryService.WasteLogPage wasteLogPage = service.getWasteLogPage(branchId, scope,
                 logQuery, logWasteType, logStatus, requestedLogPage, logPageSize);
         req.setAttribute("ingredients", service.getIngredients(branchId));
@@ -149,7 +153,7 @@ public class WasteServlet extends HttpServlet {
         req.setAttribute("summary", service.summarize(scopedLogs));
         req.setAttribute("pageTitle", "Hao hụt nguyên liệu");
         req.setAttribute("currentUserId", userId);
-        BaristaShift.expose(req, "/barista/waste");   // trực ca: banner + khoá thao tác
+        shiftSupport.expose(req, "/barista/waste");   // trực ca: banner + khoá thao tác
 
         if (req.getAttribute("submittedWasteRows") == null) {
             req.setAttribute("submittedWasteRows", List.of(new WasteRowForm("", "", "SPILL", "", "")));
@@ -159,7 +163,7 @@ public class WasteServlet extends HttpServlet {
         }
         if (editId != null && !editId.isBlank()) {
             try {
-                WasteLog editLog = service.getEditableWasteLog(branchId, Integer.parseInt(editId), userId);
+                WasteEventItem editLog = service.getEditableWasteLog(branchId, Integer.parseInt(editId), userId);
                 if (editLog == null) req.setAttribute("flashError", "Bản ghi cần sửa không tồn tại.");
                 else req.setAttribute("editLog", editLog);
             } catch (BusinessException e) {
@@ -174,25 +178,6 @@ public class WasteServlet extends HttpServlet {
     private int currentUserId(HttpServletRequest req) {
         User u = SessionUtil.currentUser(req);
         return u != null ? u.getUserId() : 0;
-    }
-
-    private List<WasteRowForm> submittedWasteRows(HttpServletRequest req) {
-        String[] ids = req.getParameterValues("ingredientId");
-        String[] qtys = req.getParameterValues("quantity");
-        String[] types = req.getParameterValues("wasteType");
-        String[] presets = req.getParameterValues("reasonPreset");
-        String[] details = req.getParameterValues("reasonDetail");
-        if (ids == null || qtys == null || types == null || presets == null || details == null
-                || ids.length != qtys.length || ids.length != types.length || ids.length != presets.length || ids.length != details.length) {
-            throw new BusinessException("Dữ liệu các dòng hao hụt không đầy đủ. Vui lòng tải lại màn hình và thử lại.");
-        }
-        int len = ids.length;
-        if (len > MAX_WASTE_ROWS) throw new BusinessException("Mỗi lần chỉ được ghi tối đa " + MAX_WASTE_ROWS + " dòng hao hụt.");
-        List<WasteRowForm> rows = new ArrayList<>();
-        for (int i = 0; i < len; i++) {
-            rows.add(new WasteRowForm(value(ids, i), value(qtys, i), value(types, i), value(presets, i), value(details, i)));
-        }
-        return rows.isEmpty() ? List.of(new WasteRowForm("", "", "SPILL", "", "")) : rows;
     }
 
     private void applyExpiredPrefill(HttpServletRequest req) {
@@ -211,31 +196,6 @@ public class WasteServlet extends HttpServlet {
         }
     }
 
-    private List<WasteLogLine> toWasteLines(List<WasteRowForm> forms) {
-        Map<WasteLineKey, WasteLogLine> grouped = new LinkedHashMap<>();
-        int lineNo = 1;
-        for (WasteRowForm form : forms) {
-            boolean started = !blank(form.ingredientId) || !blank(form.quantity)
-                    || !blank(form.reasonPreset) || !blank(form.reasonDetail);
-            if (!started) { lineNo++; continue; }
-            if (blank(form.ingredientId)) throw new BusinessException("Dòng " + lineNo + ": Chưa chọn nguyên liệu.");
-            int ingredientId = parseInt(form.ingredientId, "Dòng " + lineNo + ": Nguyên liệu không hợp lệ.");
-            BigDecimal qty = parseQty(form.quantity, "Dòng " + lineNo + ": Số lượng phải > 0.");
-            String type = blank(form.wasteType) ? "OTHER" : form.wasteType.trim();
-            String cause = requireIngredientCause(type, form.reasonPreset, form.reasonDetail, lineNo);
-            String reason = combineReason(form.reasonPreset, form.reasonDetail);
-            if (blank(reason)) throw new BusinessException("Dòng " + lineNo + ": Vui lòng chọn hoặc nhập lý do.");
-            WasteLineKey key = new WasteLineKey(ingredientId, type.toUpperCase(), cause, reason);
-            WasteLogLine existing = grouped.get(key);
-            if (existing == null) grouped.put(key, new WasteLogLine(ingredientId, qty, type, reason, cause));
-            else existing.setQuantity(existing.getQuantity().add(qty));
-            lineNo++;
-        }
-        List<WasteLogLine> lines = new ArrayList<>(grouped.values());
-        if (lines.isEmpty()) throw new BusinessException("Chưa có dòng hao hụt nào để ghi.");
-        return lines;
-    }
-
     private static int parseInt(String value, String message) {
         if (blank(value)) throw new BusinessException(message);
         try { return Integer.parseInt(value.trim()); }
@@ -251,42 +211,6 @@ public class WasteServlet extends HttpServlet {
         } catch (NumberFormatException e) {
             throw new BusinessException(message);
         }
-    }
-
-    private static String combineReason(String preset, String detail) {
-        String p = blank(preset) ? "" : preset.trim();
-        String d = blank(detail) ? "" : detail.trim();
-        if (p.isEmpty()) return d;
-        if (d.isEmpty()) return p;
-        return p + " - " + d;
-    }
-
-    private static String requestId(HttpServletRequest req) {
-        String raw = req.getParameter("clientRequestId");
-        if (raw == null) throw new BusinessException("Thiếu mã chống gửi trùng. Vui lòng tải lại màn hình và thử lại.");
-        raw = raw.trim();
-        if (!raw.matches("[A-Za-z0-9-]{8,60}")) {
-            throw new BusinessException("Mã gửi không hợp lệ. Vui lòng tải lại màn hình và thử lại.");
-        }
-        return raw;
-    }
-
-    /** Lý do phải là một gợi ý hợp lệ của đúng loại đã chọn — không có đường ghi nào bỏ qua bước này. */
-    static String requireIngredientCause(String wasteType, String preset, String detail, int lineNo) {
-        String type = wasteType == null ? "" : wasteType.trim().toUpperCase();
-        if (!PRESETS_BY_TYPE.containsKey(type)) throw new BusinessException("Dòng " + lineNo + ": Loại hao hụt không hợp lệ.");
-        String chosen = preset == null ? "" : preset.trim();
-        if (!PRESETS_BY_TYPE.get(type).contains(chosen)) {
-            throw new BusinessException("Dòng " + lineNo + ": Lý do không phù hợp với loại hao hụt đã chọn.");
-        }
-        if ("Khác".equals(chosen) && blank(detail)) {
-            throw new BusinessException("Dòng " + lineNo + ": Chọn Khác thì phải nhập diễn giải.");
-        }
-        return INGREDIENT_CAUSES.get(chosen);
-    }
-
-    private static String value(String[] arr, int idx) {
-        return arr != null && idx < arr.length && arr[idx] != null ? arr[idx] : "";
     }
 
     private static boolean blank(String value) {
@@ -362,8 +286,6 @@ public class WasteServlet extends HttpServlet {
         if (qs.length() > 0) qs.append('&');
         qs.append(name).append('=').append(URLEncoder.encode(value, StandardCharsets.UTF_8));
     }
-
-    private record WasteLineKey(int ingredientId, String wasteType, String causeCode, String reason) { }
 
     public static class WasteRowForm {
         private final String ingredientId;

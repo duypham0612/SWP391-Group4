@@ -17,7 +17,7 @@ import com.cafe.model.ProductStockStatus;
 public class ProductRecipeDao {
 
     /**
-     * B3 · Gợi ý 86 (soft): món CÒN BÁN (IsAvailable=1, Is86=0) tại chi nhánh mà có ít nhất một
+     * B3 · Gợi ý 86 (soft): món CÒN BÁN (IsListed=1, IsTemporarilyUnavailable=0) tại chi nhánh mà có ít nhất một
      * nguyên liệu công thức tồn ≤ 0. Mỗi món trả một dòng kèm một nguyên liệu cạn đại diện.
      */
     public List<Suggest86Row> findProductsWithDepletedIngredient(Connection conn, int branchId) throws SQLException {
@@ -28,7 +28,7 @@ public class ProductRecipeDao {
             "JOIN catalog.BranchMenu bm    ON bm.ProductId = p.ProductId AND bm.BranchId = ? " +
             "JOIN inventory.BranchInventory bi ON bi.IngredientId = pr.IngredientId AND bi.BranchId = ? " +
             "JOIN catalog.Ingredient i     ON i.IngredientId = pr.IngredientId " +
-            "WHERE bm.IsAvailable = 1 AND bm.Is86 = 0 AND bi.QuantityOnHand <= 0 " +
+            "WHERE bm.IsListed = 1 AND bm.IsTemporarilyUnavailable = 0 AND bi.QuantityOnHand <= 0 " +
             "GROUP BY p.ProductId, p.Name ORDER BY p.Name";
         List<Suggest86Row> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -49,7 +49,7 @@ public class ProductRecipeDao {
 
     /**
      * Tập ID sản phẩm của chi nhánh đang HẾT THEO KHO: có ít nhất một nguyên liệu công thức
-     * tồn ≤ 0. Đây là tín hiệu THUẦN kho (không lọc theo cờ Is86/IsAvailable) — dùng để tính
+     * tồn ≤ 0. Đây là tín hiệu THUẦN kho (không lọc theo cờ IsTemporarilyUnavailable/IsListed) — dùng để tính
      * availability tự động cho POS/QR: món tự ẩn khi tồn cạn, tự hiện khi tồn có lại.
      */
     public java.util.Set<Integer> findDepletedProductIds(Connection conn, int branchId) throws SQLException {

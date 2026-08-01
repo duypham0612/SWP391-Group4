@@ -60,13 +60,13 @@
                     </div>
                 </div>
                 <c:if test="${m.availabilityState == 'LOW'}">
-                    <div class="badge badge-waiting" style="margin-top:10px">⚠ <c:out value="${m.stockMessage}" /></div>
+                    <div class="badge badge-waiting" style="margin-top:10px">⚠ <c:out value="${view.stockMessage(m)}" /></div>
                 </c:if>
                 <c:if test="${m.availabilityState == 'OUT'}">
-                    <div class="badge badge-cancelled" style="margin-top:10px">Hết món · <c:out value="${m.stockMessage}" /></div>
+                    <div class="badge badge-cancelled" style="margin-top:10px">Hết món · <c:out value="${view.stockMessage(m)}" /></div>
                 </c:if>
                 <c:if test="${m.availabilityState == 'EIGHTY_SIX'}">
-                    <div class="badge badge-cancelled" style="margin-top:10px"><c:out value="${m.stockMessage}" /></div>
+                    <div class="badge badge-cancelled" style="margin-top:10px"><c:out value="${view.stockMessage(m)}" /></div>
                 </c:if>
                 <c:forEach var="g" items="${m.groups}">
                     <div class="qr-grp" data-group-name="${g.name}" data-required="${g.required}" data-min="${g.minSelect}" data-max="${g.maxSelect}">

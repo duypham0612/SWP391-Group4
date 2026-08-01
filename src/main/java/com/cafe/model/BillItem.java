@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 public class BillItem {
     private int billItemId;
     private int billId;
+    private int branchId;
     private int orderItemId;
     private BigDecimal amount;
 
@@ -19,6 +20,9 @@ public class BillItem {
 
     public int getBillId() { return billId; }
     public void setBillId(int v) { this.billId = v; }
+
+    public int getBranchId() { return branchId; }
+    public void setBranchId(int v) { this.branchId = v; }
 
     public int getOrderItemId() { return orderItemId; }
     public void setOrderItemId(int v) { this.orderItemId = v; }

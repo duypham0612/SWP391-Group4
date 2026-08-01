@@ -1,14 +1,15 @@
 package com.cafe.controller.manager;
 
 import com.cafe.common.BusinessException;
-import com.cafe.common.CsrfUtil;
-import com.cafe.common.SessionUtil;
+import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.SessionUtil;
 import com.cafe.model.StockReceipt;
 import com.cafe.model.StockReceiptDetail;
 import com.cafe.model.User;
 import com.cafe.service.admin.IngredientService;
 import com.cafe.service.manager.StockReceiptService;
 import com.cafe.service.manager.SupplierService;
+import com.cafe.web.form.StockReceiptForm;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -24,14 +25,24 @@ import java.util.List;
 @WebServlet("/manager/receipt")
 public class StockReceiptServlet extends HttpServlet {
 
-    private final StockReceiptService service = new StockReceiptService();
-    private final SupplierService supplierService = new SupplierService();
-    private final IngredientService ingredientService = new IngredientService();
+    private final StockReceiptService service;
+    private final SupplierService supplierService;
+    private final IngredientService ingredientService;
+
+    public StockReceiptServlet() {
+        this(new StockReceiptService(), new SupplierService(), new IngredientService());
+    }
+    StockReceiptServlet(StockReceiptService service, SupplierService supplierService,
+                        IngredientService ingredientService) {
+        this.service = java.util.Objects.requireNonNull(service);
+        this.supplierService = java.util.Objects.requireNonNull(supplierService);
+        this.ingredientService = java.util.Objects.requireNonNull(ingredientService);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         String action = req.getParameter("action");
         try {
             if ("new".equals(action)) {
@@ -39,7 +50,7 @@ public class StockReceiptServlet extends HttpServlet {
                 req.setAttribute("pageTitle", "Tạo phiếu nhập");
                 req.getRequestDispatcher("/WEB-INF/views/manager/receipt-form.jsp").forward(req, resp);
             } else if ("view".equals(action)) {
-                showReceipt(req, resp, Integer.parseInt(req.getParameter("id")));
+                showReceipt(req, resp, Integer.parseInt(req.getParameter("id")), branchId);
             } else {
                 req.setAttribute("receipts", service.getReceiptList(branchId));
                 req.setAttribute("pageTitle", "Phiếu nhập kho");
@@ -56,7 +67,7 @@ public class StockReceiptServlet extends HttpServlet {
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
         String ctx = req.getContextPath();
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         User u = SessionUtil.currentUser(req);
         String action = req.getParameter("action");
         String redirect = ctx + "/manager/receipt";
@@ -78,38 +89,35 @@ public class StockReceiptServlet extends HttpServlet {
                     redirect = ctx + "/manager/receipt?action=view&id=" + rid;
                     BigDecimal qty = dec(req.getParameter("quantity"));
                     BigDecimal cost = dec(req.getParameter("unitCost"));
-                    String unit = trim(req.getParameter("unit"));
-                    if (qty.signum() > 0) service.addReceiptLine(rid, Integer.parseInt(req.getParameter("ingredientId")), qty, cost, unit);
+                    int conversionId = Integer.parseInt(req.getParameter("unitConversionId"));
+                    if (qty.signum() > 0) service.addReceiptLine(rid, branchId,
+                            Integer.parseInt(req.getParameter("ingredientId")), qty, cost, conversionId);
                     resp.sendRedirect(redirect);
                     return;
                 }
                 case "addLines": {   // tickbox chọn nhiều nguyên liệu cùng lúc
-                    int rid = Integer.parseInt(req.getParameter("receiptId"));
+                    StockReceiptForm form = StockReceiptForm.from(req);
+                    int rid = form.receiptId();
                     redirect = ctx + "/manager/receipt?action=view&id=" + rid;
-                    String[] picks = req.getParameterValues("pick");
                     List<StockReceiptDetail> lines = new ArrayList<>();
-                    if (picks != null) {
-                        for (String p : picks) {
-                            int ingId;
-                            try { ingId = Integer.parseInt(p); } catch (NumberFormatException e) { continue; }
-                            BigDecimal qty = dec(req.getParameter("qty_" + ingId));
-                            if (qty.signum() <= 0) continue;   // bỏ qua dòng được tick nhưng chưa nhập SL
-                            StockReceiptDetail d = new StockReceiptDetail();
-                            d.setIngredientId(ingId);
-                            d.setQuantity(qty);
-                            d.setUnitCost(dec(req.getParameter("cost_" + ingId)));
-                            d.setUnit(trim(req.getParameter("unit_" + ingId)));
-                            lines.add(d);
-                        }
+                    for (StockReceiptForm.Line line : form.lines()) {
+                        if (line.quantity().signum() <= 0) continue;
+                        StockReceiptDetail detail = new StockReceiptDetail();
+                        detail.setIngredientId(line.ingredientId());
+                        detail.setEnteredQuantity(line.quantity());
+                        detail.setUnitCost(line.unitCost());
+                        detail.setIngredientUnitConversionId(line.unitConversionId());
+                        lines.add(detail);
                     }
-                    service.addReceiptLines(rid, lines);
+                    service.addReceiptLines(rid, branchId, lines);
                     resp.sendRedirect(redirect);
                     return;
                 }
                 case "removeLine": {
                     int rid = Integer.parseInt(req.getParameter("receiptId"));
                     redirect = ctx + "/manager/receipt?action=view&id=" + rid;
-                    service.removeReceiptLine(Integer.parseInt(req.getParameter("detailId")));
+                    service.removeReceiptLine(rid,
+                            Integer.parseInt(req.getParameter("detailId")), branchId);
                     resp.sendRedirect(redirect);
                     return;
                 }
@@ -123,7 +131,7 @@ public class StockReceiptServlet extends HttpServlet {
                 case "cancel": {
                     int rid = Integer.parseInt(req.getParameter("receiptId"));
                     redirect = ctx + "/manager/receipt?action=view&id=" + rid;
-                    service.cancelReceipt(rid);
+                    service.cancelReceipt(rid, branchId);
                     resp.sendRedirect(redirect);
                     return;
                 }
@@ -133,7 +141,7 @@ public class StockReceiptServlet extends HttpServlet {
                     if (ids != null) for (String s : ids) {
                         try { list.add(Integer.parseInt(s)); } catch (NumberFormatException ignore) {}
                     }
-                    service.cancelManyReceipts(list);
+                    service.cancelManyReceipts(list, branchId);
                     resp.sendRedirect(ctx + "/manager/receipt");
                     return;
                 }
@@ -148,12 +156,13 @@ public class StockReceiptServlet extends HttpServlet {
         } catch (Exception e) { throw new ServletException(e); }
     }
 
-    private void showReceipt(HttpServletRequest req, HttpServletResponse resp, int id) throws Exception {
-        StockReceipt r = service.getReceipt(id);
+    private void showReceipt(HttpServletRequest req, HttpServletResponse resp, int id, int branchId) throws Exception {
+        StockReceipt r = service.getReceipt(id, branchId);
         if (r == null) { resp.sendError(404); return; }
         req.setAttribute("receipt", r);
-        req.setAttribute("details", service.getReceiptDetails(id));
+        req.setAttribute("details", service.getReceiptDetails(id, branchId));
         req.setAttribute("ingredients", ingredientService.getIngredientList());
+        req.setAttribute("unitConversionsByIngredient",ingredientService.getActiveUnitConversionsByIngredient());
         req.setAttribute("pageTitle", "Phiếu nhập #" + id);
         req.getRequestDispatcher("/WEB-INF/views/manager/receipt-detail.jsp").forward(req, resp);
     }

@@ -1,6 +1,7 @@
 package com.cafe.common;
 
 import com.cafe.model.PrepRecipe;
+import com.cafe.model.PrepRecipeIngredient;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -9,8 +10,9 @@ import java.math.RoundingMode;
 public final class PrepConsumptionCalculator {
     private PrepConsumptionCalculator() {}
 
-    public static BigDecimal consumedRaw(BigDecimal qtyProduced, PrepRecipe recipe) {
+    public static BigDecimal consumedRaw(BigDecimal qtyProduced, PrepRecipe recipe,
+                                         PrepRecipeIngredient ingredient) {
         return qtyProduced.divide(recipe.getYieldQty(), 6, RoundingMode.HALF_UP)
-                .multiply(recipe.getQuantity());
+                .multiply(ingredient.getQuantity());
     }
 }

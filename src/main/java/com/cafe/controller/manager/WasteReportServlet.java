@@ -3,8 +3,8 @@ package com.cafe.controller.manager;
 import com.cafe.common.BusinessDay;
 import com.cafe.service.manager.WasteReportService;
 import com.cafe.service.shared.InventoryService;
-import com.cafe.common.CsrfUtil;
-import com.cafe.common.SessionUtil;
+import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.SessionUtil;
 import com.cafe.model.User;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -20,7 +20,12 @@ import java.time.LocalDate;
 /** M · WasteReportServlet → /manager/waste. Manager chỉ xem nhật ký hao hụt/làm lại. */
 @WebServlet("/manager/waste")
 public class WasteReportServlet extends HttpServlet {
-    private final WasteReportService service = new WasteReportService();
+    private final WasteReportService service;
+
+    public WasteReportServlet() { this(new WasteReportService()); }
+    WasteReportServlet(WasteReportService service) {
+        this.service = java.util.Objects.requireNonNull(service);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -31,7 +36,7 @@ public class WasteReportServlet extends HttpServlet {
                     + (query == null || query.isBlank() ? "" : "?" + query));
             return;
         }
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         LocalDate todayVn = LocalDate.now(BusinessDay.VN_ZONE);
         WasteReportService.Range range = WasteReportService.resolveRange(
                 req.getParameter("from"), req.getParameter("to"), todayVn);
@@ -70,7 +75,7 @@ public class WasteReportServlet extends HttpServlet {
         User user = SessionUtil.currentUser(req);
         try {
             long id = Long.parseLong(req.getParameter("reviewId"));
-            boolean ok = service.resolveReview(InventoryDashboardServlet.branchId(req), id,
+            boolean ok = service.resolveReview(com.cafe.web.support.BranchContext.requireBranchId(req), id,
                     user == null ? 0 : user.getUserId(), req.getParameter("note"));
             req.getSession().setAttribute(ok ? "flashOk" : "flashError", ok ? "Đã xác nhận ngoại lệ." : "Ngoại lệ đã được xử lý.");
             resp.sendRedirect(selfUrlKeepingFilters(req));

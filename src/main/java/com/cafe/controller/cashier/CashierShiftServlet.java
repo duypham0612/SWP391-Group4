@@ -1,9 +1,8 @@
 package com.cafe.controller.cashier;
-import com.cafe.controller.manager.InventoryDashboardServlet;
 
-import com.cafe.common.CsrfUtil;
+import com.cafe.web.support.CsrfUtil;
 import com.cafe.common.BusinessDay;
-import com.cafe.common.SessionUtil;
+import com.cafe.web.support.SessionUtil;
 import com.cafe.model.User;
 import com.cafe.service.cashier.CashierDutyService;
 import com.cafe.service.cashier.CashierShiftService;
@@ -21,16 +20,26 @@ import java.math.BigDecimal;
 @WebServlet("/cashier/shift")
 public class CashierShiftServlet extends HttpServlet {
 
-    private final CashierShiftService service = new CashierShiftService();
-    private final CashierDutyService dutyService = new CashierDutyService();
-    private final AttendanceService attendanceService = new AttendanceService();
+    private final CashierShiftService service;
+    private final CashierDutyService dutyService;
+    private final AttendanceService attendanceService;
+
+    public CashierShiftServlet() {
+        this(new CashierShiftService(), new CashierDutyService(), new AttendanceService());
+    }
+    CashierShiftServlet(CashierShiftService service, CashierDutyService dutyService,
+                        AttendanceService attendanceService) {
+        this.service = java.util.Objects.requireNonNull(service);
+        this.dutyService = java.util.Objects.requireNonNull(dutyService);
+        this.attendanceService = java.util.Objects.requireNonNull(attendanceService);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         User u = SessionUtil.currentUser(req);
         int cashierId = u != null ? u.getUserId() : 0;
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         try {
             String action = req.getParameter("action");
             if ("report".equals(action) && req.getParameter("shiftId") != null) {
@@ -56,7 +65,7 @@ public class CashierShiftServlet extends HttpServlet {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
         User u = SessionUtil.currentUser(req);
         int cashierId = u != null ? u.getUserId() : 0;
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         String action = req.getParameter("action");
         String ctx = req.getContextPath();
         try {

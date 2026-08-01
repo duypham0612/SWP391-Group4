@@ -1,8 +1,8 @@
 package com.cafe.controller.manager;
 
 import com.cafe.common.BusinessException;
-import com.cafe.common.CsrfUtil;
-import com.cafe.common.SessionUtil;
+import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.SessionUtil;
 import com.cafe.model.User;
 import com.cafe.service.manager.AttendanceService;
 import jakarta.servlet.ServletException;
@@ -23,12 +23,17 @@ import java.util.Set;
 @WebServlet("/manager/attendance")
 public class AttendanceServlet extends HttpServlet {
 
-    private final AttendanceService service = new AttendanceService();
+    private final AttendanceService service;
+
+    public AttendanceServlet() { this(new AttendanceService()); }
+    AttendanceServlet(AttendanceService service) {
+        this.service = java.util.Objects.requireNonNull(service);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         try {
             req.setAttribute("attendances", service.getBranchAttendance(branchId));
             req.setAttribute("pageTitle", "Chấm công");
@@ -42,23 +47,25 @@ public class AttendanceServlet extends HttpServlet {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
         User u = SessionUtil.currentUser(req);
         int approverId = u != null ? u.getUserId() : 0;
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         String action = req.getParameter("action");
         String redirect = req.getContextPath() + "/manager/attendance";
         try {
             if ("approveMany".equals(action)) {
                 List<Integer> shown = parseIds(req.getParameterValues("shown"));
                 Set<Integer> checked = new HashSet<>(parseIds(req.getParameterValues("approve")));
-                service.setApprovalStates(shown, checked, approverId);
+                service.setApprovalStates(shown, checked, approverId, branchId);
                 req.getSession().setAttribute("flashOk", "Đã lưu chấm công (tick = duyệt).");
             } else if ("reject".equals(action)) {
-                service.rejectAttendance(Integer.parseInt(req.getParameter("attendanceId")), approverId);
+                service.rejectAttendance(
+                        Integer.parseInt(req.getParameter("attendanceId")), approverId, branchId);
             } else if ("reopen".equals(action)) {
-                service.reopenAttendance(Integer.parseInt(req.getParameter("attendanceId")));
+                service.reopenAttendance(Integer.parseInt(req.getParameter("attendanceId")), branchId);
             } else if ("edit".equals(action)) {
                 int id = Integer.parseInt(req.getParameter("attendanceId"));
                 LocalDateTime ci = parse(req.getParameter("checkInAt"));
                 LocalDateTime co = parse(req.getParameter("checkOutAt"));
-                service.updateAttendance(id, ci, co);
+                service.updateAttendance(id, branchId, ci, co);
             }
             resp.sendRedirect(redirect);
         } catch (BusinessException e) {

@@ -1,6 +1,6 @@
 package com.cafe.service.shared;
 
-import com.cafe.common.QuantityFormat;
+import com.cafe.common.ModifierGroupNames;
 import com.cafe.config.DBConnection;
 import com.cafe.dao.admin.CategoryDao;
 import com.cafe.dao.admin.HomeSettingDao;
@@ -33,20 +33,38 @@ import java.util.List;
 
 /** Đọc menu để dựng màn POS / QR (chỉ món available, chưa 86) + tra cứu công thức (Barista, read-only). */
 public class CatalogReadService {
-    private static final String GROUP_SIZE = "Size";
-    private static final String GROUP_SUGAR = "\u0110\u01b0\u1eddng";
-    private static final String GROUP_ICE = "\u0110\u00e1";
+    private final BranchMenuDao branchMenuDao;
+    private final ProductModifierGroupDao pmgDao;
+    private final ModifierGroupDao groupDao;
+    private final ModifierOptionDao optionDao;
+    private final ProductRecipeDao productRecipeDao;
+    private final PrepRecipeDao prepRecipeDao;
+    private final ModifierIngredientImpactDao impactDao;
+    private final ProductDao productDao;
+    private final CategoryDao categoryDao;
+    private final HomeSettingDao homeSettingDao;
 
-    private final BranchMenuDao branchMenuDao = new BranchMenuDao();
-    private final ProductModifierGroupDao pmgDao = new ProductModifierGroupDao();
-    private final ModifierGroupDao groupDao = new ModifierGroupDao();
-    private final ModifierOptionDao optionDao = new ModifierOptionDao();
-    private final ProductRecipeDao productRecipeDao = new ProductRecipeDao();
-    private final PrepRecipeDao prepRecipeDao = new PrepRecipeDao();
-    private final ModifierIngredientImpactDao impactDao = new ModifierIngredientImpactDao();
-    private final ProductDao productDao = new ProductDao();
-    private final CategoryDao categoryDao = new CategoryDao();
-    private final HomeSettingDao homeSettingDao = new HomeSettingDao();
+    public CatalogReadService() {
+        this(new BranchMenuDao(), new ProductModifierGroupDao(), new ModifierGroupDao(),
+                new ModifierOptionDao(), new ProductRecipeDao(), new PrepRecipeDao(),
+                new ModifierIngredientImpactDao(), new ProductDao(), new CategoryDao(), new HomeSettingDao());
+    }
+    public CatalogReadService(BranchMenuDao branchMenuDao, ProductModifierGroupDao pmgDao,
+                              ModifierGroupDao groupDao, ModifierOptionDao optionDao,
+                              ProductRecipeDao productRecipeDao, PrepRecipeDao prepRecipeDao,
+                              ModifierIngredientImpactDao impactDao, ProductDao productDao,
+                              CategoryDao categoryDao, HomeSettingDao homeSettingDao) {
+        this.branchMenuDao = java.util.Objects.requireNonNull(branchMenuDao);
+        this.pmgDao = java.util.Objects.requireNonNull(pmgDao);
+        this.groupDao = java.util.Objects.requireNonNull(groupDao);
+        this.optionDao = java.util.Objects.requireNonNull(optionDao);
+        this.productRecipeDao = java.util.Objects.requireNonNull(productRecipeDao);
+        this.prepRecipeDao = java.util.Objects.requireNonNull(prepRecipeDao);
+        this.impactDao = java.util.Objects.requireNonNull(impactDao);
+        this.productDao = java.util.Objects.requireNonNull(productDao);
+        this.categoryDao = java.util.Objects.requireNonNull(categoryDao);
+        this.homeSettingDao = java.util.Objects.requireNonNull(homeSettingDao);
+    }
 
     /**
      * Menu của chi nhánh. Món OUT/86 vẫn được trả về để Cashier/khách biết lý do,
@@ -58,7 +76,7 @@ public class CatalogReadService {
                     productRecipeDao.findProductStockStatuses(conn, branchId);
             List<PosMenuItem> out = new ArrayList<>();
             for (BranchMenuItem bm : branchMenuDao.listForBranch(conn, branchId)) {
-                if (!bm.isPublished() || !bm.isAvailable()) continue;
+                if (!bm.isPublished() || !bm.isListed()) continue;
                 PosMenuItem item = new PosMenuItem();
                 item.setProductId(bm.getProductId());
                 item.setName(bm.getProductName());
@@ -66,13 +84,13 @@ public class CatalogReadService {
                 item.setPrice(bm.getLocalPrice() != null ? bm.getLocalPrice() : bm.getBasePrice());
 
                 ProductStockStatus stock = stockByProduct.get(bm.getProductId());
-                if (bm.isIs86()) {
+                if (bm.isTemporarilyUnavailable()) {
                     item.setAvailabilityState("EIGHTY_SIX");
-                    item.setStockMessage("Tạm ngừng bán");
                     item.setOrderable(false);
                 } else if (stock != null) {
                     item.setAvailabilityState(stock.getState());
-                    item.setStockMessage(stock.getMessage());
+                    item.setLowIngredients(stock.getLowIngredients());
+                    item.setOutIngredients(stock.getOutIngredients());
                     item.setOrderable(!stock.isOut());
                 }
 
@@ -82,7 +100,7 @@ public class CatalogReadService {
                         if (g == null || !isChoiceGroup(g.getName())) continue;
                         PosMenuItem.Group grp = new PosMenuItem.Group();
                         grp.setGroupId(g.getModifierGroupId());
-                        grp.setName(g.getName());
+                        grp.setName(ModifierGroupNames.display(g.getName()));
                         grp.setRequired(g.isRequired());
                         grp.setMinSelect(g.getMinSelect());
                         grp.setMaxSelect(g.getMaxSelect());
@@ -196,7 +214,7 @@ public class CatalogReadService {
     }
 
     /** Định mức pha sẵn của 1 nguyên liệu PREPPED (RAW → PREPPED + yield). */
-    public List<PrepRecipe> getPrepRecipe(int preppedIngredientId) throws SQLException {
+    public PrepRecipe getPrepRecipe(int preppedIngredientId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             return prepRecipeDao.findByPrepped(conn, preppedIngredientId);
         }
@@ -214,7 +232,7 @@ public class CatalogReadService {
                     if (!o.isActive()) continue;
                     for (ModifierIngredientImpact imp : impactDao.findByOption(conn, o.getModifierOptionId())) {
                         OptionImpactRow r = new OptionImpactRow();
-                        r.groupName = g.getName();
+                        r.groupName = ModifierGroupNames.display(g.getName());
                         r.optionName = o.getName();
                         r.ingredientId = imp.getIngredientId();
                         r.ingredientName = imp.getIngredientName();
@@ -252,20 +270,9 @@ public class CatalogReadService {
          */
         public void setInBaseRecipe(boolean inBaseRecipe) { this.inBaseRecipe = inBaseRecipe; }
 
-        /**
-         * Cho JSP — bỏ .000 thừa và gắn sẵn dấu +/-.
-         *
-         * In thẳng BigDecimal ra sẽ thành "+6.000 ml": theo quy ước số của VN dấu chấm
-         * là phân tách nghìn nên pha chế đọc nhầm thành 6000 ml. Dùng chung
-         * {@link QuantityFormat} với định mức gốc để hai bảng hiển thị nhất quán.
-         */
-        public String getQtyDeltaDisplay() {
-            String plain = QuantityFormat.plain(qtyDelta);
-            return qtyDelta != null && qtyDelta.signum() > 0 ? "+" + plain : plain;
-        }
     }
 
     private static boolean isChoiceGroup(String name) {
-        return GROUP_SIZE.equals(name) || GROUP_SUGAR.equals(name) || GROUP_ICE.equals(name);
+        return ModifierGroupNames.isStandardChoice(name);
     }
 }

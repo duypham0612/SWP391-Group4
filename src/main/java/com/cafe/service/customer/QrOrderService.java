@@ -3,7 +3,6 @@ import com.cafe.dao.shared.OutboxEventDao;
 import com.cafe.service.shared.OrderService;
 import com.cafe.service.shared.CatalogReadService;
 
-import com.cafe.common.EventPublisher;
 import com.cafe.common.EventType;
 import com.cafe.config.DBConnection;
 import com.cafe.dao.cashier.DiningTableDao;
@@ -25,11 +24,24 @@ import java.util.List;
  */
 public class QrOrderService {
 
-    private final DiningTableDao tableDao = new DiningTableDao();
-    private final TableSessionDao sessionDao = new TableSessionDao();
-    private final OutboxEventDao outboxDao = new OutboxEventDao();
-    private final CatalogReadService catalogReadService = new CatalogReadService();
-    private final OrderService orderService = new OrderService();
+    private final DiningTableDao tableDao;
+    private final TableSessionDao sessionDao;
+    private final OutboxEventDao outboxDao;
+    private final CatalogReadService catalogReadService;
+    private final OrderService orderService;
+
+    public QrOrderService() {
+        this(new DiningTableDao(), new TableSessionDao(), new OutboxEventDao(),
+                new CatalogReadService(), new OrderService());
+    }
+    public QrOrderService(DiningTableDao tableDao, TableSessionDao sessionDao, OutboxEventDao outboxDao,
+                          CatalogReadService catalogReadService, OrderService orderService) {
+        this.tableDao = java.util.Objects.requireNonNull(tableDao);
+        this.sessionDao = java.util.Objects.requireNonNull(sessionDao);
+        this.outboxDao = java.util.Objects.requireNonNull(outboxDao);
+        this.catalogReadService = java.util.Objects.requireNonNull(catalogReadService);
+        this.orderService = java.util.Objects.requireNonNull(orderService);
+    }
 
     /** Kết quả quét QR: bàn nhận ra được chưa, và phiên bàn đã được THU NGÂN mở chưa. */
     public static class ScanResult {
@@ -88,7 +100,7 @@ public class QrOrderService {
             c.setAutoCommit(false);
             try {
                 if (!outboxDao.hasPendingOpenRequest(c, tableId)) {
-                    EventPublisher.publish(c, EventType.TABLE_OPEN_REQUESTED, String.valueOf(tableId), branchId,
+                    outboxDao.insert(c, EventType.TABLE_OPEN_REQUESTED, String.valueOf(tableId), branchId,
                             "{\"tableId\":" + tableId + ",\"tableNumber\":\"" + esc(tableNumber) + "\"}");
                 }
                 c.commit();
@@ -133,11 +145,11 @@ public class QrOrderService {
      * huỷ được đơn bàn khác chỉ bằng cách đổi orderId.
      */
     public boolean cancelOrder(int sessionId, int orderId) throws SQLException {
-        boolean owned = false;
+        Integer branchId = null;
         for (Order o : orderService.getSessionOrders(sessionId)) {
-            if (o.getOrderId() == orderId) { owned = true; break; }
+            if (o.getOrderId() == orderId) { branchId = o.getBranchId(); break; }
         }
-        return owned && orderService.voidOrder(orderId, null);
+        return branchId != null && orderService.voidOrder(orderId, null, branchId);
     }
 
     public void callStaff(int sessionId, int branchId) throws SQLException {
@@ -152,7 +164,7 @@ public class QrOrderService {
         try (Connection c = DBConnection.getConnection()) {
             c.setAutoCommit(false);
             try {
-                EventPublisher.publish(c, type, String.valueOf(sessionId), branchId,
+                outboxDao.insert(c, type, String.valueOf(sessionId), branchId,
                         "{\"sessionId\":" + sessionId + "}");
                 c.commit();
             } catch (SQLException e) { c.rollback(); throw e; }

@@ -25,7 +25,7 @@ class RecountValidatorTest {
 
         assertEquals(1, lines.size());
         assertEquals(11, lines.get(0).getIngredientId());
-        assertEquals(0, lines.get(0).getActualQty().compareTo(new BigDecimal("2.5")));
+        assertEquals(0, lines.get(0).getActualBaseQty().compareTo(new BigDecimal("2.5")));
     }
 
     @Test
@@ -36,7 +36,7 @@ class RecountValidatorTest {
 
         assertEquals(1, lines.size());
         assertEquals(10, lines.get(0).getIngredientId());
-        assertEquals(BigDecimal.ZERO, lines.get(0).getActualQty());
+        assertEquals(BigDecimal.ZERO, lines.get(0).getActualBaseQty());
     }
 
     @Test

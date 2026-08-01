@@ -1,6 +1,7 @@
 package com.cafe.controller.customer;
 
-import com.cafe.common.CsrfUtil;
+import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.QrSessionPolicy;
 import com.cafe.model.OrderItem;
 import com.cafe.model.TableSession;
 import com.cafe.service.customer.QrOrderService;
@@ -17,7 +18,12 @@ import java.util.List;
 @WebServlet("/qr/track")
 public class QrTrackServlet extends HttpServlet {
 
-    private final QrOrderService qrService = new QrOrderService();
+    private final QrOrderService qrService;
+
+    public QrTrackServlet() { this(new QrOrderService()); }
+    QrTrackServlet(QrOrderService qrService) {
+        this.qrService = java.util.Objects.requireNonNull(qrService);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)

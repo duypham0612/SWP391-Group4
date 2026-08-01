@@ -21,7 +21,7 @@
                     <span>Hôm nay bạn chưa được xếp ca — liên hệ Quản lý chi nhánh để được xếp ca trước khi thao tác.</span>
                 </c:when>
                 <c:otherwise>
-                    <span><c:out value="${clockStatus.statusText}" /></span>
+                    <span><c:out value="${view.shiftStatus(clockStatus)}" /></span>
                 </c:otherwise>
             </c:choose>
         </div>

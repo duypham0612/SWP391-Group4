@@ -16,8 +16,14 @@ import java.util.List;
  */
 public class HomeAdminService {
 
-    private final ProductDao productDao = new ProductDao();
-    private final HomeSettingDao homeSettingDao = new HomeSettingDao();
+    private final ProductDao productDao;
+    private final HomeSettingDao homeSettingDao;
+
+    public HomeAdminService() { this(new ProductDao(), new HomeSettingDao()); }
+    public HomeAdminService(ProductDao productDao, HomeSettingDao homeSettingDao) {
+        this.productDao = java.util.Objects.requireNonNull(productDao);
+        this.homeSettingDao = java.util.Objects.requireNonNull(homeSettingDao);
+    }
 
     /** Danh sách sản phẩm đang bán (gồm cả món đang ẩn) cho màn quản trị Home. */
     public List<Product> getProductsForAdmin() throws SQLException {

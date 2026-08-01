@@ -1,18 +1,11 @@
 package com.cafe.model;
 
-import com.cafe.common.BusinessDay;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
-import java.util.Locale;
 
 /** Một dòng lịch đi làm trong tháng của chính nhân viên đang đăng nhập. */
 public class MonthlyAttendanceRow {
-    private static final DateTimeFormatter D_M = DateTimeFormatter.ofPattern("dd/MM");
-    private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
-
     private LocalDate workDate;
     private String templateName;
     private LocalTime shiftStart;
@@ -52,41 +45,4 @@ public class MonthlyAttendanceRow {
     /** Vào ca rồi nhưng quên bấm tan ca — giờ chưa chốt được. */
     public boolean isOpen() { return checkInAt != null && checkOutAt == null; }
 
-    public String getStateLabel() {
-        if (isAbsent()) return "Vắng";
-        if (isOpen()) return "Chưa tan ca";
-        if ("APPROVED".equals(status)) return "Đã duyệt";
-        if ("REJECTED".equals(status)) return "Bị từ chối";
-        return "Chờ duyệt";
-    }
-
-    public String getStateBadge() {
-        if (isAbsent()) return "badge-served";
-        if (isOpen()) return "badge-waiting";
-        if ("APPROVED".equals(status)) return "badge-ready";
-        if ("REJECTED".equals(status)) return "badge-cancelled";
-        return "badge-waiting";
-    }
-
-    public String getWorkDateDisplay() {
-        return workDate == null ? "" : workDate.format(D_M);
-    }
-
-    public String getCheckInDisplay() {
-        return BusinessDay.fmtTimeVn(checkInAt);
-    }
-
-    public String getCheckOutDisplay() {
-        return BusinessDay.fmtTimeVn(checkOutAt);
-    }
-
-    public String getShiftTimeDisplay() {
-        if (shiftStart == null || shiftEnd == null) return "";
-        return shiftStart.format(TIME_FMT) + " - " + shiftEnd.format(TIME_FMT);
-    }
-
-    /** "-" thay vì "0.0" khi chưa chốt được giờ — 0.0 trông như đi làm mà không được tính. */
-    public String getWorkHoursDisplay() {
-        return (isAbsent() || isOpen()) ? "-" : String.format(Locale.US, "%.1f", workHours);
-    }
 }
