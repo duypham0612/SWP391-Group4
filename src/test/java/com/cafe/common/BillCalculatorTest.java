@@ -8,7 +8,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-/** ★ Test TRƯỚC cho tính tiền hoá đơn (voucher + VAT) — Phase 5. */
+/** Kiểm tra giảm giá thủ công, VAT và phân bổ số tiền khi tách bill. */
 class BillCalculatorTest {
 
     private static void eq(String expected, BigDecimal actual) {
@@ -16,15 +16,15 @@ class BillCalculatorTest {
     }
 
     @Test
-    void percentDiscount() {
-        // 10% của 100000 = 10000
-        eq("10000.00", BillCalculator.computeDiscount("PERCENT", new BigDecimal("10"), new BigDecimal("100000")));
+    void manualDiscount_is_kept_within_subtotal() {
+        eq("10000.00", BillCalculator.clampDiscount(
+                new BigDecimal("10000"), new BigDecimal("100000")));
     }
 
     @Test
-    void fixedDiscount_clampedToSubtotal() {
-        // FIXED 50000 trên subtotal 30000 → kẹp về 30000
-        eq("30000.00", BillCalculator.computeDiscount("FIXED", new BigDecimal("50000"), new BigDecimal("30000")));
+    void manualDiscount_is_clampedToSubtotal() {
+        eq("30000.00", BillCalculator.clampDiscount(
+                new BigDecimal("50000"), new BigDecimal("30000")));
     }
 
     @Test
@@ -50,7 +50,7 @@ class BillCalculatorTest {
         eq("0.00", BillCalculator.computeVat(new BigDecimal("-5")));
         // discount > subtotal kẹp về subtotal → net 0 → total 0
         eq("0.00", BillCalculator.computeTotal(new BigDecimal("20000"),
-                BillCalculator.computeDiscount("FIXED", new BigDecimal("99999"), new BigDecimal("20000"))));
+                BillCalculator.clampDiscount(new BigDecimal("99999"), new BigDecimal("20000"))));
     }
 
     // ===== allocateByWeight — no-drift khi tách bill =====
@@ -102,7 +102,7 @@ class BillCalculatorTest {
     void splitDiscount_proportional_noDrift() {
         // FIXED 10000 trên tab subtotal 100000, tách 2 bill 30000/70000 → 3000/7000, tổng = 10000.
         BigDecimal sessionSubtotal = new BigDecimal("100000");
-        BigDecimal disc = BillCalculator.computeDiscount("FIXED", new BigDecimal("10000"), sessionSubtotal);
+        BigDecimal disc = BillCalculator.clampDiscount(new BigDecimal("10000"), sessionSubtotal);
         eq("10000.00", disc);
         List<BigDecimal> parts = BillCalculator.allocateByWeight(disc, Arrays.asList(new BigDecimal("30000"), new BigDecimal("70000")));
         eq("3000.00", parts.get(0));

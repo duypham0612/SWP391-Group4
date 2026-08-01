@@ -110,8 +110,8 @@ public class WasteService {
         return summarize(getWasteLogs(branchId, WasteScope.today()));
     }
 
-    public WasteEventItem getEditableWasteLog(int branchId, int wasteEventItemId, int userId) throws SQLException {
-        WasteEventItem log = inventoryService.getWasteLog(branchId, wasteEventItemId);
+    public WasteEventItem getEditableWasteLog(int branchId, long wasteEntryId, int userId) throws SQLException {
+        WasteEventItem log = inventoryService.getWasteLog(branchId, wasteEntryId);
         if (log == null) return null;
         if (log.isRemake()) throw new BusinessException("Dòng làm lại món do KDS ghi, không sửa tại màn hao hụt.");
         if (!log.isEditable()) throw new BusinessException("Bản ghi đã hết hạn sửa hoặc đã bị huỷ.");
@@ -215,13 +215,13 @@ public class WasteService {
     private record WasteLineKey(int ingredientId, String wasteType, String causeCode, String reason) { }
 
     /** Sửa dòng hao hụt nguyên liệu — áp txn cho phần chênh lệch. */
-    public void updateWaste(int branchId, int wasteEventItemId, BigDecimal newQty, String wasteType, String reason, int userId) throws SQLException {
-        inventoryService.updateWaste(branchId, wasteEventItemId, newQty, wasteType, reason, userId);
+    public void updateWaste(int branchId, long wasteEntryId, BigDecimal newQty, String wasteType, String reason, int userId) throws SQLException {
+        inventoryService.updateWaste(branchId, wasteEntryId, newQty, wasteType, reason, userId);
     }
 
     /** Huỷ dòng hao hụt — hoàn kho qua txn bù (không hard-delete). */
-    public void voidWaste(int branchId, int wasteEventItemId, int userId) throws SQLException {
-        inventoryService.voidWaste(branchId, wasteEventItemId, userId);
+    public void voidWaste(int branchId, long wasteEntryId, int userId) throws SQLException {
+        inventoryService.voidWaste(branchId, wasteEntryId, userId);
     }
 
     public static class WasteScope {

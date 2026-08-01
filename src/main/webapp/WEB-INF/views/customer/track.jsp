@@ -6,7 +6,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>Theo dõi đơn · ${session.tableNumber}</title>
+<title>Theo dõi đơn · ${table.tableNumber}</title>
 <link rel="stylesheet" href="${ctx}/assets/css/cafe-theme.css?v=${applicationScope.assetVersion}">
 <style>
   body{background:var(--paper);margin:0}
@@ -24,8 +24,8 @@
 <body>
 <div class="qr-app">
     <div class="qr-top">
-        <h1>${sessionClosed ? 'Cảm ơn quý khách' : 'Đơn của bạn'}</h1>
-        <div class="sub">${session.tableNumber} · ${sessionClosed ? 'đã thanh toán xong' : 'trạng thái tự cập nhật mỗi 10 giây'}</div>
+        <h1>${tableClosed ? 'Cảm ơn quý khách' : 'Đơn của bạn'}</h1>
+        <div class="sub">${table.tableNumber} · ${tableClosed ? 'đã thanh toán xong' : 'trạng thái tự cập nhật mỗi 10 giây'}</div>
     </div>
     <div class="qr-body">
         <c:if test="${not empty sessionScope.qrFlash}">
@@ -33,7 +33,7 @@
             <c:remove var="qrFlash" scope="session" />
         </c:if>
 
-        <c:if test="${sessionClosed}">
+        <c:if test="${tableClosed}">
             <div class="qr-card" style="text-align:center;padding:28px 18px">
                 <div style="font-size:2.4rem">☕</div>
                 <h2>Cảm ơn quý khách — đã thanh toán xong</h2>
@@ -73,7 +73,7 @@
             </div>
         </div>
 
-        <c:if test="${not sessionClosed and not empty cancellableOrders}">
+        <c:if test="${not tableClosed and not empty cancellableOrders}">
             <div class="qr-card">
                 <p class="muted" style="margin:0 0 8px">Đơn chưa pha — có thể huỷ:</p>
                 <c:forEach var="o" items="${cancellableOrders}">
@@ -81,7 +81,7 @@
                           onsubmit="return confirm('Huỷ đơn #${o.orderId}?');">
                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                         <input type="hidden" name="action" value="cancel">
-                        <input type="hidden" name="sessionId" value="${sessionId}">
+                        <input type="hidden" name="tableId" value="${tableId}">
                         <input type="hidden" name="orderId" value="${o.orderId}">
                         <button type="submit" class="btn btn-ghost" style="width:100%;color:var(--st-cancelled)">Huỷ đơn #${o.orderId}</button>
                     </form>
@@ -89,16 +89,26 @@
             </div>
         </c:if>
 
-        <c:if test="${not sessionClosed}">
+        <c:if test="${not tableClosed}">
             <div style="margin-top:12px;text-align:center;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
                 <a class="btn btn-primary btn-sm" href="${ctx}/qr/menu">Gọi thêm món</a>
-                <a class="btn btn-ghost btn-sm" href="${ctx}/qr/track?s=${sessionId}">Làm mới</a>
+                <a class="btn btn-ghost btn-sm" href="${ctx}/qr/track?t=${tableId}">Làm mới</a>
+                <form action="${ctx}/qr/track" method="post">
+                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                    <input type="hidden" name="tableId" value="${tableId}">
+                    <button class="btn btn-ghost btn-sm" name="action" value="callStaff">Gọi nhân viên</button>
+                </form>
+                <form action="${ctx}/qr/track" method="post">
+                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                    <input type="hidden" name="tableId" value="${tableId}">
+                    <button class="btn btn-ghost btn-sm" name="action" value="requestBill">Xin thanh toán</button>
+                </form>
             </div>
         </c:if>
     </div>
 </div>
 
-<c:if test="${sessionClosed}">
+<c:if test="${tableClosed}">
 <script>
 window.addEventListener('DOMContentLoaded', function () {
   window.alert('Thanh toán thành công!');
@@ -107,7 +117,7 @@ window.addEventListener('DOMContentLoaded', function () {
 </script>
 </c:if>
 
-<c:if test="${not sessionClosed}">
+<c:if test="${not tableClosed}">
 <script>
 const STATUS_LABELS={
   WAITING:['Chờ pha','badge-waiting'],
@@ -152,12 +162,12 @@ let lastStatuses=Array.from(document.querySelectorAll('#trackList .qr-item'))
   .map(row=>row.dataset.status||'');
 async function pollStatuses(){
   try{
-    const response=await fetch('${ctx}/qr/track?action=status&s=${sessionId}',{
+    const response=await fetch('${ctx}/qr/track?action=status&t=${tableId}',{
       headers:{'Accept':'application/json'},
       cache:'no-store'
     });
     if(!response.ok)return;
-    if(response.headers.get('X-Session-Closed')==='true'){
+    if(response.headers.get('X-Table-Closed')==='true'){
       window.clearInterval(statusTimer);
       window.alert('Thanh toán thành công!');
       window.location.replace('${ctx}/home');

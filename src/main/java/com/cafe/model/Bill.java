@@ -5,11 +5,11 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-/** payment.Bill — hoá đơn (1 phiên bàn có thể tách nhiều bill). */
+/** payment.Bill — hoá đơn; bàn được suy qua các OrderItem thuộc bill. */
 public class Bill {
     private int billId;
     private int branchId;
-    private Integer tableSessionId;
+    private Integer diningTableId;
     private Integer cashierShiftId;
     private BigDecimal subtotal;
     private BigDecimal vatAmount;
@@ -19,7 +19,6 @@ public class Bill {
     private BigDecimal paidAmount;
     private BigDecimal cashTendered;
     private BigDecimal cashChange;
-    private Integer voucherId;
     private String paymentMethod;      // CASH | TRANSFER | QR_BANK
     private String status;             // UNPAID | PAID | VOID
     private LocalDateTime paidAt;
@@ -27,8 +26,7 @@ public class Bill {
 
     // join / computed
     private String tableNumber;
-    private String voucherCode;
-    private List<BillItem> items = new ArrayList<>();
+    private List<BillLine> items = new ArrayList<>();
 
     public int getBillId() { return billId; }
     public void setBillId(int v) { this.billId = v; }
@@ -36,8 +34,8 @@ public class Bill {
     public int getBranchId() { return branchId; }
     public void setBranchId(int v) { this.branchId = v; }
 
-    public Integer getTableSessionId() { return tableSessionId; }
-    public void setTableSessionId(Integer v) { this.tableSessionId = v; }
+    public Integer getDiningTableId() { return diningTableId; }
+    public void setDiningTableId(Integer v) { this.diningTableId = v; }
 
     public Integer getCashierShiftId() { return cashierShiftId; }
     public void setCashierShiftId(Integer v) { this.cashierShiftId = v; }
@@ -66,9 +64,6 @@ public class Bill {
     public BigDecimal getCashChange() { return cashChange; }
     public void setCashChange(BigDecimal v) { this.cashChange = v; }
 
-    public Integer getVoucherId() { return voucherId; }
-    public void setVoucherId(Integer v) { this.voucherId = v; }
-
     public String getPaymentMethod() { return paymentMethod; }
     public void setPaymentMethod(String v) { this.paymentMethod = v; }
 
@@ -83,16 +78,13 @@ public class Bill {
     public String getTableNumber() { return tableNumber; }
     public void setTableNumber(String v) { this.tableNumber = v; }
 
-    public String getVoucherCode() { return voucherCode; }
-    public void setVoucherCode(String v) { this.voucherCode = v; }
-
-    public List<BillItem> getItems() { return items; }
-    public void setItems(List<BillItem> v) { this.items = v; }
+    public List<BillLine> getItems() { return items; }
+    public void setItems(List<BillLine> v) { this.items = v; }
 
     /** Chỉ được thu tiền sau khi mọi dòng trên bill đã hoàn tất bước bàn giao khách. */
     public boolean isReadyForPayment() {
         if (items == null || items.isEmpty()) return false;
-        for (BillItem item : items) {
+        for (BillLine item : items) {
             if (!"SERVED".equals(item.getStatus())) return false;
         }
         return true;

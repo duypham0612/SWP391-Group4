@@ -86,27 +86,27 @@
     <div class="card" style="position:sticky;top:16px">
         <h3 style="margin-top:0">Giỏ hàng</h3>
         <div class="form-group" style="margin-bottom:10px">
-            <label>Bàn / phiên</label>
+            <label>Bàn</label>
             <select id="sessionSelect" class="form-control">
                 <option value="">— Đem về (takeaway) —</option>
-                <c:forEach var="s" items="${openSessions}">
-                    <option value="${s.tableSessionId}" ${sessionId == s.tableSessionId ? 'selected' : ''}>${s.tableNumber} (#${s.tableSessionId})</option>
+                <c:forEach var="t" items="${openTables}">
+                    <option value="${t.diningTableId}" ${tableId == t.diningTableId ? 'selected' : ''}>${t.tableNumber}</option>
                 </c:forEach>
             </select>
         </div>
-        <c:if test="${not empty sessionId}">
+        <c:if test="${not empty tableId}">
             <div style="border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:12px">
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
                     <strong>Món đã gửi</strong>
-                    <a class="btn btn-ghost btn-sm" href="${ctx}/cashier/checkout?sessionId=${sessionId}">Thanh toán</a>
+                    <a class="btn btn-ghost btn-sm" href="${ctx}/cashier/checkout?tableId=${tableId}">Thanh toán</a>
                 </div>
                 <c:choose>
-                    <c:when test="${empty sessionItems}">
-                        <p class="muted" style="margin:0">Chưa gửi món nào cho phiên này.</p>
+                    <c:when test="${empty tableItems}">
+                        <p class="muted" style="margin:0">Chưa gửi món nào cho bàn này.</p>
                     </c:when>
                     <c:otherwise>
                         <div style="display:flex;flex-direction:column;gap:8px">
-                            <c:forEach var="it" items="${sessionItems}">
+                            <c:forEach var="it" items="${tableItems}">
                                 <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
                                     <div>
                                         <strong>${it.quantity}× ${it.productName}</strong>
@@ -127,7 +127,7 @@
             <span>Tổng</span><span id="cartTotal">0 ₫</span>
         </div>
         <button id="submitBtn" type="button" class="btn btn-primary btn-lg" style="width:100%" onclick="submitOrder()" disabled>Gửi đơn</button>
-        <c:if test="${not empty sessionId}">
+        <c:if test="${not empty tableId}">
             <div style="display:flex;gap:8px;margin-top:8px">
                 <button type="button" class="btn btn-ghost btn-sm" style="flex:1" onclick="saveDraft()">Tạm dừng</button>
                 <button type="button" class="btn btn-ghost btn-sm" style="flex:1" onclick="discardDraft()">Hủy đặt món</button>
@@ -140,7 +140,7 @@
 <form id="draftForm" action="${ctx}/cashier/pos" method="post" style="display:none">
     <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
     <input type="hidden" name="action" id="draftAction" value="">
-    <input type="hidden" name="sessionId" id="draftSessionId" value="${sessionId}">
+    <input type="hidden" name="tableId" id="draftTableId" value="${tableId}">
     <input type="hidden" name="cartJson" id="draftCartJson" value="">
 </form>
 
@@ -236,10 +236,10 @@ function renderCart(){
 }
 
 function submitOrder(){
-  const sessionId = document.getElementById('sessionSelect').value;
+  const tableId = document.getElementById('sessionSelect').value;
   const payload = {
-    sessionId: sessionId ? parseInt(sessionId) : null,
-    orderType: sessionId ? 'DINE_IN' : 'TAKEAWAY',
+    tableId: tableId ? parseInt(tableId) : null,
+    orderType: tableId ? 'DINE_IN' : 'TAKEAWAY',
     items: cart.map(l => ({productId: l.productId, quantity: l.quantity, optionIds: l.optionIds}))
   };
   const msg = document.getElementById('posMsg');
@@ -267,14 +267,14 @@ function submitOrder(){
 }
 
 function submitDraftAction(action){
-  const sessionId = document.getElementById('sessionSelect').value;
+  const tableId = document.getElementById('sessionSelect').value;
   const msg = document.getElementById('posMsg');
-  if(!sessionId){
-    msg.innerHTML = '<span style="color:var(--st-cancelled)">Chỉ lưu nháp cho phiên bàn.</span>';
+  if(!tableId){
+    msg.innerHTML = '<span style="color:var(--st-cancelled)">Chỉ lưu nháp cho bàn.</span>';
     return;
   }
   document.getElementById('draftAction').value = action;
-  document.getElementById('draftSessionId').value = sessionId;
+  document.getElementById('draftTableId').value = tableId;
   document.getElementById('draftCartJson').value = JSON.stringify(cart);
   document.getElementById('draftForm').submit();
 }
@@ -282,7 +282,7 @@ function submitDraftAction(action){
 function saveDraft(){ submitDraftAction('saveDraft'); }
 
 function discardDraft(){
-  if(confirm('Hủy giỏ nháp của phiên này? Nếu chưa gửi món, bàn sẽ về Trống.')){
+  if(confirm('Hủy giỏ nháp của bàn này? Nếu chưa gửi món, bàn sẽ về Trống.')){
     submitDraftAction('discardDraft');
   }
 }

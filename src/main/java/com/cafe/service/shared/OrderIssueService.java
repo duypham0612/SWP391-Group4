@@ -35,7 +35,7 @@ public final class OrderIssueService {
         return repository.tx(conn -> {
             OrderItem it = repository.itemDao.findById(conn, orderItemId);
             if (it == null || repository.itemDao.reportIssue(conn, orderItemId, branchId, userId, clean) == 0) return false;
-            repository.actionDao.insert(conn, orderItemId, branchId, "ISSUE", it.getStatus(), it.getStatus(), clean, userId);
+            repository.activityLogDao.insertOrderItem(conn, orderItemId, branchId, "ISSUE", it.getStatus(), it.getStatus(), clean, userId);
             repository.outboxEventDao.insert(conn, EventType.ITEM_ISSUE_REPORTED, String.valueOf(orderItemId), branchId,
                     "{\"orderId\":" + it.getOrderId() + ",\"orderItemId\":" + orderItemId
                             + ",\"reason\":\"" + clean + "\",\"by\":" + userId + "}");
@@ -77,7 +77,7 @@ public final class OrderIssueService {
             // Thiếu chốt này, một POST tự soạn ép được tồn của nguyên liệu bất kỳ ở chi nhánh về 0,
             // kéo theo mọi món dùng nguyên liệu đó biến mất khỏi POS/QR.
             java.util.Set<Integer> recipeIngredientIds = new java.util.HashSet<>();
-            for (ProductRecipe line : repository.productRecipeDao.findByProduct(conn, it.getProductId())) {
+            for (Recipe line : repository.productRecipeDao.findByProduct(conn, it.getProductId())) {
                 recipeIngredientIds.add(line.getIngredientId());
             }
             for (Integer ingredientId : ingredientIds) {
@@ -103,7 +103,7 @@ public final class OrderIssueService {
         if (it == null) return false;
         String from = it.getStatus();
         if (repository.itemDao.blockItem(conn, orderItemId, branchId, userId, reason) == 0) return false;
-        repository.actionDao.insert(conn, orderItemId, branchId, "BLOCK", from, "BLOCKED", reason, userId);
+            repository.activityLogDao.insertOrderItem(conn, orderItemId, branchId, "BLOCK", from, "BLOCKED", reason, userId);
         repository.publishStatus(conn, it, "BLOCKED");
         repository.outboxEventDao.insert(conn, EventType.ITEM_ISSUE_REPORTED, String.valueOf(orderItemId), branchId,
                 "{\"orderId\":" + it.getOrderId() + ",\"orderItemId\":" + orderItemId
@@ -117,7 +117,7 @@ public final class OrderIssueService {
         return repository.tx(conn -> {
             OrderItem it = repository.itemDao.findById(conn, orderItemId);
             if (it == null || repository.itemDao.unblockItem(conn, orderItemId, branchId) == 0) return false;
-            repository.actionDao.insert(conn, orderItemId, branchId, "UNBLOCK", "BLOCKED", "WAITING", null, userId);
+            repository.activityLogDao.insertOrderItem(conn, orderItemId, branchId, "UNBLOCK", "BLOCKED", "WAITING", null, userId);
             repository.publishStatus(conn, it, "WAITING");
             return true;
         });
@@ -138,7 +138,7 @@ public final class OrderIssueService {
             }
 
             Map<Integer, String> unitByIngredient = new HashMap<>();
-            for (ProductRecipe line : repository.productRecipeDao.findByProduct(conn, it.getProductId())) {
+            for (Recipe line : repository.productRecipeDao.findByProduct(conn, it.getProductId())) {
                 unitByIngredient.put(line.getIngredientId(), line.getIngredientUnit());
             }
 
@@ -154,7 +154,7 @@ public final class OrderIssueService {
                 recountedIds.add(recount.getIngredientId());
             }
 
-            repository.actionDao.insert(conn, orderItemId, branchId, "UNBLOCK", "BLOCKED", "WAITING", null, userId);
+            repository.activityLogDao.insertOrderItem(conn, orderItemId, branchId, "UNBLOCK", "BLOCKED", "WAITING", null, userId);
             repository.publishStatus(conn, it, "WAITING");
             int remaining = repository.itemDao.countBlockedUsingIngredients(conn, branchId, recountedIds);
             return new OrderIssueService.UnblockResult(true, remaining);
@@ -179,7 +179,7 @@ public final class OrderIssueService {
             // nên lượt pha lại vẫn phải trừ. Giữ chỗ vô điều kiện như trước làm trừ THIẾU một lượt.
             repository.itemDao.finishRemake(conn, orderItemId, branchId,
                     com.cafe.common.RemakeReservation.reservesNextPour(fromReady, it.isRemakeInventoryReserved()));
-            repository.actionDao.insert(conn, orderItemId, branchId, "REMAKE", it.getStatus(), "WAITING", clean, userId);
+            repository.activityLogDao.insertOrderItem(conn, orderItemId, branchId, "REMAKE", it.getStatus(), "WAITING", clean, userId);
             repository.outboxEventDao.insert(conn, EventType.ITEM_REMAKE_REQUESTED, String.valueOf(orderItemId), branchId,
                     "{\"orderId\":" + it.getOrderId() + ",\"orderItemId\":" + orderItemId
                             + ",\"reason\":\"" + clean + "\",\"by\":" + userId + "}");
@@ -201,7 +201,7 @@ public final class OrderIssueService {
             // BLOCKED nằm trong danh sách huỷ được: món bị chặn (hết nguyên liệu/hỏng máy) thường
             // kết thúc bằng việc Thu ngân huỷ và hoàn tiền — thiếu nó thì món kẹt không lối thoát.
             if (!"WAITING".equals(s) && !"MAKING".equals(s) && !"BLOCKED".equals(s)) return "CONFLICT";
-            if (repository.billItemDao.existsForOrderItem(conn, orderItemId)) return "ALREADY_BILLED";   // đã lên bill → Cashier xử lý
+        if (repository.billLineDao.existsForOrderItem(conn, orderItemId)) return "ALREADY_BILLED";   // đã lên bill → Cashier xử lý
             int rows = repository.itemDao.updateStatusIf(conn, orderItemId, "CANCELLED",
                     new String[]{"WAITING", "MAKING", "BLOCKED"}, sessionBranchId, false, false, false, false);
             if (rows == 0) return "CONFLICT";   // đã bị đổi / khác chi nhánh
@@ -213,7 +213,7 @@ public final class OrderIssueService {
             }
             String r = sanitizeReason(reason);
             // Ghi audit như mọi chuyển trạng thái khác (trước đây cancelItem là ngoại lệ thiếu log).
-            repository.actionDao.insert(conn, orderItemId, branchId, "CANCEL", s, "CANCELLED", r.isEmpty() ? null : r, userId);
+            repository.activityLogDao.insertOrderItem(conn, orderItemId, branchId, "CANCEL", s, "CANCELLED", r.isEmpty() ? null : r, userId);
             repository.outboxEventDao.insert(conn, EventType.ORDER_STATUS_CHANGED, String.valueOf(it.getOrderId()), branchId,
                     "{\"orderItemId\":" + orderItemId + ",\"status\":\"CANCELLED\""
                     + (r.isEmpty() ? "" : ",\"reason\":\"" + r + "\"")

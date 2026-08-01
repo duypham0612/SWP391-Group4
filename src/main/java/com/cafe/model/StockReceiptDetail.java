@@ -2,12 +2,13 @@ package com.cafe.model;
 
 import java.math.BigDecimal;
 
-/** inventory.StockReceiptDetail — dòng phiếu nhập. */
+/** inventory.StockReceiptLine — dòng phiếu nhập. */
 public class StockReceiptDetail {
-    private int stockReceiptDetailId;
-    private int stockReceiptId;
+    private int stockReceiptLineId;
+    private String receiptBatchId;
     private int ingredientId;
-    private int ingredientUnitConversionId;
+    /** Lựa chọn tạm từ form: 0=đơn vị gốc, 1=đơn vị mua; không lưu DB. */
+    private int unitChoice;
     private BigDecimal enteredQuantity;
     private BigDecimal baseQuantity;
     private BigDecimal unitCost = BigDecimal.ZERO;
@@ -18,11 +19,11 @@ public class StockReceiptDetail {
     private String ingredientName;
     private String ingredientUnit;
 
-    public int getStockReceiptDetailId() { return stockReceiptDetailId; }
-    public void setStockReceiptDetailId(int stockReceiptDetailId) { this.stockReceiptDetailId = stockReceiptDetailId; }
+    public int getStockReceiptLineId() { return stockReceiptLineId; }
+    public void setStockReceiptLineId(int stockReceiptLineId) { this.stockReceiptLineId = stockReceiptLineId; }
 
-    public int getStockReceiptId() { return stockReceiptId; }
-    public void setStockReceiptId(int stockReceiptId) { this.stockReceiptId = stockReceiptId; }
+    public String getReceiptBatchId() { return receiptBatchId; }
+    public void setReceiptBatchId(String receiptBatchId) { this.receiptBatchId = receiptBatchId; }
 
     public int getIngredientId() { return ingredientId; }
     public void setIngredientId(int ingredientId) { this.ingredientId = ingredientId; }
@@ -31,8 +32,8 @@ public class StockReceiptDetail {
     public void setEnteredQuantity(BigDecimal value) { enteredQuantity = value; }
     public BigDecimal getBaseQuantity() { return baseQuantity; }
     public void setBaseQuantity(BigDecimal value) { baseQuantity = value; }
-    public int getIngredientUnitConversionId() { return ingredientUnitConversionId; }
-    public void setIngredientUnitConversionId(int value) { ingredientUnitConversionId = value; }
+    public int getUnitChoice() { return unitChoice; }
+    public void setUnitChoice(int value) { unitChoice = value; }
     public BigDecimal getFactorToBaseAtEntry() { return factorToBaseAtEntry; }
     public void setFactorToBaseAtEntry(BigDecimal value) { factorToBaseAtEntry = value; }
 

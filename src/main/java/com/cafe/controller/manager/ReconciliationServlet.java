@@ -39,8 +39,8 @@ public class ReconciliationServlet extends HttpServlet {
         try {
             if ("new".equals(req.getParameter("action"))) {
                 req.setAttribute("ingredients", ingredientService.getIngredientList());
-                req.setAttribute("unitConversionsByIngredient",
-                        ingredientService.getActiveUnitConversionsByIngredient());
+                req.setAttribute("unitChoicesByIngredient",
+                        ingredientService.getActiveUnitChoicesByIngredient());
                 req.setAttribute("pageTitle", "Ghi nhận kiểm kê");
                 req.getRequestDispatcher("/WEB-INF/views/manager/reconciliation-form.jsp").forward(req, resp);
             } else {
@@ -74,7 +74,7 @@ public class ReconciliationServlet extends HttpServlet {
                     StockAdjustment a = new StockAdjustment();
                     a.setIngredientId(ingId);
                     a.setCountedQuantity(actual);
-                    a.setIngredientUnitConversionId(Integer.parseInt(
+                    a.setUnitChoice(Integer.parseInt(
                             req.getParameter("unitConversionId_" + ingId)));
                     a.setReason(trim(req.getParameter("reason_" + ingId)));
                     lines.add(a);

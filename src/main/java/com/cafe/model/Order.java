@@ -10,7 +10,7 @@ import java.util.List;
 public class Order {
     private int orderId;
     private int branchId;
-    private Integer tableSessionId;
+    private Integer diningTableId;
     private String source;             // COUNTER | QR
     private String orderType;          // DINE_IN | TAKEAWAY
     private String status;             // ACTIVE | COMPLETED | CANCELLED
@@ -21,7 +21,7 @@ public class Order {
 
     // join / computed
     private String tableNumber;
-    private String paymentStatus;      // PAID | PAYING | ERROR — suy từ bill của phiên (R3, không lưu DB)
+    private String paymentStatus;      // PAID | PAYING | ERROR — suy từ bill chứa các dòng đơn
     private boolean stale;             // đơn treo từ ngày kinh doanh trước — chỉ Thu ngân xử lý được
     private List<OrderItem> items = new ArrayList<>();
 
@@ -31,8 +31,8 @@ public class Order {
     public int getBranchId() { return branchId; }
     public void setBranchId(int v) { this.branchId = v; }
 
-    public Integer getTableSessionId() { return tableSessionId; }
-    public void setTableSessionId(Integer v) { this.tableSessionId = v; }
+    public Integer getDiningTableId() { return diningTableId; }
+    public void setDiningTableId(Integer v) { this.diningTableId = v; }
 
 
     public String getSource() { return source; }
@@ -72,7 +72,7 @@ public class Order {
         BigDecimal t = BigDecimal.ZERO;
         for (OrderItem it : items) {
             if (!"CANCELLED".equals(it.getStatus()) && it.getUnitPrice() != null) {
-                t = t.add(it.getUnitPrice().multiply(BigDecimal.valueOf(it.getQuantity())));
+                t = t.add(it.getLineTotal());
             }
         }
         return t;

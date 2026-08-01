@@ -14,41 +14,41 @@ import java.util.*;
 final class OrderRepository {
     final OrderDao orderDao;
     final OrderItemDao itemDao;
-    final OrderItemActionDao actionDao;
+    final ActivityLogDao activityLogDao;
     final OrderItemModifierDao oimDao;
     final BranchMenuDao branchMenuDao;
     final ModifierOptionDao optionDao;
     final ModifierGroupDao groupDao;
     final ProductModifierGroupDao pmgDao;
     final BillDao billDao;
-    final BillItemDao billItemDao;
-    final ProductRecipeDao productRecipeDao;
+    final BillLineDao billLineDao;
+    final RecipeDao productRecipeDao;
     final OutboxEventDao outboxEventDao;
     final BranchDao branchDao;
     final InventoryService inventoryService;
 
     OrderRepository() {
-        this(new OrderDao(), new OrderItemDao(), new OrderItemActionDao(), new OrderItemModifierDao(),
+        this(new OrderDao(), new OrderItemDao(), new ActivityLogDao(), new OrderItemModifierDao(),
                 new BranchMenuDao(), new ModifierOptionDao(), new ModifierGroupDao(),
-                new ProductModifierGroupDao(), new BillDao(), new BillItemDao(), new ProductRecipeDao(),
+                new ProductModifierGroupDao(), new BillDao(), new BillLineDao(), new RecipeDao(),
                 new OutboxEventDao(), new BranchDao(), new InventoryService());
     }
 
-    OrderRepository(OrderDao orderDao, OrderItemDao itemDao, OrderItemActionDao actionDao,
+    OrderRepository(OrderDao orderDao, OrderItemDao itemDao, ActivityLogDao activityLogDao,
                     OrderItemModifierDao oimDao, BranchMenuDao branchMenuDao, ModifierOptionDao optionDao,
                     ModifierGroupDao groupDao, ProductModifierGroupDao pmgDao, BillDao billDao,
-                    BillItemDao billItemDao, ProductRecipeDao productRecipeDao,
+                    BillLineDao billLineDao, RecipeDao productRecipeDao,
                     OutboxEventDao outboxEventDao, BranchDao branchDao, InventoryService inventoryService) {
         this.orderDao = Objects.requireNonNull(orderDao);
         this.itemDao = Objects.requireNonNull(itemDao);
-        this.actionDao = Objects.requireNonNull(actionDao);
+        this.activityLogDao = Objects.requireNonNull(activityLogDao);
         this.oimDao = Objects.requireNonNull(oimDao);
         this.branchMenuDao = Objects.requireNonNull(branchMenuDao);
         this.optionDao = Objects.requireNonNull(optionDao);
         this.groupDao = Objects.requireNonNull(groupDao);
         this.pmgDao = Objects.requireNonNull(pmgDao);
         this.billDao = Objects.requireNonNull(billDao);
-        this.billItemDao = Objects.requireNonNull(billItemDao);
+        this.billLineDao = Objects.requireNonNull(billLineDao);
         this.productRecipeDao = Objects.requireNonNull(productRecipeDao);
         this.outboxEventDao = Objects.requireNonNull(outboxEventDao);
         this.branchDao = Objects.requireNonNull(branchDao);

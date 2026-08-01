@@ -18,10 +18,10 @@
 <form id="staffFilterForm" method="get" action="${ctx}/admin/user" class="table-toolbar">
     <div class="form-group" style="margin:0">
         <label for="fRole">Vai trò</label>
-        <select id="fRole" name="roleId" class="form-control tt-filter">
+        <select id="fRole" name="roleCode" class="form-control tt-filter">
             <option value="">— Tất cả vai trò —</option>
             <c:forEach var="r" items="${roles}">
-                <option value="${r.roleId}" <c:if test="${fRoleId == r.roleId}">selected</c:if>>${r.name}</option>
+                <option value="${r.code}" <c:if test="${fRoleCode == r.code}">selected</c:if>>${r.name}</option>
             </c:forEach>
         </select>
     </div>
@@ -40,7 +40,7 @@
                placeholder="Tên, tài khoản, email, SĐT..." value="${q}">
     </div>
     <button type="submit" class="btn btn-ghost">Lọc</button>
-    <a id="clearFilters" class="btn btn-ghost" href="${ctx}/admin/user" <c:if test="${empty fRoleId and empty fBranchId and empty q}">style="display:none"</c:if>>Xoá lọc</a>
+    <a id="clearFilters" class="btn btn-ghost" href="${ctx}/admin/user" <c:if test="${empty fRoleCode and empty fBranchId and empty q}">style="display:none"</c:if>>Xoá lọc</a>
 </form>
 
 <div id="staffResults">
@@ -117,7 +117,7 @@
                 <div class="pagination" style="margin-top:16px">
                     <c:if test="${page > 1}">
                         <c:url var="prevUrl" value="/admin/user">
-                            <c:if test="${not empty fRoleId}"><c:param name="roleId" value="${fRoleId}" /></c:if>
+                            <c:if test="${not empty fRoleCode}"><c:param name="roleCode" value="${fRoleCode}" /></c:if>
                             <c:if test="${not empty fBranchId}"><c:param name="branchId" value="${fBranchId}" /></c:if>
                             <c:if test="${not empty q}"><c:param name="q" value="${q}" /></c:if>
                             <c:param name="page" value="${page - 1}" />
@@ -127,7 +127,7 @@
                     <span class="muted" style="align-self:center">Trang ${page}/${totalPages} · ${total} tài khoản</span>
                     <c:if test="${page < totalPages}">
                         <c:url var="nextUrl" value="/admin/user">
-                            <c:if test="${not empty fRoleId}"><c:param name="roleId" value="${fRoleId}" /></c:if>
+                            <c:if test="${not empty fRoleCode}"><c:param name="roleCode" value="${fRoleCode}" /></c:if>
                             <c:if test="${not empty fBranchId}"><c:param name="branchId" value="${fBranchId}" /></c:if>
                             <c:if test="${not empty q}"><c:param name="q" value="${q}" /></c:if>
                             <c:param name="page" value="${page + 1}" />
@@ -153,7 +153,7 @@
 
     function buildUrl(page) {
         var params = new URLSearchParams();
-        if (role && role.value) params.set('roleId', role.value);
+        if (role && role.value) params.set('roleCode', role.value);
         if (branch && branch.value) params.set('branchId', branch.value);
         if (q && q.value.trim()) params.set('q', q.value.trim());
         if (page && page > 1) params.set('page', page);

@@ -23,8 +23,44 @@
             </select></div>
         <div class="form-group"><label for="note">Ghi chú</label>
             <input id="note" type="text" name="note" class="form-control" maxlength="255"></div>
+        <div class="form-group"><label for="ingredientId">Nguyên liệu đầu tiên</label>
+            <select id="ingredientId" name="ingredientId" class="form-control" required>
+                <option value="">-- Chọn --</option>
+                <c:forEach var="i" items="${ingredients}"><option value="${i.ingredientId}">${i.name}</option></c:forEach>
+            </select></div>
+        <div class="form-group"><label for="unitConversionId">Đơn vị nhập</label>
+            <select id="unitConversionId" name="unitConversionId" class="form-control" required disabled>
+                <option value="">-- Chọn --</option>
+                <c:forEach var="i" items="${ingredients}">
+                    <c:forEach var="unit" items="${unitChoicesByIngredient[i.ingredientId]}">
+                        <option value="${unit.choiceCode}" data-ingredient="${i.ingredientId}" hidden>${unit.unitName}</option>
+                    </c:forEach>
+                </c:forEach>
+            </select></div>
+        <div class="form-group"><label for="quantity">Số lượng</label>
+            <input id="quantity" type="number" name="quantity" class="form-control" min="0.000001" step="0.000001" required></div>
+        <div class="form-group"><label for="unitCost">Đơn giá</label>
+            <input id="unitCost" type="number" name="unitCost" class="form-control" min="0.01" step="0.01" required></div>
         <button type="submit" class="btn btn-primary btn-lg">Tạo phiếu nháp</button>
     </form>
 </div>
+
+<script>
+(function(){
+    var ingredient=document.getElementById('ingredientId');
+    var unit=document.getElementById('unitConversionId');
+    ingredient.addEventListener('change',function(){
+        unit.value='';
+        Array.prototype.forEach.call(unit.options,function(option,index){
+            if(index===0)return;
+            option.hidden=option.dataset.ingredient!==ingredient.value;
+            option.disabled=option.hidden;
+        });
+        unit.disabled=!ingredient.value;
+        var first=Array.prototype.find.call(unit.options,function(option){return option.value&&!option.hidden;});
+        if(first)unit.value=first.value;
+    });
+})();
+</script>
 
 <jsp:include page="../layout/footer.jsp" />

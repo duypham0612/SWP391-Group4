@@ -25,8 +25,8 @@ class BillPaymentReadinessTest {
         assertFalse(bill.isReadyForPayment());
     }
 
-    private static BillItem item(String status) {
-        BillItem item = new BillItem();
+    private static BillLine item(String status) {
+        BillLine item = new BillLine();
         item.setStatus(status);
         return item;
     }

@@ -11,7 +11,7 @@
         <h1>Chỉnh sửa trang Home</h1>
         <p>Chọn món nổi bật và nội dung giới thiệu cho trang khách hàng.</p>
     </div>
-    <a class="btn btn-ghost" href="${ctx}/home" target="_blank" rel="noopener">Xem trang Home ↗</a>
+    <a class="btn btn-ghost" href="${ctx}/home?branchId=${setting.branchId}" target="_blank" rel="noopener">Xem trang Home ↗</a>
 </div>
 
 <c:if test="${not empty sessionScope.flashOk}">
@@ -22,6 +22,16 @@
 </c:if>
 
 <%-- ===== Nội dung hero ===== --%>
+<form method="get" action="${ctx}/admin/home" class="table-toolbar" style="margin-bottom:16px">
+    <div class="form-group" style="margin:0;min-width:280px">
+        <label for="heroBranch">Chi nhánh áp dụng hero</label>
+        <select id="heroBranch" name="branchId" class="form-control" onchange="this.form.submit()">
+            <c:forEach var="b" items="${branches}">
+                <option value="${b.branchId}" <c:if test="${b.branchId == setting.branchId}">selected</c:if>>${b.code} — ${b.name}</option>
+            </c:forEach>
+        </select>
+    </div>
+</form>
 <c:set var="heroImg" value="${empty setting.heroImageUrl ? ctx.concat('/assets/img/login-hero.svg') : (fn:startsWith(fn:toLowerCase(setting.heroImageUrl), 'http') ? setting.heroImageUrl : ctx.concat(setting.heroImageUrl))}" />
 <div class="card form-card">
     <h2 style="margin-top:0">Nội dung phần đầu trang (hero)</h2>
@@ -29,6 +39,7 @@
         <form action="${ctx}/admin/home" method="post">
             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
             <input type="hidden" name="action" value="saveContent">
+            <input type="hidden" name="branchId" value="${setting.branchId}">
             <div class="form-group">
                 <label for="heroEyebrow">Dòng nhỏ phía trên (eyebrow)</label>
                 <input id="heroEyebrow" type="text" name="heroEyebrow" class="form-control" maxlength="150" value="${fn:escapeXml(setting.heroEyebrow)}">

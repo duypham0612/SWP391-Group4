@@ -94,11 +94,11 @@ public final class InventoryQueryService {
                 preppedIds.add(bi.getIngredientId());
             }
             // Một truy vấn cho mọi công thức thay vì mỗi nguyên liệu một lượt (N+1 mỗi lần mở màn Prep).
-            Map<Integer, PrepRecipe> recipes = repository.prepRecipeDao.findByPreppedIds(conn, preppedIds);
+            Map<Integer, List<Recipe>> recipes = repository.prepRecipeDao.findByPreppedIds(conn, preppedIds);
             List<com.cafe.model.PrepChecklistRow> rows = new ArrayList<>();
             for (BranchInventory bi : prepped) {
-                PrepRecipe recipe = recipes.get(bi.getIngredientId());
-                boolean hasRecipe = recipe != null && !recipe.getIngredients().isEmpty();
+                List<Recipe> recipe = recipes.get(bi.getIngredientId());
+                boolean hasRecipe = recipe != null && !recipe.isEmpty();
                 rows.add(new com.cafe.model.PrepChecklistRow(bi.getIngredientId(), bi.getIngredientName(),
                         bi.getIngredientUnit(), bi.getQuantityOnHand(), bi.getMinThreshold(),
                         bi.getPrepTargetQty(), hasRecipe, bi.getIngredientShelfLifeMinutes()));
@@ -108,7 +108,7 @@ public final class InventoryQueryService {
     }
 
     /** B4 · Công thức prep của từng PREPPED (cho preview tiêu hao RAW phía client). */
-    public Map<Integer, PrepRecipe> getPrepRecipeMap(List<Integer> preppedIds) throws SQLException {
+    public Map<Integer, List<Recipe>> getPrepRecipeMap(List<Integer> preppedIds) throws SQLException {
         if (preppedIds == null || preppedIds.isEmpty()) return new java.util.LinkedHashMap<>();
         try (Connection conn = DBConnection.getConnection()) {
             return repository.prepRecipeDao.findByPreppedIds(conn, preppedIds);

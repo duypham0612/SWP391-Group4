@@ -2,7 +2,7 @@ package com.cafe.model;
 
 import java.time.LocalDateTime;
 
-/** inventory.WasteEventAudit — một thao tác trên dòng hao hụt, để Quản lý truy vết ai sửa/huỷ cái gì. */
+/** Projection tương thích của ops.ActivityLog cho màn hình truy vết sửa/huỷ hao hụt. */
 public class WasteEventAudit {
     private long wasteEventAuditId;
     private Integer wasteEventItemId;

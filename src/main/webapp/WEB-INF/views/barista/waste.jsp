@@ -135,7 +135,7 @@
         <form action="${ctx}/barista/waste" method="post" class="waste-edit-form">
             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
             <input type="hidden" name="action" value="update">
-            <input type="hidden" name="wasteEventItemId" value="${editLog.wasteEventItemId}">
+            <input type="hidden" name="wasteEntryId" value="${editLog.wasteEntryId}">
             <input type="hidden" name="q" value="${fn:escapeXml(wasteLogQuery)}">
             <input type="hidden" name="logType" value="${wasteLogWasteType}">
             <input type="hidden" name="status" value="${wasteLogStatus}">
@@ -258,7 +258,7 @@
                                                     <c:url var="editWasteUrl" value="/barista/waste">
                                                         <c:param name="q" value="${wasteLogQuery}" /><c:param name="logType" value="${wasteLogWasteType}" />
                                                         <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" />
-                                                        <c:param name="page" value="${wasteLogPage.page}" /><c:param name="edit" value="${w.wasteEventItemId}" />
+                                <c:param name="page" value="${wasteLogPage.page}" /><c:param name="edit" value="${w.wasteEntryId}" />
                                                     </c:url>
                                                     <a class="btn btn-ghost btn-sm" href="${editWasteUrl}#editWaste">Sửa</a>
                                                 </c:if>
@@ -266,7 +266,7 @@
                                                     <form action="${ctx}/barista/waste" method="post" onsubmit="return confirm('Huỷ bản ghi này? Tồn kho sẽ được hoàn lại qua sổ cái.');">
                                                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                                         <input type="hidden" name="action" value="void">
-                                                        <input type="hidden" name="wasteEventItemId" value="${w.wasteEventItemId}">
+                                <input type="hidden" name="wasteEntryId" value="${w.wasteEntryId}">
                                                         <input type="hidden" name="q" value="${fn:escapeXml(wasteLogQuery)}">
                                                         <input type="hidden" name="logType" value="${wasteLogWasteType}">
                                                         <input type="hidden" name="status" value="${wasteLogStatus}">

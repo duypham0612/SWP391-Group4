@@ -3,10 +3,8 @@ package com.cafe.controller.admin;
 import com.cafe.common.BusinessException;
 import com.cafe.web.support.CsrfUtil;
 import com.cafe.model.Ingredient;
-import com.cafe.model.PrepRecipe;
-import com.cafe.model.PrepRecipeIngredient;
 import com.cafe.model.Product;
-import com.cafe.model.ProductRecipe;
+import com.cafe.model.Recipe;
 import com.cafe.service.admin.IngredientService;
 import com.cafe.service.admin.ProductService;
 import com.cafe.service.admin.RecipeService;
@@ -173,9 +171,9 @@ public class RecipeServlet extends HttpServlet {
             throws Exception {
         Product p = productService.getProduct(productId);
         if (p == null) { resp.sendError(HttpServletResponse.SC_NOT_FOUND); return; }
-        List<ProductRecipe> lines = service.getProductRecipe(productId);
+        List<Recipe> lines = service.getProductRecipe(productId);
         Set<Integer> usedIngredientIds = new HashSet<>();
-        for (ProductRecipe line : lines) usedIngredientIds.add(line.getIngredientId());
+        for (Recipe line : lines) usedIngredientIds.add(line.getIngredientId());
         req.setAttribute("product", p);
         req.setAttribute("lines", lines);
         req.setAttribute("ingredients", ingredientService.getActiveIngredientList().stream()
@@ -194,12 +192,10 @@ public class RecipeServlet extends HttpServlet {
             return;
         }
 
-        PrepRecipe recipe = service.getPrepRecipe(preppedId);
-        List<PrepRecipeIngredient> lines = recipe == null ? List.of() : recipe.getIngredients();
+        List<Recipe> lines = service.getPrepRecipe(preppedId);
         Set<Integer> usedIngredientIds = new HashSet<>();
-        for (PrepRecipeIngredient line : lines) usedIngredientIds.add(line.getRawIngredientId());
+        for (Recipe line : lines) usedIngredientIds.add(line.getIngredientId());
         req.setAttribute("prepped", prepped);
-        req.setAttribute("prepRecipe", recipe);
         req.setAttribute("prepLines", lines);
         req.setAttribute("rawIngredients",
                 ingredientService.getIngredientListByType("RAW").stream()

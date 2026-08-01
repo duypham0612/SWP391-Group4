@@ -29,7 +29,7 @@
     </table>
     <div style="max-width:300px;margin-left:auto;font-size:.95rem;margin-top:10px">
         <div style="display:flex;justify-content:space-between"><span>Tạm tính</span><span><fmt:formatNumber value="${bill.subtotal}" maxFractionDigits="0"/> ₫</span></div>
-        <c:if test="${bill.discountAmount > 0}"><div style="display:flex;justify-content:space-between;color:var(--st-ready)"><span>Giảm ${bill.voucherCode}</span><span>−<fmt:formatNumber value="${bill.discountAmount}" maxFractionDigits="0"/> ₫</span></div></c:if>
+<c:if test="${bill.discountAmount > 0}"><div style="display:flex;justify-content:space-between;color:var(--st-ready)"><span>Giảm giá</span><span>−<fmt:formatNumber value="${bill.discountAmount}" maxFractionDigits="0"/> ₫</span></div></c:if>
         <div style="display:flex;justify-content:space-between"><span>VAT 8%</span><span><fmt:formatNumber value="${bill.vatAmount}" maxFractionDigits="0"/> ₫</span></div>
         <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px solid var(--line);padding-top:6px;margin-top:6px"><span>Tổng hóa đơn</span><span><fmt:formatNumber value="${bill.totalAmount}" maxFractionDigits="0"/> ₫</span></div>
         <c:if test="${bill.paymentMethod == 'CASH' and not empty bill.paidAmount}">

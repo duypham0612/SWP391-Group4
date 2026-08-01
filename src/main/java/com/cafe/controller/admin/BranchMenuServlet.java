@@ -65,7 +65,7 @@ public class BranchMenuServlet extends HttpServlet {
                 service.remove(branchId, productId);
             } else {
                 // Cờ 86 KHÔNG nhận từ form này: nó gắn với yêu cầu báo hết của barista
-                // (catalog.MenuBlockRequest) nên chỉ manager mở bán lại qua /manager/menu-block mới đổi được.
+                // (BranchMenu.Block*) nên chỉ manager mở bán lại qua /manager/menu-block mới đổi được.
                 boolean available = req.getParameter("available") != null;
                 BigDecimal localPrice = null;
                 String lp = req.getParameter("localPrice");

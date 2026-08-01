@@ -2,7 +2,7 @@ package com.cafe.service.cashier;
 
 import com.cafe.model.Bill;
 import com.cafe.model.Order;
-import com.cafe.model.TableSession;
+import com.cafe.model.DiningTable;
 
 import java.math.BigDecimal;
 import java.sql.SQLException;
@@ -33,13 +33,11 @@ public final class BillingService {
         this.queryService = Objects.requireNonNull(queryService);
     }
 
-    public List<Bill> buildSessionBill(int sessionId, int branchId, Integer shiftId) throws SQLException { return creationService.buildSessionBill(sessionId, branchId, shiftId); }
+    public List<Bill> buildTableBill(int tableId, int branchId, Integer shiftId) throws SQLException { return creationService.buildTableBill(tableId, branchId, shiftId); }
     public List<Bill> buildTakeawayBill(int orderId, int branchId, Integer shiftId) throws SQLException { return creationService.buildTakeawayBill(orderId, branchId, shiftId); }
-    public void splitItems(int sessionId, int branchId, Integer shiftId, List<Integer> ids) throws SQLException { creationService.splitItems(sessionId, branchId, shiftId, ids); }
+    public void splitItems(int tableId, int branchId, Integer shiftId, List<Integer> ids) throws SQLException { creationService.splitItems(tableId, branchId, shiftId, ids); }
     public void mergeBills(List<Integer> ids, int branchId) throws SQLException { creationService.mergeBills(ids, branchId); }
-    public String applyVoucher(int billId, String code, int branchId) throws SQLException { return creationService.applyVoucher(billId, code, branchId); }
-    public String validateBillVoucher(int billId, int branchId) throws SQLException { return creationService.validateBillVoucher(billId, branchId); }
-    public void removeVoucher(int billId, int branchId) throws SQLException { creationService.removeVoucher(billId, branchId); }
+    public void setDiscount(int billId, BigDecimal discount, int branchId) throws SQLException { creationService.setDiscount(billId, discount, branchId); }
 
     public PaymentResult payBill(int billId, String method, Integer shiftId, BigDecimal cashTendered) throws SQLException {
         PaymentService.PaymentResult result = paymentService.payBill(billId, method, shiftId, cashTendered);
@@ -49,10 +47,10 @@ public final class BillingService {
     public static boolean isSupportedPaymentMethod(String method) { return PaymentService.isSupportedPaymentMethod(method); }
     public boolean voidBill(int billId, int branchId, String reason, Integer userId) throws SQLException { return voidService.voidBill(billId, branchId, reason, userId); }
     public Bill getBill(int billId) throws SQLException { return queryService.getBill(billId); }
-    public List<Bill> getSessionBills(int sessionId) throws SQLException { return queryService.getSessionBills(sessionId); }
+    public List<Bill> getTableBills(int tableId) throws SQLException { return queryService.getTableBills(tableId); }
     public List<Bill> getOrderBills(int orderId) throws SQLException { return queryService.getOrderBills(orderId); }
     public String validatePayable(int billId, int branchId) throws SQLException { return queryService.validatePayable(billId, branchId); }
-    public TableSession getOpenSessionForCheckout(int sessionId, int branchId) throws SQLException { return queryService.getOpenSessionForCheckout(sessionId, branchId); }
+    public DiningTable getOpenTableForCheckout(int tableId, int branchId) throws SQLException { return queryService.getOpenTableForCheckout(tableId, branchId); }
     public List<Order> getTakeawayOrdersAwaitingPayment(int branchId) throws SQLException { return queryService.getTakeawayOrdersAwaitingPayment(branchId); }
     public List<Bill> getBillHistory(int branchId) throws SQLException { return queryService.getBillHistory(branchId); }
     public List<Bill> getBillHistoryByShift(int shiftId) throws SQLException { return queryService.getBillHistoryByShift(shiftId); }

@@ -18,7 +18,7 @@ public class PrepBatch {
     private LocalDateTime voidedAt;
     /** Đã ghi hao hụt vì quá hạn — mẻ khép vòng đời, không gợi ý ghi thêm và không huỷ được nữa. */
     private LocalDateTime writtenOffAt;
-    private Integer writeOffWasteEventItemId;
+    private Long writeOffWasteEntryId;
     private String clientRequestId;
     /** Vượt 1.5x mức mục tiêu lúc tạo — mẻ vào PENDING, chưa cộng PREPPED cho tới khi Manager duyệt. */
     private boolean requiresApproval;
@@ -65,8 +65,8 @@ public class PrepBatch {
     public void setWrittenOffAt(LocalDateTime v) { this.writtenOffAt = v; }
     public boolean isWrittenOff() { return writtenOffAt != null; }
 
-    public Integer getWriteOffWasteEventItemId() { return writeOffWasteEventItemId; }
-    public void setWriteOffWasteEventItemId(Integer v) { this.writeOffWasteEventItemId = v; }
+    public Long getWriteOffWasteEntryId() { return writeOffWasteEntryId; }
+    public void setWriteOffWasteEntryId(Long v) { this.writeOffWasteEntryId = v; }
     public String getClientRequestId() { return clientRequestId; }
     public void setClientRequestId(String v) { this.clientRequestId = v; }
 

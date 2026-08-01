@@ -32,15 +32,15 @@ public final class WasteSummary {
     public static WasteSummary from(List<WasteEventItem> logs) {
         WasteSummary s = new WasteSummary();
         Map<String, BigDecimal> byIngredient = new LinkedHashMap<>();
-        Set<Long> remakeEvents = new HashSet<>();
+        Set<String> remakeEvents = new HashSet<>();
         if (logs == null) return s;
         for (WasteEventItem log : logs) {
             if (log == null || !log.isActive()) continue;
             s.activeCount++;
             if (log.isRemake()) {
                 // Event mới đại diện cho một lần/ly remake; dữ liệu legacy không có event giữ cách đếm cũ.
-                Long eventId = log.getWasteEventId();
-                if (eventId == null || remakeEvents.add(eventId)) s.remakeCount++;
+                String eventGroupId = log.getEventGroupId();
+                if (eventGroupId == null || remakeEvents.add(eventGroupId)) s.remakeCount++;
             } else {
                 s.ingredientWasteCount++;
                 // Ba loại của hao hụt nguyên liệu; loại lạ (dữ liệu cũ) gom vào "Khác" để tổng luôn khớp.

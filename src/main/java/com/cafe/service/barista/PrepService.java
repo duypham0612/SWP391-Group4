@@ -7,8 +7,7 @@ import com.cafe.model.Ingredient;
 import com.cafe.model.PrepBatch;
 import com.cafe.model.PrepBatchLine;
 import com.cafe.model.PrepChecklistRow;
-import com.cafe.model.PrepRecipe;
-import com.cafe.model.PrepRecipeIngredient;
+import com.cafe.model.Recipe;
 
 import java.math.BigDecimal;
 import java.sql.SQLException;
@@ -73,12 +72,12 @@ public class PrepService {
         return inventoryService.cancelPrepBatch(branchId, prepBatchId, userId);
     }
 
-    /** Ghi hao hụt mẻ quá hạn + đóng vòng đời mẻ trong một transaction. Trả về WasteEventItemId. */
-    public int writeOffExpiredBatch(int branchId, int prepBatchId, java.math.BigDecimal qty, int userId) throws SQLException {
+    /** Ghi hao hụt mẻ quá hạn + đóng vòng đời mẻ trong một transaction. Trả về WasteEntryId. */
+    public long writeOffExpiredBatch(int branchId, int prepBatchId, java.math.BigDecimal qty, int userId) throws SQLException {
         return inventoryService.writeOffExpiredPrepBatch(branchId, prepBatchId, qty, userId);
     }
 
-    public int writeOffExpiredBatchSuggested(int branchId, int prepBatchId, int userId) throws SQLException {
+    public long writeOffExpiredBatchSuggested(int branchId, int prepBatchId, int userId) throws SQLException {
         for (PrepBatch batch : inventoryService.getExpiredActivePrepBatches(branchId)) {
             if (batch.getPrepBatchId() == prepBatchId && batch.isHasSuggestedWaste()) {
                 return writeOffExpiredBatch(branchId, prepBatchId, batch.getSuggestedWasteQuantity(), userId);
@@ -103,25 +102,30 @@ public class PrepService {
      */
     public String getRecipeJson(List<Ingredient> preppedIngredients) throws SQLException {
         List<Integer> ids = new ArrayList<>();
+        Map<Integer, BigDecimal> yieldByIngredient = new java.util.HashMap<>();
         if (preppedIngredients != null)
-            for (Ingredient i : preppedIngredients) ids.add(i.getIngredientId());
-        Map<Integer, PrepRecipe> map = inventoryService.getPrepRecipeMap(ids);
+            for (Ingredient i : preppedIngredients) {
+                ids.add(i.getIngredientId());
+                yieldByIngredient.put(i.getIngredientId(), i.getPrepYieldQty());
+            }
+        Map<Integer, List<Recipe>> map = inventoryService.getPrepRecipeMap(ids);
         StringBuilder sb = new StringBuilder("{");
         boolean firstKey = true;
-        for (Map.Entry<Integer, PrepRecipe> e : map.entrySet()) {
+        for (Map.Entry<Integer, List<Recipe>> e : map.entrySet()) {
             if (!firstKey) sb.append(',');
             firstKey = false;
             sb.append('"').append(e.getKey()).append("\":[");
             boolean firstLine = true;
-            PrepRecipe recipe = e.getValue();
-            for (PrepRecipeIngredient line : recipe.getIngredients()) {
+            List<Recipe> recipe = e.getValue();
+            BigDecimal prepYield = yieldByIngredient.get(e.getKey());
+            for (Recipe line : recipe) {
                 if (!firstLine) sb.append(',');
                 firstLine = false;
-                sb.append("{\"r\":").append(line.getRawIngredientId())
-                  .append(",\"n\":\"").append(esc(line.getRawIngredientName()))
-                  .append("\",\"u\":\"").append(esc(line.getRawIngredientUnit()))
+                sb.append("{\"r\":").append(line.getIngredientId())
+                  .append(",\"n\":\"").append(esc(line.getIngredientName()))
+                  .append("\",\"u\":\"").append(esc(line.getIngredientUnit()))
                   .append("\",\"q\":").append(line.getQuantity().toPlainString())
-                  .append(",\"y\":").append(recipe.getYieldQty().toPlainString())
+                  .append(",\"y\":").append(prepYield == null ? "null" : prepYield.toPlainString())
                   .append('}');
             }
             sb.append(']');

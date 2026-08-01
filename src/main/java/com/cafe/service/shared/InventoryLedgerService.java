@@ -19,6 +19,13 @@ public final class InventoryLedgerService {
     public void applyTxn(Connection conn, int branchId, int ingredientId, BigDecimal delta,
                          TxnType type, InventoryReferenceType referenceType,
                          Long referenceId, Integer userId) throws SQLException {
+        applyTxn(conn, branchId, ingredientId, delta, type, referenceType,
+                referenceId == null ? null : String.valueOf(referenceId), userId);
+    }
+
+    public void applyTxn(Connection conn, int branchId, int ingredientId, BigDecimal delta,
+                         TxnType type, InventoryReferenceType referenceType,
+                         String referenceId, Integer userId) throws SQLException {
         // 1) Ghi sổ cái (append-only)
         repository.txnDao.insert(conn, branchId, ingredientId, delta, type.name(),
                 referenceType, referenceId, userId);
@@ -45,14 +52,14 @@ public final class InventoryLedgerService {
      */
     public void deductForOrderItem(Connection conn, int branchId, int orderItemId, int productId,
                                    int quantity, Integer userId) throws SQLException {
-        List<ProductRecipe> recipe = repository.productRecipeDao.findByProduct(conn, productId);
+        List<Recipe> recipe = repository.productRecipeDao.findByProduct(conn, productId);
         if (recipe.isEmpty()) {
             // Nói rõ lối thoát: món này sẽ không bao giờ bấm Xong được cho tới khi Quản trị khai
             // công thức, nên barista cần chuyển nó ra khỏi hàng chờ chứ không phải thử lại.
             throw new BusinessException("Món chưa có công thức nên không xác định được nguyên liệu cần trừ. "
                     + "Hãy bấm Báo sự cố → \"Món đã ngừng bán\" để chuyển sang mục Cần xử lý, rồi báo Quản trị khai công thức.");
         }
-        List<ModifierIngredientImpact> impacts = new ArrayList<>();
+        List<Recipe> impacts = new ArrayList<>();
         for (Integer optionId : repository.oimDao.findOptionIds(conn, orderItemId)) {
             impacts.addAll(repository.impactDao.findByOption(conn, optionId));
         }

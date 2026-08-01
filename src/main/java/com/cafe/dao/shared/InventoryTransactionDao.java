@@ -19,7 +19,7 @@ import java.util.Map;
 public class InventoryTransactionDao {
 
     public void insert(Connection conn, int branchId, int ingredientId, BigDecimal changeQty,
-                       String txnType, InventoryReferenceType referenceType, Long referenceId,
+                       String txnType, InventoryReferenceType referenceType, String referenceId,
                        Integer createdBy) throws SQLException {
         final String sql = "INSERT INTO inventory.InventoryTransaction" +
                 "(BranchId, IngredientId, ChangeQty, TxnType, ReferenceType, ReferenceId, CreatedBy) VALUES (?,?,?,?,?,?,?)";
@@ -29,7 +29,7 @@ public class InventoryTransactionDao {
             ps.setBigDecimal(3, changeQty);
             ps.setString(4, txnType);
             if (referenceType == null) ps.setNull(5, Types.VARCHAR); else ps.setString(5, referenceType.name());
-            if (referenceId == null) ps.setNull(6, Types.BIGINT); else ps.setLong(6, referenceId);
+            if (referenceId == null) ps.setNull(6, Types.VARCHAR); else ps.setString(6, referenceId);
             if (createdBy == null) ps.setNull(7, Types.INTEGER); else ps.setInt(7, createdBy);
             ps.executeUpdate();
         }
@@ -50,7 +50,7 @@ public class InventoryTransactionDao {
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, branchId);
             ps.setString(2, referenceType.name());
-            ps.setLong(3, referenceId);
+            ps.setString(3, String.valueOf(referenceId));
             ps.setString(4, txnType);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
@@ -100,8 +100,12 @@ public class InventoryTransactionDao {
         t.setTxnType(rs.getString("TxnType"));
         String referenceType = rs.getString("ReferenceType");
         t.setReferenceType(referenceType == null ? null : InventoryReferenceType.valueOf(referenceType));
-        long referenceId = rs.getLong("ReferenceId");
-        t.setReferenceId(rs.wasNull() ? null : referenceId);
+        String referenceId = rs.getString("ReferenceId");
+        if (referenceId == null) t.setReferenceId(null);
+        else {
+            try { t.setReferenceId(Long.valueOf(referenceId)); }
+            catch (NumberFormatException ignored) { t.setReferenceId(null); }
+        }
         int cb = rs.getInt("CreatedBy");
         t.setCreatedBy(rs.wasNull() ? null : cb);
         Timestamp ts = rs.getTimestamp("CreatedAt");

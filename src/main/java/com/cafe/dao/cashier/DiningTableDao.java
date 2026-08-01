@@ -11,16 +11,16 @@ import java.util.List;
 
 public class DiningTableDao {
 
-    /** Sơ đồ bàn: mỗi bàn kèm phiên OPEN hiện tại (nếu có) + số món đang phục vụ. */
+    /** Sơ đồ bàn: trạng thái lưu trên DiningTable và số món thuộc các đơn chưa thanh toán. */
     public List<DiningTable> findFloorMap(Connection conn, int branchId) throws SQLException {
         final String sql =
             "SELECT dt.DiningTableId, dt.BranchId, dt.TableNumber, dt.QrCode, dt.Status, " +
-            "       ts.TableSessionId AS ActiveSessionId, " +
             "       (SELECT COUNT(*) FROM sales.OrderItem oi " +
             "          JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId " +
-            "        WHERE o.TableSessionId=ts.TableSessionId AND oi.Status<>'CANCELLED') AS ItemCount " +
+            "          LEFT JOIN payment.Bill b ON b.BillId=oi.BillId " +
+            "        WHERE o.DiningTableId=dt.DiningTableId AND o.BranchId=dt.BranchId " +
+            "          AND oi.Status<>'CANCELLED' AND (oi.BillId IS NULL OR b.Status='UNPAID')) AS ItemCount " +
             "FROM sales.DiningTable dt " +
-            "LEFT JOIN sales.TableSession ts ON ts.DiningTableId=dt.DiningTableId AND ts.Status='OPEN' " +
             "WHERE dt.BranchId=? ORDER BY dt.TableNumber";
         List<DiningTable> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -33,8 +33,7 @@ public class DiningTableDao {
                     t.setTableNumber(rs.getString("TableNumber"));
                     t.setQrCode(rs.getString("QrCode"));
                     t.setStatus(rs.getString("Status"));
-                    int sid = rs.getInt("ActiveSessionId");
-                    if (!rs.wasNull()) { t.setActiveSessionId(sid); t.setActiveItemCount(rs.getInt("ItemCount")); }
+                    t.setActiveItemCount(rs.getInt("ItemCount"));
                     out.add(t);
                 }
             }
@@ -100,6 +99,46 @@ public class DiningTableDao {
             ps.setString(1, status);
             ps.setInt(2, tableId);
             ps.executeUpdate();
+        }
+    }
+
+    public List<DiningTable> findOccupiedByBranch(Connection conn, int branchId) throws SQLException {
+        List<DiningTable> out = new ArrayList<>();
+        for (DiningTable table : findFloorMap(conn, branchId)) {
+            if ("OCCUPIED".equals(table.getStatus())) out.add(table);
+        }
+        return out;
+    }
+
+    /** Đơn chưa thanh toán: có dòng chưa gắn bill hoặc đang nằm trên bill UNPAID. */
+    public boolean hasUnpaidOrders(Connection conn, int tableId, int branchId) throws SQLException {
+        final String sql =
+                "SELECT TOP(1) 1 FROM sales.SalesOrder o " +
+                "JOIN sales.OrderItem oi ON oi.OrderId=o.OrderId " +
+                "LEFT JOIN payment.Bill b ON b.BillId=oi.BillId " +
+                "WHERE o.DiningTableId=? AND o.BranchId=? AND oi.Status<>'CANCELLED' " +
+                "AND (oi.BillId IS NULL OR b.Status='UNPAID')";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, tableId);
+            ps.setInt(2, branchId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next(); }
+        }
+    }
+
+    /** Chuyển các đơn còn nợ từ bàn nguồn sang bàn đích khi gộp bàn. */
+    public int reassignUnpaidOrders(Connection conn, int sourceTableId, int targetTableId,
+                                    int branchId) throws SQLException {
+        final String sql =
+                "UPDATE o SET DiningTableId=? FROM sales.SalesOrder o " +
+                "WHERE o.DiningTableId=? AND o.BranchId=? AND EXISTS (" +
+                " SELECT 1 FROM sales.OrderItem oi LEFT JOIN payment.Bill b ON b.BillId=oi.BillId " +
+                " WHERE oi.OrderId=o.OrderId AND oi.Status<>'CANCELLED' " +
+                " AND (oi.BillId IS NULL OR b.Status='UNPAID'))";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, targetTableId);
+            ps.setInt(2, sourceTableId);
+            ps.setInt(3, branchId);
+            return ps.executeUpdate();
         }
     }
 }

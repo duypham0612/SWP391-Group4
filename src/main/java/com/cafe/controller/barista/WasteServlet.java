@@ -88,17 +88,17 @@ public class WasteServlet extends HttpServlet {
                         new WasteService.WasteBatchCommand(form.clientRequestId(), lines), userId);
                 req.getSession().setAttribute("flashOk", count == 0 ? "Yêu cầu này đã được ghi trước đó." : "Đã ghi " + count + " dòng hao hụt.");
             } else if ("update".equals(action)) {
-                editId = req.getParameter("wasteEventItemId");
+                editId = req.getParameter("wasteEntryId");
                 req.setAttribute("editQuantity", req.getParameter("quantity"));
                 req.setAttribute("editWasteType", req.getParameter("wasteType"));
                 req.setAttribute("editReason", req.getParameter("reason"));
-                int wasteEventItemId = parseInt(editId, "Bản ghi cần sửa không hợp lệ.");
+                long wasteEntryId = parseLong(editId, "Bản ghi cần sửa không hợp lệ.");
                 BigDecimal qty = parseQty(req.getParameter("quantity"), "Số lượng phải > 0.");
-                service.updateWaste(branchId, wasteEventItemId, qty, req.getParameter("wasteType"), req.getParameter("reason"), userId);
+                service.updateWaste(branchId, wasteEntryId, qty, req.getParameter("wasteType"), req.getParameter("reason"), userId);
                 req.getSession().setAttribute("flashOk", "Đã sửa — chênh lệch ghi vào sổ cái.");
             } else if ("void".equals(action)) {
-                int wasteEventItemId = parseInt(req.getParameter("wasteEventItemId"), "Bản ghi cần huỷ không hợp lệ.");
-                service.voidWaste(branchId, wasteEventItemId, userId);
+                long wasteEntryId = parseLong(req.getParameter("wasteEntryId"), "Bản ghi cần huỷ không hợp lệ.");
+                service.voidWaste(branchId, wasteEntryId, userId);
                 req.getSession().setAttribute("flashOk", "Đã huỷ — tồn kho hoàn lại qua sổ cái (txn bù).");
             } else {
                 throw new BusinessException("Thao tác không hợp lệ.");
@@ -163,7 +163,7 @@ public class WasteServlet extends HttpServlet {
         }
         if (editId != null && !editId.isBlank()) {
             try {
-                WasteEventItem editLog = service.getEditableWasteLog(branchId, Integer.parseInt(editId), userId);
+                    WasteEventItem editLog = service.getEditableWasteLog(branchId, Long.parseLong(editId), userId);
                 if (editLog == null) req.setAttribute("flashError", "Bản ghi cần sửa không tồn tại.");
                 else req.setAttribute("editLog", editLog);
             } catch (BusinessException e) {
@@ -196,9 +196,9 @@ public class WasteServlet extends HttpServlet {
         }
     }
 
-    private static int parseInt(String value, String message) {
+    private static long parseLong(String value, String message) {
         if (blank(value)) throw new BusinessException(message);
-        try { return Integer.parseInt(value.trim()); }
+        try { return Long.parseLong(value.trim()); }
         catch (NumberFormatException e) { throw new BusinessException(message); }
     }
 

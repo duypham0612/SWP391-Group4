@@ -14,7 +14,8 @@ public class BranchDao {
 
     private static final String SELECT =
         "SELECT b.BranchId, b.Code, b.Name, b.Address, b.Phone, b.IsActive, " +
-        "       b.OpenTime, b.CloseTime, b.ManagerUserId, b.PeakThresholdCups, u.FullName AS ManagerName " +
+        "       b.OpenTime, b.CloseTime, b.ManagerUserId, b.PeakThresholdCups, " +
+        "       b.HeroEyebrow, b.HeroTitle, b.HeroSubtitle, b.HeroImageUrl, u.FullName AS ManagerName " +
         "FROM org.Branch b LEFT JOIN iam.UserAccount u ON u.UserId = b.ManagerUserId ";
 
     public List<Branch> findAll(Connection conn) throws SQLException {
@@ -41,6 +42,22 @@ public class BranchDao {
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? map(rs) : null;
             }
+        }
+    }
+
+    public Branch findActiveById(Connection conn, int id) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                SELECT + "WHERE b.BranchId=? AND b.IsActive=1")) {
+            ps.setInt(1, id);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? map(rs) : null; }
+        }
+    }
+
+    /** Fallback trang công khai: chi nhánh active đầu tiên theo đúng BranchId. */
+    public Branch findFirstActive(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                SELECT + "WHERE b.IsActive=1 ORDER BY b.BranchId")) {
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? map(rs) : null; }
         }
     }
 
@@ -118,6 +135,19 @@ public class BranchDao {
         }
     }
 
+    public int updateHero(Connection conn, Branch branch) throws SQLException {
+        final String sql = "UPDATE org.Branch SET HeroEyebrow=?, HeroTitle=?, HeroSubtitle=?, HeroImageUrl=? " +
+                "WHERE BranchId=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setNString(1, branch.getHeroEyebrow());
+            ps.setNString(2, branch.getHeroTitle());
+            ps.setNString(3, branch.getHeroSubtitle());
+            ps.setString(4, branch.getHeroImageUrl());
+            ps.setInt(5, branch.getBranchId());
+            return ps.executeUpdate();
+        }
+    }
+
     public void updateManager(Connection conn, int branchId, Integer userId) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement("UPDATE org.Branch SET ManagerUserId=? WHERE BranchId=?")) {
             if (userId == null) ps.setNull(1, java.sql.Types.INTEGER); else ps.setInt(1, userId);
@@ -172,6 +202,10 @@ public class BranchDao {
         if (!rs.wasNull()) b.setManagerUserId(mgr);
         b.setPeakThresholdCups(rs.getInt("PeakThresholdCups"));
         b.setManagerName(rs.getString("ManagerName"));
+        b.setHeroEyebrow(rs.getString("HeroEyebrow"));
+        b.setHeroTitle(rs.getString("HeroTitle"));
+        b.setHeroSubtitle(rs.getString("HeroSubtitle"));
+        b.setHeroImageUrl(rs.getString("HeroImageUrl"));
         return b;
     }
 }

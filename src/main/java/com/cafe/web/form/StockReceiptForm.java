@@ -7,9 +7,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 /** Request nhiều dòng của phiếu nhập; conversion và precision được Service xác minh lại. */
-public record StockReceiptForm(int receiptId, List<Line> lines) {
+public record StockReceiptForm(String receiptBatchId, List<Line> lines) {
     public static StockReceiptForm from(HttpServletRequest request) {
-        int receiptId = FormValues.optionalInt(request.getParameter("receiptId"), "Mã phiếu nhập");
+        String receiptBatchId = request.getParameter("receiptBatchId");
+        if (receiptBatchId == null || receiptBatchId.isBlank() || receiptBatchId.length() > 36) {
+            throw new com.cafe.common.BusinessException("Mã batch phiếu nhập không hợp lệ.");
+        }
         String[] picks = request.getParameterValues("pick");
         List<Line> lines = new ArrayList<>();
         if (picks != null) {
@@ -24,7 +27,7 @@ public record StockReceiptForm(int receiptId, List<Line> lines) {
                 lines.add(new Line(ingredientId, quantity, unitCost, conversionId));
             }
         }
-        return new StockReceiptForm(receiptId, lines);
+        return new StockReceiptForm(receiptBatchId, lines);
     }
 
     public record Line(int ingredientId, BigDecimal quantity, BigDecimal unitCost,

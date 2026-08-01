@@ -52,7 +52,8 @@ class ProductDaoRecipeLookupTest {
         assertTrue(sql.contains("p.ProductId = ? AND p.IsActive = 1"));
         assertTrue(sql.contains("p.Name COLLATE"));
         assertTrue(sql.contains("p.CategoryId = ?"));
-        assertTrue(sql.contains("EXISTS (SELECT 1 FROM catalog.ProductRecipe"));
+        assertTrue(sql.contains("EXISTS (SELECT 1 FROM catalog.Recipe"));
+        assertTrue(sql.contains("pr.OwnerType='PRODUCT'"));
         assertTrue(sql.contains("catalog.BranchMenu bm"));
         assertEquals(List.of(
                 "1:int:42", "2:string:%Cold Brew%", "3:int:3", "4:int:7"), bindings);

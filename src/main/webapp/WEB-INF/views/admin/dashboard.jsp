@@ -39,7 +39,7 @@
 </div>
 
 <div style="display:flex;gap:16px;flex-wrap:wrap;margin:16px 0 0">
-    <div class="card" style="flex:1;min-width:220px"><span class="muted">Tổng giảm giá (voucher)</span><div style="font-size:1.3rem;font-weight:700"><fmt:formatNumber value="${summary.discount}" maxFractionDigits="0"/> ₫</div></div>
+    <div class="card" style="flex:1;min-width:220px"><span class="muted">Tổng giảm giá thủ công</span><div style="font-size:1.3rem;font-weight:700"><fmt:formatNumber value="${summary.discount}" maxFractionDigits="0"/> ₫</div></div>
     <div class="card" style="flex:1;min-width:220px"><span class="muted">Tổng VAT đã thu</span><div style="font-size:1.3rem;font-weight:700"><fmt:formatNumber value="${summary.vat}" maxFractionDigits="0"/> ₫</div></div>
 </div>
 

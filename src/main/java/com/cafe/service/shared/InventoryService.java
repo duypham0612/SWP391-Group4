@@ -79,17 +79,17 @@ public class InventoryService {
     public List<PrepBatch> getPendingApprovalBatches(int branchId) throws SQLException { return query.getPendingApprovalBatches(branchId); }
     public List<PrepBatch> getUnreviewedBatches(int branchId) throws SQLException { return query.getUnreviewedBatches(branchId); }
     public void updatePrepBatch(int branchId, int batchId, BigDecimal quantity, int userId) throws SQLException { prep.updatePrepBatch(branchId, batchId, quantity, userId); }
-    public int writeOffExpiredPrepBatch(int branchId, int batchId, BigDecimal quantity, int userId) throws SQLException { return prep.writeOffExpiredPrepBatch(branchId, batchId, quantity, userId); }
+    public long writeOffExpiredPrepBatch(int branchId, int batchId, BigDecimal quantity, int userId) throws SQLException { return prep.writeOffExpiredPrepBatch(branchId, batchId, quantity, userId); }
 
-    public int logWaste(int branchId, int ingredientId, BigDecimal quantity, String type, String reason, int userId) throws SQLException { return waste.logWaste(branchId, ingredientId, quantity, type, reason, userId); }
+    public long logWaste(int branchId, int ingredientId, BigDecimal quantity, String type, String reason, int userId) throws SQLException { return waste.logWaste(branchId, ingredientId, quantity, type, reason, userId); }
     public int logWasteLines(int branchId, List<WasteLogLine> lines, int userId) throws SQLException { return waste.logWasteLines(branchId, lines, userId); }
     public int logWasteLines(int branchId, List<WasteLogLine> lines, int userId, String requestId) throws SQLException { return waste.logWasteLines(branchId, lines, userId, requestId); }
-    public void updateWaste(int branchId, int itemId, BigDecimal quantity, String type, String reason, int userId) throws SQLException { waste.updateWaste(branchId, itemId, quantity, type, reason, userId); }
-    public void voidWaste(int branchId, int itemId, int userId) throws SQLException { waste.voidWaste(branchId, itemId, userId); }
+    public void updateWaste(int branchId, long entryId, BigDecimal quantity, String type, String reason, int userId) throws SQLException { waste.updateWaste(branchId, entryId, quantity, type, reason, userId); }
+    public void voidWaste(int branchId, long entryId, int userId) throws SQLException { waste.voidWaste(branchId, entryId, userId); }
     public List<WasteEventItem> getWasteLogs(int branchId) throws SQLException { return waste.getWasteLogs(branchId); }
     public List<WasteEventItem> getWasteLogs(int branchId, LocalDateTime fromUtc, LocalDateTime toUtc) throws SQLException { return waste.getWasteLogs(branchId, fromUtc, toUtc); }
     public List<WasteEventItem> getWasteLogs(int branchId, LocalDateTime fromUtc, LocalDateTime toUtc, boolean ingredientOnly) throws SQLException { return waste.getWasteLogs(branchId, fromUtc, toUtc, ingredientOnly); }
-    public WasteEventItem getWasteLog(int branchId, int itemId) throws SQLException { return waste.getWasteLog(branchId, itemId); }
+    public WasteEventItem getWasteLog(int branchId, long entryId) throws SQLException { return waste.getWasteLog(branchId, entryId); }
     public List<WasteEventReview> getOpenWasteReviews(int branchId) throws SQLException { return waste.getOpenWasteReviews(branchId); }
     public List<WasteEventAudit> getWasteCorrections(int branchId, LocalDateTime fromUtc, LocalDateTime toUtc, int limit) throws SQLException { return waste.getWasteCorrections(branchId, fromUtc, toUtc, limit); }
     public List<Ingredient> getActiveWasteIngredients(int branchId) throws SQLException { return query.getActiveWasteIngredients(branchId); }
@@ -97,8 +97,8 @@ public class InventoryService {
     public BigDecimal estimateUnitCost(int branchId, int ingredientId) throws SQLException { return waste.estimateUnitCost(branchId, ingredientId); }
 
     public BigDecimal confirmReceiptStock(Connection connection, List<StockReceiptDetail> details,
-                                          int receiptId, int branchId, Integer userId) throws SQLException {
-        return adjustments.confirmReceiptStock(connection, details, receiptId, branchId, userId);
+                                          String receiptBatchId, int branchId, Integer userId) throws SQLException {
+        return adjustments.confirmReceiptStock(connection, details, receiptBatchId, branchId, userId);
     }
 
     public void createAdjustment(int branchId, int ingredientId, BigDecimal quantity,
@@ -113,7 +113,7 @@ public class InventoryService {
     public List<PrepBatch> getTodayPrepBatches(int branchId) throws SQLException { return query.getTodayPrepBatches(branchId); }
     public List<PrepBatch> getExpiredActivePrepBatches(int branchId) throws SQLException { return query.getExpiredActivePrepBatches(branchId); }
     public List<PrepChecklistRow> getPrepChecklist(int branchId) throws SQLException { return query.getPrepChecklist(branchId); }
-    public Map<Integer, PrepRecipe> getPrepRecipeMap(List<Integer> ids) throws SQLException { return query.getPrepRecipeMap(ids); }
+    public Map<Integer, List<Recipe>> getPrepRecipeMap(List<Integer> ids) throws SQLException { return query.getPrepRecipeMap(ids); }
     public List<BranchInventory> getBranchInventory(int branchId) throws SQLException { return query.getBranchInventory(branchId); }
     public List<BranchInventory> getLowStock(int branchId) throws SQLException { return query.getLowStock(branchId); }
     public List<BranchInventory> getOversoldStock(int branchId) throws SQLException { return query.getOversoldStock(branchId); }

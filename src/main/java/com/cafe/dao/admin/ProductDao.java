@@ -24,7 +24,7 @@ public class ProductDao {
     private static final String SELECT_LOOKUP =
         "SELECT p.ProductId, p.CategoryId, p.Name, p.BasePrice, p.ImageUrl, p.IsActive, " +
         "p.ShowOnHome, p.HomeSortOrder, p.PrepSeconds, c.Name AS CategoryName, " +
-        "CASE WHEN EXISTS (SELECT 1 FROM catalog.ProductRecipe pr WHERE pr.ProductId = p.ProductId) " +
+            "CASE WHEN EXISTS (SELECT 1 FROM catalog.Recipe pr WHERE pr.OwnerType='PRODUCT' AND pr.OwnerId=p.ProductId) " +
         "THEN 1 ELSE 0 END AS HasRecipe " +
         "FROM catalog.Product p JOIN catalog.Category c ON p.CategoryId = c.CategoryId ";
 
@@ -190,9 +190,9 @@ public class ProductDao {
         }
         if (categoryId != null) sql.append(" AND p.CategoryId = ?");
         if ("HAS".equals(recipeState)) {
-            sql.append(" AND EXISTS (SELECT 1 FROM catalog.ProductRecipe pr WHERE pr.ProductId = p.ProductId)");
+            sql.append(" AND EXISTS (SELECT 1 FROM catalog.Recipe pr WHERE pr.OwnerType='PRODUCT' AND pr.OwnerId=p.ProductId)");
         } else if ("NONE".equals(recipeState)) {
-            sql.append(" AND NOT EXISTS (SELECT 1 FROM catalog.ProductRecipe pr WHERE pr.ProductId = p.ProductId)");
+            sql.append(" AND NOT EXISTS (SELECT 1 FROM catalog.Recipe pr WHERE pr.OwnerType='PRODUCT' AND pr.OwnerId=p.ProductId)");
         }
         if (branchId != null) {
             sql.append(" AND EXISTS (SELECT 1 FROM catalog.BranchMenu bm WHERE bm.ProductId = p.ProductId AND bm.BranchId = ?)");

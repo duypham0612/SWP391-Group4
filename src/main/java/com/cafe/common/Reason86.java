@@ -3,7 +3,7 @@ package com.cafe.common;
 import java.util.List;
 
 /**
- * Lý do báo tạm hết món (Barista). Mã lưu vào catalog.MenuBlockRequest.Reason.
+ * Lý do báo tạm hết món (Barista). Mã lưu vào catalog.BranchMenu.BlockReason.
  *
  * <p>Mỗi lý do kèm bộ ghi chú bấm nhanh — barista đứng máy giữa ca không gõ tay được,
  * chip chỉ là lối tắt điền sẵn, ô ghi chú vẫn sửa tay được. Chip KHÔNG lưu riêng vào DB:

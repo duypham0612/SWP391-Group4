@@ -1,8 +1,5 @@
 package com.cafe.model;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-
 /** Tổng hợp giờ làm tháng của chính nhân viên đang đăng nhập. */
 public class MonthlyWorkSummary {
     private double approvedHours;
@@ -11,8 +8,6 @@ public class MonthlyWorkSummary {
     private int shiftsWorked;
     private int absentCount;
     private int openCount;
-    private BigDecimal lockedHours;
-    private BigDecimal hourlyRate;
 
     public double getApprovedHours() { return approvedHours; }
     public void setApprovedHours(double v) { this.approvedHours = v; }
@@ -32,29 +27,8 @@ public class MonthlyWorkSummary {
     public int getOpenCount() { return openCount; }
     public void setOpenCount(int v) { this.openCount = v; }
 
-    public BigDecimal getLockedHours() { return lockedHours; }
-    public void setLockedHours(BigDecimal v) { this.lockedHours = v; }
-
-    public BigDecimal getHourlyRate() { return hourlyRate; }
-    public void setHourlyRate(BigDecimal v) { this.hourlyRate = v; }
-
-    public boolean isPayrollLocked() {
-        return lockedHours != null && hourlyRate != null;
-    }
-
-    /** Tiền = giờ ĐÃ CHỐT × lương/giờ — cùng công thức PayrollRow.getSalary(). */
-    public BigDecimal getLockedPay() {
-        return isPayrollLocked()
-                ? lockedHours.multiply(hourlyRate).setScale(0, RoundingMode.HALF_UP)
-                : null;
-    }
-
     public double getAvgHoursPerShift() {
         return shiftsWorked == 0 ? 0d : Math.round(approvedHours / shiftsWorked * 10) / 10.0;
     }
 
-    /** Manager chốt khác chấm công là hợp lệ (bù ca, phạt muộn) — phải nói ra, không giấu. */
-    public boolean isHoursMismatch() {
-        return isPayrollLocked() && Math.abs(lockedHours.doubleValue() - approvedHours) > 0.1;
-    }
 }

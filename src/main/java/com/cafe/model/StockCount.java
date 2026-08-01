@@ -4,13 +4,13 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * inventory.StockCount — một biên bản kiểm kê (header của inventory.StockAdjustment).
+ * Read model của một phiên kiểm kê, được GROUP BY từ inventory.StockAdjustment.CountBatchId.
  *
  * <p>{@code lineCount} và {@code totalDiffQty} là số ĐỌC RA từ chi tiết, không phải cột lưu
  * trong bảng — tránh thêm một cache nữa có thể lệch với dòng chi tiết.
  */
 public class StockCount {
-    private int stockCountId;
+    private String countBatchId;
     private int branchId;
     private int countedBy;
     private LocalDateTime countedAt;
@@ -21,8 +21,8 @@ public class StockCount {
     private int lineCount;
     private BigDecimal totalDiffQty;
 
-    public int getStockCountId() { return stockCountId; }
-    public void setStockCountId(int v) { this.stockCountId = v; }
+    public String getCountBatchId() { return countBatchId; }
+    public void setCountBatchId(String v) { this.countBatchId = v; }
 
     public int getBranchId() { return branchId; }
     public void setBranchId(int v) { this.branchId = v; }

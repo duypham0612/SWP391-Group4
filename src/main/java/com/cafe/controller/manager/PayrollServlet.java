@@ -1,12 +1,6 @@
 package com.cafe.controller.manager;
 
-import com.cafe.common.BusinessException;
-import com.cafe.common.Constants;
-import com.cafe.web.support.CsrfUtil;
-import com.cafe.web.support.SessionUtil;
-import com.cafe.model.Payroll;
 import com.cafe.model.PayrollRow;
-import com.cafe.model.User;
 import com.cafe.service.manager.PayrollService;
 import com.cafe.web.renderer.PayrollCsvRenderer;
 import jakarta.servlet.ServletException;
@@ -16,15 +10,12 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-/** M4 · PayrollServlet → /manager/payroll. show | save (chốt giờ+lương/giờ) | export (CSV/Excel). */
+/** Bảng lương runtime và xuất CSV; không còn thao tác chốt/sửa tay. */
 @WebServlet("/manager/payroll")
 public class PayrollServlet extends HttpServlet {
 
@@ -43,61 +34,34 @@ public class PayrollServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
-        YearMonth ym = parseMonth(req.getParameter("month"));
+        int branchId =
+                com.cafe.web.support.BranchContext.requireBranchId(req);
+        YearMonth month = parseMonth(req.getParameter("month"));
         try {
-            List<PayrollRow> rows = service.getMonthlyPayroll(branchId, ym);
+            List<PayrollRow> rows =
+                    service.getMonthlyPayroll(branchId, month);
             if ("export".equals(req.getParameter("action"))) {
-                csvRenderer.render(resp, ym, rows);
+                csvRenderer.render(resp, month, rows);
                 return;
             }
-            req.setAttribute("month", ym.toString());
-            req.setAttribute("prevMonth", ym.minusMonths(1));
-            req.setAttribute("nextMonth", ym.plusMonths(1));
+            req.setAttribute("month", month.toString());
+            req.setAttribute("prevMonth", month.minusMonths(1));
+            req.setAttribute("nextMonth", month.plusMonths(1));
             req.setAttribute("rows", rows);
-            req.setAttribute("minHourlyRate", Constants.MIN_HOURLY_RATE);
             req.setAttribute("pageTitle", "Bảng lương");
-            req.getRequestDispatcher("/WEB-INF/views/manager/payroll.jsp").forward(req, resp);
-        } catch (Exception e) { throw new ServletException(e); }
+            req.getRequestDispatcher(
+                    "/WEB-INF/views/manager/payroll.jsp").forward(req, resp);
+        } catch (Exception e) {
+            throw new ServletException(e);
+        }
     }
 
-    @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp)
-            throws ServletException, IOException {
-        if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
-        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
-        User u = SessionUtil.currentUser(req);
-        YearMonth ym = parseMonth(req.getParameter("month"));
+    private YearMonth parseMonth(String value) {
         try {
-            String[] uids = req.getParameterValues("uid");
-            List<Payroll> lines = new ArrayList<>();
-            if (uids != null) for (String s : uids) {
-                int uid;
-                try { uid = Integer.parseInt(s); } catch (NumberFormatException e) { continue; }
-                Payroll p = new Payroll();
-                p.setUserId(uid);
-                p.setWorkedHours(dec(req.getParameter("hours_" + uid)));
-                p.setHourlyRate(dec(req.getParameter("rate_" + uid)));
-                lines.add(p);
-            }
-            service.savePayroll(branchId, ym, lines, u != null ? u.getUserId() : 0);
-            req.getSession().setAttribute("flashOk", "Đã lưu bảng lương tháng " + ym + ".");
-            resp.sendRedirect(req.getContextPath() + "/manager/payroll?month=" + ym);
-        } catch (BusinessException e) {
-            req.getSession().setAttribute("flashError", e.getMessage());
-            resp.sendRedirect(req.getContextPath() + "/manager/payroll?month=" + ym);
-        } catch (NumberFormatException e) {
-            req.getSession().setAttribute("flashError", "Giờ làm hoặc lương/giờ không hợp lệ.");
-            resp.sendRedirect(req.getContextPath() + "/manager/payroll?month=" + ym);
-        } catch (Exception e) { throw new ServletException(e); }
-    }
-
-    private BigDecimal dec(String s) {
-        return s == null || s.isBlank() ? BigDecimal.ZERO : new BigDecimal(s.trim());
-    }
-
-    private YearMonth parseMonth(String month) {
-        try { return (month == null || month.isBlank()) ? YearMonth.now() : YearMonth.parse(month); }
-        catch (DateTimeParseException e) { return YearMonth.now(); }
+            return value == null || value.isBlank()
+                    ? YearMonth.now() : YearMonth.parse(value);
+        } catch (DateTimeParseException e) {
+            return YearMonth.now();
+        }
     }
 }

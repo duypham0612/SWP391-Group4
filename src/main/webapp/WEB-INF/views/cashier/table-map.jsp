@@ -33,27 +33,27 @@
         <c:set var="tblClass" value="tbl-empty" />
         <c:set var="tblLabel" value="Trống" />
         <c:set var="tblBadge" value="badge-served" />
-        <c:if test="${not empty t.activeSessionId}">
+        <c:if test="${t.status == 'OCCUPIED'}">
             <c:set var="tblClass" value="tbl-draft" />
             <c:set var="tblLabel" value="Nháp" />
             <c:set var="tblBadge" value="badge-waiting" />
         </c:if>
-        <c:if test="${not empty t.activeSessionId and t.activeItemCount > 0}">
+        <c:if test="${t.status == 'OCCUPIED' and t.activeItemCount > 0}">
             <c:set var="tblClass" value="tbl-busy" />
             <c:set var="tblLabel" value="Đang phục vụ" />
             <c:set var="tblBadge" value="badge-ready" />
         </c:if>
         <c:choose>
-            <c:when test="${not empty t.activeSessionId}">
+            <c:when test="${t.status == 'OCCUPIED'}">
                 <c:set var="signal" value="${signals[t.diningTableId]}" />
                 <div class="card table-card table-card-link ${tblClass}" data-name="${t.tableNumber}">
-                    <a href="${ctx}/cashier/pos?sessionId=${t.activeSessionId}"
+                    <a href="${ctx}/cashier/pos?tableId=${t.diningTableId}"
                        style="display:block;color:inherit;text-decoration:none">
                         <div style="display:flex;justify-content:space-between;align-items:center">
                             <strong style="font-size:1.1rem">${t.tableNumber}</strong>
                             <span class="badge ${tblBadge}">${tblLabel}</span>
                         </div>
-                        <div class="muted">${t.activeItemCount} món · phiên #${t.activeSessionId}</div>
+                        <div class="muted">${t.activeItemCount} món chưa thanh toán</div>
                     </a>
                     <c:if test="${not empty signal}">
                         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px">
@@ -63,7 +63,7 @@
                             <form action="${ctx}/cashier/table" method="post">
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                 <input type="hidden" name="action" value="ackSignal">
-                                <input type="hidden" name="sessionId" value="${t.activeSessionId}">
+                                <input type="hidden" name="tableId" value="${t.diningTableId}">
                                 <button type="submit" class="btn btn-ghost btn-sm">Đã tiếp nhận</button>
                             </form>
                         </div>
@@ -77,7 +77,7 @@
                           onsubmit="return confirm('Đóng ${t.tableNumber}? Chỉ bàn chưa có món hoặc đã huỷ hết món mới đóng được.');">
                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                         <input type="hidden" name="action" value="closeTable">
-                        <input type="hidden" name="sessionId" value="${t.activeSessionId}">
+                        <input type="hidden" name="tableId" value="${t.diningTableId}">
                         <button type="submit" class="btn btn-ghost btn-sm" style="width:100%">Đóng bàn</button>
                     </form>
                 </div>
@@ -95,8 +95,7 @@
                         </c:when>
                         <c:otherwise><div class="muted">Bàn trống</div></c:otherwise>
                     </c:choose>
-                    <%-- Hai kiểu đặt món cùng mở một phiên bàn như nhau; chỉ khác nơi thu ngân
-                         được đưa tới sau đó, nên khách đổi ý giữa chừng vẫn không phải mở lại bàn. --%>
+                    <%-- Hai kiểu đặt món cùng đưa DiningTable sang OCCUPIED; chỉ khác nơi điều hướng sau đó. --%>
                     <form action="${ctx}/cashier/table" method="post" style="margin-top:10px">
                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                         <input type="hidden" name="action" value="openTable">

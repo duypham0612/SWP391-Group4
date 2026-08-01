@@ -15,7 +15,7 @@ public final class Constants {
     // Request attributes
     public static final String ATTR_BRANCH_ID = "branchId";
 
-    // Role codes (khớp iam.Role.Code)
+    // Role codes lưu trực tiếp tại iam.UserAccount.RoleCode
     public static final String ROLE_ADMIN   = "ADMIN";
     public static final String ROLE_MANAGER = "BRANCH_MANAGER";
     public static final String ROLE_CASHIER = "CASHIER";

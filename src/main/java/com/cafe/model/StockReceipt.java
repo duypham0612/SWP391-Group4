@@ -4,9 +4,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.LocalDate;
 
-/** inventory.StockReceipt — phiếu nhập kho. */
+/** Read model của phiếu nhập, được GROUP BY inventory.StockReceiptLine.ReceiptBatchId. */
 public class StockReceipt {
-    private int stockReceiptId;
+    private String receiptBatchId;
     private int branchId;
     private Integer supplierId;
     private int receivedBy;
@@ -20,8 +20,8 @@ public class StockReceipt {
     private String supplierName;
     private String receivedByName;
 
-    public int getStockReceiptId() { return stockReceiptId; }
-    public void setStockReceiptId(int stockReceiptId) { this.stockReceiptId = stockReceiptId; }
+    public String getReceiptBatchId() { return receiptBatchId; }
+    public void setReceiptBatchId(String receiptBatchId) { this.receiptBatchId = receiptBatchId; }
 
     public int getBranchId() { return branchId; }
     public void setBranchId(int branchId) { this.branchId = branchId; }

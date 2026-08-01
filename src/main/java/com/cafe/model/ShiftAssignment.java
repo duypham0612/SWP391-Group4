@@ -1,28 +1,36 @@
 package com.cafe.model;
 
+import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 
-/** hr.ShiftAssignment — phân công 1 nhân viên vào 1 ca trong 1 ngày (+ join để hiển thị). */
+/** hr.ShiftAssignment — ca làm được nhập trực tiếp khi phân công (+ join để hiển thị). */
 public class ShiftAssignment {
     private int shiftAssignmentId;
-    private int shiftTemplateId;
     private int branchId;
     private int userId;
     private LocalDate workDate;
-
-    // join hiển thị
-    private String templateName;
+    private String shiftName;
     private LocalTime startTime;
     private LocalTime endTime;
+    private BigDecimal hourlyRateSnapshot;
+    private LocalDateTime checkInAt;
+    private LocalDateTime checkOutAt;
+    private String attendanceStatus; // NULL = chưa chấm công; PENDING | APPROVED | REJECTED
+    private Integer approvedBy;
+    private LocalDateTime approvedAt;
+
+    // join hiển thị
     private String userName;
     private String roleCode;
+    private String userPhone;
+    private String branchName;
+    private String approverName;
 
     public int getShiftAssignmentId() { return shiftAssignmentId; }
     public void setShiftAssignmentId(int v) { this.shiftAssignmentId = v; }
-
-    public int getShiftTemplateId() { return shiftTemplateId; }
-    public void setShiftTemplateId(int v) { this.shiftTemplateId = v; }
 
     public int getBranchId() { return branchId; }
     public void setBranchId(int v) { this.branchId = v; }
@@ -33,8 +41,23 @@ public class ShiftAssignment {
     public LocalDate getWorkDate() { return workDate; }
     public void setWorkDate(LocalDate v) { this.workDate = v; }
 
-    public String getTemplateName() { return templateName; }
-    public void setTemplateName(String v) { this.templateName = v; }
+    public String getShiftName() { return shiftName; }
+    public void setShiftName(String v) { this.shiftName = v; }
+
+    public LocalDateTime getCheckInAt() { return checkInAt; }
+    public void setCheckInAt(LocalDateTime v) { this.checkInAt = v; }
+
+    public LocalDateTime getCheckOutAt() { return checkOutAt; }
+    public void setCheckOutAt(LocalDateTime v) { this.checkOutAt = v; }
+
+    public String getAttendanceStatus() { return attendanceStatus; }
+    public void setAttendanceStatus(String v) { this.attendanceStatus = v; }
+
+    public Integer getApprovedBy() { return approvedBy; }
+    public void setApprovedBy(Integer v) { this.approvedBy = v; }
+
+    public LocalDateTime getApprovedAt() { return approvedAt; }
+    public void setApprovedAt(LocalDateTime v) { this.approvedAt = v; }
 
     public LocalTime getStartTime() { return startTime; }
     public void setStartTime(LocalTime v) { this.startTime = v; }
@@ -42,8 +65,53 @@ public class ShiftAssignment {
     public LocalTime getEndTime() { return endTime; }
     public void setEndTime(LocalTime v) { this.endTime = v; }
 
+    public BigDecimal getHourlyRateSnapshot() { return hourlyRateSnapshot; }
+    public void setHourlyRateSnapshot(BigDecimal v) { this.hourlyRateSnapshot = v; }
+
     public String getUserName() { return userName; }
     public void setUserName(String v) { this.userName = v; }
     public String getRoleCode() { return roleCode; }
     public void setRoleCode(String v) { this.roleCode = v; }
+
+    public String getRoleName() {
+        if (roleCode == null) return null;
+        return switch (roleCode) {
+            case "ADMIN" -> "Quản trị hệ thống";
+            case "BRANCH_MANAGER" -> "Quản lý chi nhánh";
+            case "CASHIER" -> "Thu ngân";
+            case "BARISTA" -> "Pha chế";
+            default -> roleCode;
+        };
+    }
+
+    public String getUserPhone() { return userPhone; }
+    public void setUserPhone(String v) { this.userPhone = v; }
+
+    public String getBranchName() { return branchName; }
+    public void setBranchName(String v) { this.branchName = v; }
+
+    public String getApproverName() { return approverName; }
+    public void setApproverName(String v) { this.approverName = v; }
+
+    public double getWorkHours() {
+        if (checkInAt == null || checkOutAt == null) return 0d;
+        long minutes = Duration.between(checkInAt, checkOutAt).toMinutes();
+        if (minutes < 0) return 0d;
+        return Math.round(minutes / 60.0 * 10) / 10.0;
+    }
+
+    public long getLateMinutes() {
+        if (checkInAt == null || startTime == null) return 0L;
+        long minutes = Duration.between(startTime, checkInAt.toLocalTime()).toMinutes();
+        return minutes > 0 ? minutes : 0L;
+    }
+
+    public long getEarlyLeaveMinutes() {
+        if (checkOutAt == null || endTime == null) return 0L;
+        long minutes = Duration.between(checkOutAt.toLocalTime(), endTime).toMinutes();
+        return minutes > 0 ? minutes : 0L;
+    }
+
+    public boolean isLate() { return getLateMinutes() > 0; }
+    public boolean isEarlyLeave() { return getEarlyLeaveMinutes() > 0; }
 }

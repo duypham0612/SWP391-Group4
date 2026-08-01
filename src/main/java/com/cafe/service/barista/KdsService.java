@@ -467,12 +467,12 @@ public class KdsService {
     }
 
     /** Nguyên liệu trong công thức của món — dựng danh sách chọn ở modal "Hết nguyên liệu". */
-    public java.util.List<com.cafe.model.ProductRecipe> getRecipeIngredients(int productId) throws SQLException {
+    public java.util.List<com.cafe.model.Recipe> getRecipeIngredients(int productId) throws SQLException {
         return orderService.getRecipeIngredients(productId);
     }
 
     /** Nguyên liệu trong công thức đang cạn tại chi nhánh — dựng modal kiểm kê khi bỏ chặn. */
-    public java.util.List<com.cafe.model.ProductRecipe> getDepletedRecipeIngredients(int branchId, int productId)
+    public java.util.List<com.cafe.model.Recipe> getDepletedRecipeIngredients(int branchId, int productId)
             throws SQLException {
         return orderService.getDepletedRecipeIngredients(branchId, productId);
     }

@@ -33,7 +33,7 @@
                 <div class="table-scroll" style="margin-bottom:14px"><table class="table">
                     <thead><tr><th>Biên bản</th><th>Thời điểm</th><th>Số nguyên liệu</th><th>Tổng chênh</th><th>Người kiểm</th></tr></thead>
                     <tbody><c:forEach var="sc" items="${stockCounts}"><tr>
-                        <td>BB#${sc.stockCountId}</td>
+<td>Batch ${sc.countBatchId}</td>
                         <td>${sc.countedAt}</td>
                         <td>${sc.lineCount}</td>
                         <td><strong><c:if test="${sc.totalDiffQty.signum() > 0}">+</c:if>${view.grouped(sc.totalDiffQty)}</strong></td>
@@ -46,8 +46,8 @@
                 <tbody><c:forEach var="a" items="${adjustments}"><tr>
                     <td>#${a.stockAdjustmentId}</td>
                     <%-- null = chỉnh lẻ từ màn pha chế (báo hết nguyên liệu), không thuộc biên bản nào --%>
-                    <td><c:choose><c:when test="${empty a.stockCountId}"><span class="muted">lẻ</span></c:when>
-                        <c:otherwise>BB#${a.stockCountId}</c:otherwise></c:choose></td>
+<td><c:choose><c:when test="${empty a.countBatchId}"><span class="muted">lẻ</span></c:when>
+<c:otherwise>Batch ${a.countBatchId}</c:otherwise></c:choose></td>
                     <td>${a.ingredientName}</td>
                     <td>${view.grouped(a.systemBaseQty)} ${a.unitNameAtCount}</td><td>${view.grouped(a.actualBaseQty)} ${a.unitNameAtCount}</td>
                     <td><strong><c:if test="${a.diffQty.signum() > 0}">+</c:if>${view.grouped(a.diffQty)}</strong></td>
@@ -150,7 +150,7 @@
     <div class="waste-card__head"><div><h3>Ngoại lệ cần xử lý</h3><p>Kiểm tra các trường hợp tồn bị âm sau khi ghi nhận hao hụt, sau đó kiểm kê và điều chỉnh nếu cần.</p></div><strong>${fn:length(openReviews)} trường hợp</strong></div>
     <c:choose><c:when test="${empty openReviews}"><p class="muted">Không có ngoại lệ đang chờ xử lý.</p></c:when><c:otherwise>
         <div class="table-scroll"><table class="table"><thead><tr><th>Loại</th><th>Nguyên liệu</th><th>Tồn trước → sau</th><th>Ghi chú</th><th></th></tr></thead><tbody>
-        <c:forEach var="r" items="${openReviews}"><tr><td><span class="badge ${r.urgent ? 'badge-cancelled' : 'badge-making'}">${view.reviewType(r.reviewType)}</span></td><td>${r.ingredientName}</td><td>${view.grouped(r.qtyBefore)} → ${view.grouped(r.qtyAfter)}</td><td><c:out value="${r.note}" /></td><td><form action="${ctx}/manager/waste" method="post"><input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="resolveReview"><input type="hidden" name="reviewId" value="${r.wasteEventReviewId}"><input type="hidden" name="from" value="${range.fromDate}"><input type="hidden" name="to" value="${range.toDate}"><input type="hidden" name="q" value="${fn:escapeXml(wasteLogQuery)}"><input type="hidden" name="wasteType" value="${wasteLogWasteType}"><input type="hidden" name="status" value="${wasteLogStatus}"><input type="hidden" name="pageSize" value="${wasteLogPage.pageSize}"><input type="hidden" name="page" value="${wasteLogPage.page}"><input class="form-control" name="note" maxlength="255" placeholder="Ghi chú cách xử lý" required><button class="btn btn-primary btn-sm" type="submit">Đánh dấu đã xử lý</button></form></td></tr></c:forEach>
+<c:forEach var="r" items="${openReviews}"><tr><td><span class="badge ${r.urgent ? 'badge-cancelled' : 'badge-making'}">${view.reviewType(r.reviewType)}</span></td><td>${r.ingredientName}</td><td>${view.grouped(r.qtyBefore)} → ${view.grouped(r.qtyAfter)}</td><td><c:out value="${r.note}" /></td><td><form action="${ctx}/manager/waste" method="post"><input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="resolveReview"><input type="hidden" name="wasteEntryId" value="${r.wasteEntryId}"><input type="hidden" name="from" value="${range.fromDate}"><input type="hidden" name="to" value="${range.toDate}"><input type="hidden" name="q" value="${fn:escapeXml(wasteLogQuery)}"><input type="hidden" name="wasteType" value="${wasteLogWasteType}"><input type="hidden" name="status" value="${wasteLogStatus}"><input type="hidden" name="pageSize" value="${wasteLogPage.pageSize}"><input type="hidden" name="page" value="${wasteLogPage.page}"><input class="form-control" name="note" maxlength="255" placeholder="Ghi chú cách xử lý" required><button class="btn btn-primary btn-sm" type="submit">Đánh dấu đã xử lý</button></form></td></tr></c:forEach>
         </tbody></table></div>
     </c:otherwise></c:choose>
 </section>

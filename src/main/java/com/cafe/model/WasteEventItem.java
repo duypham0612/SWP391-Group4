@@ -4,9 +4,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 
-/** inventory.WasteEventItem — ghi hao hụt/làm lại; mỗi dòng kèm 1 txn WASTE ở ledger. */
+/** inventory.WasteEntry — ghi hao hụt/làm lại; mỗi dòng kèm 1 txn WASTE ở ledger. */
 public class WasteEventItem {
-    private int wasteEventItemId;
+    private long wasteEntryId;
     private int branchId;
     private int ingredientId;
     private BigDecimal quantity;
@@ -23,13 +23,13 @@ public class WasteEventItem {
     private String ingredientType;
     private String loggedByName;
     private BigDecimal unitCost;
-    private Long wasteEventId;
+    private String eventGroupId;
     private BigDecimal unitCostAtLog;
     private String costBasis = "LEGACY_ESTIMATE";
     private WasteEvent wasteEvent;
 
-    public int getWasteEventItemId() { return wasteEventItemId; }
-    public void setWasteEventItemId(int v) { this.wasteEventItemId = v; }
+    public long getWasteEntryId() { return wasteEntryId; }
+    public void setWasteEntryId(long v) { this.wasteEntryId = v; }
 
     public int getBranchId() { return branchId; }
     public void setBranchId(int v) { this.branchId = v; }
@@ -73,8 +73,8 @@ public class WasteEventItem {
 
     public BigDecimal getUnitCost() { return unitCost; }
     public void setUnitCost(BigDecimal unitCost) { this.unitCost = unitCost; }
-    public Long getWasteEventId() { return wasteEventId; }
-    public void setWasteEventId(Long v) { wasteEventId = v; }
+    public String getEventGroupId() { return eventGroupId; }
+    public void setEventGroupId(String v) { eventGroupId = v; }
     public BigDecimal getUnitCostAtLog() { return unitCostAtLog; }
     public void setUnitCostAtLog(BigDecimal v) { unitCostAtLog = v; }
     public String getCostBasis() { return costBasis; }

@@ -177,10 +177,9 @@ public class CashierShiftDao {
                 "FROM " + orderTable +
                 "WHERE o.BranchId=? AND o.Status IN ('ACTIVE','COMPLETED') AND EXISTS (" +
                 " SELECT 1 FROM sales.OrderItem oi " +
-                " LEFT JOIN payment.BillItem bi ON bi.OrderItemId=oi.OrderItemId " +
-                " LEFT JOIN payment.Bill b ON b.BillId=bi.BillId " +
+                " LEFT JOIN payment.Bill b ON b.BillId=oi.BillId " +
                 " WHERE oi.OrderId=o.OrderId AND oi.Status<>'CANCELLED' " +
-                " AND (bi.BillItemId IS NULL OR b.Status<>'PAID'))";
+                " AND (oi.BillId IS NULL OR b.Status<>'PAID'))";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, branchId);
             try (ResultSet rs = ps.executeQuery()) {

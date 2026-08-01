@@ -31,8 +31,8 @@
                         <td><input class="pickbox" type="checkbox" name="pick" value="${i.ingredientId}"></td>
                         <td>${i.name} <span class="muted">· ${i.ingredientType == 'PREPPED' ? 'Đã sơ chế' : 'Nguyên liệu thô'}</span></td>
                         <td><select name="unitConversionId_${i.ingredientId}" class="form-control" required>
-                            <c:forEach var="u" items="${unitConversionsByIngredient[i.ingredientId]}">
-                                <option value="${u.ingredientUnitConversionId}">${u.unitName}</option>
+                                <c:forEach var="u" items="${unitChoicesByIngredient[i.ingredientId]}">
+                                    <option value="${u.choiceCode}">${u.unitName}</option>
                             </c:forEach>
                         </select></td>
                         <td><input type="text" name="actual_${i.ingredientId}" class="form-control" placeholder="0" data-vi-number></td>

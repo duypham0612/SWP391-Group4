@@ -1,19 +1,20 @@
 package com.cafe.service.cashier;
 
-import com.cafe.common.*;
 import com.cafe.config.DBConnection;
-import com.cafe.dao.cashier.*;
-import com.cafe.dao.shared.*;
-import com.cafe.model.*;
-import com.cafe.service.shared.VoucherService;
+import com.cafe.model.Bill;
+import com.cafe.model.BillLine;
+import com.cafe.model.DiningTable;
+import com.cafe.model.Order;
+import com.cafe.model.OrderItem;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-/** Tạo, tách/gộp bill và áp voucher trong transaction của use case. */
+/** Tạo, tách/gộp bill và cập nhật giảm giá thủ công trong transaction use case. */
 public final class BillCreationService {
     private final BillingRepository repository;
     private final BillingQueryService queryService;
@@ -27,208 +28,185 @@ public final class BillCreationService {
         this.queryService = java.util.Objects.requireNonNull(queryService);
     }
 
-    /**
-     * Dựng/đồng bộ bill cho phiên: đảm bảo mọi dòng đơn (chưa thuộc bill nào, không CANCELLED)
-     * đều nằm trên 1 bill mặc định UNPAID. Trả về danh sách bill (kèm dòng) của phiên.
-     */
-    public List<Bill> buildSessionBill(int sessionId, int branchId, Integer shiftId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
+    /** Gom mọi dòng chưa thanh toán theo (DiningTableId, BranchId) vào bill UNPAID mặc định. */
+    public List<Bill> buildTableBill(int tableId, int branchId, Integer shiftId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            conn.setAutoCommit(false);
             try {
-                List<Bill> bills = repository.billDao.findUnpaidBySession(c, sessionId);
-                Integer defaultBillId = bills.isEmpty() ? null : bills.get(0).getBillId();
-
-                for (OrderItem it : repository.orderItemDao.findBySession(c, sessionId)) {
-                    if ("CANCELLED".equals(it.getStatus())) continue;
-                    if (repository.billItemDao.existsForOrderItem(c, it.getOrderItemId())) continue;
-                    if (defaultBillId == null) defaultBillId = repository.billDao.insert(c, branchId, sessionId, shiftId);
-                    repository.billItemDao.insert(c, defaultBillId, it.getOrderItemId(), it.getLineTotal());
-                }
-                repository.recomputeSession(c, sessionId);   // no-drift: VAT/discount tính 1 lần rồi phân bổ
-                c.commit();
-            } catch (SQLException e) { c.rollback(); throw e; }
-            finally { c.setAutoCommit(true); }
-            return queryService.getSessionBills(sessionId);
-        }
-    }
-
-    /**
-     * Dựng bill cho một đơn mang đi không có phiên bàn. Idempotent: mở lại checkout không tạo bill
-     * trùng vì mỗi OrderItem chỉ được gắn vào một BillItem.
-     */
-    public List<Bill> buildTakeawayBill(int orderId, int branchId, Integer shiftId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                Order order = repository.orderDao.findById(c, orderId);
-                if (order == null || order.getBranchId() != branchId
-                        || order.getTableSessionId() != null
-                        || !"TAKEAWAY".equals(order.getOrderType())
-                        || !"COMPLETED".equals(order.getStatus())) {
-                    c.rollback();
+                DiningTable table = repository.tableDao.findByIdForUpdate(conn, tableId);
+                if (table == null || table.getBranchId() != branchId
+                        || !"OCCUPIED".equals(table.getStatus())) {
+                    conn.rollback();
                     return List.of();
                 }
+                List<Bill> bills = repository.billDao.findUnpaidByTable(conn, tableId);
+                Integer defaultBillId = bills.isEmpty() ? null : bills.get(0).getBillId();
+                if (defaultBillId != null) repository.billDao.findByIdForUpdate(conn, defaultBillId);
+                boolean changed = false;
+                for (OrderItem item : repository.orderItemDao.findByTable(conn, tableId)) {
+                    if ("CANCELLED".equals(item.getStatus()) || item.getBillId() != null) continue;
+                    if (defaultBillId == null) defaultBillId = repository.billDao.insert(conn, branchId, shiftId);
+                    repository.billLineDao.insert(conn, defaultBillId, item.getOrderItemId());
+                    changed = true;
+                }
+                if (changed) repository.recomputeForBill(conn, defaultBillId);
+                conn.commit();
+            } catch (SQLException | RuntimeException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        }
+        return queryService.getTableBills(tableId);
+    }
 
-                List<Bill> bills = repository.billDao.findByOrder(c, orderId);
+    public List<Bill> buildTakeawayBill(int orderId, int branchId, Integer shiftId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                Order order = repository.orderDao.findById(conn, orderId);
+                if (order == null || order.getBranchId() != branchId
+                        || order.getDiningTableId() != null
+                        || !"TAKEAWAY".equals(order.getOrderType())
+                        || !"COMPLETED".equals(order.getStatus())) {
+                    conn.rollback();
+                    return List.of();
+                }
+                List<Bill> bills = repository.billDao.findByOrder(conn, orderId);
                 Integer defaultBillId = null;
-                Integer voucherId = null;
                 for (Bill bill : bills) {
                     if ("UNPAID".equals(bill.getStatus())) {
                         defaultBillId = bill.getBillId();
-                        voucherId = bill.getVoucherId();
                         break;
                     }
                 }
-
+                if (defaultBillId != null) repository.billDao.findByIdForUpdate(conn, defaultBillId);
                 boolean changed = false;
-                for (OrderItem item : repository.orderItemDao.findByOrder(c, orderId)) {
-                    if ("CANCELLED".equals(item.getStatus())
-                            || repository.billItemDao.existsForOrderItem(c, item.getOrderItemId())) continue;
-                    if (defaultBillId == null) {
-                        defaultBillId = repository.billDao.insert(c, branchId, null, shiftId);
-                    }
-                    repository.billItemDao.insert(c, defaultBillId, item.getOrderItemId(), item.getLineTotal());
+                for (OrderItem item : repository.orderItemDao.findByOrder(conn, orderId)) {
+                    if ("CANCELLED".equals(item.getStatus()) || item.getBillId() != null) continue;
+                    if (defaultBillId == null) defaultBillId = repository.billDao.insert(conn, branchId, shiftId);
+                    repository.billLineDao.insert(conn, defaultBillId, item.getOrderItemId());
                     changed = true;
                 }
-                if (changed) repository.recomputeWithVoucher(c, defaultBillId, voucherId);
-                c.commit();
+                if (changed) repository.recomputeForBill(conn, defaultBillId);
+                conn.commit();
             } catch (SQLException | RuntimeException e) {
-                c.rollback();
+                conn.rollback();
                 throw e;
             } finally {
-                c.setAutoCommit(true);
+                conn.setAutoCommit(true);
             }
         }
         return queryService.getOrderBills(orderId);
     }
 
-    /** ★ Tách: chuyển các dòng được chọn sang 1 bill MỚI; recompute cả hai. */
-    public void splitItems(int sessionId, int branchId, Integer shiftId, List<Integer> billItemIds) throws SQLException {
-        if (billItemIds == null || billItemIds.isEmpty()) return;
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
+    public void splitItems(int tableId, int branchId, Integer shiftId, List<Integer> orderItemIds)
+            throws SQLException {
+        if (orderItemIds == null || orderItemIds.isEmpty()) return;
+        try (Connection conn = DBConnection.getConnection()) {
+            conn.setAutoCommit(false);
             try {
-                TableSession session = repository.sessionDao.findById(c, sessionId);
-                if (session == null || session.getBranchId() != branchId
-                        || !"OPEN".equals(session.getStatus())) {
-                    throw new IllegalArgumentException("Phiên bàn không thuộc chi nhánh đang thao tác.");
+                DiningTable table = repository.tableDao.findByIdForUpdate(conn, tableId);
+                if (table == null || table.getBranchId() != branchId
+                        || !"OCCUPIED".equals(table.getStatus())) {
+                    throw new IllegalArgumentException("Bàn không thuộc chi nhánh đang thao tác.");
                 }
-                int newBillId = repository.billDao.insert(c, branchId, sessionId, shiftId);
-                for (Integer biId : billItemIds) {
-                    BillItem bi = repository.billItemDao.findById(c, biId);
-                    if (bi == null) continue;
-                    Bill source = repository.billDao.findById(c, bi.getBillId());
+                int newBillId = repository.billDao.insert(conn, branchId, shiftId);
+                Set<Integer> sourceBillIds = new LinkedHashSet<>();
+                for (Integer orderItemId : orderItemIds) {
+                    BillLine item = repository.billLineDao.findById(conn, orderItemId);
+                    if (item == null) continue;
+                    Bill source = repository.billDao.findByIdForUpdate(conn, item.getBillId());
                     if (source == null || source.getBranchId() != branchId
-                            || source.getTableSessionId() == null
-                            || source.getTableSessionId() != sessionId
+                            || !java.util.Objects.equals(source.getDiningTableId(), tableId)
                             || !"UNPAID".equals(source.getStatus())) {
-                        throw new IllegalArgumentException(
-                                "Có dòng hoá đơn không thuộc phiên bàn đang thao tác.");
+                        throw new IllegalArgumentException("Có dòng hoá đơn không thuộc bàn đang thao tác.");
                     }
-                    repository.billItemDao.reassign(c, biId, newBillId);
+                    sourceBillIds.add(source.getBillId());
+                    repository.billLineDao.reassign(conn, orderItemId, newBillId);
                 }
-                // void các bill rỗng, rồi recompute toàn phiên no-drift (VAT + discount phân bổ theo tỷ lệ)
-                for (Bill b : repository.billDao.findUnpaidBySession(c, sessionId)) {
-                    if (repository.billItemDao.countByBill(c, b.getBillId()) == 0) repository.billDao.markVoid(c, b.getBillId());
+                if (repository.billLineDao.countByBill(conn, newBillId) == 0) {
+                    repository.billDao.markVoid(conn, newBillId);
+                } else {
+                    repository.recomputeForBill(conn, newBillId);
                 }
-                repository.recomputeSession(c, sessionId);
-                c.commit();
-            } catch (SQLException | RuntimeException e) { c.rollback(); throw e; }
-            finally { c.setAutoCommit(true); }
+                for (Integer sourceId : sourceBillIds) {
+                    if (repository.billLineDao.countByBill(conn, sourceId) == 0) {
+                        repository.billDao.markVoid(conn, sourceId);
+                    } else {
+                        repository.recomputeForBill(conn, sourceId);
+                    }
+                }
+                conn.commit();
+            } catch (SQLException | RuntimeException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
         }
     }
 
-    /** Gộp: dồn mọi dòng của các bill vào bill đầu tiên; void các bill rỗng còn lại. */
     public void mergeBills(List<Integer> billIds, int branchId) throws SQLException {
         if (billIds == null || billIds.size() < 2) return;
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
+        try (Connection conn = DBConnection.getConnection()) {
+            conn.setAutoCommit(false);
             try {
-                int target = billIds.get(0);
-                Bill targetBill = repository.billDao.findById(c, target);
-                if (targetBill == null || targetBill.getBranchId() != branchId
-                        || targetBill.getTableSessionId() == null
-                        || !"UNPAID".equals(targetBill.getStatus())) {
-                    throw new IllegalArgumentException(
-                            "Chỉ được gộp hoá đơn chưa thu của cùng một phiên bàn.");
+                Bill target = repository.billDao.findByIdForUpdate(conn, billIds.get(0));
+                if (target == null || target.getBranchId() != branchId
+                        || !"UNPAID".equals(target.getStatus())) {
+                    throw new IllegalArgumentException("Bill đích không hợp lệ.");
                 }
+                BigDecimal mergedDiscount = value(target.getDiscountAmount());
                 for (int i = 1; i < billIds.size(); i++) {
-                    int src = billIds.get(i);
-                    Bill sourceBill = repository.billDao.findById(c, src);
-                    if (sourceBill == null || sourceBill.getBranchId() != branchId
-                            || !"UNPAID".equals(sourceBill.getStatus())
-                            || !java.util.Objects.equals(
-                                    sourceBill.getTableSessionId(), targetBill.getTableSessionId())) {
-                        throw new IllegalArgumentException(
-                                "Chỉ được gộp hoá đơn chưa thu của cùng một phiên bàn.");
+                    Bill source = repository.billDao.findByIdForUpdate(conn, billIds.get(i));
+                    if (source == null || source.getBranchId() != branchId
+                            || !"UNPAID".equals(source.getStatus())
+                            || !java.util.Objects.equals(source.getDiningTableId(), target.getDiningTableId())) {
+                        throw new IllegalArgumentException("Chỉ được gộp bill chưa thu của cùng một bàn.");
                     }
-                    for (BillItem bi : repository.billItemDao.findByBill(c, src)) repository.billItemDao.reassign(c, bi.getBillItemId(), target);
-                    repository.billDao.markVoid(c, src);
+                    mergedDiscount = mergedDiscount.add(value(source.getDiscountAmount()));
+                    for (BillLine item : repository.billLineDao.findByBill(conn, source.getBillId())) {
+                        repository.billLineDao.reassign(conn, item.getOrderItemId(), target.getBillId());
+                    }
+                    repository.billDao.markVoid(conn, source.getBillId());
                 }
-                repository.recomputeForBill(c, target);
-                c.commit();
-            } catch (SQLException | RuntimeException e) { c.rollback(); throw e; }
-            finally { c.setAutoCommit(true); }
+                repository.recomputeWithDiscount(conn, target.getBillId(), mergedDiscount);
+                conn.commit();
+            } catch (SQLException | RuntimeException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
         }
     }
 
-    /** Áp voucher cho 1 bill. Trả về thông điệp lỗi, null nếu OK. */
-    public String applyVoucher(int billId, String code, int branchId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
+    public void setDiscount(int billId, BigDecimal discount, int branchId) throws SQLException {
+        if (discount == null || discount.signum() < 0) {
+            throw new IllegalArgumentException("Giảm giá không hợp lệ.");
+        }
+        try (Connection conn = DBConnection.getConnection()) {
+            conn.setAutoCommit(false);
             try {
-                Bill bill = repository.billDao.findByIdForUpdate(c, billId);
-                if (bill == null) { c.rollback(); return "Không tìm thấy hoá đơn."; }
-                if (bill.getBranchId() != branchId) {
-                    c.rollback();
-                    return "Hoá đơn không thuộc chi nhánh đang thao tác.";
+                Bill bill = repository.billDao.findByIdForUpdate(conn, billId);
+                if (bill == null || bill.getBranchId() != branchId
+                        || !"UNPAID".equals(bill.getStatus())) {
+                    throw new IllegalArgumentException("Hoá đơn không còn hợp lệ để cập nhật giảm giá.");
                 }
-                if (!"UNPAID".equals(bill.getStatus())) {
-                    c.rollback();
-                    return "Hoá đơn đã thanh toán/huỷ.";
-                }
-
-                Voucher v = repository.voucherDao.findByCodeForUpdate(c, code == null ? "" : code.trim());
-                String err = VoucherService.validateVoucherRecord(
-                        v, branchId, repository.voucherBaseAmount(c, bill));
-                if (err != null) { c.rollback(); return err; }
-                int vid = v.getVoucherId();
-                if (bill.getTableSessionId() != null) {
-                    // voucher áp cho cả tab → tính trên TỔNG phiên rồi phân bổ theo tỷ lệ (no-drift)
-                    repository.recomputeSession(c, bill.getTableSessionId(), vid);
-                } else {
-                    repository.recomputeWithVoucher(c, billId, vid);   // bill takeaway lẻ (không phiên)
-                }
-                c.commit();
-            } catch (SQLException | RuntimeException e) { c.rollback(); throw e; }
-            finally { c.setAutoCommit(true); }
-        }
-        return null;
-    }
-
-    public String validateBillVoucher(int billId, int branchId) throws SQLException {
-        Bill bill = queryService.getBill(billId);
-        if (bill == null || bill.getVoucherId() == null) return null;
-        return repository.voucherService.validateVoucherById(bill.getVoucherId(), branchId, bill.getSubtotal());
-    }
-
-    public void removeVoucher(int billId, int branchId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                Bill b = repository.billDao.findByIdForUpdate(c, billId);
-                if (b == null || b.getBranchId() != branchId
-                        || !"UNPAID".equals(b.getStatus())) {
-                    throw new IllegalArgumentException(
-                            "Hoá đơn không thuộc chi nhánh đang thao tác hoặc đã được chốt.");
-                }
-                if (b.getTableSessionId() != null) repository.recomputeSession(c, b.getTableSessionId(), null);
-                else repository.recomputeWithVoucher(c, billId, null);
-                c.commit();
-            } catch (SQLException | RuntimeException e) { c.rollback(); throw e; }
-            finally { c.setAutoCommit(true); }
+                repository.recomputeWithDiscount(conn, billId, discount);
+                conn.commit();
+            } catch (SQLException | RuntimeException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
         }
     }
 
-
+    private static BigDecimal value(BigDecimal amount) {
+        return amount == null ? BigDecimal.ZERO : amount;
+    }
 }

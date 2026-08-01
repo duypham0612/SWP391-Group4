@@ -5,7 +5,6 @@ import com.cafe.config.DBConnection;
 import com.cafe.dao.cashier.*;
 import com.cafe.dao.shared.*;
 import com.cafe.model.*;
-import com.cafe.service.shared.VoucherService;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -13,7 +12,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Set;
 
-/** Chốt thanh toán và đóng phiên/bàn trong một transaction. */
+/** Chốt thanh toán và cập nhật trạng thái bàn trong một transaction. */
 public final class PaymentService {
     private static final Set<String> PAYMENT_METHODS = Set.of("CASH", "TRANSFER", "QR_BANK");
     private final BillingRepository repository;
@@ -38,29 +37,35 @@ public final class PaymentService {
                     c.rollback();
                     return PaymentResult.notPaid();
                 }
-                Bill bill = repository.billDao.findByIdForUpdate(c, billId);
-                if (bill == null || bill.getBranchId() != shift.getBranchId()
-                        || !"UNPAID".equals(bill.getStatus())) {
+                Bill preview = repository.billDao.findById(c, billId);
+                if (preview == null || preview.getBranchId() != shift.getBranchId()
+                        || !"UNPAID".equals(preview.getStatus())) {
                     c.rollback();
                     return PaymentResult.notPaid();
                 }
-                List<BillItem> payableItems = repository.billItemDao.findByBill(c, billId);
+                // Thứ tự khóa thống nhất: shift -> table -> bill. Tránh deadlock với split/build (table -> bill).
+                if (preview.getDiningTableId() != null) {
+                    DiningTable table = repository.tableDao.findByIdForUpdate(c, preview.getDiningTableId());
+                    if (table == null || table.getBranchId() != preview.getBranchId()
+                            || !"OCCUPIED".equals(table.getStatus())) {
+                        c.rollback();
+                        return PaymentResult.notPaid();
+                    }
+                }
+                Bill bill = repository.billDao.findByIdForUpdate(c, billId);
+                if (bill == null || bill.getBranchId() != shift.getBranchId()
+                        || !"UNPAID".equals(bill.getStatus())
+                        || !java.util.Objects.equals(
+                                bill.getDiningTableId(), preview.getDiningTableId())) {
+                    c.rollback();
+                    return PaymentResult.notPaid();
+                }
+                List<BillLine> payableItems = repository.billLineDao.findByBill(c, billId);
                 if (payableItems.isEmpty() || payableItems.stream().anyMatch(item -> !"SERVED".equals(item.getStatus()))
                         || bill.getTotalAmount() == null
                         || bill.getTotalAmount().compareTo(BigDecimal.ZERO) <= 0) {
                     c.rollback();
                     return PaymentResult.notPaid();
-                }
-                if (bill.getVoucherId() != null) {
-                    Voucher voucher = repository.voucherDao.findByIdForUpdate(c, bill.getVoucherId());
-                    String voucherError = VoucherService.validateVoucherRecord(voucher, bill.getBranchId(), bill.getSubtotal());
-                    if (voucherError != null) { c.rollback(); return PaymentResult.notPaid(); }
-                    // Reserve lượt ngay trong transaction. Hết lượt thì không được phép
-                    // chốt bill đã giảm giá.
-                    if (!repository.voucherDao.incrementUsed(c, bill.getVoucherId())) {
-                        c.rollback();
-                        return PaymentResult.notPaid();
-                    }
                 }
                 BigDecimal adjustment = BigDecimal.ZERO.setScale(2);
                 BigDecimal paidAmount = bill.getTotalAmount();
@@ -83,15 +88,12 @@ public final class PaymentService {
                         paymentPayload(billId, method, bill.getTotalAmount(), adjustment,
                                 paidAmount, tendered, change));
 
-                // Nếu phiên không còn bill UNPAID → đóng phiên + trả bàn EMPTY
-                if (bill.getTableSessionId() != null
-                        && repository.billDao.findUnpaidBySession(c, bill.getTableSessionId()).isEmpty()) {
-                    TableSession s = repository.sessionDao.findById(c, bill.getTableSessionId());
-                    if (s != null && "OPEN".equals(s.getStatus())) {
-                        repository.sessionDao.updateStatus(c, s.getTableSessionId(), "CLOSED", true);
-                        repository.tableDao.updateStatus(c, s.getDiningTableId(), "EMPTY");
-                    }
-                    repository.outboxEventDao.markBillRequestProcessed(c, bill.getTableSessionId());
+                // Chỉ trả bàn khi không còn dòng chưa thanh toán nào tại (table, branch).
+                if (bill.getDiningTableId() != null
+                        && !repository.tableDao.hasUnpaidOrders(
+                                c, bill.getDiningTableId(), bill.getBranchId())) {
+                    repository.tableDao.updateStatus(c, bill.getDiningTableId(), "EMPTY");
+                    repository.outboxEventDao.markBillRequestProcessed(c, bill.getDiningTableId());
                 }
                 c.commit();
                 return new PaymentResult(true, paidAmount, tendered, change, adjustment);

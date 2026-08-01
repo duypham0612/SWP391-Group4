@@ -75,8 +75,6 @@
                 <li><a class="${curPath == ctx.concat('/admin/recipe') ? 'active' : ''}" href="${ctx}/admin/recipe"><svg class="ic"><use href="#ic-book"/></svg>Công thức</a></li>
                 <li class="nav-section">Trang công khai</li>
                 <li><a class="${curPath == ctx.concat('/admin/home') ? 'active' : ''}" href="${ctx}/admin/home"><svg class="ic"><use href="#ic-home"/></svg>Trang Home</a></li>
-                <li class="nav-section">Khuyến mãi</li>
-                <li><a class="${curPath == ctx.concat('/admin/voucher') ? 'active' : ''}" href="${ctx}/admin/voucher"><svg class="ic"><use href="#ic-ticket"/></svg>Voucher</a></li>
             </c:when>
             <c:when test="${u.roleCode == 'BRANCH_MANAGER'}">
                 <li class="nav-section">Kho</li>

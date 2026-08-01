@@ -21,7 +21,7 @@ public final class OrderPlacementService {
      * Đặt đơn (COUNTER hoặc QR) — tạo Order + OrderItem(WAITING) + OrderItemModifier, publish order.created.
      * Tất cả trong MỘT transaction. Giá tính server-side (giá menu chi nhánh + Σ priceDelta option).
      */
-    public int placeOrder(int branchId, Integer sessionId, String source, String orderType,
+    public int placeOrder(int branchId, Integer tableId, String source, String orderType,
                           Integer createdBy, List<OrderService.CartLine> lines) throws SQLException {
         if ("COUNTER".equals(source) && createdBy == null)
             throw new BusinessException("Đơn tại quầy bắt buộc có nhân viên tạo.");
@@ -32,6 +32,13 @@ public final class OrderPlacementService {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
             try {
+                if (tableId != null) {
+                    DiningTable table = new DiningTableDao().findByIdForUpdate(conn, tableId);
+                    if (table == null || table.getBranchId() != branchId
+                            || !"OCCUPIED".equals(table.getStatus())) {
+                        throw new BusinessException("Bàn không còn mở hoặc không thuộc chi nhánh hiện tại.");
+                    }
+                }
                 Map<Integer, BigDecimal> priceByProduct = new HashMap<>();
                 Map<Integer, Boolean> is86ByProduct = new HashMap<>();
                 Map<Integer, String> nameByProduct = new HashMap<>();
@@ -52,7 +59,7 @@ public final class OrderPlacementService {
 
                 Order o = new Order();
                 o.setBranchId(branchId);
-                o.setTableSessionId(sessionId);
+                o.setDiningTableId(tableId);
                 o.setSource(source);
                 o.setOrderType(orderType == null ? "DINE_IN" : orderType);
                 o.setStatus("ACTIVE");
@@ -99,21 +106,19 @@ public final class OrderPlacementService {
                     List<Integer> optionIds = validateOptions(conn, line.productId, line.optionIds);
 
                     // gom priceDelta của các option đã chọn
-                    BigDecimal unit = base;
                     Map<Integer, BigDecimal> deltaByOption = new HashMap<>();
                     Map<Integer, String> nameByOption = new HashMap<>();
                     for (Integer optId : optionIds) {
                         ModifierOption opt = repository.optionDao.findById(conn, optId);
                         deltaByOption.put(optId, opt.getPriceDelta());
                         nameByOption.put(optId, opt.getName());
-                        unit = unit.add(opt.getPriceDelta());
                     }
 
                     OrderItem it = new OrderItem();
                     it.setOrderId(orderId);
                     it.setProductId(line.productId);
                     it.setQuantity(line.quantity);
-                    it.setUnitPrice(unit);
+                    it.setUnitPrice(base);
                     it.setNote(line.note);
                     it.setStatus("WAITING");
                     it.setProductNameAtOrder(nameByProduct.get(line.productId));

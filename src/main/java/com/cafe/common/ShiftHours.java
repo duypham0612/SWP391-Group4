@@ -12,7 +12,10 @@ public final class ShiftHours {
     private ShiftHours() {}
 
     public static double hours(LocalTime start, LocalTime end) {
-        return Duration.between(start, end).toMinutes() / 60.0;
+        if (start == null || end == null || start.equals(end)) return 0d;
+        long minutes = Duration.between(start, end).toMinutes();
+        if (minutes < 0) minutes += 24 * 60;
+        return minutes / 60.0;
     }
 
     /** Giờ làm thực tế giữa hai mốc chấm công (UTC), làm tròn 0.1h. Thiếu mốc hoặc âm → 0. */

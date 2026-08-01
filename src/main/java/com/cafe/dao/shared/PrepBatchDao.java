@@ -67,7 +67,7 @@ public class PrepBatchDao {
 
     private static final String COLUMNS =
         "pb.PrepBatchId, pb.BranchId, pb.PreppedIngredientId, pb.QuantityProduced, pb.MadeBy, pb.MadeAt, " +
-        "pb.ExpiresAt, pb.Status, pb.VoidedAt, pb.WrittenOffAt, pb.WriteOffWasteEventItemId, pb.ClientRequestId, " +
+        "pb.ExpiresAt, pb.Status, pb.VoidedAt, pb.WrittenOffAt, pb.WriteOffWasteEntryId, pb.ClientRequestId, " +
         "pb.RequiresApproval, pb.ReviewedAt, pb.ReviewedBy, " +
         "i.Name AS IngName, i.Unit AS IngUnit, u.FullName AS MadeByName, ru.FullName AS ReviewedByName ";
 
@@ -240,11 +240,11 @@ public class PrepBatchDao {
      * Đóng vòng đời mẻ quá hạn: gắn dòng hao hụt đã ghi. Điều kiện WrittenOffAt IS NULL là chốt
      * nguyên tử — bấm hai lần hoặc hai barista cùng xử lý một mẻ thì chỉ một lần trừ tồn được ghi nhận.
      */
-    public int markWrittenOff(Connection conn, int prepBatchId, int branchId, int wasteEventItemId) throws SQLException {
+    public int markWrittenOff(Connection conn, int prepBatchId, int branchId, long wasteEntryId) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE inventory.PrepBatch SET WrittenOffAt=SYSUTCDATETIME(), WriteOffWasteEventItemId=? "
+                "UPDATE inventory.PrepBatch SET WrittenOffAt=SYSUTCDATETIME(), WriteOffWasteEntryId=? "
                         + "WHERE PrepBatchId=? AND BranchId=? AND Status='ACTIVE' AND WrittenOffAt IS NULL")) {
-            ps.setInt(1, wasteEventItemId);
+            ps.setLong(1, wasteEntryId);
             ps.setInt(2, prepBatchId);
             ps.setInt(3, branchId);
             return ps.executeUpdate();
@@ -396,8 +396,8 @@ public class PrepBatchDao {
         if (va != null) b.setVoidedAt(va.toLocalDateTime());
         Timestamp wo = rs.getTimestamp("WrittenOffAt");
         if (wo != null) b.setWrittenOffAt(wo.toLocalDateTime());
-        int wasteEventItemId = rs.getInt("WriteOffWasteEventItemId");
-        b.setWriteOffWasteEventItemId(rs.wasNull() ? null : wasteEventItemId);
+        long wasteEntryId = rs.getLong("WriteOffWasteEntryId");
+        b.setWriteOffWasteEntryId(rs.wasNull() ? null : wasteEntryId);
         b.setClientRequestId(rs.getString("ClientRequestId"));
         b.setRequiresApproval(rs.getBoolean("RequiresApproval"));
         Timestamp rv = rs.getTimestamp("ReviewedAt");

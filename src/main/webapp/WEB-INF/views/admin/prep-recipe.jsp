@@ -25,7 +25,7 @@
             <label for="yieldQty">Sản lượng một mẻ (${prepped.unit})</label>
             <input id="yieldQty" type="number" name="yieldQty" class="form-control"
                    min="0.001" max="999999999.999" step="0.001"
-                   value="${view.plain(prepRecipe.yieldQty)}" required>
+                   value="${view.plain(prepped.prepYieldQty)}" required>
         </div>
         <button type="submit" class="btn btn-primary">Lưu sản lượng</button>
     </form>
@@ -40,7 +40,7 @@
 </c:if>
 
 <c:choose>
-    <c:when test="${empty prepRecipe}">
+            <c:when test="${empty prepped.prepYieldQty}">
         <div class="alert alert-info">Hãy lưu sản lượng một mẻ trước khi thêm nguyên liệu thô.</div>
     </c:when>
     <c:when test="${empty rawIngredients}">
@@ -56,7 +56,7 @@
                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                 <input type="hidden" name="action" value="addPrepLines">
                 <input type="hidden" name="preppedId" value="${prepped.ingredientId}">
-                <input type="hidden" name="yieldQty" value="${view.plain(prepRecipe.yieldQty)}">
+            <input type="hidden" name="yieldQty" value="${view.plain(prepped.prepYieldQty)}">
                 <div class="table-wrap">
                     <table class="table recipe-draft-table">
                         <thead>
@@ -116,18 +116,18 @@
             <tbody>
                 <c:forEach var="line" items="${prepLines}">
                     <tr>
-                        <td>${line.rawIngredientName}</td>
+                    <td>${line.ingredientName}</td>
                         <td>
                             <form action="${ctx}/admin/recipe" method="post"
                                   style="display:inline-flex;gap:6px;align-items:center">
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                 <input type="hidden" name="action" value="updatePrepLine">
                                 <input type="hidden" name="preppedId" value="${prepped.ingredientId}">
-                                <input type="hidden" name="lineId" value="${line.prepRecipeIngredientId}">
+                                <input type="hidden" name="lineId" value="${line.recipeId}">
                                 <input type="number" name="quantity" class="form-control"
                                        style="width:120px" min="2" max="999999999"
                                        step="1" value="${view.integer(line.quantity)}" required>
-                                <span class="muted">${line.rawIngredientUnit}/${prepped.unit}</span>
+                                <span class="muted">${line.ingredientUnit}/${prepped.unit}</span>
                                 <button type="submit" class="btn btn-ghost btn-sm">Lưu</button>
                             </form>
                         </td>
@@ -137,7 +137,7 @@
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                 <input type="hidden" name="action" value="deletePrepLine">
                                 <input type="hidden" name="preppedId" value="${prepped.ingredientId}">
-                                <input type="hidden" name="lineId" value="${line.prepRecipeIngredientId}">
+                                <input type="hidden" name="lineId" value="${line.recipeId}">
                                 <button type="submit" class="btn btn-ghost btn-sm">Xóa</button>
                             </form>
                         </td>

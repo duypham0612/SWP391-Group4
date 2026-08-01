@@ -15,7 +15,9 @@ public class OrderItem {
     private int branchId;
     private int productId;
     private int quantity;
-    private BigDecimal unitPrice;      // giá tại thời điểm đặt (đã gồm modifier)
+    private BigDecimal unitPrice;      // giá sản phẩm tại thời điểm đặt; modifier snapshot ở OrderItemModifier
+    private Integer billId;
+    private BigDecimal billedAmount;   // snapshot chốt bill, tuyệt đối không tính lại khi đọc bill cũ
     private String note;
     private String status;             // OrderItemStatus
     private LocalDateTime startedAt;
@@ -41,7 +43,7 @@ public class OrderItem {
     private String categoryName;
     private String baristaName;
     private String preparedByName;
-    private String sessionStatus;      // sales.TableSession.Status (OPEN/CLOSED) — nhận biết khách đã thanh toán
+    private String tableStatus;        // sales.DiningTable.Status (EMPTY/OCCUPIED)
     private Integer orderBranchId;
     private List<OrderItemModifier> modifiers = new ArrayList<>();
     private int waitedSeconds;
@@ -73,6 +75,12 @@ public class OrderItem {
 
     public BigDecimal getUnitPrice() { return unitPrice; }
     public void setUnitPrice(BigDecimal v) { this.unitPrice = v; }
+
+    public Integer getBillId() { return billId; }
+    public void setBillId(Integer v) { this.billId = v; }
+
+    public BigDecimal getBilledAmount() { return billedAmount; }
+    public void setBilledAmount(BigDecimal v) { this.billedAmount = v; }
 
     public String getNote() { return note; }
     public void setNote(String v) { this.note = v; }
@@ -132,8 +140,8 @@ public class OrderItem {
     public String getPreparedByName() { return preparedByName; }
     public void setPreparedByName(String v) { this.preparedByName = v; }
 
-    public String getSessionStatus() { return sessionStatus; }
-    public void setSessionStatus(String v) { this.sessionStatus = v; }
+    public String getTableStatus() { return tableStatus; }
+    public void setTableStatus(String v) { this.tableStatus = v; }
 
     public Integer getOrderBranchId() { return orderBranchId; }
     public void setOrderBranchId(Integer v) { this.orderBranchId = v; }
@@ -213,6 +221,17 @@ public class OrderItem {
     }
 
     public BigDecimal getLineTotal() {
-        return unitPrice == null ? BigDecimal.ZERO : unitPrice.multiply(BigDecimal.valueOf(quantity));
+        if (billedAmount != null) return billedAmount;
+        BigDecimal total = unitPrice == null
+                ? BigDecimal.ZERO
+                : unitPrice.multiply(BigDecimal.valueOf(quantity));
+        if (modifiers != null) {
+            for (OrderItemModifier modifier : modifiers) {
+                if (modifier != null && modifier.getPriceDelta() != null) {
+                    total = total.add(modifier.getPriceDelta());
+                }
+            }
+        }
+        return total;
     }
 }

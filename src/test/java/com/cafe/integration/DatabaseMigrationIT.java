@@ -30,8 +30,8 @@ public class DatabaseMigrationIT extends SqlServerIntegrationSupport {
         assertEquals(3, scalarInt(connection(),
                 "SELECT COUNT(*) FROM catalog.Product"));
         assertEquals(6, scalarInt(connection(),
-                "SELECT COUNT(*) FROM catalog.IngredientUnitConversion "
-                        + "WHERE IsBaseUnit=1 AND IsActive=1 AND FactorToBase=1"));
+                "SELECT COUNT(*) FROM catalog.Ingredient "
+                        + "WHERE IngredientType='RAW' AND IsActive=1"));
         AuthService auth = new AuthService();
         for (String username : new String[]{"admin", "manager1", "cashier1", "barista1"}) {
             assertNotNull(auth.authenticate(username, "123456"),

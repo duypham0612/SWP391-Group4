@@ -87,7 +87,7 @@
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                 <input type="hidden" name="action" value="updateLine">
                                 <input type="hidden" name="productId" value="${product.productId}">
-                                <input type="hidden" name="lineId" value="${l.productRecipeId}">
+                            <input type="hidden" name="lineId" value="${l.recipeId}">
                                 <input type="number" name="quantity" class="form-control"
                                        style="width:100px" min="2" max="999999999"
                                        step="1" value="${view.integer(l.quantity)}" required>
@@ -100,7 +100,7 @@
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                 <input type="hidden" name="action" value="deleteLine">
                                 <input type="hidden" name="productId" value="${product.productId}">
-                                <input type="hidden" name="lineId" value="${l.productRecipeId}">
+                            <input type="hidden" name="lineId" value="${l.recipeId}">
                                 <button type="submit" class="btn btn-ghost btn-sm">Xoá</button>
                             </form>
                         </td>

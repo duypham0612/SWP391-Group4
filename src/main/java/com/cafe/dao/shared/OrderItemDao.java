@@ -25,7 +25,7 @@ public class OrderItemDao {
     }
 
     private static final String SELECT =
-        "SELECT oi.OrderItemId, oi.OrderId, oi.BranchId, oi.ProductId, oi.Quantity, oi.UnitPrice, oi.Note, oi.Status, " +
+        "SELECT oi.OrderItemId, oi.OrderId, oi.BranchId, oi.ProductId, oi.Quantity, oi.UnitPrice,oi.BillId,oi.BilledAmount,oi.Note,oi.Status, " +
         "       oi.StartedAt, oi.DoneAt, oi.ServedAt, oi.BaristaId, oi.PreparedBy, " +
         "       oi.HasIssue, oi.IssueReason, oi.IssueReportedBy, oi.IssueReportedAt, " +
         "       oi.RemakeCount, oi.RemakeInventoryReserved, oi.PickedUpBy, oi.PickedUpAt, " +
@@ -35,14 +35,13 @@ public class OrderItemDao {
         "       CASE WHEN oi.DoneAt IS NULL THEN NULL " +
         "            ELSE DATEDIFF(SECOND, oi.DoneAt, SYSUTCDATETIME()) END AS ServeWaitSeconds, " +
         "       oi.ProductNameAtOrder AS ProductName, p.PrepSeconds, c.Name AS CategoryName, o.BranchId AS OrderBranchId, " +
-        "       o.OrderType, o.CreatedAt AS OrderCreatedAt, o.PickupCode, dt.TableNumber, ts.Status AS SessionStatus, " +
+        "       o.OrderType, o.CreatedAt AS OrderCreatedAt, o.PickupCode, dt.TableNumber,dt.Status AS TableStatus, " +
         "       bu.FullName AS BaristaName, cu.FullName AS PreparedByName " +
         "FROM sales.OrderItem oi " +
         "JOIN catalog.Product p ON p.ProductId=oi.ProductId " +
         "JOIN catalog.Category c ON c.CategoryId=p.CategoryId " +
         "JOIN sales.SalesOrder o    ON o.OrderId=oi.OrderId " +
-        "LEFT JOIN sales.TableSession ts ON ts.TableSessionId=o.TableSessionId " +
-        "LEFT JOIN sales.DiningTable  dt ON dt.DiningTableId=ts.DiningTableId " +
+        "LEFT JOIN sales.DiningTable dt ON dt.DiningTableId=o.DiningTableId " +
         "LEFT JOIN iam.UserAccount bu ON bu.UserId=oi.BaristaId " +
         "LEFT JOIN iam.UserAccount cu ON cu.UserId=oi.PreparedBy ";
 
@@ -261,12 +260,17 @@ public class OrderItemDao {
         return out;
     }
 
-    /** Các món của 1 phiên bàn (cho khách theo dõi). */
-    public List<OrderItem> findBySession(Connection conn, int sessionId) throws SQLException {
+    /** Các món của các đơn tại một bàn (cho khách theo dõi). */
+    public List<OrderItem> findByTable(Connection conn, int tableId) throws SQLException {
         List<OrderItem> out = new ArrayList<>();
-        final String sql = SELECT + "WHERE o.TableSessionId=? ORDER BY oi.OrderItemId";
+        final String sql = SELECT + "WHERE o.DiningTableId=? AND EXISTS (" +
+                "SELECT 1 FROM sales.OrderItem currentItem " +
+                "LEFT JOIN payment.Bill currentBill ON currentBill.BillId=currentItem.BillId " +
+                "WHERE currentItem.OrderId=o.OrderId AND currentItem.Status<>'CANCELLED' " +
+                "AND (currentItem.BillId IS NULL OR currentBill.Status='UNPAID')) " +
+                "ORDER BY oi.OrderItemId";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, sessionId);
+            ps.setInt(1, tableId);
             try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
         }
         return out;
@@ -389,7 +393,7 @@ public class OrderItemDao {
             "SELECT COUNT(DISTINCT oi.OrderItemId) " +
             "FROM sales.OrderItem oi " +
             "JOIN sales.SalesOrder o ON o.OrderId = oi.OrderId " +
-            "JOIN catalog.ProductRecipe pr ON pr.ProductId = oi.ProductId " +
+            "JOIN catalog.Recipe pr ON pr.OwnerType='PRODUCT' AND pr.OwnerId=oi.ProductId " +
             "WHERE o.BranchId = ? AND o.Status = 'ACTIVE' AND oi.Status = 'BLOCKED' " +
             "AND pr.IngredientId IN (" + in + ")";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -523,6 +527,8 @@ public class OrderItemDao {
         it.setProductId(rs.getInt("ProductId"));
         it.setQuantity(rs.getInt("Quantity"));
         it.setUnitPrice(rs.getBigDecimal("UnitPrice"));
+        int billId = rs.getInt("BillId"); if (!rs.wasNull()) it.setBillId(billId);
+        it.setBilledAmount(rs.getBigDecimal("BilledAmount"));
         it.setNote(rs.getString("Note"));
         it.setStatus(rs.getString("Status"));
         Timestamp sa = rs.getTimestamp("StartedAt");
@@ -559,7 +565,7 @@ public class OrderItemDao {
         it.setOrderBranchId(rs.getInt("OrderBranchId"));
         it.setTableNumber(rs.getString("TableNumber"));
         it.setPickupCode(rs.getString("PickupCode"));
-        it.setSessionStatus(rs.getString("SessionStatus"));
+        it.setTableStatus(rs.getString("TableStatus"));
         return it;
     }
 }

@@ -40,7 +40,7 @@
     <div class="qr-top">
         <div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
             <h1>Cà Phê Chain</h1>
-            <a href="${ctx}/qr/track?s=${sessionId}" style="color:#fff;font-size:.86rem">Xem đơn đã gọi</a>
+            <a href="${ctx}/qr/track?t=${tableId}" style="color:#fff;font-size:.86rem">Xem đơn đã gọi</a>
         </div>
         <div class="sub">${table.tableNumber} · Quét QR đặt món tại bàn</div>
     </div>
@@ -101,7 +101,7 @@
 </div>
 
 <script>
-const CSRF='${sessionScope.csrfToken}', CTX='${ctx}', SID=${sessionId};
+const CSRF='${sessionScope.csrfToken}', CTX='${ctx}', TABLE_ID=${tableId};
 let cart=[];
 function fmt(n){return new Intl.NumberFormat('vi-VN').format(n)+' ₫';}
 function showProductError(card,text){
@@ -158,7 +158,7 @@ function placeOrder(){
   fetch(CTX+'/qr/menu?_csrf='+encodeURIComponent(CSRF),{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},
     body:JSON.stringify({items:cart.map(l=>({productId:l.productId,quantity:l.quantity,optionIds:l.optionIds}))})})
    .then(r=>r.json().then(j=>({ok:r.ok,j}))).then(({ok,j})=>{
-     if(ok){location.href=CTX+'/qr/track?s='+j.sessionId;}
+     if(ok){location.href=CTX+'/qr/track?t='+j.tableId;}
      else{
        if(j.code==='ITEM_UNAVAILABLE'&&j.productId){
          cart.forEach(l=>{if(l.productId===j.productId){l.unavailable=true;l.unavailableReason=j.error||'Món hiện không nhận đặt.';}});

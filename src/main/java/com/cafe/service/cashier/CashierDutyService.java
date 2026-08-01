@@ -3,7 +3,6 @@ package com.cafe.service.cashier;
 import com.cafe.config.DBConnection;
 import com.cafe.dao.cashier.CashierShiftDao;
 import com.cafe.dao.manager.AttendanceDao;
-import com.cafe.model.Attendance;
 import com.cafe.model.ShiftAssignment;
 import com.cafe.service.manager.AttendanceService;
 
@@ -91,8 +90,9 @@ public class CashierDutyService {
         // Cùng cửa sổ ca với chấm công để ca đêm sau nửa đêm vẫn được coi là đang trực.
         List<ShiftAssignment> assignments = attendanceService.currentShiftAssignments(c, userId, branchId);
         for (ShiftAssignment assignment : assignments) {
-            Attendance attendance = attendanceDao.findByAssignment(c, assignment.getShiftAssignmentId());
-            if (attendance != null && attendance.getCheckInAt() != null && attendance.getCheckOutAt() == null) {
+            ShiftAssignment attendance = attendanceDao.findByAssignment(c, assignment.getShiftAssignmentId());
+            if (attendance != null && attendance.getAttendanceStatus() != null
+                    && attendance.getCheckInAt() != null && attendance.getCheckOutAt() == null) {
                 return true;
             }
         }

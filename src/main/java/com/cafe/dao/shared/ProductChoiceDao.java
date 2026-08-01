@@ -43,37 +43,32 @@ public class ProductChoiceDao {
         upsertOption(conn, sizeGroupId, "Size M", nonNegative(sizeMDelta));
         upsertOption(conn, sizeGroupId, "Size L", nonNegative(sizeLDelta));
 
-        int sugarGroupId = ensureChoiceGroup(conn, ModifierGroupNames.SUGAR);
+        int sugarGroupId = ensureChoiceGroup(conn, productId, ModifierGroupNames.SUGAR);
         upsertOption(conn, sugarGroupId, "Kh\u00f4ng \u0111\u01b0\u1eddng", BigDecimal.ZERO);
         upsertOption(conn, sugarGroupId, "\u00cdt \u0111\u01b0\u1eddng", BigDecimal.ZERO);
         upsertOption(conn, sugarGroupId, "B\u00ecnh th\u01b0\u1eddng", BigDecimal.ZERO);
         upsertOption(conn, sugarGroupId, "Nhi\u1ec1u \u0111\u01b0\u1eddng", BigDecimal.ZERO);
 
-        int iceGroupId = ensureChoiceGroup(conn, ModifierGroupNames.ICE);
+        int iceGroupId = ensureChoiceGroup(conn, productId, ModifierGroupNames.ICE);
         upsertOption(conn, iceGroupId, "Kh\u00f4ng \u0111\u00e1", BigDecimal.ZERO);
         upsertOption(conn, iceGroupId, "\u00cdt \u0111\u00e1", BigDecimal.ZERO);
         upsertOption(conn, iceGroupId, "B\u00ecnh th\u01b0\u1eddng", BigDecimal.ZERO);
         upsertOption(conn, iceGroupId, "Nhi\u1ec1u \u0111\u00e1", BigDecimal.ZERO);
 
-        ensureProductGroup(conn, productId, sugarGroupId);
-        ensureProductGroup(conn, productId, iceGroupId);
     }
 
     private int ensureProductSizeGroup(Connection conn, int productId) throws SQLException {
         int groupId = findProductSizeGroup(conn, productId);
         if (groupId == 0) {
-            groupId = insertGroup(conn, ModifierGroupNames.productSize(productId));
-            ensureProductGroup(conn, productId, groupId);
+            groupId = insertGroup(conn, productId, ModifierGroupNames.SIZE);
         }
         return groupId;
     }
 
     private int findProductSizeGroup(Connection conn, int productId) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "SELECT TOP (1) mg.ModifierGroupId " +
-                "FROM catalog.ProductModifierGroup pmg " +
-                "JOIN catalog.ModifierGroup mg ON mg.ModifierGroupId=pmg.ModifierGroupId " +
-                "WHERE pmg.ProductId=? AND mg.Name IN(?,?) ORDER BY mg.ModifierGroupId")) {
+                "SELECT TOP (1) ModifierGroupId FROM catalog.ModifierGroup " +
+                "WHERE ProductId=? AND Name IN(?,?) ORDER BY SortOrder,ModifierGroupId")) {
             ps.setInt(1, productId);
             ps.setString(2, ModifierGroupNames.SIZE);
             ps.setString(3, ModifierGroupNames.productSize(productId));
@@ -83,24 +78,28 @@ public class ProductChoiceDao {
         }
     }
 
-    private int ensureChoiceGroup(Connection conn, String name) throws SQLException {
+    private int ensureChoiceGroup(Connection conn, int productId, String name) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
                 "SELECT TOP (1) ModifierGroupId FROM catalog.ModifierGroup WITH (UPDLOCK,HOLDLOCK) " +
-                        "WHERE NameKey=UPPER(LTRIM(RTRIM(?))) COLLATE Latin1_General_100_CI_AI " +
+                        "WHERE ProductId=? AND NameKey=UPPER(LTRIM(RTRIM(?))) COLLATE Latin1_General_100_CI_AI " +
                         "ORDER BY ModifierGroupId")) {
-            ps.setString(1, name);
+            ps.setInt(1, productId);
+            ps.setString(2, name);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return rs.getInt(1);
             }
         }
-        return insertGroup(conn, name);
+        return insertGroup(conn, productId, name);
     }
 
-    private int insertGroup(Connection conn, String name) throws SQLException {
+    private int insertGroup(Connection conn, int productId, String name) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "INSERT INTO catalog.ModifierGroup(Name, IsRequired, MinSelect, MaxSelect) VALUES (?,1,1,1)",
+                "INSERT INTO catalog.ModifierGroup(ProductId,Name,IsRequired,MinSelect,MaxSelect,SortOrder) " +
+                        "VALUES (?,?,1,1,1,?)",
                 Statement.RETURN_GENERATED_KEYS)) {
-            ps.setString(1, name);
+            ps.setInt(1, productId);
+            ps.setString(2, name);
+            ps.setInt(3, sortOrder(name));
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 return keys.next() ? keys.getInt(1) : 0;
@@ -138,16 +137,12 @@ public class ProductChoiceDao {
         }
     }
 
-    private void ensureProductGroup(Connection conn, int productId, int groupId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "IF NOT EXISTS (SELECT 1 FROM catalog.ProductModifierGroup WHERE ProductId=? AND ModifierGroupId=?) " +
-                "INSERT INTO catalog.ProductModifierGroup(ProductId, ModifierGroupId) VALUES (?,?)")) {
-            ps.setInt(1, productId);
-            ps.setInt(2, groupId);
-            ps.setInt(3, productId);
-            ps.setInt(4, groupId);
-            ps.executeUpdate();
-        }
+    private int sortOrder(String name) {
+        if (ModifierGroupNames.isSize(name)) return 1;
+        if (ModifierGroupNames.SUGAR.equals(name)) return 2;
+        if (ModifierGroupNames.ICE.equals(name)) return 3;
+        if ("Topping".equalsIgnoreCase(name)) return 4;
+        return 5;
     }
 
     private static BigDecimal nonNegative(BigDecimal value) {

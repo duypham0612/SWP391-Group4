@@ -4,10 +4,8 @@ import com.cafe.common.BusinessException;
 import com.cafe.common.Constants;
 import com.cafe.web.support.CsrfUtil;
 import com.cafe.model.Branch;
-import com.cafe.model.Role;
 import com.cafe.model.User;
 import com.cafe.service.admin.BranchService;
-import com.cafe.service.admin.RoleService;
 import com.cafe.service.admin.UserService;
 import com.cafe.web.form.FormBindingException;
 import com.cafe.web.form.UserForm;
@@ -26,16 +24,14 @@ import java.util.Objects;
 public class UserServlet extends HttpServlet {
 
     private final UserService service;
-    private final RoleService roleService;
     private final BranchService branchService;
 
     public UserServlet() {
-        this(new UserService(), new RoleService(), new BranchService());
+        this(new UserService(), new BranchService());
     }
 
-    UserServlet(UserService service, RoleService roleService, BranchService branchService) {
+    UserServlet(UserService service, BranchService branchService) {
         this.service = Objects.requireNonNull(service, "service");
-        this.roleService = Objects.requireNonNull(roleService, "roleService");
         this.branchService = Objects.requireNonNull(branchService, "branchService");
     }
 
@@ -59,8 +55,8 @@ public class UserServlet extends HttpServlet {
                         resp.sendRedirect(req.getContextPath() + "/admin/branch");
                         return;
                     }
-                    Role managerRole = roleByCode(Constants.ROLE_MANAGER);
-                    u.setRoleId(managerRole.getRoleId());
+                    RoleOption managerRole = roleByCode(Constants.ROLE_MANAGER);
+                    u.setRoleCode(managerRole.getCode());
                     u.setBranchId(assignmentBranchId);
                     u.setBranchName(assignmentBranch.getName());
                     setAssignmentAttributes(req, assignmentBranch, managerRole);
@@ -78,20 +74,20 @@ public class UserServlet extends HttpServlet {
                 req.setAttribute("staff", u);
                 forwardForm(req, resp, "Sửa nhân sự");
             } else {
-                Integer roleId = parseFilter(req.getParameter("roleId"));
+                String roleCode = parseRoleFilter(req.getParameter("roleCode"));
                 Integer branchId = parseFilter(req.getParameter("branchId"));
                 String q = trim(req.getParameter("q"));
                 int page = parsePage(req.getParameter("page"));
                 int pageSize = 6;
-                int total = service.countUsers(roleId, branchId, q);
+                int total = service.countUsers(roleCode, branchId, q);
                 int totalPages = Math.max(1, (int) Math.ceil(total / (double) pageSize));
                 if (page > totalPages) page = totalPages;
                 int offset = (page - 1) * pageSize;
 
-                req.setAttribute("staffList", service.getUserList(roleId, branchId, q, offset, pageSize));
-                req.setAttribute("roles", roleService.getRoleList());
+                req.setAttribute("staffList", service.getUserList(roleCode, branchId, q, offset, pageSize));
+                req.setAttribute("roles", roleOptions(true));
                 req.setAttribute("branches", branchService.getBranchList());
-                req.setAttribute("fRoleId", roleId);
+                req.setAttribute("fRoleCode", roleCode);
                 req.setAttribute("fBranchId", branchId);
                 req.setAttribute("q", q);
                 req.setAttribute("page", page);
@@ -130,8 +126,8 @@ public class UserServlet extends HttpServlet {
                     resp.sendError(HttpServletResponse.SC_NOT_FOUND);
                     return;
                 }
-                Role managerRole = roleByCode(Constants.ROLE_MANAGER);
-                u.setRoleId(managerRole.getRoleId());
+                RoleOption managerRole = roleByCode(Constants.ROLE_MANAGER);
+                u.setRoleCode(managerRole.getCode());
                 u.setBranchId(assignmentBranchId);
                 u.setBranchName(assignmentBranch.getName());
                 setAssignmentAttributes(req, assignmentBranch, managerRole);
@@ -175,23 +171,21 @@ public class UserServlet extends HttpServlet {
     private void forwardForm(HttpServletRequest req, HttpServletResponse resp, String title)
             throws ServletException, IOException {
         try {
-            List<Role> roles = roleService.getRoleList();
-            roles.removeIf(r -> Constants.ROLE_ADMIN.equals(r.getCode()));
-            req.setAttribute("roles", roles);
+            req.setAttribute("roles", roleOptions(false));
             req.setAttribute("branches", branchService.getBranchListActive());
         } catch (Exception e) { throw new ServletException(e); }
         req.setAttribute("pageTitle", title);
         req.getRequestDispatcher("/WEB-INF/views/admin/user-form.jsp").forward(req, resp);
     }
 
-    private Role roleByCode(String code) throws Exception {
-        for (Role r : roleService.getRoleList()) {
+    private RoleOption roleByCode(String code) {
+        for (RoleOption r : roleOptions(true)) {
             if (code.equals(r.getCode())) return r;
         }
         throw new IllegalStateException("Không tìm thấy vai trò " + code + ".");
     }
 
-    private void setAssignmentAttributes(HttpServletRequest req, Branch branch, Role role) {
+    private void setAssignmentAttributes(HttpServletRequest req, Branch branch, RoleOption role) {
         req.setAttribute("assignmentMode", true);
         req.setAttribute("assignmentBranch", branch);
         req.setAttribute("assignmentRole", role);
@@ -211,6 +205,37 @@ public class UserServlet extends HttpServlet {
         if (s == null || s.isBlank()) return null;
         try { int v = Integer.parseInt(s.trim()); return v <= 0 ? null : v; }
         catch (NumberFormatException e) { return null; }
+    }
+
+    private String parseRoleFilter(String value) {
+        String code = trim(value);
+        if (code == null) return null;
+        for (RoleOption role : roleOptions(true)) {
+            if (role.getCode().equals(code)) return code;
+        }
+        return null;
+    }
+
+    private List<RoleOption> roleOptions(boolean includeAdmin) {
+        List<RoleOption> roles = new java.util.ArrayList<>();
+        if (includeAdmin) roles.add(new RoleOption(Constants.ROLE_ADMIN, "Quản trị hệ thống"));
+        roles.add(new RoleOption(Constants.ROLE_MANAGER, "Quản lý chi nhánh"));
+        roles.add(new RoleOption(Constants.ROLE_CASHIER, "Thu ngân"));
+        roles.add(new RoleOption(Constants.ROLE_BARISTA, "Pha chế"));
+        return roles;
+    }
+
+    public static final class RoleOption {
+        private final String code;
+        private final String name;
+
+        RoleOption(String code, String name) {
+            this.code = code;
+            this.name = name;
+        }
+
+        public String getCode() { return code; }
+        public String getName() { return name; }
     }
 
     private int parsePage(String s) {

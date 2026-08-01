@@ -30,7 +30,7 @@ public final class KdsOrderWorkflowService {
             if (it == null) return false;
             int rows = repository.itemDao.claim(conn, orderItemId, sessionBranchId, userId);
             if (rows == 0) return false;   // sai trạng thái / khác chi nhánh / đã bị đổi
-            repository.actionDao.insert(conn, orderItemId, sessionBranchId, "CLAIM", "WAITING", "MAKING", null, userId);
+        repository.activityLogDao.insertOrderItem(conn, orderItemId, sessionBranchId, "CLAIM", "WAITING", "MAKING", null, userId);
             repository.publishStatus(conn, it, "MAKING");
             return true;
         });
@@ -64,7 +64,7 @@ public final class KdsOrderWorkflowService {
         if (!it.isRemakeInventoryReserved()) {
             repository.inventoryService.deductForOrderItem(conn, branchId, orderItemId, it.getProductId(), it.getQuantity(), userId);
         }
-        repository.actionDao.insert(conn, orderItemId, branchId, "COMPLETE", "MAKING", "READY", null, userId);
+        repository.activityLogDao.insertOrderItem(conn, orderItemId, branchId, "COMPLETE", "MAKING", "READY", null, userId);
         repository.publishStatus(conn, it, "READY");
         repository.outboxEventDao.insert(conn, EventType.ITEM_READY, String.valueOf(orderItemId), branchId,
                 "{\"orderId\":" + it.getOrderId() + ",\"orderItemId\":" + orderItemId + ",\"by\":" + userId + "}");
@@ -85,7 +85,7 @@ public final class KdsOrderWorkflowService {
             for (OrderItem it : repository.itemDao.findByOrder(conn, orderId)) {
                 if (!"WAITING".equals(it.getStatus())) continue;
                 if (repository.itemDao.claim(conn, it.getOrderItemId(), sessionBranchId, userId) == 0) continue;
-                repository.actionDao.insert(conn, it.getOrderItemId(), sessionBranchId, "CLAIM", "WAITING", "MAKING", null, userId);
+            repository.activityLogDao.insertOrderItem(conn, it.getOrderItemId(), sessionBranchId, "CLAIM", "WAITING", "MAKING", null, userId);
                 repository.publishStatus(conn, it, "MAKING");
                 count++;
             }
@@ -170,7 +170,7 @@ public final class KdsOrderWorkflowService {
             if (repository.itemDao.reclaim(conn, orderItemId, branchId, it.getBaristaId()) == 0) return false;
             String reason = "Thu hồi từ " + (it.getBaristaName() == null ? "barista đã rời ca" : it.getBaristaName())
                     + (actorName == null || actorName.isBlank() ? "" : " bởi " + actorName);
-            repository.actionDao.insert(conn, orderItemId, branchId, "RETURN_QUEUE", "MAKING", "WAITING",
+            repository.activityLogDao.insertOrderItem(conn, orderItemId, branchId, "RETURN_QUEUE", "MAKING", "WAITING",
                     sanitizeReason(reason), actorUserId);
             repository.publishStatus(conn, it, "WAITING");
             return true;
@@ -183,7 +183,7 @@ public final class KdsOrderWorkflowService {
         return repository.tx(conn -> {
             OrderItem it = repository.itemDao.findById(conn, orderItemId);
             if (it == null || repository.itemDao.returnToQueue(conn, orderItemId, branchId, userId) == 0) return false;
-            repository.actionDao.insert(conn, orderItemId, branchId, "RETURN_QUEUE", "MAKING", "WAITING", null, userId);
+        repository.activityLogDao.insertOrderItem(conn, orderItemId, branchId, "RETURN_QUEUE", "MAKING", "WAITING", null, userId);
             repository.publishStatus(conn, it, "WAITING");
             return true;
         });

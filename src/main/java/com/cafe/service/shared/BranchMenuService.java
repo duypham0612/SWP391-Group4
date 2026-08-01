@@ -8,7 +8,7 @@ import com.cafe.config.DBConnection;
 import com.cafe.dao.shared.BranchMenuDao;
 import com.cafe.dao.shared.MenuBlockRequestDao;
 import com.cafe.dao.shared.OutboxEventDao;
-import com.cafe.dao.shared.ProductRecipeDao;
+import com.cafe.dao.shared.RecipeDao;
 import com.cafe.model.BranchMenuItem;
 import com.cafe.model.MenuBlockRequest;
 import com.cafe.model.Suggest86Row;
@@ -28,24 +28,24 @@ public class BranchMenuService {
 
     private final BranchMenuDao dao;
     private final MenuBlockRequestDao menuBlockDao;
-    private final ProductRecipeDao productRecipeDao;
+    private final RecipeDao recipeDao;
     private final OutboxEventDao outboxEventDao;
 
     public BranchMenuService() {
-        this(new BranchMenuDao(), new MenuBlockRequestDao(), new ProductRecipeDao(), new OutboxEventDao());
+        this(new BranchMenuDao(), new MenuBlockRequestDao(), new RecipeDao(), new OutboxEventDao());
     }
     public BranchMenuService(BranchMenuDao dao, MenuBlockRequestDao menuBlockDao,
-                             ProductRecipeDao productRecipeDao, OutboxEventDao outboxEventDao) {
+                             RecipeDao recipeDao, OutboxEventDao outboxEventDao) {
         this.dao = java.util.Objects.requireNonNull(dao);
         this.menuBlockDao = java.util.Objects.requireNonNull(menuBlockDao);
-        this.productRecipeDao = java.util.Objects.requireNonNull(productRecipeDao);
+        this.recipeDao = java.util.Objects.requireNonNull(recipeDao);
         this.outboxEventDao = java.util.Objects.requireNonNull(outboxEventDao);
     }
 
     /** B3 · Gợi ý 86 (soft): món còn bán nhưng có nguyên liệu đã cạn (≤0) — để barista cân nhắc báo hết. */
     public List<Suggest86Row> getSuggested86(int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            return productRecipeDao.findProductsWithDepletedIngredient(conn, branchId);
+            return recipeDao.findProductsWithDepletedIngredient(conn, branchId);
         }
     }
 
@@ -86,8 +86,7 @@ public class BranchMenuService {
      * B3 · Barista báo tạm hết: mở yêu cầu chờ duyệt + khoá món khỏi POS/QR trong CÙNG tx.
      *
      * <p>Đây là ĐƯỜNG DUY NHẤT bật cờ 86, cặp với {@link #reopen86} là đường duy nhất tắt. Cờ
-     * {@code BranchMenu.IsTemporarilyUnavailable} và yêu cầu còn mở trong {@code catalog.MenuBlockRequest} phải luôn khớp:
-     * unique index {@code UX_MenuBlockRequest_Open} chỉ cho mỗi món một yêu cầu mở, nên nếu có đường
+     * {@code BranchMenu.IsTemporarilyUnavailable} và các cột {@code BranchMenu.Block*} phải luôn khớp; nếu có đường
      * khác hạ cờ mà bỏ quên yêu cầu thì barista sẽ không báo hết món đó lại được nữa. Vì vậy
      * {@link #save} và {@code BranchMenuDao.upsert} cố ý không ghi cột này.
      */
@@ -114,6 +113,8 @@ public class BranchMenuService {
                 r.setBackInEta(etaUtc);
                 r.setRequestedBy(userId);
                 int requestId = menuBlockDao.insert(conn, r);
+                if (requestId == 0)
+                    throw new BusinessException("Món này đang có yêu cầu chờ xử lý.");
                 // ETA có thể null (sự cố bất định) — cột BackInEta đã cho NULL.
                 Timestamp etaTs = etaUtc == null ? null : Timestamp.valueOf(etaUtc);
                 if (dao.updateIs86(conn, branchId, productId, true, etaTs) != 1) {
@@ -130,9 +131,8 @@ public class BranchMenuService {
                 conn.commit();
             } catch (SQLException e) {
                 conn.rollback();
-                if (isDuplicateOpenRequest(e)) {
-                    throw new BusinessException("Món này đang có yêu cầu chờ xử lý.");
-                }
+                if (e.getErrorCode() >= 50000)
+                    throw new BusinessException("Người báo tạm hết không còn hoạt động tại chi nhánh này.");
                 throw e;
             } catch (RuntimeException e) {
                 conn.rollback();
@@ -184,12 +184,39 @@ public class BranchMenuService {
                         + ",\"by\":" + reviewerId + "}";
                 outboxEventDao.insert(conn, EventType.MENU_86_CHANGED, String.valueOf(open.getProductId()), branchId, payload);
                 conn.commit();
-            } catch (SQLException | RuntimeException e) {
+            } catch (SQLException e) {
                 conn.rollback();
+                if (e.getErrorCode() >= 50000)
+                    throw new BusinessException("Người duyệt không còn hoạt động tại chi nhánh này.");
                 throw e;
+            } catch (RuntimeException e) { conn.rollback(); throw e;
             } finally {
                 conn.setAutoCommit(true);
             }
+        }
+    }
+
+    /** Manager duyệt việc chặn món; yêu cầu vẫn mở cho tới khi món được mở bán lại. */
+    public void approve86(int branchId, int productId, int reviewerId, String reviewNote)
+            throws SQLException {
+        if (reviewerId <= 0) throw new BusinessException("Không xác định được người duyệt.");
+        try (Connection conn = DBConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                MenuBlockRequest open = menuBlockDao.findOpenById(conn, productId, branchId);
+                if (open == null || !"PENDING".equals(open.getStatus()))
+                    throw new BusinessException("Yêu cầu đã được xử lý.");
+                if (menuBlockDao.review(conn, productId, branchId, "APPROVED",
+                        reviewerId, reviewNote, false) != 1)
+                    throw new BusinessException("Yêu cầu đã được xử lý.");
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                if (e.getErrorCode() >= 50000)
+                    throw new BusinessException("Người duyệt không còn hoạt động tại chi nhánh này.");
+                throw e;
+            } catch (RuntimeException e) { conn.rollback(); throw e; }
+            finally { conn.setAutoCommit(true); }
         }
     }
 
@@ -274,7 +301,7 @@ public class BranchMenuService {
     /**
      * Gỡ món khỏi menu chi nhánh. Xoá dòng BranchMenu là mất luôn cờ 86, nên yêu cầu báo hết còn mở
      * phải đóng theo trong CÙNG tx — bỏ sót thì lần publish lại sau đó barista vướng
-     * {@code UX_MenuBlockRequest_Open} và không báo hết món này được nữa.
+     * trạng thái Block* phải được ghi lịch sử trước khi xoá dòng menu.
      */
     public void remove(int branchId, int productId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
@@ -300,15 +327,4 @@ public class BranchMenuService {
         throw new BusinessException("Món không hợp lệ.");
     }
 
-    private boolean isDuplicateOpenRequest(SQLException e) {
-        for (Throwable t = e; t != null; t = t.getCause()) {
-            if (t instanceof SQLException se) {
-                int code = se.getErrorCode();
-                if (code == 2601 || code == 2627) return true;
-                String msg = se.getMessage();
-                if (msg != null && msg.contains("UX_MenuBlockRequest_Open")) return true;
-            }
-        }
-        return false;
-    }
 }

@@ -58,11 +58,11 @@ public class AttendanceServlet extends HttpServlet {
                 req.getSession().setAttribute("flashOk", "Đã lưu chấm công (tick = duyệt).");
             } else if ("reject".equals(action)) {
                 service.rejectAttendance(
-                        Integer.parseInt(req.getParameter("attendanceId")), approverId, branchId);
+                        Integer.parseInt(req.getParameter("assignmentId")), approverId, branchId);
             } else if ("reopen".equals(action)) {
-                service.reopenAttendance(Integer.parseInt(req.getParameter("attendanceId")), branchId);
+                service.reopenAttendance(Integer.parseInt(req.getParameter("assignmentId")), branchId);
             } else if ("edit".equals(action)) {
-                int id = Integer.parseInt(req.getParameter("attendanceId"));
+                int id = Integer.parseInt(req.getParameter("assignmentId"));
                 LocalDateTime ci = parse(req.getParameter("checkInAt"));
                 LocalDateTime co = parse(req.getParameter("checkOutAt"));
                 service.updateAttendance(id, branchId, ci, co);

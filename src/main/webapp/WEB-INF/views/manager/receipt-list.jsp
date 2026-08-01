@@ -36,10 +36,10 @@
                         <tr>
                             <td>
                                 <c:if test="${r.status == 'DRAFT'}">
-                                    <input class="rbox" type="checkbox" name="rid" value="${r.stockReceiptId}">
+                                    <input class="rbox" type="checkbox" name="rid" value="${r.receiptBatchId}">
                                 </c:if>
                             </td>
-                            <td>${r.stockReceiptId}</td>
+                            <td>${r.receiptBatchId}</td>
                             <td><c:choose><c:when test="${not empty r.supplierName}">${r.supplierName}</c:when><c:otherwise><span class="muted">—</span></c:otherwise></c:choose></td>
                             <td>
                                 <c:choose>
@@ -50,7 +50,7 @@
                             </td>
                             <td>${view.grouped(r.totalCost)} ₫</td>
                             <td>${r.receivedByName}</td>
-                            <td><a class="btn btn-ghost btn-sm" href="${ctx}/manager/receipt?action=view&id=${r.stockReceiptId}">Xem</a></td>
+                            <td><a class="btn btn-ghost btn-sm" href="${ctx}/manager/receipt?action=view&id=${r.receiptBatchId}">Xem</a></td>
                         </tr>
                     </c:forEach>
                 </tbody>

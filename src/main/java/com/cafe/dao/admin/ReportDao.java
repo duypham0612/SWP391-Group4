@@ -53,10 +53,9 @@ public class ReportDao {
 
     public List<ReportRow> topProducts(Connection conn, int top) throws SQLException {
         final String sql =
-            "SELECT TOP " + top + " oi.ProductNameAtOrder AS Label, SUM(oi.Quantity) AS Cnt, ISNULL(SUM(bi.Amount),0) AS Amt " +
-            "FROM payment.BillItem bi " +
-            "JOIN payment.Bill b      ON b.BillId=bi.BillId AND b.Status='PAID' " +
-            "JOIN sales.OrderItem oi  ON oi.OrderItemId=bi.OrderItemId " +
+            "SELECT TOP " + top + " oi.ProductNameAtOrder AS Label,SUM(oi.Quantity) AS Cnt,ISNULL(SUM(oi.BilledAmount),0) AS Amt " +
+            "FROM sales.OrderItem oi " +
+            "JOIN payment.Bill b ON b.BillId=oi.BillId AND b.Status='PAID' " +
             "GROUP BY oi.ProductNameAtOrder ORDER BY Amt DESC";
         return query(conn, sql);
     }
@@ -124,10 +123,9 @@ public class ReportDao {
     public List<ReportRow> topProducts(Connection conn, int top, LocalDateTime fromUtc,
                                        LocalDateTime toUtc) throws SQLException {
         final String sql =
-            "SELECT TOP " + top + " oi.ProductNameAtOrder AS Label, SUM(oi.Quantity) AS Cnt, ISNULL(SUM(bi.Amount),0) AS Amt " +
-            "FROM payment.BillItem bi " +
-            "JOIN payment.Bill b      ON b.BillId=bi.BillId AND b.Status='PAID' AND b.PaidAt >= ? AND b.PaidAt < ? " +
-            "JOIN sales.OrderItem oi  ON oi.OrderItemId=bi.OrderItemId " +
+            "SELECT TOP " + top + " oi.ProductNameAtOrder AS Label,SUM(oi.Quantity) AS Cnt,ISNULL(SUM(oi.BilledAmount),0) AS Amt " +
+            "FROM sales.OrderItem oi " +
+            "JOIN payment.Bill b ON b.BillId=oi.BillId AND b.Status='PAID' AND b.PaidAt>=? AND b.PaidAt<? " +
             "GROUP BY oi.ProductNameAtOrder ORDER BY Amt DESC";
         return queryRange(conn, sql, fromUtc, toUtc);
     }

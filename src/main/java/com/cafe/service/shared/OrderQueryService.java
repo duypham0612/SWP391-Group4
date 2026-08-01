@@ -99,21 +99,21 @@ public final class OrderQueryService {
         }
     }
 
-    public List<OrderItem> getSessionItemStatuses(int sessionId) throws SQLException {
+    public List<OrderItem> getTableItemStatuses(int tableId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            return repository.itemDao.findBySession(conn, sessionId);
+            return repository.itemDao.findByTable(conn, tableId);
         }
     }
 
     /** WAITING → MAKING, khóa món bằng BaristaId trong cùng transaction. */
-    public List<com.cafe.model.ProductRecipe> getRecipeIngredients(int productId) throws SQLException {
+    public List<Recipe> getRecipeIngredients(int productId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             return repository.productRecipeDao.findByProduct(conn, productId);
         }
     }
 
     /** Nguyên liệu trong công thức đang cạn tại chi nhánh — dựng modal kiểm kê khi bỏ chặn. */
-    public List<ProductRecipe> getDepletedRecipeIngredients(int branchId, int productId) throws SQLException {
+    public List<Recipe> getDepletedRecipeIngredients(int branchId, int productId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             return repository.productRecipeDao.findDepletedByProduct(conn, branchId, productId);
         }
@@ -192,17 +192,16 @@ public final class OrderQueryService {
                 attachModifiers(conn, items);
                 o.setItems(items);
                 o.setStale(o.getCreatedAt() != null && dayStart != null && o.getCreatedAt().isBefore(dayStart));
-                // R3 · trạng thái thanh toán tổng đơn (suy từ các bill của phiên bàn)
-                o.setPaymentStatus(paymentStatusFor(o.getTableSessionId() == null
-                        ? repository.billDao.findStatusesByOrder(conn, o.getOrderId())
-                        : repository.billDao.findStatusesBySession(conn, o.getTableSessionId())));
+                // R3 · trạng thái thanh toán tổng đơn suy từ bill chứa các dòng của đơn.
+                o.setPaymentStatus(paymentStatusFor(
+                        repository.billDao.findStatusesByOrder(conn, o.getOrderId())));
             }
             return orders;
         }
     }
 
     /**
-     * R3 · Suy trạng thái thanh toán cấp đơn từ status các bill của phiên (ưu tiên trên xuống):
+     * R3 · Suy trạng thái thanh toán cấp đơn từ status các bill chứa dòng đơn (ưu tiên trên xuống):
      * PAID = có bill PAID & hết UNPAID · ERROR = có bill VOID mà chưa thu được · còn lại PAYING.
      */
     private String paymentStatusFor(List<String> billStatuses) {
@@ -217,9 +216,9 @@ public final class OrderQueryService {
         return "PAYING";
     }
 
-    public List<Order> getSessionOrders(int sessionId) throws SQLException {
+    public List<Order> getTableOrders(int tableId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            List<Order> orders = repository.orderDao.findBySession(conn, sessionId);
+            List<Order> orders = repository.orderDao.findByTable(conn, tableId);
             for (Order o : orders) {
                 List<OrderItem> items = repository.itemDao.findByOrder(conn, o.getOrderId());
                 attachModifiers(conn, items);

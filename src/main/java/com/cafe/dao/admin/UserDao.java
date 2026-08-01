@@ -19,12 +19,15 @@ public class UserDao {
 
     private static final String BASE_SELECT =
         "SELECT u.UserId, u.Username, u.PasswordHash, u.FullName, u.Email, u.Phone, " +
-        "       u.RoleId, u.BranchId, u.Status, " +
-        "       r.Code AS RoleCode, r.Name AS RoleName, b.Name AS BranchName, " +
+        "       u.RoleCode, u.BranchId, u.HourlyRate, u.Status, " +
+        "       " + roleNameCase("u.RoleCode") + " AS RoleName, b.Name AS BranchName, " +
         "       b.IsActive AS BranchActive, b.ManagerUserId AS BranchManagerUserId " +
         "FROM iam.UserAccount u " +
-        "JOIN iam.Role r       ON u.RoleId = r.RoleId " +
         "LEFT JOIN org.Branch b ON u.BranchId = b.BranchId ";
+
+    private static final String ROLE_ORDER =
+            "CASE u.RoleCode WHEN 'ADMIN' THEN 1 WHEN 'BRANCH_MANAGER' THEN 2 " +
+            "WHEN 'CASHIER' THEN 3 WHEN 'BARISTA' THEN 4 ELSE 5 END";
 
     public User findByUsername(Connection conn, String username) throws SQLException {
         final String sql = BASE_SELECT + "WHERE u.Username = ?";
@@ -72,7 +75,7 @@ public class UserDao {
     }
 
     public List<User> findAll(Connection conn) throws SQLException {
-        final String sql = BASE_SELECT + "ORDER BY r.RoleId, u.Username";
+        final String sql = BASE_SELECT + "ORDER BY " + ROLE_ORDER + ", u.Username";
         List<User> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
@@ -82,7 +85,7 @@ public class UserDao {
     }
 
     public List<User> findByBranch(Connection conn, int branchId) throws SQLException {
-        final String sql = BASE_SELECT + "WHERE u.BranchId = ? ORDER BY r.RoleId, u.Username";
+        final String sql = BASE_SELECT + "WHERE u.BranchId = ? ORDER BY " + ROLE_ORDER + ", u.Username";
         List<User> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, branchId);
@@ -94,14 +97,15 @@ public class UserDao {
     }
 
     /** A2 · lọc theo vai trò/chi nhánh/từ khoá và phân trang (null = bỏ qua). */
-    public List<User> findFiltered(Connection conn, Integer roleId, Integer branchId,
+    public List<User> findFiltered(Connection conn, String roleCode, Integer branchId,
                                    String q, int offset, int limit) throws SQLException {
         StringBuilder sql = new StringBuilder(BASE_SELECT + "WHERE 1=1");
-        appendFilterWhere(sql, roleId, branchId, q);
-        sql.append(" ORDER BY r.RoleId, u.Username OFFSET ? ROWS FETCH NEXT ? ROWS ONLY");
+        appendFilterWhere(sql, roleCode, branchId, q);
+        sql.append(" ORDER BY ").append(ROLE_ORDER)
+           .append(", u.Username OFFSET ? ROWS FETCH NEXT ? ROWS ONLY");
         List<User> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
-            int i = bindFilters(ps, roleId, branchId, q);
+            int i = bindFilters(ps, roleCode, branchId, q);
             ps.setInt(i++, Math.max(0, offset));
             ps.setInt(i, Math.max(1, limit));
             try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
@@ -109,22 +113,21 @@ public class UserDao {
         return out;
     }
 
-    public int countFiltered(Connection conn, Integer roleId, Integer branchId, String q) throws SQLException {
+    public int countFiltered(Connection conn, String roleCode, Integer branchId, String q) throws SQLException {
         StringBuilder sql = new StringBuilder(
             "SELECT COUNT(*) FROM iam.UserAccount u " +
-            "JOIN iam.Role r ON u.RoleId = r.RoleId " +
             "LEFT JOIN org.Branch b ON u.BranchId = b.BranchId " +
             "WHERE 1=1");
-        appendFilterWhere(sql, roleId, branchId, q);
+        appendFilterWhere(sql, roleCode, branchId, q);
         try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
-            bindFilters(ps, roleId, branchId, q);
+            bindFilters(ps, roleCode, branchId, q);
             try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getInt(1) : 0; }
         }
     }
 
     /** A2.F6 · danh sách user theo mã vai trò (vd BRANCH_MANAGER cho dropdown gán quản lý). */
     public List<User> findByRoleCode(Connection conn, String roleCode) throws SQLException {
-        final String sql = BASE_SELECT + "WHERE r.Code = ? AND u.Status = 'ACTIVE' ORDER BY u.FullName";
+        final String sql = BASE_SELECT + "WHERE u.RoleCode = ? AND u.Status = 'ACTIVE' ORDER BY u.FullName";
         List<User> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, roleCode);
@@ -169,9 +172,9 @@ public class UserDao {
         final String sql = "SELECT CASE " +
                 "WHEN EXISTS(SELECT 1 FROM org.Branch WHERE ManagerUserId=?) THEN 'MANAGER' " +
                 "WHEN EXISTS(SELECT 1 FROM payment.CashierShift WHERE CashierId=? AND ClosedAt IS NULL) THEN 'CASHIER_SHIFT' " +
-                "WHEN EXISTS(SELECT 1 FROM hr.Attendance a JOIN hr.ShiftAssignment sa " +
-                " ON sa.ShiftAssignmentId=a.ShiftAssignmentId WHERE sa.UserId=? " +
-                " AND a.CheckInAt IS NOT NULL AND a.CheckOutAt IS NULL) THEN 'ATTENDANCE' " +
+                "WHEN EXISTS(SELECT 1 FROM hr.ShiftAssignment sa WHERE sa.UserId=? " +
+                " AND sa.AttendanceStatus IS NOT NULL " +
+                " AND sa.CheckInAt IS NOT NULL AND sa.CheckOutAt IS NULL) THEN 'ATTENDANCE' " +
                 "WHEN EXISTS(SELECT 1 FROM hr.ShiftAssignment WHERE UserId=? AND WorkDate>= " +
                 " CONVERT(date,DATEADD(hour,7,SYSUTCDATETIME()))) " +
                 "THEN 'FUTURE_SHIFT' ELSE NULL END";
@@ -208,29 +211,20 @@ public class UserDao {
         }
     }
 
-    public boolean hasRoleCode(Connection conn, int roleId, String roleCode) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "SELECT 1 FROM iam.Role WHERE RoleId=? AND Code=?")) {
-            ps.setInt(1, roleId);
-            ps.setString(2, roleCode);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next();
-            }
-        }
-    }
-
     public int insert(Connection conn, User u, String passwordHash) throws SQLException {
-        final String sql = "INSERT INTO iam.UserAccount(Username, PasswordHash, FullName, Email, Phone, RoleId, BranchId, Status) " +
-                "VALUES (?,?,?,?,?,?,?,?)";
+        final String sql = "INSERT INTO iam.UserAccount(Username, PasswordHash, FullName, Email, Phone, RoleCode, BranchId, HourlyRate, Status) " +
+                "VALUES (?,?,?,?,?,?,?,?,?)";
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, u.getUsername());
             ps.setString(2, passwordHash);
             ps.setString(3, u.getFullName());
             ps.setString(4, u.getEmail());
             ps.setString(5, u.getPhone());
-            ps.setInt(6, u.getRoleId());
+            ps.setString(6, u.getRoleCode());
             if (u.getBranchId() == null) ps.setNull(7, Types.INTEGER); else ps.setInt(7, u.getBranchId());
-            ps.setString(8, u.getStatus() == null ? "ACTIVE" : u.getStatus());
+            if (u.getHourlyRate() == null) ps.setNull(8, Types.DECIMAL);
+            else ps.setBigDecimal(8, u.getHourlyRate());
+            ps.setString(9, u.getStatus() == null ? "ACTIVE" : u.getStatus());
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 return keys.next() ? keys.getInt(1) : 0;
@@ -240,15 +234,17 @@ public class UserDao {
 
     /** Cập nhật hồ sơ (không đổi mật khẩu). */
     public void update(Connection conn, User u) throws SQLException {
-        final String sql = "UPDATE iam.UserAccount SET FullName=?, Email=?, Phone=?, RoleId=?, BranchId=?, Status=? WHERE UserId=?";
+        final String sql = "UPDATE iam.UserAccount SET FullName=?, Email=?, Phone=?, RoleCode=?, BranchId=?, HourlyRate=?, Status=? WHERE UserId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, u.getFullName());
             ps.setString(2, u.getEmail());
             ps.setString(3, u.getPhone());
-            ps.setInt(4, u.getRoleId());
+            ps.setString(4, u.getRoleCode());
             if (u.getBranchId() == null) ps.setNull(5, Types.INTEGER); else ps.setInt(5, u.getBranchId());
-            ps.setString(6, u.getStatus());
-            ps.setInt(7, u.getUserId());
+            if (u.getHourlyRate() == null) ps.setNull(6, Types.DECIMAL);
+            else ps.setBigDecimal(6, u.getHourlyRate());
+            ps.setString(7, u.getStatus());
+            ps.setInt(8, u.getUserId());
             ps.executeUpdate();
         }
     }
@@ -265,17 +261,17 @@ public class UserDao {
         }
     }
 
-    private void appendFilterWhere(StringBuilder sql, Integer roleId, Integer branchId, String q) {
-        if (roleId != null) sql.append(" AND u.RoleId = ?");
+    private void appendFilterWhere(StringBuilder sql, String roleCode, Integer branchId, String q) {
+        if (roleCode != null) sql.append(" AND u.RoleCode = ?");
         if (branchId != null) sql.append(" AND u.BranchId = ?");
         if (q != null && !q.isBlank()) {
             sql.append(" AND (u.FullName LIKE ? OR u.Username LIKE ? OR u.Email LIKE ? OR u.Phone LIKE ?)");
         }
     }
 
-    private int bindFilters(PreparedStatement ps, Integer roleId, Integer branchId, String q) throws SQLException {
+    private int bindFilters(PreparedStatement ps, String roleCode, Integer branchId, String q) throws SQLException {
         int i = 1;
-        if (roleId != null) ps.setInt(i++, roleId);
+        if (roleCode != null) ps.setString(i++, roleCode);
         if (branchId != null) ps.setInt(i++, branchId);
         if (q != null && !q.isBlank()) {
             String like = "%" + q.trim() + "%";
@@ -295,7 +291,7 @@ public class UserDao {
         u.setFullName(rs.getString("FullName"));
         u.setEmail(rs.getString("Email"));
         u.setPhone(rs.getString("Phone"));
-        u.setRoleId(rs.getInt("RoleId"));
+        u.setHourlyRate(rs.getBigDecimal("HourlyRate"));
         int branchId = rs.getInt("BranchId");
         u.setBranchId(rs.wasNull() ? null : branchId);
         u.setStatus(rs.getString("Status"));
@@ -307,5 +303,13 @@ public class UserDao {
         u.setBranchManaged(u.getBranchId() == null
                 ? null : rs.getObject("BranchManagerUserId") != null);
         return u;
+    }
+
+    private static String roleNameCase(String column) {
+        return "CASE " + column +
+                " WHEN 'ADMIN' THEN N'Quản trị hệ thống'" +
+                " WHEN 'BRANCH_MANAGER' THEN N'Quản lý chi nhánh'" +
+                " WHEN 'CASHIER' THEN N'Thu ngân'" +
+                " WHEN 'BARISTA' THEN N'Pha chế' ELSE " + column + " END";
     }
 }

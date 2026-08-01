@@ -7,12 +7,16 @@ import java.time.LocalDateTime;
 public class StockAdjustment {
     private int stockAdjustmentId;
     private int branchId;
-    /** Biên bản kiểm kê chứa dòng này; null = điều chỉnh lẻ (Barista báo hết / đếm lại). */
-    private Integer stockCountId;
+    /** UUID nhóm các dòng cùng phiên; null = điều chỉnh lẻ (Barista báo hết / đếm lại). */
+    private String countBatchId;
+    private LocalDateTime countedAt;
+    private Integer countedBy;
+    private String countNote;
     private int ingredientId;
     private BigDecimal systemBaseQty;
     private BigDecimal actualBaseQty;
-    private int ingredientUnitConversionId;
+    /** Lựa chọn tạm từ form: 0=đơn vị gốc, 1=đơn vị mua; không lưu DB. */
+    private int unitChoice;
     private BigDecimal countedQuantity;
     private String unitNameAtCount;
     private BigDecimal factorToBaseAtCount;
@@ -29,8 +33,14 @@ public class StockAdjustment {
     public int getStockAdjustmentId() { return stockAdjustmentId; }
     public void setStockAdjustmentId(int stockAdjustmentId) { this.stockAdjustmentId = stockAdjustmentId; }
 
-    public Integer getStockCountId() { return stockCountId; }
-    public void setStockCountId(Integer v) { this.stockCountId = v; }
+    public String getCountBatchId() { return countBatchId; }
+    public void setCountBatchId(String v) { this.countBatchId = v; }
+    public LocalDateTime getCountedAt() { return countedAt; }
+    public void setCountedAt(LocalDateTime v) { this.countedAt = v; }
+    public Integer getCountedBy() { return countedBy; }
+    public void setCountedBy(Integer v) { this.countedBy = v; }
+    public String getCountNote() { return countNote; }
+    public void setCountNote(String v) { this.countNote = v; }
 
     public int getBranchId() { return branchId; }
     public void setBranchId(int branchId) { this.branchId = branchId; }
@@ -43,8 +53,8 @@ public class StockAdjustment {
 
     public BigDecimal getActualBaseQty() { return actualBaseQty; }
     public void setActualBaseQty(BigDecimal value) { actualBaseQty = value; }
-    public int getIngredientUnitConversionId() { return ingredientUnitConversionId; }
-    public void setIngredientUnitConversionId(int value) { ingredientUnitConversionId = value; }
+    public int getUnitChoice() { return unitChoice; }
+    public void setUnitChoice(int value) { unitChoice = value; }
     public BigDecimal getCountedQuantity() { return countedQuantity; }
     public void setCountedQuantity(BigDecimal value) { countedQuantity = value; }
     public String getUnitNameAtCount() { return unitNameAtCount; }

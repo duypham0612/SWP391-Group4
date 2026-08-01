@@ -12,7 +12,7 @@ class PrepRecipeDisplayTest {
 
     @Test
     void integer_display_removes_the_fractional_part() {
-        PrepRecipeIngredient recipe = new PrepRecipeIngredient();
+        Recipe recipe = new Recipe();
         recipe.setQuantity(new BigDecimal("500.750"));
 
         assertEquals("500", view.integer(recipe.getQuantity()));
@@ -20,7 +20,7 @@ class PrepRecipeDisplayTest {
 
     @Test
     void integer_display_removes_decimal_zeroes() {
-        PrepRecipeIngredient recipe = new PrepRecipeIngredient();
+        Recipe recipe = new Recipe();
         recipe.setQuantity(new BigDecimal("20.000"));
 
         assertEquals("20", view.integer(recipe.getQuantity()));
@@ -28,11 +28,11 @@ class PrepRecipeDisplayTest {
 
     @Test
     void yield_display_removes_only_unneeded_trailing_zeroes() {
-        PrepRecipe recipe = new PrepRecipe();
-        recipe.setYieldQty(new BigDecimal("1000.000"));
-        assertEquals("1000", view.plain(recipe.getYieldQty()));
+        Ingredient recipe = new Ingredient();
+        recipe.setPrepYieldQty(new BigDecimal("1000.000"));
+        assertEquals("1000", view.plain(recipe.getPrepYieldQty()));
 
-        recipe.setYieldQty(new BigDecimal("250.500"));
-        assertEquals("250.5", view.plain(recipe.getYieldQty()));
+        recipe.setPrepYieldQty(new BigDecimal("250.500"));
+        assertEquals("250.5", view.plain(recipe.getPrepYieldQty()));
     }
 }

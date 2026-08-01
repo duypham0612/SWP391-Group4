@@ -1,10 +1,11 @@
 package com.cafe.model;
 
-/** catalog.ProductModifierGroup — gán 1 nhóm modifier cho 1 product. */
+/** DTO tương thích cho quan hệ catalog.ModifierGroup.ProductId. */
 public class ProductModifierGroup {
     private int productId;
     private int modifierGroupId;
     private String groupName; // join
+    private int sortOrder;
 
     public int getProductId() { return productId; }
     public void setProductId(int productId) { this.productId = productId; }
@@ -14,4 +15,6 @@ public class ProductModifierGroup {
 
     public String getGroupName() { return groupName; }
     public void setGroupName(String groupName) { this.groupName = groupName; }
+    public int getSortOrder() { return sortOrder; }
+    public void setSortOrder(int sortOrder) { this.sortOrder = sortOrder; }
 }

@@ -74,7 +74,7 @@ public class WasteReportServlet extends HttpServlet {
         if (!"resolveReview".equals(req.getParameter("action"))) { resp.sendError(400); return; }
         User user = SessionUtil.currentUser(req);
         try {
-            long id = Long.parseLong(req.getParameter("reviewId"));
+            long id = Long.parseLong(req.getParameter("wasteEntryId"));
             boolean ok = service.resolveReview(com.cafe.web.support.BranchContext.requireBranchId(req), id,
                     user == null ? 0 : user.getUserId(), req.getParameter("note"));
             req.getSession().setAttribute(ok ? "flashOk" : "flashError", ok ? "Đã xác nhận ngoại lệ." : "Ngoại lệ đã được xử lý.");

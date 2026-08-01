@@ -77,8 +77,8 @@ class WasteSummaryTest {
     /** Một lần remake có nhiều nguyên liệu chỉ được tính là một lần/ly trên KPI mới. */
     @Test
     void remake_event_is_counted_once_even_when_it_has_many_ingredients() {
-        WasteEventItem coffee = log("REMAKE", "ACTIVE", "Cà phê", 1, "1", "5000"); coffee.setWasteEventId(91L);
-        WasteEventItem milk = log("REMAKE", "ACTIVE", "Sữa", 2, "2", "1000"); milk.setWasteEventId(91L);
+        WasteEventItem coffee = log("REMAKE", "ACTIVE", "Cà phê", 1, "1", "5000"); coffee.setEventGroupId("remake-91");
+        WasteEventItem milk = log("REMAKE", "ACTIVE", "Sữa", 2, "2", "1000"); milk.setEventGroupId("remake-91");
         WasteSummary s = WasteSummary.from(List.of(coffee, milk));
         assertEquals(1, s.getRemakeCount());
         assertMoney(s.getRemakeCost(), "7000");

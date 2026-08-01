@@ -1,17 +1,18 @@
 package com.cafe.service.cashier;
 
-import com.cafe.common.*;
 import com.cafe.config.DBConnection;
-import com.cafe.dao.cashier.*;
-import com.cafe.dao.shared.*;
-import com.cafe.model.*;
-import com.cafe.service.shared.VoucherService;
+import com.cafe.model.Bill;
+import com.cafe.model.BillLine;
+import com.cafe.model.DiningTable;
+import com.cafe.model.Order;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
+import com.cafe.model.OrderItem;
+import com.cafe.model.OrderItemModifier;
 
 /** Các truy vấn bill/checkout không thay đổi trạng thái nghiệp vụ. */
 public final class BillingQueryService {
@@ -23,75 +24,78 @@ public final class BillingQueryService {
     }
 
     public Bill getBill(int billId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            Bill b = repository.billDao.findById(c, billId);
-            if (b != null) b.setItems(repository.billItemDao.findByBill(c, billId));
-            return b;
+        try (Connection conn = DBConnection.getConnection()) {
+            Bill bill = repository.billDao.findById(conn, billId);
+            if (bill != null) bill.setItems(repository.billLineDao.findByBill(conn, billId));
+            return bill;
         }
     }
 
-    public List<Bill> getSessionBills(int sessionId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            List<Bill> bills = repository.billDao.findBySession(c, sessionId);
-            bills.removeIf(b -> "VOID".equals(b.getStatus()));
-            for (Bill b : bills) b.setItems(repository.billItemDao.findByBill(c, b.getBillId()));
+    public List<Bill> getTableBills(int tableId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            List<Bill> bills = repository.billDao.findByTable(conn, tableId);
+            bills.removeIf(bill -> "VOID".equals(bill.getStatus()));
+            for (Bill bill : bills) bill.setItems(repository.billLineDao.findByBill(conn, bill.getBillId()));
             return bills;
         }
     }
 
     public List<Bill> getOrderBills(int orderId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            List<Bill> bills = repository.billDao.findByOrder(c, orderId);
-            for (Bill b : bills) b.setItems(repository.billItemDao.findByBill(c, b.getBillId()));
+        try (Connection conn = DBConnection.getConnection()) {
+            List<Bill> bills = repository.billDao.findByOrder(conn, orderId);
+            for (Bill bill : bills) bill.setItems(repository.billLineDao.findByBill(conn, bill.getBillId()));
             return bills;
         }
     }
 
-    /** Toàn bộ điều kiện thu tiền và branch scope được kiểm tra tại Service. */
     public String validatePayable(int billId, int branchId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            Bill bill = repository.billDao.findById(c, billId);
+        try (Connection conn = DBConnection.getConnection()) {
+            Bill bill = repository.billDao.findById(conn, billId);
             if (bill == null || bill.getBranchId() != branchId) return "Không tìm thấy hoá đơn.";
             if (!"UNPAID".equals(bill.getStatus())) return "Hoá đơn đã được thanh toán hoặc đã huỷ.";
-            List<BillItem> items = repository.billItemDao.findByBill(c, billId);
+            List<BillLine> items = repository.billLineDao.findByBill(conn, billId);
             if (items.isEmpty()) return "Hoá đơn chưa có món, không thể thanh toán.";
-            if (items.stream().anyMatch(item -> !"SERVED".equals(item.getStatus())))
+            if (items.stream().anyMatch(item -> !"SERVED".equals(item.getStatus()))) {
                 return "Chưa thể thanh toán — Barista phải pha xong và Cashier phải bàn giao đủ món trước.";
-            BigDecimal total = bill.getTotalAmount() == null ? BigDecimal.ZERO : bill.getTotalAmount();
-            if (total.signum() <= 0) return "Tổng tiền hoá đơn phải lớn hơn 0.";
-            if (bill.getVoucherId() != null) {
-                Voucher voucher = repository.voucherDao.findById(c, bill.getVoucherId());
-                return VoucherService.validateVoucherRecord(voucher, branchId, bill.getSubtotal());
             }
-            return null;
+            BigDecimal total = bill.getTotalAmount() == null ? BigDecimal.ZERO : bill.getTotalAmount();
+            return total.signum() <= 0 ? "Tổng tiền hoá đơn phải lớn hơn 0." : null;
         }
     }
 
-    public TableSession getOpenSessionForCheckout(int sessionId, int branchId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            TableSession session = repository.sessionDao.findById(c, sessionId);
-            return session != null && session.getBranchId() == branchId && "OPEN".equals(session.getStatus())
-                    ? session : null;
+    public DiningTable getOpenTableForCheckout(int tableId, int branchId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            DiningTable table = repository.tableDao.findById(conn, tableId);
+            return table != null && table.getBranchId() == branchId
+                    && "OCCUPIED".equals(table.getStatus()) ? table : null;
         }
     }
 
-    /** Đơn mang đi chưa trả tiền, kể cả bill UNPAID đã được mở ở lần checkout trước. */
     public List<Order> getTakeawayOrdersAwaitingPayment(int branchId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            List<Order> orders = repository.orderDao.findTakeawayAwaitingPaymentByBranch(c, branchId);
-            for (Order order : orders) order.setItems(repository.orderItemDao.findByOrder(c, order.getOrderId()));
+        try (Connection conn = DBConnection.getConnection()) {
+            List<Order> orders = repository.orderDao.findTakeawayAwaitingPaymentByBranch(conn, branchId);
+            for (Order order : orders) {
+                List<OrderItem> items = repository.orderItemDao.findByOrder(conn, order.getOrderId());
+                Map<Integer, List<OrderItemModifier>> modifiers = repository.orderItemModifierDao.findByItems(
+                        conn, items.stream().map(OrderItem::getOrderItemId).toList());
+                for (OrderItem item : items) {
+                    item.setModifiers(modifiers.getOrDefault(item.getOrderItemId(), List.of()));
+                }
+                order.setItems(items);
+            }
             return orders;
         }
     }
 
     public List<Bill> getBillHistory(int branchId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) { return repository.billDao.findByBranch(c, branchId, 100); }
+        try (Connection conn = DBConnection.getConnection()) {
+            return repository.billDao.findByBranch(conn, branchId, 100);
+        }
     }
 
-    /** C6 · Lịch sử bill trong 1 ca thu ngân. */
     public List<Bill> getBillHistoryByShift(int shiftId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) { return repository.billDao.findByShift(c, shiftId, 200); }
+        try (Connection conn = DBConnection.getConnection()) {
+            return repository.billDao.findByShift(conn, shiftId, 200);
+        }
     }
-
-
 }

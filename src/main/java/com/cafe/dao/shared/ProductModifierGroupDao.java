@@ -9,64 +9,25 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
+/** Adapter đọc nhóm modifier của sản phẩm từ quan hệ 1-N catalog.ModifierGroup.ProductId. */
 public class ProductModifierGroupDao {
-
     public List<ProductModifierGroup> findByProduct(Connection conn, int productId) throws SQLException {
-        final String sql =
-            "SELECT pmg.ProductId, pmg.ModifierGroupId, g.Name AS GroupName " +
-            "FROM catalog.ProductModifierGroup pmg JOIN catalog.ModifierGroup g ON pmg.ModifierGroupId = g.ModifierGroupId " +
-            "WHERE pmg.ProductId = ? " +
-            "ORDER BY CASE WHEN g.Name=N'Size' OR g.Name LIKE N'Size sản phẩm #%' THEN 1 " +
-            "WHEN g.Name=N'Đường' THEN 2 WHEN g.Name=N'Đá' THEN 3 " +
-            "WHEN g.Name=N'Topping' THEN 4 ELSE 5 END, pmg.ModifierGroupId";
+        String sql = "SELECT ProductId,ModifierGroupId,Name AS GroupName,SortOrder "
+                + "FROM catalog.ModifierGroup WHERE ProductId=? ORDER BY SortOrder,ModifierGroupId";
         List<ProductModifierGroup> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, productId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    ProductModifierGroup p = new ProductModifierGroup();
-                    p.setProductId(rs.getInt("ProductId"));
-                    p.setModifierGroupId(rs.getInt("ModifierGroupId"));
-                    p.setGroupName(rs.getString("GroupName"));
-                    out.add(p);
+                    ProductModifierGroup row = new ProductModifierGroup();
+                    row.setProductId(rs.getInt("ProductId"));
+                    row.setModifierGroupId(rs.getInt("ModifierGroupId"));
+                    row.setGroupName(rs.getString("GroupName"));
+                    row.setSortOrder(rs.getInt("SortOrder"));
+                    out.add(row);
                 }
             }
         }
         return out;
-    }
-
-    public boolean exists(Connection conn, int productId, int groupId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "SELECT 1 FROM catalog.ProductModifierGroup WHERE ProductId = ? AND ModifierGroupId = ?")) {
-            ps.setInt(1, productId);
-            ps.setInt(2, groupId);
-            try (ResultSet rs = ps.executeQuery()) { return rs.next(); }
-        }
-    }
-
-    public void insert(Connection conn, int productId, int groupId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "INSERT INTO catalog.ProductModifierGroup(ProductId, ModifierGroupId) VALUES (?,?)")) {
-            ps.setInt(1, productId);
-            ps.setInt(2, groupId);
-            ps.executeUpdate();
-        }
-    }
-
-    public void delete(Connection conn, int productId, int groupId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "DELETE FROM catalog.ProductModifierGroup WHERE ProductId = ? AND ModifierGroupId = ?")) {
-            ps.setInt(1, productId);
-            ps.setInt(2, groupId);
-            ps.executeUpdate();
-        }
-    }
-
-    public void deleteByGroup(Connection conn, int groupId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "DELETE FROM catalog.ProductModifierGroup WHERE ModifierGroupId = ?")) {
-            ps.setInt(1, groupId);
-            ps.executeUpdate();
-        }
     }
 }

@@ -56,7 +56,7 @@ class BaristaMetricsDaoCompositionTest {
         assertEquals(1, metrics.myRemakes());
         assertEquals(3, metrics.myIngredientWastes());
         assertEquals(6, metrics.branchRemakes());
-        assertTrue(sqlSeen.get(0).contains("FROM inventory.WasteEvent"));
+        assertTrue(sqlSeen.get(0).contains("FROM inventory.WasteEntry"));
     }
 
     @Test

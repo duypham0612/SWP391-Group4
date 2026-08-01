@@ -82,17 +82,21 @@ public class OutboxEventDao {
     }
 
     /**
-     * Tín hiệu khách chưa được tiếp nhận theo bàn. AggregateId của hai event là sessionId;
+     * Tín hiệu khách chưa được tiếp nhận theo bàn. AggregateId của hai event là tableId;
      * ưu tiên "xin thanh toán" nếu một bàn đồng thời có cả hai tín hiệu.
      */
     public Map<Integer, String> findPendingSignals(Connection conn, int branchId) throws SQLException {
         final String sql =
-            "SELECT oe.AggregateId, oe.EventType, dt.DiningTableId " +
+            "SELECT oe.AggregateId,oe.EventType,dt.DiningTableId " +
             "FROM ops.OutboxEvent oe " +
-            "JOIN sales.TableSession ts ON ts.TableSessionId=TRY_CONVERT(INT, oe.AggregateId) " +
-            "JOIN sales.DiningTable dt ON dt.DiningTableId=ts.DiningTableId " +
+            "JOIN sales.DiningTable dt ON dt.DiningTableId=TRY_CONVERT(INT,oe.AggregateId) " +
             "WHERE oe.EventType IN (?,?) AND oe.ProcessedAt IS NULL " +
-            "  AND ts.Status='OPEN' AND ts.BranchId=? AND dt.BranchId=? " +
+            "  AND oe.BranchId=? AND dt.BranchId=? AND dt.Status='OCCUPIED' " +
+            "  AND EXISTS (SELECT 1 FROM sales.SalesOrder o " +
+            "      JOIN sales.OrderItem oi ON oi.OrderId=o.OrderId " +
+            "      LEFT JOIN payment.Bill b ON b.BillId=oi.BillId " +
+            "      WHERE o.DiningTableId=dt.DiningTableId AND o.BranchId=dt.BranchId " +
+            "        AND oi.Status<>'CANCELLED' AND (oi.BillId IS NULL OR b.Status='UNPAID')) " +
             "ORDER BY CASE WHEN oe.EventType=? THEN 0 ELSE 1 END, oe.CreatedAt";
         Map<Integer, String> out = new LinkedHashMap<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -112,26 +116,26 @@ public class OutboxEventDao {
     }
 
     /** Đánh dấu cả gọi nhân viên và xin thanh toán đã được thu ngân tiếp nhận. */
-    public int markSignalsProcessed(Connection conn, int sessionId) throws SQLException {
+    public int markSignalsProcessed(Connection conn, int tableId) throws SQLException {
         final String sql =
             "UPDATE ops.OutboxEvent SET ProcessedAt=SYSUTCDATETIME() " +
             "WHERE EventType IN (?,?) AND AggregateId=? AND ProcessedAt IS NULL";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, EventType.SERVICE_CALL.wire());
             ps.setString(2, EventType.BILL_REQUESTED.wire());
-            ps.setString(3, String.valueOf(sessionId));
+            ps.setString(3, String.valueOf(tableId));
             return ps.executeUpdate();
         }
     }
 
-    /** Thanh toán xong tự hạ riêng tín hiệu xin thanh toán của phiên, cùng transaction payBill. */
-    public int markBillRequestProcessed(Connection conn, int sessionId) throws SQLException {
+    /** Thanh toán xong tự hạ riêng tín hiệu xin thanh toán của bàn, cùng transaction payBill. */
+    public int markBillRequestProcessed(Connection conn, int tableId) throws SQLException {
         final String sql =
             "UPDATE ops.OutboxEvent SET ProcessedAt=SYSUTCDATETIME() " +
             "WHERE EventType=? AND AggregateId=? AND ProcessedAt IS NULL";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, EventType.BILL_REQUESTED.wire());
-            ps.setString(2, String.valueOf(sessionId));
+            ps.setString(2, String.valueOf(tableId));
             return ps.executeUpdate();
         }
     }

@@ -2,9 +2,9 @@ package com.cafe.model;
 
 import java.time.LocalDateTime;
 
-/** Sự cố hao hụt cấp nghiệp vụ; một event có thể sinh nhiều WasteEventItem nguyên liệu. */
+/** Metadata sự kiện được lặp trên các dòng cùng WasteEntry.EventGroupId. */
 public class WasteEvent {
-    private long wasteEventId;
+    private String eventGroupId;
     private int branchId;
     private String eventKind;
     private String source;
@@ -16,10 +16,9 @@ public class WasteEvent {
     private Integer shiftAssignmentId;
     private int createdBy;
     private LocalDateTime createdAt;
-    private String clientRequestId;
     private String productName;
 
-    public long getWasteEventId() { return wasteEventId; } public void setWasteEventId(long v) { wasteEventId=v; }
+    public String getEventGroupId() { return eventGroupId; } public void setEventGroupId(String v) { eventGroupId=v; }
     public int getBranchId() { return branchId; } public void setBranchId(int v) { branchId=v; }
     public String getEventKind() { return eventKind; } public void setEventKind(String v) { eventKind=v; }
     public String getSource() { return source; } public void setSource(String v) { source=v; }
@@ -31,7 +30,6 @@ public class WasteEvent {
     public Integer getShiftAssignmentId() { return shiftAssignmentId; } public void setShiftAssignmentId(Integer v) { shiftAssignmentId=v; }
     public int getCreatedBy() { return createdBy; } public void setCreatedBy(int v) { createdBy=v; }
     public LocalDateTime getCreatedAt() { return createdAt; } public void setCreatedAt(LocalDateTime v) { createdAt=v; }
-    public String getClientRequestId() { return clientRequestId; } public void setClientRequestId(String v) { clientRequestId=v; }
     public String getProductName() { return productName; } public void setProductName(String v) { productName=v; }
     public boolean isRemake() { return "REMAKE".equals(eventKind); }
 }

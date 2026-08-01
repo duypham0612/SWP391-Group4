@@ -57,27 +57,7 @@
             <span class="value">${monthSummary.shiftsWorked}</span>
             <div class="muted" style="font-size:.8em;margin-top:4px">trung bình ${monthSummary.avgHoursPerShift}h mỗi ca</div>
         </div>
-        <c:if test="${monthSummary.payrollLocked}">
-            <div class="card stat">
-                <span class="label">Lương đã chốt</span>
-                <span class="value"><fmt:formatNumber value="${monthSummary.lockedPay}" maxFractionDigits="0"/> ₫</span>
-                <div class="muted" style="font-size:.8em;margin-top:4px">
-                    <c:choose>
-                        <c:when test="${monthSummary.hoursMismatch}">
-                            quản lý chốt ${monthSummary.lockedHours}h (chấm công của bạn: ${monthSummary.approvedHours}h)
-                        </c:when>
-                        <c:otherwise>${monthSummary.lockedHours}h × lương/giờ</c:otherwise>
-                    </c:choose>
-                </div>
-            </div>
-        </c:if>
     </div>
-
-    <c:if test="${not monthSummary.payrollLocked}">
-        <div class="alert alert-info" style="margin-top:var(--s4)">
-            Lương tháng này sẽ có khi quản lý chốt bảng lương.
-        </div>
-    </c:if>
 
     <c:if test="${monthSummary.openCount > 0}">
         <div class="alert alert-warn">
@@ -141,7 +121,7 @@
                                 <c:forEach var="r" items="${historyPage.rows}">
                                     <tr>
                                         <td>${view.localDate(r.workDate)}</td>
-                                        <td>${fn:escapeXml(r.templateName)} <span class="muted">${view.timeRange(r.shiftStart, r.shiftEnd)}</span></td>
+                                <td>${fn:escapeXml(r.shiftName)} <span class="muted">${view.timeRange(r.shiftStart, r.shiftEnd)}</span></td>
                                         <td>${view.timeUtc(r.checkInAt)}</td>
                                         <td>${view.timeUtc(r.checkOutAt)}</td>
                                         <td>${view.attendanceHours(r)}</td>

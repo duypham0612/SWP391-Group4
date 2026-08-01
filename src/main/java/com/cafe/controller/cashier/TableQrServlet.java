@@ -1,7 +1,7 @@
 package com.cafe.controller.cashier;
 
 import com.cafe.web.support.QrLink;
-import com.cafe.service.cashier.TableSessionService;
+import com.cafe.service.cashier.DiningTableService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -18,10 +18,10 @@ import com.cafe.model.DiningTable;
 @WebServlet("/cashier/table-qr")
 public class TableQrServlet extends HttpServlet {
 
-    private final TableSessionService service;
+    private final DiningTableService service;
 
-    public TableQrServlet() { this(new TableSessionService()); }
-    TableQrServlet(TableSessionService service) {
+    public TableQrServlet() { this(new DiningTableService()); }
+    TableQrServlet(DiningTableService service) {
         this.service = java.util.Objects.requireNonNull(service);
     }
 

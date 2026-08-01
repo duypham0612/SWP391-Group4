@@ -1,6 +1,7 @@
 package com.cafe.model;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 
 /**
  * iam.UserAccount + thông tin join (roleCode, roleName, branchName) phục vụ hiển thị/RBAC.
@@ -15,8 +16,8 @@ public class User implements Serializable {
     private String fullName;
     private String email;
     private String phone;
-    private int roleId;
     private Integer branchId;      // NULL với Admin (toàn chuỗi)
+    private BigDecimal hourlyRate;
     private String status;
 
     // join
@@ -44,11 +45,11 @@ public class User implements Serializable {
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
 
-    public int getRoleId() { return roleId; }
-    public void setRoleId(int roleId) { this.roleId = roleId; }
-
     public Integer getBranchId() { return branchId; }
     public void setBranchId(Integer branchId) { this.branchId = branchId; }
+
+    public BigDecimal getHourlyRate() { return hourlyRate; }
+    public void setHourlyRate(BigDecimal hourlyRate) { this.hourlyRate = hourlyRate; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

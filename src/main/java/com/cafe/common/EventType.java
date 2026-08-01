@@ -17,8 +17,6 @@ public enum EventType {
     TABLE_OPEN_REQUESTED("table.open_requested"), // Khách quét QR ở bàn chưa mở — xin quầy mở bàn
     BILL_REQUESTED("bill.requested"),
     BILL_VOIDED("bill.voided"),
-    // Voucher đã hết lượt nhưng bill vẫn được thu (Cashier khác dùng hết trước) — Admin đối soát
-    VOUCHER_LIMIT_EXCEEDED("voucher.limit_exceeded"),
     CASHIER_SHIFT_HANDOVER("cashier.shift_handover");
 
     private final String wire;

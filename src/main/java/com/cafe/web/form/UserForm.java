@@ -14,9 +14,12 @@ public record UserForm(User user, String password, int assignmentBranchId) {
         user.setFullName(FormValues.trim(request.getParameter("fullName")));
         user.setEmail(lower(request.getParameter("email")));
         user.setPhone(FormValues.trim(request.getParameter("phone")));
-        user.setRoleId(FormValues.optionalInt(request.getParameter("roleId"), "Vai trò"));
+        user.setRoleCode(FormValues.trim(request.getParameter("roleCode")));
         int branchId = FormValues.optionalInt(request.getParameter("branchId"), "Chi nhánh");
         user.setBranchId(branchId > 0 ? branchId : null);
+        String hourlyRate = FormValues.trim(request.getParameter("hourlyRate"));
+        user.setHourlyRate(hourlyRate == null || hourlyRate.isBlank()
+                ? null : FormValues.decimal(hourlyRate, "Lương theo giờ"));
         String status = FormValues.trim(request.getParameter("status"));
         user.setStatus(status == null || status.isBlank() ? "ACTIVE" : status);
         int assignmentBranchId = FormValues.optionalInt(

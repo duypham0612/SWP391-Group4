@@ -219,8 +219,8 @@
                                     <tbody>
                                         <c:forEach var="l" items="${ps.lines}">
                                             <tr>
-                                                <td data-label="Nguyên liệu thô"><c:out value="${l.rawIngredientName}"/></td>
-                                                <td class="recipe-qty" data-label="Lượng dùng"><strong><c:out value="${view.plain(l.quantity)}"/></strong> <c:out value="${l.rawIngredientUnit}"/></td>
+                                                <td data-label="Nguyên liệu thô"><c:out value="${l.ingredientName}"/></td>
+                                                <td class="recipe-qty" data-label="Lượng dùng"><strong><c:out value="${view.plain(l.quantity)}"/></strong> <c:out value="${l.ingredientUnit}"/></td>
                                             </tr>
                                         </c:forEach>
                                     </tbody>

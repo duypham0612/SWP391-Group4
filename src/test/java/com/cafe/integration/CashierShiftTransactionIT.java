@@ -141,15 +141,12 @@ public class CashierShiftTransactionIT extends SqlServerIntegrationSupport {
     private Fixture fixture(String orderStatus) throws Exception {
         String key = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         int branchId = createBranch();
-        execute("IF NOT EXISTS (SELECT 1 FROM iam.Role WHERE Code='CASHIER') "
-                + "INSERT iam.Role(Code,Name) VALUES ('CASHIER',N'Thu ngân')");
-        int roleId = scalarInt("SELECT RoleId FROM iam.Role WHERE Code='CASHIER'");
         int cashierId;
         int shiftId;
         int billId = 0;
         try (Connection connection = connection(); Statement statement = connection.createStatement()) {
-            statement.executeUpdate("INSERT iam.UserAccount(Username,PasswordHash,FullName,RoleId,BranchId) "
-                    + "VALUES ('cash" + key + "','x',N'IT Cashier'," + roleId + "," + branchId + ")");
+            statement.executeUpdate("INSERT iam.UserAccount(Username,PasswordHash,FullName,RoleCode,BranchId) "
+                    + "VALUES ('cash" + key + "','x',N'IT Cashier','CASHIER'," + branchId + ")");
             cashierId = id(connection,
                     "SELECT UserId FROM iam.UserAccount WHERE Username=?", "cash" + key);
             statement.executeUpdate("INSERT payment.CashierShift(BranchId,CashierId,OpeningCash) "
@@ -180,8 +177,8 @@ public class CashierShiftTransactionIT extends SqlServerIntegrationSupport {
                             + "BranchId,CashierShiftId,Subtotal,VatAmount,TotalAmount,Status) VALUES ("
                             + branchId + "," + shiftId + ",10000,0,10000,'UNPAID')");
                     billId = id(connection, "SELECT MAX(BillId) FROM payment.Bill");
-                    statement.executeUpdate("INSERT payment.BillItem(BillId,BranchId,OrderItemId,Amount) VALUES ("
-                            + billId + "," + branchId + "," + orderItemId + ",10000)");
+                    statement.executeUpdate("UPDATE sales.OrderItem SET BillId=" + billId
+                            + ",BilledAmount=10000 WHERE OrderItemId=" + orderItemId);
                 }
             }
         }

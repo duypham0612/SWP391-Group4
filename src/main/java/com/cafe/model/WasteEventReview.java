@@ -5,12 +5,12 @@ import java.time.LocalDateTime;
 
 /** Ngoại lệ hao hụt cần Manager đối soát, không thay thế StockAdjustment. */
 public class WasteEventReview {
-    private long wasteEventReviewId; private long wasteEventId; private int ingredientId;
+    private long wasteEntryId; private String eventGroupId; private int ingredientId;
     private String ingredientName; private String reviewType; private BigDecimal qtyBefore; private BigDecimal qtyAfter;
     private String status; private String note; private LocalDateTime createdAt; private Integer resolvedBy;
     private LocalDateTime resolvedAt; private String resolutionNote;
-    public long getWasteEventReviewId(){return wasteEventReviewId;} public void setWasteEventReviewId(long v){wasteEventReviewId=v;}
-    public long getWasteEventId(){return wasteEventId;} public void setWasteEventId(long v){wasteEventId=v;}
+    public long getWasteEntryId(){return wasteEntryId;} public void setWasteEntryId(long v){wasteEntryId=v;}
+    public String getEventGroupId(){return eventGroupId;} public void setEventGroupId(String v){eventGroupId=v;}
     public int getIngredientId(){return ingredientId;} public void setIngredientId(int v){ingredientId=v;}
     public String getIngredientName(){return ingredientName;} public void setIngredientName(String v){ingredientName=v;}
     public String getReviewType(){return reviewType;} public void setReviewType(String v){reviewType=v;}

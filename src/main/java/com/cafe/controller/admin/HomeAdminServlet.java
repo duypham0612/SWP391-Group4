@@ -1,7 +1,7 @@
 package com.cafe.controller.admin;
 
 import com.cafe.web.support.CsrfUtil;
-import com.cafe.model.HomeSetting;
+import com.cafe.model.Branch;
 import com.cafe.service.admin.HomeAdminService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -26,8 +26,10 @@ public class HomeAdminServlet extends HttpServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         try {
+            Integer branchId = positiveInt(req.getParameter("branchId"));
             req.setAttribute("products", service.getProductsForAdmin());
-            req.setAttribute("setting", service.getHomeSetting());
+            req.setAttribute("branches", service.getBranches());
+            req.setAttribute("setting", service.getHomeBranch(branchId));
             req.setAttribute("pageTitle", "Trang Home");
             req.getRequestDispatcher("/WEB-INF/views/admin/home-editor.jsp").forward(req, resp);
         } catch (Exception e) { throw new ServletException(e); }
@@ -43,7 +45,9 @@ public class HomeAdminServlet extends HttpServlet {
             if ("saveHomeProducts".equals(action)) {
                 saveHomeProducts(req);
             } else if ("saveContent".equals(action)) {
-                HomeSetting s = new HomeSetting();
+                Branch s = new Branch();
+                Integer branchId = positiveInt(req.getParameter("branchId"));
+                s.setBranchId(branchId == null ? 0 : branchId);
                 s.setHeroEyebrow(trim(req.getParameter("heroEyebrow")));
                 s.setHeroTitle(trim(req.getParameter("heroTitle")));
                 s.setHeroSubtitle(trim(req.getParameter("heroSubtitle")));
@@ -56,7 +60,8 @@ public class HomeAdminServlet extends HttpServlet {
                     req.getSession().setAttribute("flashOk", "Đã lưu nội dung trang Home.");
                 }
             }
-            resp.sendRedirect(ctx + "/admin/home");
+            Integer branchId = positiveInt(req.getParameter("branchId"));
+            resp.sendRedirect(ctx + "/admin/home" + (branchId == null ? "" : "?branchId=" + branchId));
         } catch (Exception e) { throw new ServletException(e); }
     }
 
@@ -88,7 +93,9 @@ public class HomeAdminServlet extends HttpServlet {
         req.getSession().setAttribute("flashOk", "Đã lưu hiển thị và thứ tự các món trên Home.");
     }
 
-    private String validateContent(HomeSetting s) {
+    private String validateContent(Branch s) {
+        if (s.getBranchId() <= 0)
+            return "Vui lòng chọn chi nhánh cần cập nhật hero.";
         if (s.getHeroTitle() == null || s.getHeroTitle().isBlank())
             return "Tiêu đề trang Home không được để trống.";
         return null;
@@ -101,4 +108,14 @@ public class HomeAdminServlet extends HttpServlet {
     }
 
     private String trim(String s) { return s == null || s.isBlank() ? null : s.trim(); }
+
+    private Integer positiveInt(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            int parsed = Integer.parseInt(value.trim());
+            return parsed > 0 ? parsed : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
 }

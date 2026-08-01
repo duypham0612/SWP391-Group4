@@ -2,9 +2,7 @@ package com.cafe.controller.admin;
 
 import com.cafe.web.support.CsrfUtil;
 import com.cafe.common.BusinessException;
-import com.cafe.web.support.SessionUtil;
 import com.cafe.model.Ingredient;
-import com.cafe.model.User;
 import com.cafe.service.admin.IngredientService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -52,33 +50,6 @@ public class IngredientServlet extends HttpServlet {
         String ctx = req.getContextPath();
         String action = req.getParameter("action");
         try {
-            if ("addConversion".equals(action) || "updateConversion".equals(action)
-                    || "deactivateConversion".equals(action)) {
-                int ingredientId = Integer.parseInt(req.getParameter("ingredientId"));
-                User actor = SessionUtil.currentUser(req);
-                int userId = actor == null ? 0 : actor.getUserId();
-                try {
-                    if ("addConversion".equals(action)) {
-                        service.addUnitConversion(ingredientId, req.getParameter("unitName"),
-                                decimal(req.getParameter("factorToBase")), userId);
-                        req.getSession().setAttribute("flashOk", "Đã thêm đơn vị quy đổi.");
-                    } else if ("updateConversion".equals(action)) {
-                        service.updateUnitConversion(Integer.parseInt(req.getParameter("conversionId")),
-                                ingredientId, req.getParameter("unitName"),
-                                decimal(req.getParameter("factorToBase")),
-                                req.getParameter("active") != null, userId);
-                        req.getSession().setAttribute("flashOk", "Đã cập nhật đơn vị quy đổi.");
-                    } else {
-                        service.deactivateUnitConversion(
-                                Integer.parseInt(req.getParameter("conversionId")), ingredientId, userId);
-                        req.getSession().setAttribute("flashOk", "Đã tắt đơn vị quy đổi.");
-                    }
-                } catch (BusinessException e) {
-                    req.getSession().setAttribute("flashError", e.getMessage());
-                }
-                resp.sendRedirect(ctx + "/admin/ingredient?action=edit&id=" + ingredientId);
-                return;
-            }
             if ("delete".equals(action)) {
                 service.deleteIngredient(Integer.parseInt(req.getParameter("id")));
                 req.getSession().setAttribute("flashOk", "Đã xoá nguyên liệu thành công.");
@@ -111,6 +82,10 @@ public class IngredientServlet extends HttpServlet {
         i.setName(trim(req.getParameter("name")));
         i.setUnit(trim(req.getParameter("unit")));
         i.setIngredientType(trim(req.getParameter("ingredientType")));
+        i.setPurchaseUnitName(trim(req.getParameter("purchaseUnitName")));
+        String purchaseFactor = trim(req.getParameter("purchaseFactorToBase"));
+        if (purchaseFactor != null && !purchaseFactor.isBlank())
+            i.setPurchaseFactorToBase(decimal(purchaseFactor));
         if ("PREPPED".equals(i.getIngredientType())) {
             String hours = trim(req.getParameter("shelfLifeHours"));
             if (hours != null && !hours.isBlank()) {
@@ -132,15 +107,6 @@ public class IngredientServlet extends HttpServlet {
     private void forwardForm(HttpServletRequest req, HttpServletResponse resp, String title)
             throws ServletException, IOException {
         req.setAttribute("supportedUnits", IngredientService.SUPPORTED_UNITS);
-        Ingredient ingredient = (Ingredient) req.getAttribute("ingredient");
-        if (ingredient != null && ingredient.getIngredientId() > 0) {
-            try {
-                req.setAttribute("unitConversions",
-                        service.getUnitConversions(ingredient.getIngredientId(), false));
-            } catch (Exception e) {
-                throw new ServletException(e);
-            }
-        }
         req.setAttribute("pageTitle", title);
         req.getRequestDispatcher("/WEB-INF/views/admin/ingredient-form.jsp").forward(req, resp);
     }

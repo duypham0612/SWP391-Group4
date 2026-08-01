@@ -5,7 +5,6 @@ import com.cafe.config.DBConnection;
 import com.cafe.dao.cashier.*;
 import com.cafe.dao.shared.*;
 import com.cafe.model.*;
-import com.cafe.service.shared.VoucherService;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -33,12 +32,11 @@ public final class BillVoidService {
                     return false;
                 }
                 // Ghi lại danh sách món TRƯỚC khi nhả, để event vẫn truy vết được bill đã huỷ gồm gì.
-                List<BillItem> released = repository.billItemDao.findByBill(c, billId);
+                List<BillLine> released = repository.billLineDao.findByBill(c, billId);
                 int r = repository.billDao.markVoid(c, billId);
                 if (r > 0) {
-                    // Nhả BillItem trong CÙNG transaction. Nếu không, UQ_BillItem_OrderItem
-                    // khoá vĩnh viễn các món này khỏi mọi bill mới (tách bill nhầm -> tắc).
-                    repository.billItemDao.deleteByBill(c, billId);
+                    // Nhả cặp BillId/BilledAmount trong CÙNG transaction để dòng có thể lên bill mới.
+                    repository.billLineDao.deleteByBill(c, billId);
 
                     String safeReason = reason == null ? "" : reason.replace("\"", "'");
                     StringBuilder items = new StringBuilder("[");

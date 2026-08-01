@@ -23,6 +23,7 @@
                 <td><span class="badge badge-waiting">${view.menuStatus(r.status)}</span><c:if test="${not empty r.reopenRequestedAt}"><small class="muted" style="display:block">Quầy pha chế đề nghị mở lại</small></c:if></td>
                 <td><div class="btn-row">
                     <form action="${ctx}/manager/menu-block" method="post" style="margin:0"><input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="requestId" value="${r.menuBlockRequestId}"><input type="hidden" name="action" value="reopen"><button type="submit" class="btn btn-sm btn-primary">Mở bán lại</button></form>
+                    <c:if test="${r.status == 'PENDING'}"><form action="${ctx}/manager/menu-block" method="post" style="margin:0"><input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="requestId" value="${r.productId}"><input type="hidden" name="action" value="approve"><button type="submit" class="btn btn-sm btn-primary">Duyệt tạm ngưng</button></form></c:if>
                     <c:if test="${r.status == 'PENDING'}"><form action="${ctx}/manager/menu-block" method="post" style="margin:0"><input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="requestId" value="${r.menuBlockRequestId}"><input type="hidden" name="action" value="reject"><button type="submit" class="btn btn-sm btn-ghost">Không chấp nhận</button></form></c:if>
                 </div></td>
             </tr></c:forEach></tbody>
@@ -34,8 +35,8 @@
     <summary style="cursor:pointer;font-weight:700">Lịch sử xử lý món tạm hết (${fn:length(requestHistory)})</summary>
     <c:choose><c:when test="${empty requestHistory}"><p class="muted">Chưa có lịch sử xử lý.</p></c:when>
         <c:otherwise><div class="table-scroll" style="margin-top:12px"><table class="table">
-            <thead><tr><th>Món</th><th>Lý do</th><th>Trạng thái</th><th>Người xử lý</th><th>Thời điểm đóng</th><th>Ghi chú</th></tr></thead>
-            <tbody><c:forEach var="r" items="${requestHistory}"><tr><td>${r.productName}</td><td>${view.menuReason(r.reason)}</td><td><span class="badge ${r.status == 'REJECTED' ? 'badge-cancelled' : 'badge-ready'}">${view.menuStatus(r.status)}</span></td><td>${empty r.reviewerName ? 'Hệ thống' : r.reviewerName}</td><td>${view.shortUtc(r.closedAt)}</td><td><c:out value="${r.reviewNote}" default="Không có" /></td></tr></c:forEach></tbody>
+            <thead><tr><th>Món</th><th>Trạng thái</th><th>Người xử lý</th><th>Thời điểm đóng</th><th>Ghi chú xử lý</th></tr></thead>
+            <tbody><c:forEach var="r" items="${requestHistory}"><tr><td>${r.productName}</td><td><span class="badge ${r.status == 'REJECTED' ? 'badge-cancelled' : 'badge-ready'}">${view.menuStatus(r.status)}</span></td><td>${empty r.reviewerName ? 'Hệ thống' : r.reviewerName}</td><td>${view.shortUtc(r.closedAt)}</td><td><c:out value="${r.reviewNote}" default="Không có" /></td></tr></c:forEach></tbody>
         </table></div></c:otherwise>
     </c:choose>
 </details>

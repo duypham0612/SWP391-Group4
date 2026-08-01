@@ -96,7 +96,7 @@ public class MyShiftServlet extends HttpServlet {
 
     /**
      * Bộ lọc trạng thái chỉ nhận đúng các mục có trên giao diện; giá trị lạ coi như "Tất cả".
-     * ABSENT/OPEN là trạng thái suy ra từ mốc chấm công, không phải cột Attendance.Status.
+     * ABSENT/OPEN là trạng thái suy ra từ mốc chấm công, không chỉ từ AttendanceStatus.
      */
     private static String stateParam(HttpServletRequest req) {
         String value = textParam(req, "state", 20).toUpperCase();

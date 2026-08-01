@@ -1,7 +1,7 @@
 package com.cafe.controller.barista;
 
 import com.cafe.model.Product;
-import com.cafe.model.ProductRecipe;
+import com.cafe.model.Recipe;
 import com.cafe.service.shared.CatalogReadService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -66,12 +66,12 @@ public class RecipeLookupServlet extends HttpServlet {
                                 "Món được chọn không còn thuộc phạm vi tra cứu hiện tại.");
                     } else {
                         req.setAttribute("selected", selected);
-                        List<ProductRecipe> recipe = catalogReadService.getRecipeForProduct(productId);
+                        List<Recipe> recipe = catalogReadService.getRecipeForProduct(productId);
                         req.setAttribute("recipe", recipe);
                         List<CatalogReadService.OptionImpactRow> impacts =
                                 catalogReadService.getModifierImpactsForProduct(productId);
                         Set<Integer> baseIngredientIds = new HashSet<>();
-                        for (ProductRecipe r : recipe) baseIngredientIds.add(r.getIngredientId());
+                        for (Recipe r : recipe) baseIngredientIds.add(r.getIngredientId());
                         boolean hasExtraIngredient = false;
                         for (CatalogReadService.OptionImpactRow im : impacts) {
                             im.setInBaseRecipe(baseIngredientIds.contains(im.getIngredientId()));
@@ -81,13 +81,14 @@ public class RecipeLookupServlet extends HttpServlet {
                         req.setAttribute("hasExtraIngredient", hasExtraIngredient);
                         // Định mức pha sẵn cho từng nguyên liệu PREPPED trong công thức.
                         List<PrepSection> preps = new ArrayList<>();
-                        for (ProductRecipe r : recipe) {
+                        for (Recipe r : recipe) {
                             if ("PREPPED".equalsIgnoreCase(r.getIngredientType())) {
                                 PrepSection ps = new PrepSection();
                                 ps.name = r.getIngredientName();
                                 ps.unit = r.getIngredientUnit();
-                                ps.recipe = catalogReadService.getPrepRecipe(r.getIngredientId());
-                                if (ps.recipe != null && !ps.recipe.getIngredients().isEmpty()) preps.add(ps);
+                                ps.lines = catalogReadService.getPrepRecipe(r.getIngredientId());
+                                ps.sharedYield = r.getPrepYieldQty();
+                                if (!ps.lines.isEmpty()) preps.add(ps);
                             }
                         }
                         req.setAttribute("preps", preps);
@@ -138,12 +139,11 @@ public class RecipeLookupServlet extends HttpServlet {
     public static class PrepSection {
         public String name;
         public String unit;
-        public com.cafe.model.PrepRecipe recipe;
+        public List<Recipe> lines = List.of();
+        public java.math.BigDecimal sharedYield;
         public String getName() { return name; }
         public String getUnit() { return unit; }
-        public List<com.cafe.model.PrepRecipeIngredient> getLines() {
-            return recipe == null ? List.of() : recipe.getIngredients();
-        }
+        public List<Recipe> getLines() { return lines; }
 
         /**
          * Sản lượng 1 mẻ để hiển thị ở đầu thẻ thay vì lặp lại trên từng dòng nguyên liệu.
@@ -151,7 +151,7 @@ public class RecipeLookupServlet extends HttpServlet {
          * YieldQty là thuộc tính duy nhất của header nên mọi dòng nguyên liệu dùng cùng sản lượng.
          */
         public java.math.BigDecimal getSharedYield() {
-            return recipe == null ? null : recipe.getYieldQty();
+            return sharedYield;
         }
     }
 }

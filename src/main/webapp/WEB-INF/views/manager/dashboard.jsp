@@ -128,7 +128,7 @@
                     <thead><tr><th>Nhân viên</th><th>Ca</th><th>Giờ</th></tr></thead>
                     <tbody>
                         <c:forEach var="a" items="${staffOnShift}">
-                            <tr><td>${a.userName}</td><td>${a.templateName}</td><td>${a.startTime}–${a.endTime}</td></tr>
+                            <tr><td>${a.userName}</td><td>${a.shiftName}</td><td>${a.startTime}–${a.endTime}</td></tr>
                         </c:forEach>
                     </tbody>
                 </table>

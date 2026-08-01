@@ -23,7 +23,7 @@ public final class OrderHandoffService {
             OrderItem it = repository.itemDao.findById(conn, orderItemId);
             if (it == null || repository.itemDao.pickUp(conn, orderItemId, sessionBranchId, userId) == 0) return false;
             int branchId = repository.branchOf(it);
-            repository.actionDao.insert(conn, orderItemId, branchId, "PICK_UP", "READY", "PICKED_UP", null, userId);
+        repository.activityLogDao.insertOrderItem(conn, orderItemId, branchId, "PICK_UP", "READY", "PICKED_UP", null, userId);
             repository.publishStatus(conn, it, "PICKED_UP");
             repository.outboxEventDao.insert(conn, EventType.ITEM_PICKED_UP, String.valueOf(orderItemId), branchId,
                     "{\"orderId\":" + it.getOrderId() + ",\"orderItemId\":" + orderItemId + ",\"by\":" + userId + "}");
@@ -41,7 +41,7 @@ public final class OrderHandoffService {
                     new String[]{"PICKED_UP"}, sessionBranchId, false, false, true, false);
             if (rows == 0) return false;   // không còn READY / khác chi nhánh
             int branchId = repository.branchOf(it);
-            repository.actionDao.insert(conn, orderItemId, branchId, "SERVE", "PICKED_UP", "SERVED", null, userId);
+        repository.activityLogDao.insertOrderItem(conn, orderItemId, branchId, "SERVE", "PICKED_UP", "SERVED", null, userId);
             repository.publishStatus(conn, it, "SERVED");
             repository.completeOrderIfDone(conn, it.getOrderId(), branchId);   // giao món cuối → đơn COMPLETED
             return true;
@@ -57,7 +57,7 @@ public final class OrderHandoffService {
                 if (!"READY".equals(it.getStatus())) continue;
                 if (repository.itemDao.pickUp(conn, it.getOrderItemId(), sessionBranchId, userId) == 0) continue;
                 int branchId = repository.branchOf(it);
-                repository.actionDao.insert(conn, it.getOrderItemId(), branchId, "PICK_UP", "READY", "PICKED_UP", null, userId);
+            repository.activityLogDao.insertOrderItem(conn, it.getOrderItemId(), branchId, "PICK_UP", "READY", "PICKED_UP", null, userId);
                 repository.publishStatus(conn, it, "PICKED_UP");
                 count++;
             }
@@ -79,7 +79,7 @@ public final class OrderHandoffService {
                         new String[]{"PICKED_UP"}, sessionBranchId, false, false, true, false);
                 if (rows == 0) continue;
                 int branchId = repository.branchOf(it);
-                repository.actionDao.insert(conn, it.getOrderItemId(), branchId, "SERVE",
+            repository.activityLogDao.insertOrderItem(conn, it.getOrderItemId(), branchId, "SERVE",
                         "PICKED_UP", "SERVED", null, userId);
                 repository.publishStatus(conn, it, "SERVED");
                 done++;
@@ -117,7 +117,7 @@ public final class OrderHandoffService {
                         new String[]{"PICKED_UP"}, sessionBranchId, false, false, true, false);
                 if (rows == 0) continue;   // đổi bởi người khác / khác chi nhánh
                 int branchId = repository.branchOf(it);
-                repository.actionDao.insert(conn, it.getOrderItemId(), branchId, "SERVE", "PICKED_UP", "SERVED", null, userId);
+            repository.activityLogDao.insertOrderItem(conn, it.getOrderItemId(), branchId, "SERVE", "PICKED_UP", "SERVED", null, userId);
                 repository.publishStatus(conn, it, "SERVED");
                 affectedOrders.add(it.getOrderId());
                 done++;
@@ -146,7 +146,7 @@ public final class OrderHandoffService {
                 repository.outboxEventDao.insert(conn, EventType.ORDER_STATUS_CHANGED, String.valueOf(it.getOrderId()), branchId,
                         "{\"orderId\":" + it.getOrderId() + ",\"status\":\"ACTIVE\"}");
             }
-            repository.actionDao.insert(conn, orderItemId, branchId, "UNDO_SERVE", "SERVED", "PICKED_UP", null, userId);
+        repository.activityLogDao.insertOrderItem(conn, orderItemId, branchId, "UNDO_SERVE", "SERVED", "PICKED_UP", null, userId);
             repository.publishStatus(conn, it, "PICKED_UP");
             return true;
         });

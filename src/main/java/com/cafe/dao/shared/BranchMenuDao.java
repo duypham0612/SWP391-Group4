@@ -148,7 +148,7 @@ public class BranchMenuDao {
     /**
      * Cấu hình menu chi nhánh: bật/tắt bán + giá riêng. CỐ Ý không đụng {@code IsTemporarilyUnavailable}/{@code BackInEta} —
      * cờ hết món chỉ do luồng báo hết ghi ({@code request86}/{@code reopen86}), vì nó phải khớp với
-     * yêu cầu còn mở trong {@code catalog.MenuBlockRequest}. Ghi từ hai đường sẽ làm lệch hai bên:
+     * yêu cầu còn mở trong các cột {@code BranchMenu.Block*}. Ghi từ hai đường sẽ làm lệch hai bên:
      * món mở bán lại mà yêu cầu vẫn treo thì barista vướng unique index, không báo hết lại được.
      */
     public void upsert(Connection conn, int branchId, int productId,

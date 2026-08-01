@@ -47,10 +47,12 @@ public class StockReceiptServlet extends HttpServlet {
         try {
             if ("new".equals(action)) {
                 req.setAttribute("suppliers", supplierService.getSupplierListActive());
+                req.setAttribute("ingredients", ingredientService.getIngredientList());
+                req.setAttribute("unitChoicesByIngredient", ingredientService.getActiveUnitChoicesByIngredient());
                 req.setAttribute("pageTitle", "Tạo phiếu nhập");
                 req.getRequestDispatcher("/WEB-INF/views/manager/receipt-form.jsp").forward(req, resp);
             } else if ("view".equals(action)) {
-                showReceipt(req, resp, Integer.parseInt(req.getParameter("id")), branchId);
+                showReceipt(req, resp, req.getParameter("id"), branchId);
             } else {
                 req.setAttribute("receipts", service.getReceiptList(branchId));
                 req.setAttribute("pageTitle", "Phiếu nhập kho");
@@ -80,25 +82,30 @@ public class StockReceiptServlet extends HttpServlet {
                     String sup = req.getParameter("supplierId");
                     r.setSupplierId(sup == null || sup.isBlank() ? null : Integer.parseInt(sup));
                     r.setNote(trim(req.getParameter("note")));
-                    int id = service.createDraftReceipt(r);
-                    resp.sendRedirect(ctx + "/manager/receipt?action=view&id=" + id);
+                    StockReceiptDetail firstLine = new StockReceiptDetail();
+                    firstLine.setIngredientId(Integer.parseInt(req.getParameter("ingredientId")));
+                    firstLine.setEnteredQuantity(dec(req.getParameter("quantity")));
+                    firstLine.setUnitCost(dec(req.getParameter("unitCost")));
+                    firstLine.setUnitChoice(Integer.parseInt(req.getParameter("unitConversionId")));
+                    String batchId = service.createDraftReceipt(r, firstLine);
+                    resp.sendRedirect(ctx + "/manager/receipt?action=view&id=" + batchId);
                     return;
                 }
                 case "addLine": {
-                    int rid = Integer.parseInt(req.getParameter("receiptId"));
-                    redirect = ctx + "/manager/receipt?action=view&id=" + rid;
+                    String batchId = req.getParameter("receiptBatchId");
+                    redirect = ctx + "/manager/receipt?action=view&id=" + batchId;
                     BigDecimal qty = dec(req.getParameter("quantity"));
                     BigDecimal cost = dec(req.getParameter("unitCost"));
                     int conversionId = Integer.parseInt(req.getParameter("unitConversionId"));
-                    if (qty.signum() > 0) service.addReceiptLine(rid, branchId,
+                    if (qty.signum() > 0) service.addReceiptLine(batchId, branchId,
                             Integer.parseInt(req.getParameter("ingredientId")), qty, cost, conversionId);
                     resp.sendRedirect(redirect);
                     return;
                 }
                 case "addLines": {   // tickbox chọn nhiều nguyên liệu cùng lúc
                     StockReceiptForm form = StockReceiptForm.from(req);
-                    int rid = form.receiptId();
-                    redirect = ctx + "/manager/receipt?action=view&id=" + rid;
+                    String batchId = form.receiptBatchId();
+                    redirect = ctx + "/manager/receipt?action=view&id=" + batchId;
                     List<StockReceiptDetail> lines = new ArrayList<>();
                     for (StockReceiptForm.Line line : form.lines()) {
                         if (line.quantity().signum() <= 0) continue;
@@ -106,40 +113,40 @@ public class StockReceiptServlet extends HttpServlet {
                         detail.setIngredientId(line.ingredientId());
                         detail.setEnteredQuantity(line.quantity());
                         detail.setUnitCost(line.unitCost());
-                        detail.setIngredientUnitConversionId(line.unitConversionId());
+                        detail.setUnitChoice(line.unitConversionId());
                         lines.add(detail);
                     }
-                    service.addReceiptLines(rid, branchId, lines);
+                    service.addReceiptLines(batchId, branchId, lines);
                     resp.sendRedirect(redirect);
                     return;
                 }
                 case "removeLine": {
-                    int rid = Integer.parseInt(req.getParameter("receiptId"));
-                    redirect = ctx + "/manager/receipt?action=view&id=" + rid;
-                    service.removeReceiptLine(rid,
-                            Integer.parseInt(req.getParameter("detailId")), branchId);
+                    String batchId = req.getParameter("receiptBatchId");
+                    redirect = ctx + "/manager/receipt?action=view&id=" + batchId;
+                    service.removeReceiptLine(batchId,
+                            Integer.parseInt(req.getParameter("lineId")), branchId);
                     resp.sendRedirect(redirect);
                     return;
                 }
                 case "confirm": {
-                    int rid = Integer.parseInt(req.getParameter("receiptId"));
-                    redirect = ctx + "/manager/receipt?action=view&id=" + rid;
-                    service.confirmReceipt(rid, branchId, u.getUserId());
+                    String batchId = req.getParameter("receiptBatchId");
+                    redirect = ctx + "/manager/receipt?action=view&id=" + batchId;
+                    service.confirmReceipt(batchId, branchId, u.getUserId());
                     resp.sendRedirect(redirect);
                     return;
                 }
                 case "cancel": {
-                    int rid = Integer.parseInt(req.getParameter("receiptId"));
-                    redirect = ctx + "/manager/receipt?action=view&id=" + rid;
-                    service.cancelReceipt(rid, branchId);
+                    String batchId = req.getParameter("receiptBatchId");
+                    redirect = ctx + "/manager/receipt?action=view&id=" + batchId;
+                    service.cancelReceipt(batchId, branchId);
                     resp.sendRedirect(redirect);
                     return;
                 }
                 case "cancelMany": {   // tickbox huỷ nhiều phiếu (chỉ phiếu DRAFT bị huỷ)
                     String[] ids = req.getParameterValues("rid");
-                    List<Integer> list = new ArrayList<>();
+                    List<String> list = new ArrayList<>();
                     if (ids != null) for (String s : ids) {
-                        try { list.add(Integer.parseInt(s)); } catch (NumberFormatException ignore) {}
+                        if (s != null && !s.isBlank() && s.length() <= 36) list.add(s);
                     }
                     service.cancelManyReceipts(list, branchId);
                     resp.sendRedirect(ctx + "/manager/receipt");
@@ -156,14 +163,14 @@ public class StockReceiptServlet extends HttpServlet {
         } catch (Exception e) { throw new ServletException(e); }
     }
 
-    private void showReceipt(HttpServletRequest req, HttpServletResponse resp, int id, int branchId) throws Exception {
-        StockReceipt r = service.getReceipt(id, branchId);
+    private void showReceipt(HttpServletRequest req, HttpServletResponse resp, String batchId, int branchId) throws Exception {
+        StockReceipt r = service.getReceipt(batchId, branchId);
         if (r == null) { resp.sendError(404); return; }
         req.setAttribute("receipt", r);
-        req.setAttribute("details", service.getReceiptDetails(id, branchId));
+        req.setAttribute("details", service.getReceiptDetails(batchId, branchId));
         req.setAttribute("ingredients", ingredientService.getIngredientList());
-        req.setAttribute("unitConversionsByIngredient",ingredientService.getActiveUnitConversionsByIngredient());
-        req.setAttribute("pageTitle", "Phiếu nhập #" + id);
+        req.setAttribute("unitChoicesByIngredient",ingredientService.getActiveUnitChoicesByIngredient());
+        req.setAttribute("pageTitle", "Phiếu nhập #" + batchId);
         req.getRequestDispatcher("/WEB-INF/views/manager/receipt-detail.jsp").forward(req, resp);
     }
 

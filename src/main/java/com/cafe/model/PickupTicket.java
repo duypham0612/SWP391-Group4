@@ -17,7 +17,7 @@ public class PickupTicket {
     private final int makingCount;
     private final int waitingCount;
     private final boolean allReady;              // không còn món đang chờ/đang pha
-    private final String sessionStatus;          // OPEN/CLOSED của phiên bàn (CLOSED = khách đã thanh toán)
+    private final String tableStatus;            // EMPTY/OCCUPIED của bàn
 
     /**
      * Dựng ticket từ danh sách món đã nạp sẵn (1 connection ở OrderService.getPickupTickets).
@@ -30,10 +30,10 @@ public class PickupTicket {
 
         List<OrderItem> all = new ArrayList<>();
         int r = 0, m = 0, w = 0;
-        String sess = null;
+        String currentTableStatus = null;
         if (allOpenItems != null) {
             for (OrderItem it : allOpenItems) {
-                if (sess == null) sess = it.getSessionStatus();
+                if (currentTableStatus == null) currentTableStatus = it.getTableStatus();
                 String s = it.getStatus();
                 if ("CANCELLED".equals(s)) continue;
                 all.add(it);
@@ -47,7 +47,7 @@ public class PickupTicket {
         this.makingCount = m;
         this.waitingCount = w;
         this.allReady = (m == 0 && w == 0);
-        this.sessionStatus = sess;
+        this.tableStatus = currentTableStatus;
     }
 
     public int getOrderId() { return orderId; }
@@ -67,7 +67,7 @@ public class PickupTicket {
     public int getPendingCount() { return makingCount + waitingCount; }
     public int getPendingCupCount() { int n=0; for (OrderItem it : items) if ("WAITING".equals(it.getStatus()) || "MAKING".equals(it.getStatus())) n+=it.getQuantity(); return n; }
     public boolean isAllReady() { return allReady; }
-    public String getSessionStatus() { return sessionStatus; }
-    /** Khách đã thanh toán (phiên bàn đã đóng) → ưu tiên giao ngay. */
-    public boolean isPaid() { return "CLOSED".equals(sessionStatus); }
+    public String getTableStatus() { return tableStatus; }
+    /** Bàn đã được trả EMPTY sau khi không còn đơn chưa thanh toán. */
+    public boolean isPaid() { return "EMPTY".equals(tableStatus); }
 }

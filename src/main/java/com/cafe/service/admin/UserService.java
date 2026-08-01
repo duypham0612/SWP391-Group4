@@ -7,6 +7,8 @@ import com.cafe.dao.shared.BranchDao;
 import com.cafe.dao.admin.UserDao;
 import com.cafe.model.User;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
@@ -19,6 +21,9 @@ import java.util.regex.Pattern;
  * Mật khẩu mới được băm BCrypt tại Service.
  */
 public class UserService {
+
+    private static final BigDecimal MAX_HOURLY_RATE =
+            new BigDecimal("9999999999.99");
 
     private static final Pattern USERNAME_PATTERN =
             Pattern.compile("[a-z][a-z0-9._-]{3,59}");
@@ -48,15 +53,15 @@ public class UserService {
     }
 
     /** A2 · danh sách nhân sự có lọc theo vai trò/chi nhánh/từ khoá (null = bỏ qua). */
-    public List<User> getUserList(Integer roleId, Integer branchId, String q, int offset, int limit) throws SQLException {
+    public List<User> getUserList(String roleCode, Integer branchId, String q, int offset, int limit) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            return dao.findFiltered(conn, roleId, branchId, q, offset, limit);
+            return dao.findFiltered(conn, roleCode, branchId, q, offset, limit);
         }
     }
 
-    public int countUsers(Integer roleId, Integer branchId, String q) throws SQLException {
+    public int countUsers(String roleCode, Integer branchId, String q) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            return dao.countFiltered(conn, roleId, branchId, q);
+            return dao.countFiltered(conn, roleCode, branchId, q);
         }
     }
 
@@ -87,10 +92,8 @@ public class UserService {
         }
     }
 
-    public boolean isBranchManagerRole(int roleId) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            return dao.hasRoleCode(conn, roleId, "BRANCH_MANAGER");
-        }
+    public boolean isBranchManagerRole(String roleCode) {
+        return "BRANCH_MANAGER".equals(roleCode);
     }
 
     public boolean branchHasOtherManager(int branchId, int userId) throws SQLException {
@@ -111,11 +114,11 @@ public class UserService {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
             try {
-                if (dao.hasRoleCode(conn, u.getRoleId(), "ADMIN")) {
+                if ("ADMIN".equals(u.getRoleCode())) {
                     throw new BusinessException(
                             "Hệ thống chỉ có 1 Admin toàn chuỗi, không thể tạo thêm tài khoản Admin.");
                 }
-                boolean manager = dao.hasRoleCode(conn, u.getRoleId(), "BRANCH_MANAGER");
+                boolean manager = "BRANCH_MANAGER".equals(u.getRoleCode());
                 ensureManagerSlot(conn, manager, u.getBranchId(), 0);
                 int id = dao.insert(conn, u, PasswordHasher.hashPassword(rawPassword));
                 if (id <= 0) throw new BusinessException("Không thể tạo tài khoản nhân viên.");
@@ -142,15 +145,14 @@ public class UserService {
                 if (current == null) {
                     throw new BusinessException("Không tìm thấy nhân viên cần cập nhật.");
                 }
-                if ("ADMIN".equals(current.getRoleCode())
-                        || dao.hasRoleCode(conn, u.getRoleId(), "ADMIN")) {
+                if ("ADMIN".equals(current.getRoleCode()) || "ADMIN".equals(u.getRoleCode())) {
                     throw new BusinessException("Tài khoản Admin hệ thống không thể chỉnh sửa.");
                 }
                 u.setUsername(current.getUsername());
                 if (!Objects.equals(current.getBranchId(), u.getBranchId())) {
                     requireBranchTransferAllowed(conn, u.getUserId());
                 }
-                boolean manager = dao.hasRoleCode(conn, u.getRoleId(), "BRANCH_MANAGER");
+                boolean manager = "BRANCH_MANAGER".equals(u.getRoleCode());
                 ensureManagerSlot(conn, manager, u.getBranchId(), u.getUserId());
                 if (manager && "LOCKED".equals(u.getStatus())) {
                     throw new BusinessException("Không thể khoá quản lý đang phụ trách chi nhánh.");
@@ -203,13 +205,27 @@ public class UserService {
         String fullName = clean(user.getFullName());
         String email = normalizeLower(user.getEmail());
         String phone = clean(user.getPhone());
+        String roleCode = clean(user.getRoleCode());
         String status = clean(user.getStatus());
 
         user.setUsername(username);
         user.setFullName(fullName);
         user.setEmail(email);
         user.setPhone(phone);
+        user.setRoleCode(roleCode == null ? null : roleCode.toUpperCase(Locale.ROOT));
         user.setStatus(status == null ? "ACTIVE" : status.toUpperCase(Locale.ROOT));
+        if (user.getHourlyRate() != null) {
+            BigDecimal hourlyRate = user.getHourlyRate();
+            if (hourlyRate.signum() < 0 || hourlyRate.compareTo(MAX_HOURLY_RATE) > 0) {
+                throw new BusinessException(
+                        "Lương theo giờ phải từ 0 đến 9.999.999.999,99₫.");
+            }
+            try {
+                user.setHourlyRate(hourlyRate.setScale(2, RoundingMode.UNNECESSARY));
+            } catch (ArithmeticException e) {
+                throw new BusinessException("Lương theo giờ chỉ được có tối đa 2 chữ số thập phân.");
+            }
+        }
 
         if (creating && user.getUserId() != 0) {
             throw new BusinessException("Tài khoản mới không được có sẵn mã nhân viên.");
@@ -227,7 +243,10 @@ public class UserService {
         if (phone == null || !phone.matches("^0\\d{9}$")) {
             throw new BusinessException("Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.");
         }
-        if (user.getRoleId() <= 0) throw new BusinessException("Vui lòng chọn vai trò.");
+        if (!java.util.Set.of("ADMIN", "BRANCH_MANAGER", "CASHIER", "BARISTA")
+                .contains(user.getRoleCode())) {
+            throw new BusinessException("Vui lòng chọn vai trò hợp lệ.");
+        }
         if (user.getBranchId() == null || user.getBranchId() <= 0) {
             throw new BusinessException("Vui lòng chọn chi nhánh.");
         }

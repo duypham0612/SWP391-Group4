@@ -10,19 +10,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 /** Payload JSON giỏ hàng ở ranh giới HTTP; Service xác minh toàn bộ quy tắc đặt món. */
-public record OrderCartForm(Integer tableSessionId, List<Line> lines) {
+public record OrderCartForm(Integer tableId, List<Line> lines) {
     public static OrderCartForm fromJson(HttpServletRequest request, ObjectMapper mapper) throws IOException {
         JsonNode body = mapper.readTree(request.getInputStream());
         if (body == null || !body.isObject()) {
             throw new FormBindingException("Giỏ hàng không đúng định dạng.");
         }
-        Integer sessionId = null;
-        JsonNode sessionNode = body.get("sessionId");
-        if (sessionNode != null && !sessionNode.isNull()) {
-            if (!sessionNode.isIntegralNumber() || !sessionNode.canConvertToInt()) {
-                throw new FormBindingException("Phiên bàn không hợp lệ.");
+        Integer tableId = null;
+        JsonNode tableNode = body.get("tableId");
+        if (tableNode != null && !tableNode.isNull()) {
+            if (!tableNode.isIntegralNumber() || !tableNode.canConvertToInt()) {
+                throw new FormBindingException("Bàn không hợp lệ.");
             }
-            sessionId = sessionNode.intValue();
+            tableId = tableNode.intValue();
         }
 
         JsonNode items = body.get("items");
@@ -33,7 +33,7 @@ public record OrderCartForm(Integer tableSessionId, List<Line> lines) {
         if (items != null) {
             for (JsonNode item : items) lines.add(parseLine(item));
         }
-        return new OrderCartForm(sessionId, lines);
+        return new OrderCartForm(tableId, lines);
     }
 
     public List<OrderService.CartLine> toCartLines() {
