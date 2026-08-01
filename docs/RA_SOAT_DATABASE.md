@@ -1,146 +1,144 @@
-# Database CafeChain — một nguồn SQL duy nhất
+# Rà soát database CafeChain
 
-Cập nhật: 2026-08-01. Toàn repository chỉ có một file database SQL:
-`src/main/resources/db/migration/V1__database.sql`. File này chứa DDL cuối trực tiếp
-và seed tối thiểu cho Flyway, CI và demo localhost.
+Cập nhật: 2026-08-01 theo schema 25 bảng tại commit `f95a9ff`.
 
-## Quy ước
+## Nguồn schema
 
-- 8 domain schema: `iam`, `org`, `catalog`, `inventory`, `hr`, `sales`, `payment`, `ops`.
-- Bảng là danh từ số ít, `PascalCase`; không dùng từ khóa SQL làm tên vật lý.
-- PK: `PK_<Table>`, cột PK: `<Entity>Id`.
-- FK: `FK_<Child>_<Parent>_<Role>`.
-- Unique/check/default: `UQ_`, `CK_`, `DF_<Table>_<Column>`.
-- Index: `IX_<Table>_<Purpose>` hoặc `UX_<Table>_<Purpose>`.
-- Tất cả timestamp nghiệp vụ lưu UTC bằng `SYSUTCDATETIME()`; UI mới đổi sang giờ Việt Nam.
-- Business-name key dùng trim + uppercase + `Latin1_General_100_CI_AI`. SQL Server
-  `Vietnamese_100_CI_AI` không coi `Cà phê` và `CA PHE` là cùng giá trị nên không dùng.
-- `UserId` và `OrderId` là hai ngoại lệ tên khóa được giữ có chủ đích.
+Flyway chỉ có một file migration tạo database:
 
-Metadata baseline cuối có 49 bảng dự án (50 nếu tính `ops.flyway_schema_history`). Hai archive
-được giữ có chủ đích trong thời gian review/retention; sau migration drop riêng còn
-47 bảng dự án như mục tiêu.
+```text
+src/main/resources/db/migration/V1__database.sql
+```
 
-| Schema | Bảng |
-|---|---|
-| `iam` | `Role`, `UserAccount` |
-| `org` | `Branch` |
-| `catalog` | `Category`, `Product`, `Ingredient`, `IngredientUnitConversion`, `ProductRecipe`, `PrepRecipe`, `PrepRecipeIngredient`, `ModifierGroup`, `ModifierOption`, `ModifierIngredientImpact`, `ProductModifierGroup`, `BranchMenu`, `MenuBlockRequest`, `HomeSetting` |
-| `inventory` | `Supplier`, `BranchInventory`, `StockReceipt`, `StockReceiptDetail`, `StockCount`, `StockAdjustment`, `InventoryTransaction`, `PrepBatch`, `WasteEvent`, `WasteEventItem`, `WasteEventAudit`, `WasteEventReview` |
-| `hr` | `ShiftTemplate`, `ShiftAssignment`, `Attendance`, `Payroll` |
-| `sales` | `DiningTable`, `TableSession`, `SalesOrder`, `OrderItem`, `OrderItemModifier`, `PickupSequence` |
-| `payment` | `CashierShift`, `Voucher`, `Bill`, `BillItem` |
-| `ops` | `OutboxEvent`, `OrderItemActionLog`, `LegacySchemaVersion`, `MenuBlockTimestampArchive`, `AttendanceDuplicateArchive`, `MigrationBackfillReport`, `flyway_schema_history` |
+File này chứa DDL cuối và seed demo tối thiểu. Flyway chạy migration từ
+`src/main/resources/db/migration`; WAR không tự migrate khi startup mà chỉ kiểm tra
+version trong `ops.flyway_schema_history`.
 
-## ERD lõi
+Các truy vấn hỗ trợ quan sát và thao tác thủ công trong SSMS nằm riêng tại
+`sql/ssms`. Chúng không phải migration và không được Flyway thực thi.
+
+Schema legacy 49 bảng và file `sql/database.sql` không còn thuộc kiến trúc hiện
+tại. Không dùng danh sách bảng hoặc ERD cũ để triển khai schema mới.
+
+## Danh sách 25 bảng
+
+Không tính bảng kỹ thuật `ops.flyway_schema_history`.
+
+| Schema | Số bảng | Bảng |
+|---|---:|---|
+| `iam` | 1 | `UserAccount` |
+| `org` | 1 | `Branch` |
+| `catalog` | 7 | `Category`, `Product`, `Ingredient`, `Recipe`, `ModifierGroup`, `ModifierOption`, `BranchMenu` |
+| `inventory` | 7 | `Supplier`, `StockReceiptLine`, `BranchInventory`, `InventoryTransaction`, `PrepBatch`, `StockAdjustment`, `WasteEntry` |
+| `hr` | 1 | `ShiftAssignment` |
+| `sales` | 4 | `DiningTable`, `SalesOrder`, `OrderItem`, `OrderItemModifier` |
+| `payment` | 2 | `CashierShift`, `Bill` |
+| `ops` | 2 | `ActivityLog`, `OutboxEvent` |
+
+## Thay đổi chính so với schema legacy
+
+- Role được lưu bằng `UserAccount.RoleCode`; không còn bảng `Role`.
+- `Recipe` hợp nhất công thức product/prep bằng `OwnerType` và `OwnerId`.
+- `Ingredient` giữ luôn thông tin đơn vị mua và hệ số đổi sang đơn vị cơ sở.
+- `ShiftAssignment` hợp nhất template ca, phân ca, check-in/out và snapshot lương.
+- `StockReceiptLine` hợp nhất phiếu nhập và chi tiết theo batch.
+- `StockAdjustment` hợp nhất đợt kiểm kê và dòng điều chỉnh.
+- `WasteEntry` hợp nhất event, item, audit và review hao hụt.
+- `OrderItem` trỏ trực tiếp đến `Bill`; không còn `BillItem`/`BillLine` trong schema.
+- Nhật ký nghiệp vụ dùng `ActivityLog`; tích hợp bất đồng bộ dùng `OutboxEvent`.
+
+## Quan hệ lõi
 
 ```mermaid
 erDiagram
-    Role ||--o{ UserAccount : grants
     Branch ||--o{ UserAccount : employs
     UserAccount o|--o| Branch : manages
+    Branch ||--o{ ShiftAssignment : schedules
+    UserAccount ||--o{ ShiftAssignment : works
 
     Category ||--o{ Product : contains
-    Product ||--o{ ProductRecipe : requires
-    Ingredient ||--o{ ProductRecipe : consumed_by
-    Ingredient ||--o| PrepRecipe : prepped_header
-    PrepRecipe ||--|{ PrepRecipeIngredient : contains
-    Ingredient ||--o{ PrepRecipeIngredient : raw_input
+    Product ||--o{ ModifierGroup : configures
+    ModifierGroup ||--o{ ModifierOption : offers
     Branch ||--o{ BranchMenu : publishes
-    Product ||--o{ BranchMenu : listed_as
+    Product ||--o{ BranchMenu : listed
+    Ingredient ||--o{ Recipe : consumed
 
     Branch ||--o{ BranchInventory : holds
-    Ingredient ||--o{ BranchInventory : stocked_as
-    Ingredient ||--|{ IngredientUnitConversion : accepts
+    Ingredient ||--o{ BranchInventory : stocked
+    Branch ||--o{ StockReceiptLine : receives
+    Supplier ||--o{ StockReceiptLine : supplies
+    Ingredient ||--o{ StockReceiptLine : item
     Branch ||--o{ InventoryTransaction : owns
-    Ingredient ||--o{ InventoryTransaction : ledger_for
-    StockReceipt ||--|{ StockReceiptDetail : contains
-    StockCount ||--o{ StockAdjustment : groups
+    Ingredient ||--o{ InventoryTransaction : ledger
     Branch ||--o{ PrepBatch : produces
-    Ingredient ||--o{ PrepBatch : prepped_output
-
-    Branch ||--o{ ShiftTemplate : defines
-    ShiftTemplate ||--o{ ShiftAssignment : schedules
-    UserAccount ||--o{ ShiftAssignment : assigned
-    ShiftAssignment ||--o| Attendance : records
+    Ingredient ||--o{ PrepBatch : output
+    Branch ||--o{ StockAdjustment : counts
+    Ingredient ||--o{ WasteEntry : wastes
 
     Branch ||--o{ DiningTable : owns
-    DiningTable ||--o{ TableSession : opens
-    TableSession ||--o{ SalesOrder : groups
     Branch ||--o{ SalesOrder : receives
+    DiningTable o|--o{ SalesOrder : serves
     SalesOrder ||--|{ OrderItem : contains
     Product ||--o{ OrderItem : snapshots
     OrderItem ||--o{ OrderItemModifier : selects
+    ModifierOption ||--o{ OrderItemModifier : snapshots
 
     Branch ||--o{ CashierShift : operates
-    TableSession ||--o{ Bill : settles
-    Bill ||--|{ BillItem : contains
-    OrderItem ||--o| BillItem : billed_whole
+    CashierShift o|--o{ Bill : settles
+    Bill o|--o{ OrderItem : bills
 
-    WasteEvent ||--|{ WasteEventItem : contains
-    WasteEvent ||--o{ WasteEventAudit : audited_by
-    WasteEventItem ||--o{ WasteEventAudit : audited_line
-    WasteEvent ||--o{ WasteEventReview : reviewed
-    OrderItem o|--o{ WasteEvent : caused_by
-
-    Branch ||--o{ OutboxEvent : publishes
-    OrderItem ||--o{ OrderItemActionLog : transitions
+    Branch o|--o{ ActivityLog : audits
+    Branch o|--o{ OutboxEvent : publishes
 ```
+
+`Recipe.OwnerId` là khóa đa hình theo `OwnerType`, nên không được thể hiện như
+một foreign key cứng tới Product hoặc Ingredient trong ERD.
 
 ## Bất biến quan trọng
 
-- `PrepRecipe` là header có đúng một `YieldQty`; detail chỉ chứa RAW ingredient.
-- `ShiftAssignment`, `OrderItem`, `BillItem` giữ `BranchId` snapshot. Composite FK
-  chặn quan hệ cấu trúc xuyên chi nhánh nhưng không làm hỏng lịch sử khi nhân viên chuyển nơi làm.
-- Manager của branch phải là `BRANCH_MANAGER`, `ACTIVE`, thuộc đúng branch.
-- Actor được trigger set-based kiểm tra role, trạng thái và branch tại thời điểm ghi.
-- `InventoryTransaction.ChangeQty <> 0`; `BranchInventory.QuantityOnHand` là cache,
-  ledger mới là nguồn sự thật.
-- Receipt/count nhận `IngredientUnitConversionId`, chụp unit/factor tại thời điểm ghi
-  và ledger chỉ ghi base quantity tối đa 3 chữ số thập phân.
-- Ledger reference chỉ nhận enum uppercase và trigger xác minh nguồn tồn tại, cùng branch.
-- Payroll bất biến theo `(BranchId, UserId, PayrollMonth)`; chuyển nhân viên không làm
-  hỏng payroll/receipt lịch sử.
-- Tên Product/Modifier trên đơn là snapshot `NOT NULL`; bill và báo cáo lịch sử không
-  đọc lại tên catalog hiện tại.
-- `ModifierGroup` unique toàn hệ thống. Size có giá riêng theo món nên tên vật lý là
-  `Size sản phẩm #<ProductId>`; service luôn ánh xạ nhãn người dùng về `Size`.
-- `PrepTargetQty` chỉ được đặt cho ingredient `PREPPED` bằng conditional typed FK.
-- `SalesOrder.BusinessDate` dùng giờ Việt Nam và giờ mở cửa branch.
-  `PickupSequence` cấp số bằng `UPDLOCK/HOLDLOCK` trong transaction tạo order.
-- Bill splitting chỉ chuyển nguyên `OrderItem`; `UQ_BillItem_OrderItem` không cho một
-  dòng món nằm trên hai bill.
-- FK và CHECK sau migration đều `enabled` và `trusted`.
+- Mọi dữ liệu vận hành theo chi nhánh được giới hạn bằng `BranchId` và các
+  composite foreign key khi cần.
+- `BranchInventory.QuantityOnHand` là cache tồn hiện tại; biến động phải có
+  dòng đối ứng trong `InventoryTransaction`.
+- Số lượng sổ cái dùng đơn vị cơ sở và tối đa ba chữ số thập phân.
+- `PrepTargetQty` chỉ áp dụng cho ingredient kiểu `PREPPED`.
+- Mỗi chi nhánh chỉ có tối đa một `CashierShift` chưa đóng.
+- Tên product, modifier và giá được snapshot trên dòng order để giữ lịch sử.
+- `SalesOrder.PickupCode` unique theo chi nhánh và business date.
+- Foreign key và check constraint sau migration phải enabled và trusted.
+- Timestamp nghiệp vụ lưu UTC; UI chuyển sang múi giờ hiển thị.
 
 ## Deploy Flyway
 
-- Tạo database rỗng tên `CafeChain` bằng công cụ quản trị SQL Server.
-- Migration executor riêng dùng profile Maven `db-migrate`, Flyway 13.1.0, history tại
-  `ops.flyway_schema_history`; WAR không chạy migration khi startup.
-- Database mới chạy migration duy nhất `V1__database.sql`; chạy lại là no-op.
-- Đây là dự án demo localhost: khi đổi schema, xóa database local và dựng lại từ đầu;
-  không hỗ trợ nâng cấp database legacy hoặc quy trình production nhiều release.
-- Seed trong cùng file tạo chi nhánh `CN01`, ba món, tồn kho, năm bàn và bốn tài khoản
-  `admin`, `manager1`, `cashier1`, `barista1`; mật khẩu demo là `123456`.
-- Không có seed, preflight, fixture hoặc archive SQL rời; integration suite giữ contract
-  một file SQL và kiểm tra schema cuối trực tiếp.
+- Tạo database rỗng mới; mặc định local là `CafeChain_v2`.
+- Chạy profile Maven `db-migrate` với `cleanDisabled=true`,
+  `outOfOrder=false`, `validateOnMigrate=true`, `baselineOnMigrate=false`.
+- Không chạy `flyway clean` trên database dùng chung.
+- Khi thay đổi `V1__database.sql`, database local đã migrate phải được tạo lại;
+  dự án không hỗ trợ nâng cấp schema legacy tại chỗ.
 
-Production luôn bật `cleanDisabled=true`, `outOfOrder=false`, `validateOnMigrate=true`,
-`baselineOnMigrate=false`. Không chạy `flyway clean` trên database dùng chung.
+Seed demo tạo `admin`, `manager1`, `cashier1`, `barista1`; mật khẩu demo là
+`123456`.
 
-## Kiểm thử
+## Checksum và kiểm thử
 
-```bash
-mvn clean test
+`MigrationChecksumTest` bảo đảm Flyway chỉ có một file migration SQL và checksum khớp
+`sql/migration-checksums.sha256`. Nội dung được chuẩn hóa CRLF/CR thành LF
+trước khi băm để kết quả giống nhau trên Windows và Linux.
+
+Sau khi chủ đích sửa migration, cập nhật manifest bằng:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\tools\update-migration-checksum.ps1
+```
+
+Sau đó chạy:
+
+```powershell
+mvn test
 mvn clean verify -Pintegration
 ```
 
-Integration suite kiểm fresh/no-op migration,
-conversion snapshot/precision, payroll chuyển branch, order snapshot, UTC boundary,
-reference/waste trigger set-based, unique-name race, startup schema guard và các flow
-transaction hiện hữu.
-Workflow `.github/workflows/database-integration.yml` chạy cùng suite trên Ubuntu x86_64,
-Java 17 và SQL Server 2022 qua Testcontainers 1.21.4.
-
-Nghiệm thu baseline một file ngày 2026-08-01: `336/336` unit test và
-`35/35` integration test.
+Workflow `.github/workflows/database-integration.yml` chạy suite integration trên Ubuntu
+x86_64, Java 17 và SQL Server 2022 qua Testcontainers.

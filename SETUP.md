@@ -1,103 +1,114 @@
-# Cà Phê Chain (CafeChain) — Hướng Dẫn Cài Đặt & Chạy
+# Cà Phê Chain (CafeChain) — Hướng dẫn cài đặt và chạy
 
-> Hệ thống Quản lý Chuỗi Cafe (SWP391) · **Dine-in**, 4 role: Admin · Branch Manager · Cashier · Barista.
-> Kiến trúc **MVC**: JSP + Servlet + JSTL + SQL Server.
+Hệ thống quản lý chuỗi cafe dine-in với bốn vai trò: Admin, Branch Manager,
+Cashier và Barista. Ứng dụng dùng mô hình MVC với JSP, Servlet và SQL Server.
 
----
+## Công nghệ
 
-## Tech Stack (theo code hiện tại)
-
-| Hạng mục | Giá trị |
+| Hạng mục | Phiên bản/cấu hình |
 |---|---|
-| JDK | **17** |
-| Servlet/JSP | **Jakarta EE** (`jakarta.servlet 5.0`) + **JSTL 3.0** (`uri="jakarta.tags.core"`) |
-| Server | **Apache Tomcat 10.1.x** (Jakarta — **KHÔNG dùng Tomcat 9**) |
-| Build | Maven (`war`, finalName **`cafe-shop`** → context **`/cafe-shop`**) |
-| Database | Microsoft SQL Server 2017+, database **`CafeChain`** |
-| Connection pool | HikariCP (đọc `src/main/resources/db.properties`) |
-| Auth | HttpSession + Servlet Filter, mật khẩu BCrypt |
+| JDK | 17 |
+| Servlet/JSP | Jakarta Servlet 5.0, JSP 3.0, JSTL 3.0 |
+| Server | Apache Tomcat 10.1.x; không dùng Tomcat 9 |
+| Build | Maven, đóng gói WAR `cafe-shop.war` |
+| Database | Microsoft SQL Server 2017+, mặc định `CafeChain_v2` |
+| Migration | Flyway 13.1.0, schema history `ops.flyway_schema_history` |
+| Connection pool | HikariCP |
 
----
+## 1. Chuẩn bị
 
-## 1. Chuẩn bị môi trường (mỗi máy cài sẵn)
+Cài JDK 17, Maven 3.8+, SQL Server và Tomcat 10.1.x. SQL Server phải bật
+TCP/IP; với cấu hình local thường dùng cổng `1433`.
 
-| Tool | Version | Ghi chú |
-|---|---|---|
-| JDK | **17** | Temurin/Oracle. Đặt làm Project SDK trong IDE. |
-| SQL Server | 2017+ | Kèm **SSMS** để chạy script. Bật **TCP/IP** + SQL Auth (user `sa`). |
-| Tomcat | **10.1.x** | Tải bản zip, giải nén ra một thư mục. |
-| Maven | 3.8+ | (Đã tích hợp sẵn trong NetBeans/IntelliJ.) |
-| IDE | NetBeans **hoặc** IntelliJ | Xem mục 4. |
+Kiểm tra nhanh:
 
----
-
-## 2. Tạo Database
-
-Mở **SSMS** → mở file `sql/database.sql` → **Execute** (F5). Đây là **file SQL duy nhất** của dự án.
-
-Mặc định script chỉ tạo hoặc nâng cấp schema (an toàn cho DB hiện hữu), đồng thời áp dụng mọi migration còn thiếu.
-
-Toàn bộ dữ liệu mẫu nằm trong chính file này, sau **4 cờ ở đầu file — mặc định đều là `0`**. Muốn bơm dữ liệu nào thì đổi cờ tương ứng thành `1` rồi Execute lại:
-
-| Cờ | Phần | Nội dung | Lưu ý |
-|---|---|---|---|
-| `@SeedDemo` | PART 8 | 4 role, 3 chi nhánh, catalog 15 món, 31 ngày lịch sử bán, story hôm nay, demo hao hụt, KDS ZT1–ZT4 | Chỉ chạy khi DB **chưa có role nào** |
-| `@FixtureBarista` | PART 9 | Dữ liệu đối chiếu role Barista ở CN01 | Ghi đè xếp ca hôm nay của barista1/2/4 |
-| `@FixtureDemo` | PART 10 | Dữ liệu buổi bảo vệ, dọn sạch KDS/bàn | **Xoá và dựng lại `BranchInventory`** — chỉ dùng trên DB mới, chạy kèm `@SeedDemo = 1` |
-| `@AdminDemoData` | PART 11 | CN04–CN08 + danh mục/sản phẩm/voucher demo màn Admin | **Phá bất biến "tồn = Σ sổ cái"** (ghi tồn không kèm `InventoryTransaction`) — chỉ dùng cho DB demo riêng |
-
-Deploy bình thường: **giữ nguyên cả 4 số `0`**, cứ Execute là an toàn với dữ liệu đang có.
-
----
-
-## 3. Cấu hình kết nối DB (mỗi người sửa theo máy mình)
-
-Mở `src/main/resources/db.properties`:
-
-```properties
-db.url=jdbc:sqlserver://localhost:1433;databaseName=CafeChain;encrypt=false;trustServerCertificate=true
-db.username=sa
-db.password=YourPassword123      ← đổi thành mật khẩu sa của máy bạn
-db.driver=com.microsoft.sqlserver.jdbc.SQLServerDriver
+```powershell
+java -version
+mvn -version
+Test-NetConnection localhost -Port 1433
 ```
 
-> ⚠️ **Cổng (port):** đa số máy SQL Server chạy ở **1433**. Nếu file đang để cổng khác (vd `14333`), đổi lại cho khớp máy bạn. Mỗi thành viên chỉnh `url` (port) + `password` theo máy mình.
+## 2. Dựng database
 
----
+Nguồn schema duy nhất của dự án là:
 
-## 4. Chạy dự án
-
-### 4A. NetBeans (khuyên dùng — miễn phí, tích hợp sẵn Tomcat)
-
-1. **Thêm Tomcat:** `Tools → Servers → Add Server… → Apache Tomcat or TomEE` → trỏ tới thư mục Tomcat 10 đã tải → Finish.
-2. **Mở dự án:** `File → Open Project…` → chọn thư mục dự án (NetBeans tự nhận Maven qua `pom.xml`).
-3. **Gán server:** chuột phải project → `Properties → Run → Server = Apache Tomcat 10` → OK.
-4. **Chạy:** chuột phải project → **Run** (F6). NetBeans tự build war + deploy + mở trình duyệt.
-5. Vào: **http://localhost:8080/cafe-shop/auth/login**
-
-### 4B. IntelliJ IDEA **Ultimate** (có tích hợp Tomcat)
-
-1. `Open` → chọn thư mục dự án (tự import Maven).
-2. `Run → Edit Configurations → + → Tomcat Server → Local` → trỏ tới Tomcat 10 home.
-3. Tab **Deployment → + → Artifact → `cafe-shop:war exploded`**; **Application context = `/cafe-shop`**.
-4. Bấm **Run ▶** → vào **http://localhost:8080/cafe-shop/auth/login**
-
-### 4C. IntelliJ IDEA **Community** (KHÔNG có server — chạy thủ công)
-
-> IntelliJ Community không deploy được lên Tomcat. Dùng cách thủ công hoặc cài plugin **Smart Tomcat**.
-
-```bash
-mvn clean package -DskipTests          # tạo ra target/cafe-shop.war
-# Copy target/cafe-shop.war  →  <TOMCAT>/webapps/
-# Khởi động Tomcat:
-#   Windows:   <TOMCAT>\bin\startup.bat
-#   mac/linux: <TOMCAT>/bin/startup.sh
+```text
+src/main/resources/db/migration/V1__database.sql
 ```
-→ vào **http://localhost:8080/cafe-shop/auth/login**
 
----
+Không dùng đường dẫn cũ `sql/database.sql`; file đó đã bị xóa. WAR cũng không
+tự chạy migration khi khởi động.
 
-## 5. Đăng nhập
+Cách nhanh trên Windows:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\tools\setup-database.ps1 -ServerInstance localhost
+```
+
+Script sẽ:
+
+1. Tạo database mới `CafeChain_v2`.
+2. Tạo login `cafechain_app` và user trong database.
+3. Chạy `V1__database.sql` qua Flyway.
+4. Kiểm tra 25 bảng nghiệp vụ, version schema và dữ liệu demo.
+
+Schema 25 bảng không nâng cấp tại chỗ từ schema legacy 49 bảng. Nếu
+`CafeChain_v2` đã tồn tại, script sẽ dừng an toàn. Chỉ dùng `-Force` khi chấp
+nhận xóa toàn bộ dữ liệu trong chính database đó:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\tools\setup-database.ps1 -ServerInstance localhost -Force
+```
+
+Xem quy trình thủ công và cách dùng database riêng tại
+[`docs/DATABASE-SETUP.md`](docs/DATABASE-SETUP.md).
+
+## 3. Cấu hình kết nối
+
+Không ghi URL, username hoặc password vào `db.properties`. File này chỉ chứa driver
+và tham số HikariCP. Cấp credential cho tiến trình Tomcat bằng biến môi trường:
+
+```powershell
+$env:DB_URL = 'jdbc:sqlserver://localhost:1433;databaseName=CafeChain_v2;encrypt=true;trustServerCertificate=true'
+$env:DB_USERNAME = 'cafechain_app'
+$env:DB_PASSWORD = 'CafeChain@2026Dev'
+```
+
+Có thể dùng Java system properties `db.url`, `db.username`, `db.password` thay cho biến
+môi trường. Với IDE, khai báo ba biến trên trong cấu hình chạy Tomcat.
+
+Ứng dụng sẽ fail-fast nếu không kết nối được DB hoặc Flyway version không
+khớp `src/main/resources/db/expected-schema.properties`.
+
+## 4. Build và chạy
+
+Build WAR:
+
+```powershell
+mvn clean package -DskipTests
+```
+
+File sinh ra tại `target/cafe-shop.war`. Copy file này vào `<TOMCAT>/webapps/`,
+sau đó khởi động Tomcat từ cùng terminal đã set biến DB:
+
+```powershell
+Copy-Item .\target\cafe-shop.war '<TOMCAT>\webapps\cafe-shop.war' -Force
+& '<TOMCAT>\bin\startup.bat'
+```
+
+Với NetBeans hoặc IntelliJ Ultimate, deploy artifact `cafe-shop:war exploded` và đặt
+application context là `/cafe-shop`.
+
+Kiểm tra sau khi server chạy:
+
+- Health: <http://localhost:8080/cafe-shop/health>
+- Đăng nhập: <http://localhost:8080/cafe-shop/auth/login>
+
+Health phải trả `HTTP 200` và hiển thị schema version `1`.
+
+## 5. Tài khoản demo
 
 | Vai trò | Username | Mật khẩu |
 |---|---|---|
@@ -106,70 +117,67 @@ mvn clean package -DskipTests          # tạo ra target/cafe-shop.war
 | Cashier | `cashier1` | `123456` |
 | Barista | `barista1` | `123456` |
 
-> Mật khẩu seed được app **tự gán khi khởi động lần đầu** (qua `SeedPasswordListener`, chỉ chạy khi đã kết nối được DB). Đổi mật khẩu mặc định khi lên production.
+Hash demo được seed trực tiếp bởi migration. `SeedPasswordListener` chỉ cảnh báo
+tài khoản không có BCrypt hash hợp lệ; listener không tự gán mật khẩu.
 
----
+## 6. Kiểm thử
 
-## 6. Lỗi thường gặp
+Chạy unit test:
 
-| Triệu chứng | Nguyên nhân & cách sửa |
+```powershell
+mvn test
+```
+
+Chạy integration test bằng SQL Server 2022 trong Testcontainers; Docker phải hoạt động:
+
+```powershell
+mvn clean verify -Pintegration
+```
+
+Integration suite tạo database disposable, chạy Flyway từ
+`classpath:db/migration`, thực thi test và xóa container. CI dùng cùng lệnh trên
+Ubuntu x86_64.
+
+Muốn dùng SQL Server có sẵn, phải tạo database test riêng và truyền
+`it.db.url`, `it.db.username`, `it.db.password`. Không trỏ integration test vào
+`CafeChain_v2` đang dùng demo.
+
+## 7. Lỗi thường gặp
+
+| Triệu chứng | Cách xử lý |
 |---|---|
-| JSP lỗi / `javax.servlet` not found / 404 toàn trang | Đang dùng **Tomcat 9**. Phải **Tomcat 10.1+** (Jakarta). |
-| App chạy nhưng **login sai mật khẩu** | DB chưa kết nối (sai port/password) → `SeedPasswordListener` chưa set được mật khẩu. Sửa `db.properties`, restart app. |
-| **Connect DB fail** | Bật **TCP/IP** trong SQL Server Configuration Manager, mở port, dùng SQL Auth (user `sa`), kiểm tra firewall. |
-| Build/IDE báo sai phiên bản Java | Project SDK phải là **JDK 17**. |
-| Vào `http://localhost:8080/` ra 404 | Context là **`/cafe-shop`** → phải vào `http://localhost:8080/cafe-shop/auth/login`. |
+| `javax.servlet` not found hoặc JSP lỗi | Dùng Tomcat 10.1.x thay vì Tomcat 9. |
+| Health trả `503` | Kiểm tra ba biến DB, TCP/IP, cổng SQL Server và Flyway version. |
+| `DBConnection init failed` | Credential chưa được cấp cho đúng tiến trình Tomcat. |
+| Root `localhost:8080` trả 404 | Truy cập context `/cafe-shop`. |
+| Migration validate fail | Không sửa database đã migrate; dựng database local mới. |
 
----
+## 8. Cấu trúc dự án
 
-## 7. Build ra file WAR (để nộp / deploy)
-
-```bash
-mvn clean package -DskipTests
-```
-File WAR: `target/cafe-shop.war` → copy vào `<TOMCAT>/webapps/`.
-
----
-
-## 8. Kiểm thử integration Barista (Docker)
-
-`mvn test` chỉ chạy unit test nhanh. Để chạy transaction thật với SQL Server disposable qua Testcontainers (không dùng `db.properties` local), cần Docker đang hoạt động rồi chạy:
-
-```bash
-mvn -Pintegration verify
-```
-
-Suite tạo database tạm từ `sql/database.sql`, kiểm KDS concurrent claim/complete/remake và tự xóa container sau khi chạy. GitHub Actions chạy cùng lệnh cho mọi pull request và push vào `main`.
-
----
-
-## 9. Cấu trúc dự án (MVC, layer-based — package gốc `com.cafe`)
-
-```
+```text
 src/main/java/com/cafe/
-├── config/        ← DBConnection (HikariCP đọc db.properties)
-├── common/        ← Constants, EventType/EventPublisher, BCrypt, CSRF, BusinessException, DeductionCalculator…
-├── model/         ← POJO (Order, OrderItem, Product, PrepBatch, BranchInventory…)
-├── dao/           ← JDBC theo entity (nhận Connection tham số; không tự mở tx)
-│   ├── admin/  cashier/  manager/  shared/
-├── service/       ← Nghiệp vụ + transaction (mở/commit/rollback Connection)
-│   ├── admin/  cashier/  manager/  barista/  customer/  shared/
-├── controller/    ← Servlet (xử lý request) theo role
-│   ├── admin/  cashier/  manager/  barista/  customer/  auth/
-├── filter/        ← AuthFilter, RbacFilter, BranchScopeFilter
-├── listener/      ← SeedPasswordListener (set mật khẩu seed lúc khởi động)
-└── realtime/      ← polling/sự kiện KDS-QR
+├── common/       logic và enum dùng chung
+├── config/       HikariCP và schema version guard
+├── controller/   Servlet theo vai trò
+├── dao/          truy cập SQL/JDBC
+├── filter/       charset, auth, RBAC, branch scope, cashier duty
+├── listener/     lifecycle database/schema/assets
+├── model/        model và DTO
+├── service/      nghiệp vụ và transaction
+└── web/          form binding, renderer, support, view model
+
+src/main/resources/
+├── db.properties
+└── db/
+    ├── expected-schema.properties
+    └── migration/V1__database.sql
 
 src/main/webapp/
-├── WEB-INF/web.xml
 ├── WEB-INF/views/
-│   ├── layout/    ← header / sidebar / footer / _statusBadge.jsp (DÙNG CHUNG)
-│   ├── auth/  admin/  manager/  cashier/  barista/  customer/
-├── assets/css/cafe-theme.css   ← design system DUY NHẤT
-└── assets/js/  assets/img/
-
-src/main/resources/db.properties   ← cấu hình kết nối DB
-sql/database.sql                   ← schema + toàn bộ seed demo (file SQL DUY NHẤT)
+├── WEB-INF/fragments/
+└── assets/
 ```
 
-> Tài liệu chi tiết: `CLAUDE.md`, `KE_HOACH_CHI_TIET_THEO_ROLE.md`, `docs/PROGRESS.md`.
+Chi tiết schema và quy trình migration nằm trong
+[`docs/DATABASE-SETUP.md`](docs/DATABASE-SETUP.md) và
+[`docs/RA_SOAT_DATABASE.md`](docs/RA_SOAT_DATABASE.md).
