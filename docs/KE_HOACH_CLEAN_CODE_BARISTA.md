@@ -243,7 +243,7 @@ mvn -q test && mvn -q clean package
 | Đợt | Nội dung | Trạng thái | Commit | Ghi chú |
 |---|---|---|---|---|
 | 1 | Xoá code chết + sửa comment sai | 🟢 | `2f49816` | −170/+128 dòng · test 344/345 (1 đỏ sẵn từ trước, xem §6) · WAR build OK |
-| 2 | Gom trùng lặp | 🟢 | *(điền sau khi commit)* | Thêm `RequestParams` + 2 enum lý do · gỡ 3 bản sao `BLOCKING_REASONS` · 12 literal trạng thái → `OrderItemStatus` · test 345/345 |
+| 2 | Gom trùng lặp | 🟢 | `95c90cf` | Thêm `RequestParams` + 2 enum lý do · gỡ 3 bản sao `BLOCKING_REASONS` · 12 literal trạng thái → `OrderItemStatus` · test 345/345 |
 | 3 | Cấu trúc | ⚪ | | Cần hỏi trước |
 
 Chú thích: ⚪ chưa làm · 🟡 đang làm · 🟢 xong · 🔴 bị chặn
