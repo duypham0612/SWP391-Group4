@@ -8,6 +8,7 @@ import com.cafe.web.support.BaristaWritePolicy;
 import com.cafe.model.MonthlyAttendanceRow;
 import com.cafe.model.User;
 import com.cafe.service.manager.AttendanceService;
+import com.cafe.web.support.BranchContext;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -15,6 +16,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
 import java.util.List;
@@ -29,14 +31,14 @@ public class MyShiftServlet extends HttpServlet {
 
     public MyShiftServlet() { this(new AttendanceService(), new BaristaShiftSupport()); }
     MyShiftServlet(AttendanceService attendanceService, BaristaShiftSupport shiftSupport) {
-        this.attendanceService = java.util.Objects.requireNonNull(attendanceService);
-        this.shiftSupport = java.util.Objects.requireNonNull(shiftSupport);
+        this.attendanceService = Objects.requireNonNull(attendanceService);
+        this.shiftSupport = Objects.requireNonNull(shiftSupport);
     }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
+        int branchId = BranchContext.requireBranchId(req);
         User u = SessionUtil.currentUser(req);
         YearMonth ym = parseMonth(req.getParameter("month"));
         String query = textParam(req, "q", 100);

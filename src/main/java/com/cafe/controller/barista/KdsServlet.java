@@ -1,16 +1,17 @@
 package com.cafe.controller.barista;
 
 import com.cafe.common.BusinessException;
-import com.cafe.web.support.CsrfUtil;
 import com.cafe.common.RecountValidator;
-import com.cafe.web.support.SessionUtil;
-import com.cafe.web.support.BaristaShiftSupport;
-import com.cafe.web.support.BaristaWritePolicy;
-import com.cafe.model.OrderItem;
 import com.cafe.model.StockAdjustment;
 import com.cafe.model.User;
 import com.cafe.service.barista.KdsService;
+import com.cafe.service.manager.AttendanceService;
 import com.cafe.service.shared.OrderService;
+import com.cafe.web.support.BaristaShiftSupport;
+import com.cafe.web.support.BaristaWritePolicy;
+import com.cafe.web.support.BranchContext;
+import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.SessionUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -18,23 +19,31 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
-/** Quầy pha chế ba cột: WAITING → MAKING → READY. */
+/**
+ * Quầy pha chế: MỘT hàng chờ xếp theo thứ tự pha, kèm dải số liệu bốn trạng thái
+ * (chờ pha · đang pha · sẵn sàng · cần xử lý). Không phải bảng ba cột kéo-thả.
+ */
 @WebServlet("/barista/kds")
 public class KdsServlet extends HttpServlet {
 
+    /** Lý do khiến món KHÔNG pha được → chặn món. Các lý do còn lại chỉ cần gắn cờ cho Thu ngân. */
+    private static final Set<String> BLOCKING_REASONS = Set.of("EQUIPMENT", "DISCONTINUED");
+
     private final KdsService service;
-    private final com.cafe.service.manager.AttendanceService attendance;
+    private final AttendanceService attendance;
     private final BaristaShiftSupport shiftSupport;
 
     public KdsServlet() {
-        this(new KdsService(), new com.cafe.service.manager.AttendanceService(), new BaristaShiftSupport());
+        this(new KdsService(), new AttendanceService(), new BaristaShiftSupport());
     }
 
-    KdsServlet(KdsService service, com.cafe.service.manager.AttendanceService attendance,
+    KdsServlet(KdsService service, AttendanceService attendance,
                BaristaShiftSupport shiftSupport) {
         this.service = Objects.requireNonNull(service, "service");
         this.attendance = Objects.requireNonNull(attendance, "attendance");
@@ -44,7 +53,7 @@ public class KdsServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
+        int branchId = BranchContext.requireBranchId(req);
         try {
             // Danh sách nguyên liệu của một món — nạp theo yêu cầu khi mở modal "Hết nguyên liệu",
             // thay vì nhúng sẵn vào mọi card (60 card × N nguyên liệu sẽ phình DOM lúc đông khách).
@@ -53,15 +62,17 @@ public class KdsServlet extends HttpServlet {
                 // Thiếu/sai productId thì trả fragment rỗng để modal hiện lời nhắc,
                 // không để NumberFormatException đội lên thành trang lỗi 500.
                 req.setAttribute("recipeLines", productId == null
-                        ? java.util.List.of() : service.getRecipeIngredients(productId));
-            req.getRequestDispatcher("/WEB-INF/fragments/barista/kds/ingredient-picker.jsp").forward(req, resp);
+                        ? List.of() : service.getRecipeIngredients(productId));
+                req.getRequestDispatcher("/WEB-INF/fragments/barista/kds/ingredient-picker.jsp")
+                        .forward(req, resp);
                 return;
             }
             if ("depleted".equals(req.getParameter("partial"))) {
                 Integer productId = optionalIntParam(req, "productId");
                 req.setAttribute("depletedLines", productId == null
-                        ? java.util.List.of() : service.getDepletedRecipeIngredients(branchId, productId));
-            req.getRequestDispatcher("/WEB-INF/fragments/barista/kds/recount-picker.jsp").forward(req, resp);
+                        ? List.of() : service.getDepletedRecipeIngredients(branchId, productId));
+                req.getRequestDispatcher("/WEB-INF/fragments/barista/kds/recount-picker.jsp")
+                        .forward(req, resp);
                 return;
             }
             loadBoard(req, branchId);
@@ -82,7 +93,7 @@ public class KdsServlet extends HttpServlet {
         User u = SessionUtil.currentUser(req);
         Integer userId = u != null ? u.getUserId() : null;
         String action = req.getParameter("action");
-        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
+        int branchId = BranchContext.requireBranchId(req);
         if (!BaristaWritePolicy.isKdsAction(action)) {
             rejectInvalidAction(req, resp, branchId);
             return;
@@ -218,9 +229,9 @@ public class KdsServlet extends HttpServlet {
     }
 
     /**
-     * Nạp board ba cột. Thống kê chính đếm theo SỐ LY (khối lượng việc pha thật), kèm số dòng
-     * món và số đơn làm thông tin phụ. Đơn của ngày kinh doanh trước KHÔNG vào hàng chờ mà
-     * nằm ở khu "Đơn treo cần xử lý" — để rác cũ không làm đỏ toàn bộ và lệch số trễ giờ.
+     * Nạp hàng chờ + dải số liệu. Thống kê chính đếm theo SỐ LY (khối lượng việc pha thật), kèm
+     * số đơn đang mở làm thông tin phụ. Hàng chờ cắt theo NGÀY KINH DOANH của chi nhánh nên món
+     * dang dở của ngày trước không lọt vào — để rác cũ không làm đỏ toàn bộ và lệch số trễ giờ.
      */
     private void loadBoard(HttpServletRequest req, int branchId) throws Exception {
         User current = SessionUtil.currentUser(req);
@@ -231,33 +242,21 @@ public class KdsServlet extends HttpServlet {
         req.setAttribute("board", service.loadBoard(branchId, query));
     }
 
-    /**
-     * Số dòng mỗi trang. Chọn 12 để một trang vừa khít khung hàng chờ trên màn quầy phổ thông
-     * mà không phải cuộn — barista liếc một lần là thấy trọn việc của trang.
-     */
     /** Trang đang xem; thiếu/không phải số/nhỏ hơn 1 → trang đầu. Vượt trần thì QueuePage kéo về biên. */
     private static int pageParam(HttpServletRequest req) {
         Integer value = optionalIntParam(req, "page");
         return value == null || value < 1 ? 1 : value;
     }
 
-    /**
-     * Thứ tự danh sách một cột: việc còn phải làm (chờ pha · đang pha · cần xử lý) giữ nguyên
-     * thứ tự pha do truy vấn trả về (làm lại trước, rồi FIFO theo giờ đặt); món ĐÃ pha xong dồn
-     * xuống cuối vì chúng chỉ còn chờ người giao, không phải việc của quầy.
-     */
+    /** Món đã bị thao tác khác đổi trạng thái trước — báo cho barista biết bảng vừa được làm mới. */
     private static void flashConflict(HttpServletRequest req) {
         req.getSession().setAttribute("flashError", "Món vừa được cập nhật bởi thao tác khác — bảng đã làm mới.");
     }
 
-    /** Lý do khiến món KHÔNG pha được → chặn món. Các lý do còn lại chỉ cần gắn cờ cho Thu ngân. */
-    private static final java.util.Set<String> BLOCKING_REASONS =
-            java.util.Set.of("EQUIPMENT", "DISCONTINUED");
-
     /** Nguyên liệu barista tick là đã hết, lấy từ modal "Hết nguyên liệu". Bỏ qua giá trị rác. */
     private static List<Integer> ingredientIds(HttpServletRequest req) {
         String[] raw = req.getParameterValues("ingredientId");
-        List<Integer> out = new java.util.ArrayList<>();
+        List<Integer> out = new ArrayList<>();
         if (raw == null) return out;
         for (String s : raw) {
             if (s == null || s.isBlank()) continue;

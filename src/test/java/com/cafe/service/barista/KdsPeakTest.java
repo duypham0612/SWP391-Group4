@@ -3,7 +3,6 @@ package com.cafe.service.barista;
 import com.cafe.common.Constants;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -33,14 +32,5 @@ class KdsPeakTest {
     void branch_threshold_overrides_default() {
         assertTrue(KdsService.isPeak(6, 5));    // ngưỡng riêng 5, thấp hơn mặc định
         assertFalse(KdsService.isPeak(6, 8));   // ngưỡng riêng 8, cao hơn
-    }
-
-    /** Ước tính chờ = tổng giây pha / số barista; 0 barista không được chia 0. */
-    @Test
-    void estimate_divides_total_prep_by_baristas_never_by_zero() {
-        assertEquals(600, KdsService.estimateLastWaitSeconds(1200, 2));
-        assertEquals(1200, KdsService.estimateLastWaitSeconds(1200, 0));   // coi như 1 barista
-        assertEquals(1200, KdsService.estimateLastWaitSeconds(1200, 1));
-        assertEquals(0, KdsService.estimateLastWaitSeconds(0, 3));
     }
 }

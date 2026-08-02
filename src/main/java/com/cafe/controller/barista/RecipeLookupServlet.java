@@ -3,6 +3,7 @@ package com.cafe.controller.barista;
 import com.cafe.model.Product;
 import com.cafe.model.Recipe;
 import com.cafe.service.shared.CatalogReadService;
+import com.cafe.web.support.BranchContext;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -13,6 +14,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /** B6 · RecipeLookupServlet → /barista/recipe. Tra cứu công thức + tác động modifier (read-only). */
@@ -28,7 +30,7 @@ public class RecipeLookupServlet extends HttpServlet {
 
     public RecipeLookupServlet() { this(new CatalogReadService()); }
     RecipeLookupServlet(CatalogReadService catalogReadService) {
-        this.catalogReadService = java.util.Objects.requireNonNull(catalogReadService);
+        this.catalogReadService = Objects.requireNonNull(catalogReadService);
     }
 
     @Override
@@ -40,7 +42,7 @@ public class RecipeLookupServlet extends HttpServlet {
             String recipeState = parseRecipeState(req.getParameter("recipeState"));
             int page = parsePage(req.getParameter("page"));
             boolean branchOnly = parseBranchOnly(req);
-            Integer branchId = branchOnly ? com.cafe.web.support.BranchContext.requireBranchId(req) : null;
+            Integer branchId = branchOnly ? BranchContext.requireBranchId(req) : null;
 
             CatalogReadService.ProductPage productPage = catalogReadService.getRecipeProductPage(
                     q, categoryId, recipeState, branchId, page, PAGE_SIZE);

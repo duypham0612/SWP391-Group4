@@ -6,8 +6,10 @@ import com.cafe.web.support.SessionUtil;
 import com.cafe.web.support.BaristaShiftSupport;
 import com.cafe.web.support.BaristaWritePolicy;
 import com.cafe.model.Ingredient;
+import com.cafe.model.PrepBatch;
 import com.cafe.model.User;
 import com.cafe.service.barista.PrepService;
+import com.cafe.web.support.BranchContext;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -18,6 +20,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 /** B4 · PrepServlet → /barista/prep. Pha sẵn (RAW→PREPPED, Contract #2) + checklist + guard tồn. */
 @WebServlet("/barista/prep")
@@ -38,7 +41,7 @@ public class PrepServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
+        int branchId = BranchContext.requireBranchId(req);
         try {
             if ("1".equals(req.getParameter("stock"))) {        // làm mới tồn RAW (AJAX, không reload form)
                 resp.setContentType("application/json;charset=UTF-8");
@@ -53,7 +56,7 @@ public class PrepServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
-        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
+        int branchId = BranchContext.requireBranchId(req);
         User u = SessionUtil.currentUser(req);
         int userId = u != null ? u.getUserId() : 0;
         String action = req.getParameter("action");
@@ -71,7 +74,7 @@ public class PrepServlet extends HttpServlet {
                 if (blank(rawQty)) throw new BusinessException("Chưa nhập sản lượng thực tế.");
                 BigDecimal qty = new BigDecimal(rawQty.trim());
                 if (qty.signum() <= 0) throw new BusinessException("Sản lượng thực tế phải lớn hơn 0.");
-                com.cafe.model.PrepBatch created = service.createSuggestedBatch(branchId, ingredientId, qty, userId,
+                PrepBatch created = service.createSuggestedBatch(branchId, ingredientId, qty, userId,
                         req.getParameter("clientRequestId"));
                 req.getSession().setAttribute("flashOk", created.isPending()
                         ? "Đã ghi nhận nguyên liệu đã dùng — sản lượng vượt mức thông thường nên cần Manager "
@@ -102,7 +105,7 @@ public class PrepServlet extends HttpServlet {
     private void forwardPage(HttpServletRequest req, HttpServletResponse resp, int branchId)
             throws Exception {
         List<Ingredient> prepped = service.getPreppedIngredients();
-        List<com.cafe.model.PrepBatch> expiredBatches = service.getExpiredActiveBatches(branchId);
+        List<PrepBatch> expiredBatches = service.getExpiredActiveBatches(branchId);
 
         req.setAttribute("preppedIngredients", prepped);
         req.setAttribute("checklist", service.getPrepChecklist(branchId));
@@ -111,10 +114,10 @@ public class PrepServlet extends HttpServlet {
         req.setAttribute("recentBatches", service.getRecentBatches(branchId));
         req.setAttribute("recipeJson", service.getRecipeJson(prepped));
         req.setAttribute("rawOnHandJson", service.getRawOnHandJson(branchId));
-        req.setAttribute("clientRequestId", java.util.UUID.randomUUID().toString());
+        req.setAttribute("clientRequestId", UUID.randomUUID().toString());
         req.setAttribute("pageTitle", "Pha sẵn nguyên liệu");
         shiftSupport.expose(req, "/barista/prep");   // trực ca: banner + khoá thao tác
-            req.getRequestDispatcher("/WEB-INF/views/barista/prep.jsp").forward(req, resp);
+        req.getRequestDispatcher("/WEB-INF/views/barista/prep.jsp").forward(req, resp);
     }
 
     private static boolean blank(String s) { return s == null || s.isBlank(); }

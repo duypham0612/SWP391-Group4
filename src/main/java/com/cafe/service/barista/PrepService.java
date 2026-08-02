@@ -1,20 +1,21 @@
 package com.cafe.service.barista;
-import com.cafe.service.shared.InventoryService;
-import com.cafe.service.admin.IngredientService;
 
+import com.cafe.common.BusinessException;
 import com.cafe.model.BranchInventory;
 import com.cafe.model.Ingredient;
 import com.cafe.model.PrepBatch;
-import com.cafe.model.PrepBatchLine;
 import com.cafe.model.PrepChecklistRow;
 import com.cafe.model.Recipe;
+import com.cafe.service.admin.IngredientService;
+import com.cafe.service.shared.InventoryService;
 
 import java.math.BigDecimal;
 import java.sql.SQLException;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /** B4 · PrepService — pha sẵn (RAW→PREPPED qua InventoryService.createPrepBatch, Contract #2). */
 public class PrepService {
@@ -24,22 +25,12 @@ public class PrepService {
 
     public PrepService() { this(new InventoryService(), new IngredientService()); }
     public PrepService(InventoryService inventoryService, IngredientService ingredientService) {
-        this.inventoryService = java.util.Objects.requireNonNull(inventoryService);
-        this.ingredientService = java.util.Objects.requireNonNull(ingredientService);
+        this.inventoryService = Objects.requireNonNull(inventoryService, "inventoryService");
+        this.ingredientService = Objects.requireNonNull(ingredientService, "ingredientService");
     }
 
     public List<Ingredient> getPreppedIngredients() throws SQLException {
         return ingredientService.getIngredientListByType("PREPPED");
-    }
-
-    /** Mẻ pha hôm nay (không liệt kê vô hạn lịch sử). */
-    public List<PrepBatch> getTodayBatches(int branchId) throws SQLException {
-        return inventoryService.getTodayPrepBatches(branchId);
-    }
-
-    public InventoryService.PrepBatchPage getTodayBatchPage(int branchId, String query, int ingredientId,
-                                                             String expiry, String status, int page, int pageSize) throws SQLException {
-        return inventoryService.getTodayPrepBatchPage(branchId, query, ingredientId, expiry, status, page, pageSize);
     }
 
     public List<PrepBatch> getExpiredActiveBatches(int branchId) throws SQLException {
@@ -51,39 +42,27 @@ public class PrepService {
         return inventoryService.getPrepChecklist(branchId);
     }
 
-    public int createBatch(int branchId, int preppedIngredientId, BigDecimal qtyProduced,
-                           LocalDateTime expiresAt, int userId) throws SQLException {
-        return inventoryService.createPrepBatch(branchId, preppedIngredientId, qtyProduced, expiresAt, userId);
-    }
-
     public PrepBatch createSuggestedBatch(int branchId, int preppedIngredientId, BigDecimal qtyProduced,
                                     int userId, String clientRequestId) throws SQLException {
         return inventoryService.createSuggestedPrepBatch(branchId, preppedIngredientId, qtyProduced,
                 userId, clientRequestId);
     }
 
-    /** Tạo nhiều mẻ một lần — tất cả-hoặc-không (một transaction). */
-    public void createBatches(int branchId, List<PrepBatchLine> lines, int userId) throws SQLException {
-        inventoryService.createPrepBatches(branchId, lines, userId);
-    }
-
-    /** Huỷ mẻ — hoàn kho qua txn bù (không hard-delete). False nếu mẻ đã huỷ từ trước. */
-    public boolean cancelBatch(int branchId, int prepBatchId, int userId) throws SQLException {
-        return inventoryService.cancelPrepBatch(branchId, prepBatchId, userId);
-    }
-
-    /** Ghi hao hụt mẻ quá hạn + đóng vòng đời mẻ trong một transaction. Trả về WasteEntryId. */
-    public long writeOffExpiredBatch(int branchId, int prepBatchId, java.math.BigDecimal qty, int userId) throws SQLException {
-        return inventoryService.writeOffExpiredPrepBatch(branchId, prepBatchId, qty, userId);
-    }
-
+    /**
+     * Loại bỏ phần pha sẵn quá hạn theo đúng lượng hệ thống gợi ý: ghi hao hụt + đóng vòng đời mẻ
+     * trong một transaction. Trả về WasteEntryId.
+     *
+     * <p>Lượng loại bỏ lấy từ chính mẻ đang còn hạn-quá chứ không nhận từ client — barista chỉ bấm
+     * xác nhận, không nhập số, nên không có đường ghi khống.
+     */
     public long writeOffExpiredBatchSuggested(int branchId, int prepBatchId, int userId) throws SQLException {
         for (PrepBatch batch : inventoryService.getExpiredActivePrepBatches(branchId)) {
             if (batch.getPrepBatchId() == prepBatchId && batch.isHasSuggestedWaste()) {
-                return writeOffExpiredBatch(branchId, prepBatchId, batch.getSuggestedWasteQuantity(), userId);
+                return inventoryService.writeOffExpiredPrepBatch(branchId, prepBatchId,
+                        batch.getSuggestedWasteQuantity(), userId);
             }
         }
-        throw new com.cafe.common.BusinessException(
+        throw new BusinessException(
                 "Mẻ này không còn tồn để loại bỏ hoặc đã được xử lý. Vui lòng tải lại.");
     }
 
@@ -102,7 +81,7 @@ public class PrepService {
      */
     public String getRecipeJson(List<Ingredient> preppedIngredients) throws SQLException {
         List<Integer> ids = new ArrayList<>();
-        Map<Integer, BigDecimal> yieldByIngredient = new java.util.HashMap<>();
+        Map<Integer, BigDecimal> yieldByIngredient = new HashMap<>();
         if (preppedIngredients != null)
             for (Ingredient i : preppedIngredients) {
                 ids.add(i.getIngredientId());

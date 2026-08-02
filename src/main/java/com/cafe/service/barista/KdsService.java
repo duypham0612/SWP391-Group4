@@ -1,15 +1,21 @@
 package com.cafe.service.barista;
-import com.cafe.service.shared.OrderService;
-import com.cafe.common.BusinessDay;
-import com.cafe.model.Branch;
-import com.cafe.service.admin.BranchService;
-import com.cafe.service.manager.AttendanceService;
 
+import com.cafe.common.BusinessDay;
+import com.cafe.common.Constants;
+import com.cafe.model.Branch;
 import com.cafe.model.OrderGroupInfo;
 import com.cafe.model.OrderItem;
+import com.cafe.model.Recipe;
+import com.cafe.model.StockAdjustment;
+import com.cafe.service.admin.BranchService;
+import com.cafe.service.manager.AttendanceService;
+import com.cafe.service.shared.OrderService;
 
 import java.sql.SQLException;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +25,10 @@ import java.util.Set;
 /** B1/B2 · KdsService — màn bếp (Barista). Uỷ thác OrderService; auto-deduct nằm ở markReady. */
 public class KdsService {
 
+    /**
+     * Số dòng mỗi trang hàng chờ. Chọn 12 để một trang vừa khít khung hàng chờ trên màn quầy
+     * phổ thông mà không phải cuộn — barista liếc một lần là thấy trọn việc của trang.
+     */
     private static final int QUEUE_PAGE_SIZE = 12;
     private static final Set<String> OWNER_FILTERS = Set.of("all", "mine", "unassigned");
     private static final Set<String> STATION_FILTERS = Set.of("all", "COFFEE", "TEA", "BLENDER");
@@ -38,56 +48,21 @@ public class KdsService {
         this.attendanceService = Objects.requireNonNull(attendanceService, "attendanceService");
     }
 
-    public List<OrderItem> getQueue(int branchId) throws SQLException { return orderService.getKdsQueue(branchId); }
-
-    /**
-     * Board quầy pha chế, mỗi phần tử là một dòng món độc lập.
-     * "blocked" tách riêng khỏi luồng pha: món không pha được thì không nên nằm chung hàng chờ
-     * (barista khác sẽ bấm Nhận pha rồi vấp lại đúng vấn đề đó) và cũng không tính vào SLA.
-     */
-    public Map<String, List<OrderItem>> getWorkbenchBoard(int branchId) throws SQLException {
-        return getWorkbenchBoard(branchId, null);
-    }
-
-    /** Board của ngày kinh doanh hiện tại; null = không cắt theo ngày (giữ tương thích). */
-    public Map<String, List<OrderItem>> getWorkbenchBoard(int branchId,
-                                                          java.time.LocalDateTime businessDayStartUtc)
-            throws SQLException {
-        return splitWorkbench(getWorkbenchQueue(branchId, businessDayStartUtc));
-    }
-
     /**
      * Hàng chờ PHẲNG theo đúng thứ tự pha mà truy vấn trả về: món làm lại lên đầu, phần còn lại
      * FIFO theo giờ vào đơn. Màn quầy pha chế dựng danh sách một cột từ đây; các con số thống kê
      * vẫn phân giỏ lại bằng {@link #splitWorkbench} trên chính danh sách này, không truy vấn lại.
      */
-    public List<OrderItem> getWorkbenchQueue(int branchId, java.time.LocalDateTime businessDayStartUtc)
+    public List<OrderItem> getWorkbenchQueue(int branchId, LocalDateTime businessDayStartUtc)
             throws SQLException {
         return orderService.getBaristaWorkbench(branchId, businessDayStartUtc);
-    }
-
-    /** Món dang dở từ ngày kinh doanh trước — khu "Đơn treo cần xử lý". */
-    public List<OrderItem> getStaleItems(int branchId, java.time.LocalDateTime businessDayStartUtc)
-            throws SQLException {
-        return orderService.getStaleItems(branchId, businessDayStartUtc);
-    }
-
-    /** Giờ mở cửa chi nhánh — mốc cắt ngày kinh doanh. Chưa khai thì cắt theo nửa đêm. */
-    public java.time.LocalTime getBranchOpenTime(int branchId) throws SQLException {
-        com.cafe.model.Branch b = getBranch(branchId);
-        return b == null ? null : b.getOpenTime();
-    }
-
-    /** Chi nhánh (giờ mở cửa + ngưỡng cao điểm) — nạp một lần cho cả board. */
-    public com.cafe.model.Branch getBranch(int branchId) throws SQLException {
-        return branchService.getBranch(branchId);
     }
 
     /** Toàn bộ query/use case của board; Controller chỉ bind KdsBoardQuery và render kết quả. */
     public KdsBoardData loadBoard(int branchId, KdsBoardQuery query) throws SQLException {
         KdsBoardQuery safe = query == null ? new KdsBoardQuery("all", "all", "all", 1, null) : query;
         Branch branch = branchService.getBranch(branchId);
-        java.time.LocalTime openTime = branch == null ? null : branch.getOpenTime();
+        LocalTime openTime = branch == null ? null : branch.getOpenTime();
         int peakThreshold = branch == null ? 0 : branch.getPeakThresholdCups();
         List<OrderItem> queue = getWorkbenchQueue(branchId, BusinessDay.startUtc(openTime));
 
@@ -199,6 +174,11 @@ public class KdsService {
         public int getCurrentUserId() { return currentUserId; }
     }
 
+    /**
+     * Thứ tự danh sách một cột: việc còn phải làm (chờ pha · đang pha · cần xử lý) giữ nguyên
+     * thứ tự pha do truy vấn trả về (làm lại trước, rồi FIFO theo giờ đặt); món ĐÃ pha xong dồn
+     * xuống cuối vì chúng chỉ còn chờ người giao, không phải việc của quầy.
+     */
     private static List<OrderItem> pourOrder(List<OrderItem> queue) {
         List<OrderItem> out = new ArrayList<>(queue.size());
         for (OrderItem item : queue) if (!"READY".equals(item.getStatus())) out.add(item);
@@ -208,7 +188,7 @@ public class KdsService {
 
     @SafeVarargs
     private static int distinctOrders(List<OrderItem>... buckets) {
-        Set<Integer> ids = new java.util.HashSet<>();
+        Set<Integer> ids = new HashSet<>();
         for (List<OrderItem> bucket : buckets) for (OrderItem item : bucket) ids.add(item.getOrderId());
         return ids.size();
     }
@@ -226,17 +206,8 @@ public class KdsService {
      */
     public static boolean isPeak(int queueCups, int branchThresholdCups) {
         int threshold = branchThresholdCups > 0
-                ? branchThresholdCups : com.cafe.common.Constants.PEAK_THRESHOLD_CUPS;
+                ? branchThresholdCups : Constants.PEAK_THRESHOLD_CUPS;
         return queueCups >= threshold;
-    }
-
-    /**
-     * Ước tính ly cuối hàng còn phải đợi bao lâu: tổng giây pha của mọi ly đang chờ+đang pha
-     * chia cho số barista đang thực sự pha (tối thiểu 1). Cố ý bỏ qua phần đã pha dở của món
-     * MAKING → ước hơi cao còn hơn hứa hão với khách.
-     */
-    public static int estimateLastWaitSeconds(int totalPrepSeconds, int baristaCount) {
-        return Math.max(0, totalPrepSeconds) / Math.max(1, baristaCount);
     }
 
     /** Phân giỏ thuần theo trạng thái — tách khỏi truy vấn DB để test được. */
@@ -416,8 +387,15 @@ public class KdsService {
         }
     }
 
-    public boolean startItem(int orderItemId, Integer userId, int branchId) throws SQLException { return orderService.startItem(orderItemId, userId, branchId); }
-    public boolean markReady(int orderItemId, Integer userId, int branchId) throws SQLException { return orderService.markItemReady(orderItemId, userId, branchId); }
+    /** Nhận pha một món — WAITING → MAKING. */
+    public boolean startItem(int orderItemId, Integer userId, int branchId) throws SQLException {
+        return orderService.startItem(orderItemId, userId, branchId);
+    }
+
+    /** Pha xong một món — MAKING → READY, kèm trừ tồn tự động theo công thức. */
+    public boolean markReady(int orderItemId, Integer userId, int branchId) throws SQLException {
+        return orderService.markItemReady(orderItemId, userId, branchId);
+    }
 
     /** Nhận pha mọi món còn chờ của một đơn — đơn nhiều ly thường do một người pha trọn. */
     public int startOrder(int orderId, Integer userId, int branchId) throws SQLException {
@@ -435,7 +413,7 @@ public class KdsService {
 
     /** Thu hồi món đang pha của người đã rời ca — lối gỡ duy nhất ở quầy, nếu không phải nhờ Thu ngân huỷ. */
     public boolean reclaimItem(int orderItemId, Integer actorUserId, int branchId, String actorName,
-                               java.util.Set<Integer> onDutyUserIds) throws SQLException {
+                               Set<Integer> onDutyUserIds) throws SQLException {
         return orderService.reclaimItem(orderItemId, actorUserId, branchId, actorName, onDutyUserIds);
     }
 
@@ -449,7 +427,7 @@ public class KdsService {
     }
 
     /** Hết nguyên liệu → kiểm kê nguyên liệu về 0 qua sổ cái + chặn món, trong cùng một transaction. */
-    public boolean blockItemForDepletedIngredients(int orderItemId, java.util.List<Integer> ingredientIds,
+    public boolean blockItemForDepletedIngredients(int orderItemId, List<Integer> ingredientIds,
                                                    String reason, Integer userId, int branchId) throws SQLException {
         return orderService.blockItemForDepletedIngredients(orderItemId, ingredientIds, reason, userId, branchId);
     }
@@ -461,22 +439,22 @@ public class KdsService {
 
     /** BLOCKED → WAITING kèm kiểm kê nhanh tồn thật cho các nguyên liệu vừa có lại. */
     public OrderService.UnblockResult unblockItem(int orderItemId,
-                                                  java.util.List<com.cafe.model.StockAdjustment> recounts,
+                                                  List<StockAdjustment> recounts,
                                                   Integer userId, int branchId) throws SQLException {
         return orderService.unblockItem(orderItemId, recounts, userId, branchId);
     }
 
     /** Nguyên liệu trong công thức của món — dựng danh sách chọn ở modal "Hết nguyên liệu". */
-    public java.util.List<com.cafe.model.Recipe> getRecipeIngredients(int productId) throws SQLException {
+    public List<Recipe> getRecipeIngredients(int productId) throws SQLException {
         return orderService.getRecipeIngredients(productId);
     }
 
     /** Nguyên liệu trong công thức đang cạn tại chi nhánh — dựng modal kiểm kê khi bỏ chặn. */
-    public java.util.List<com.cafe.model.Recipe> getDepletedRecipeIngredients(int branchId, int productId)
-            throws SQLException {
+    public List<Recipe> getDepletedRecipeIngredients(int branchId, int productId) throws SQLException {
         return orderService.getDepletedRecipeIngredients(branchId, productId);
     }
 
+    /** Pha lại món (đổ, sai công thức...) — về hàng chờ với ưu tiên lên đầu. */
     public boolean remakeItem(int orderItemId, String reason, Integer userId, int branchId) throws SQLException {
         return orderService.remakeItem(orderItemId, reason, userId, branchId);
     }

@@ -11,6 +11,7 @@ import com.cafe.service.barista.WasteService;
 import com.cafe.service.shared.InventoryService;
 import com.cafe.web.form.FormBindingException;
 import com.cafe.web.form.WasteBatchForm;
+import com.cafe.web.support.BranchContext;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -46,7 +47,7 @@ public class WasteServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
+        int branchId = BranchContext.requireBranchId(req);
         int userId = currentUserId(req);
         try {
             applyExpiredPrefill(req);
@@ -60,7 +61,7 @@ public class WasteServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
-        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
+        int branchId = BranchContext.requireBranchId(req);
         int userId = currentUserId(req);
         String action = req.getParameter("action");
         if (!BaristaWritePolicy.isWasteAction(action)) {
@@ -163,7 +164,7 @@ public class WasteServlet extends HttpServlet {
         }
         if (editId != null && !editId.isBlank()) {
             try {
-                    WasteEventItem editLog = service.getEditableWasteLog(branchId, Long.parseLong(editId), userId);
+                WasteEventItem editLog = service.getEditableWasteLog(branchId, Long.parseLong(editId), userId);
                 if (editLog == null) req.setAttribute("flashError", "Bản ghi cần sửa không tồn tại.");
                 else req.setAttribute("editLog", editLog);
             } catch (BusinessException e) {
@@ -172,7 +173,7 @@ public class WasteServlet extends HttpServlet {
                 req.setAttribute("flashError", "Bản ghi cần sửa không hợp lệ.");
             }
         }
-            req.getRequestDispatcher("/WEB-INF/views/barista/waste.jsp").forward(req, resp);
+        req.getRequestDispatcher("/WEB-INF/views/barista/waste.jsp").forward(req, resp);
     }
 
     private int currentUserId(HttpServletRequest req) {
@@ -192,7 +193,7 @@ public class WasteServlet extends HttpServlet {
                     String.valueOf(parsedIngredientId), parsedQty.stripTrailingZeros().toPlainString(),
                     "EXPIRED", "Hết hạn", "")));
         } catch (NumberFormatException ignored) {
-            // Prefill URL params are editable by the user; bad values simply fall back to a blank form.
+            // Tham số prefill nằm trên URL nên người dùng sửa được; giá trị rác thì rơi về form trống.
         }
     }
 

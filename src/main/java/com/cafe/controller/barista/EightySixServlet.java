@@ -9,6 +9,7 @@ import com.cafe.web.support.BaristaShiftSupport;
 import com.cafe.web.support.BaristaWritePolicy;
 import com.cafe.model.User;
 import com.cafe.service.shared.BranchMenuService;
+import com.cafe.web.support.BranchContext;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -18,6 +19,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -32,14 +34,14 @@ public class EightySixServlet extends HttpServlet {
 
     public EightySixServlet() { this(new BranchMenuService(), new BaristaShiftSupport()); }
     EightySixServlet(BranchMenuService service, BaristaShiftSupport shiftSupport) {
-        this.service = java.util.Objects.requireNonNull(service);
-        this.shiftSupport = java.util.Objects.requireNonNull(shiftSupport);
+        this.service = Objects.requireNonNull(service);
+        this.shiftSupport = Objects.requireNonNull(shiftSupport);
     }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
+        int branchId = BranchContext.requireBranchId(req);
         String query = textParam(req, "q", 100);
         String state = normalizeState(req.getParameter("state"));
         int pageSize = normalizePageSize(positiveIntParam(req, "pageSize", 10));
@@ -74,7 +76,7 @@ public class EightySixServlet extends HttpServlet {
             return;
         }
         if (shiftSupport.guardWrite(req, resp, "/barista/eightysix")) return;   // ngoài ca → chặn ghi
-        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
+        int branchId = BranchContext.requireBranchId(req);
         User u = SessionUtil.currentUser(req);
         int userId = u != null ? u.getUserId() : 0;
         try {

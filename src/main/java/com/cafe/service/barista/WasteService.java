@@ -1,6 +1,8 @@
 package com.cafe.service.barista;
 
+import com.cafe.common.BusinessDay;
 import com.cafe.common.BusinessException;
+import com.cafe.model.Branch;
 import com.cafe.model.Ingredient;
 import com.cafe.model.ShiftClockStatus;
 import com.cafe.model.WasteEventItem;
@@ -88,7 +90,7 @@ public class WasteService {
 
     /** Giờ mở cửa chi nhánh; chưa khai hoặc lỗi đọc thì để null → mốc lùi về nửa đêm như trước. */
     private LocalTime branchOpenTime(int branchId) throws SQLException {
-        com.cafe.model.Branch branch = branchService.getBranch(branchId);
+        Branch branch = branchService.getBranch(branchId);
         return branch == null ? null : branch.getOpenTime();
     }
 
@@ -116,7 +118,8 @@ public class WasteService {
         if (log.isRemake()) throw new BusinessException("Dòng làm lại món do KDS ghi, không sửa tại màn hao hụt.");
         if (!log.isEditable()) throw new BusinessException("Bản ghi đã hết hạn sửa hoặc đã bị huỷ.");
         if (log.getLoggedBy() != userId) throw new BusinessException("Bạn chỉ được sửa bản ghi do chính mình tạo.");
-        if (log.getLoggedAt() == null || log.getLoggedAt().isBefore(java.time.LocalDateTime.now(java.time.ZoneOffset.UTC).minusMinutes(15)))
+        if (log.getLoggedAt() == null
+                || log.getLoggedAt().isBefore(LocalDateTime.now(ZoneOffset.UTC).minusMinutes(15)))
             throw new BusinessException("Bản ghi đã quá 15 phút, hãy gửi Quản lý đối soát.");
         return log;
     }
@@ -125,12 +128,11 @@ public class WasteService {
         return WasteSummary.from(logs);
     }
 
-    /** {@code requestId} chống gửi trùng khi barista bấm hai lần hoặc mạng chập chờn. */
-    public int logIngredientWasteLines(int branchId, List<WasteLogLine> lines, int userId, String requestId) throws SQLException {
-        return inventoryService.logWasteLines(branchId, lines, userId, requestId);
-    }
-
-    /** Use case ghi batch: chuẩn hóa preset → cause, gộp dòng trùng và chống gửi lặp tại Service. */
+    /**
+     * Use case ghi batch: chuẩn hóa preset → cause, gộp dòng trùng và chống gửi lặp tại Service.
+     *
+     * <p>{@code clientRequestId} chống gửi trùng khi barista bấm hai lần hoặc mạng chập chờn.
+     */
     public int logIngredientWasteBatch(int branchId, WasteBatchCommand command, int userId) throws SQLException {
         if (command == null) throw new BusinessException("Dữ liệu hao hụt là bắt buộc.");
         String requestId = requireRequestId(command.clientRequestId());
@@ -249,7 +251,7 @@ public class WasteService {
          */
         static WasteScope businessDay(LocalTime openTime) {
             if (openTime == null) return today();
-            LocalDateTime from = com.cafe.common.BusinessDay.startUtc(openTime);
+            LocalDateTime from = BusinessDay.startUtc(openTime);
             return new WasteScope("BUSINESS_DAY", from, from.plusDays(1));
         }
 
