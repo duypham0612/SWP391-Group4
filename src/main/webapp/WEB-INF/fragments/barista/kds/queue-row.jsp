@@ -45,9 +45,10 @@
          data-station="${cardItem.station}" data-order-type="${cardItem.orderType}"
          data-priority="${cardItem.priority}">
 
-    <%-- Số thứ tự pha. Món đã xong không đánh số — nó không còn là việc của quầy.
-         seqNo = 0 nghĩa là dòng nằm ngoài hàng chờ hôm nay (khu "Đơn treo"): đánh dấu ⚠ thay vì
-         in số 0, vốn đọc như "pha thứ 0". --%>
+    <%-- Số thứ tự pha. Món đã xong hiện ✓ thay vì số — nó không còn là việc của quầy.
+         Nhánh ⚠ là LƯỚI AN TOÀN, không phải luồng thường: KdsService.loadBoard đánh số cho mọi
+         món chưa xong, nên seqNo = 0 lẽ ra không xảy ra. Giữ lại để nếu có món lọt qua mà chưa
+         được đánh số thì hiện dấu cảnh báo, chứ không in "0" — vốn đọc như "pha thứ 0". --%>
     <span class="kds-qrow__seq" aria-hidden="true">
         <c:choose>
             <c:when test="${cardItem.status == 'READY'}">✓</c:when>

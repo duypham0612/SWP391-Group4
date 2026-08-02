@@ -70,11 +70,6 @@ public class PrepService {
         return inventoryService.getRecentPrepBatches(branchId, 5);
     }
 
-    /** Sửa sản lượng mẻ — áp txn cho phần chênh lệch. */
-    public void updateBatch(int branchId, int prepBatchId, BigDecimal newQtyProduced, int userId) throws SQLException {
-        inventoryService.updatePrepBatch(branchId, prepBatchId, newQtyProduced, userId);
-    }
-
     /**
      * JSON công thức cho preview phía client: {preppedId:[{n:rawName,u:unit,q:qty,y:yield}]}.
      * Dùng để hiển thị "sẽ trừ bao nhiêu RAW" khi barista nhập sản lượng.
