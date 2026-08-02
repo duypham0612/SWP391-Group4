@@ -126,6 +126,15 @@ public class PrepService {
         return sb.append('}').toString();
     }
 
+    /**
+     * Escape cho chuỗi JSON được nhúng THẲNG vào {@code <script>} của {@code prep.jsp}
+     * ({@code var recipes = ${recipeJson};}).
+     *
+     * <p>CỐ Ý tự viết chứ không dùng Jackson: ngoài ký tự JSON bắt buộc, hàm này còn đổi
+     * {@code < > & '} thành {@code \\uXXXX} — nếu không, một tên nguyên liệu chứa
+     * {@code </script>} sẽ đóng sớm thẻ script và biến dữ liệu thành mã chạy được.
+     * Jackson mặc định KHÔNG escape mấy ký tự đó, nên thay bằng Jackson là hạ cấp bảo mật.
+     */
     private static String esc(String s) {
         return s == null ? "" : s.replace("\\", "\\\\").replace("\"", "\\\"")
                 .replace("<", "\\u003C").replace(">", "\\u003E")

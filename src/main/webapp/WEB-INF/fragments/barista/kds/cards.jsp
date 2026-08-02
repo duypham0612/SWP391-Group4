@@ -22,13 +22,41 @@
 
 <%-- Dải trạng thái: chỉ đếm khối lượng việc theo số ly, không có số liệu thời gian nào. --%>
 <section class="kds-summary" aria-label="Trạng thái quầy pha chế">
-    <div class="kds-stat"><span class="kds-stat__label">Chờ pha</span><strong class="kds-stat__num">${board.waitingCount}</strong><span class="kds-stat__unit">ly</span></div>
-    <div class="kds-stat"><span class="kds-stat__label">Đang pha</span><strong class="kds-stat__num kds-stat__num--making">${board.makingCount}</strong><span class="kds-stat__unit">ly</span></div>
-    <div class="kds-stat"><span class="kds-stat__label">Sẵn sàng</span><strong class="kds-stat__num kds-stat__num--ready">${board.readyCount}</strong><span class="kds-stat__unit">ly</span></div>
-    <div class="kds-stat"><span class="kds-stat__label">Cần xử lý</span><strong class="kds-stat__num">${board.blockedCount}</strong><span class="kds-stat__unit">ly</span></div>
+    <div class="kds-stat">
+        <span class="kds-stat__label">Chờ pha</span>
+        <strong class="kds-stat__num">${board.waitingCount}</strong>
+        <span class="kds-stat__unit">ly</span>
+    </div>
+    <div class="kds-stat">
+        <span class="kds-stat__label">Đang pha</span>
+        <strong class="kds-stat__num kds-stat__num--making">${board.makingCount}</strong>
+        <span class="kds-stat__unit">ly</span>
+    </div>
+    <div class="kds-stat">
+        <span class="kds-stat__label">Sẵn sàng</span>
+        <strong class="kds-stat__num kds-stat__num--ready">${board.readyCount}</strong>
+        <span class="kds-stat__unit">ly</span>
+    </div>
+    <div class="kds-stat">
+        <span class="kds-stat__label">Cần xử lý</span>
+        <strong class="kds-stat__num">${board.blockedCount}</strong>
+        <span class="kds-stat__unit">ly</span>
+    </div>
     <div class="kds-stat kds-stat--wide">
-        <span class="kds-stat__label">Đơn đang mở</span><strong class="kds-stat__num">${board.openOrderCount}</strong>
-        <span class="kds-stat__context"><c:choose><c:when test="${board.waitingCount + board.makingCount gt 0}">${board.waitingCount + board.makingCount} ly còn phải pha</c:when><c:otherwise>Quầy đang thông thoáng</c:otherwise></c:choose></span>
+        <span class="kds-stat__label">Đơn đang mở</span>
+        <strong class="kds-stat__num">${board.openOrderCount}</strong>
+        <%-- Dựng sẵn chuỗi rồi mới in: span này có white-space:nowrap + ellipsis nên khoảng
+             trắng thừa do xuống dòng sẽ đẩy lệch chữ. --%>
+        <c:set var="remainingCups" value="${board.waitingCount + board.makingCount}" />
+        <c:choose>
+            <c:when test="${remainingCups gt 0}">
+                <c:set var="queueContext" value="${remainingCups} ly còn phải pha" />
+            </c:when>
+            <c:otherwise>
+                <c:set var="queueContext" value="Quầy đang thông thoáng" />
+            </c:otherwise>
+        </c:choose>
+        <span class="kds-stat__context">${queueContext}</span>
     </div>
 </section>
 

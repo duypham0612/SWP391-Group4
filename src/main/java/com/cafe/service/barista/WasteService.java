@@ -49,13 +49,9 @@ public class WasteService {
         this(new InventoryService(), new IngredientService(), new AttendanceService(), new BranchService());
     }
 
+    /** Chỉ thay InventoryService — dùng cho test tổng hợp số liệu, các phụ thuộc khác giữ mặc định. */
     WasteService(InventoryService inventoryService) {
         this(inventoryService, new IngredientService(), new AttendanceService(), new BranchService());
-    }
-
-    WasteService(InventoryService inventoryService, IngredientService ingredientService,
-                 AttendanceService attendanceService) {
-        this(inventoryService, ingredientService, attendanceService, new BranchService());
     }
 
     WasteService(InventoryService inventoryService, IngredientService ingredientService,

@@ -18,13 +18,17 @@
             <span class="kds-qgroup__act">
                 <c:if test="${cardItem.groupInfo.waitingCount gt 1}">
                     <form action="${ctx}/barista/kds" method="post">
-                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="startOrder"><input type="hidden" name="orderId" value="${cardItem.groupInfo.orderId}">
+                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                        <input type="hidden" name="action" value="startOrder">
+                        <input type="hidden" name="orderId" value="${cardItem.groupInfo.orderId}">
                         <button type="submit" class="btn btn-ghost btn-sm">Nhận pha cả đơn (${cardItem.groupInfo.waitingCount})</button>
                     </form>
                 </c:if>
                 <c:if test="${cardItem.groupInfo.mineMakingCount gt 1}">
                     <form action="${ctx}/barista/kds" method="post" class="kds-qgroup__ready">
-                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="markOrderReady"><input type="hidden" name="orderId" value="${cardItem.groupInfo.orderId}">
+                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                        <input type="hidden" name="action" value="markOrderReady">
+                        <input type="hidden" name="orderId" value="${cardItem.groupInfo.orderId}">
                         <button type="submit" class="btn btn-primary btn-sm">Xong cả đơn (${cardItem.groupInfo.mineMakingCount})</button>
                     </form>
                 </c:if>
@@ -100,11 +104,17 @@
             <c:when test="${cardItem.status == 'WAITING'}">
                 <c:if test="${onShift}">
                     <form action="${ctx}/barista/kds" method="post">
-                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="start"><input type="hidden" name="orderItemId" value="${cardItem.orderItemId}">
+                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                        <input type="hidden" name="action" value="start">
+                        <input type="hidden" name="orderItemId" value="${cardItem.orderItemId}">
                         <button type="submit" class="btn btn-primary btn-sm">Nhận pha</button>
                     </form>
                     <details class="kds-card-menu"><summary>⋯</summary><div class="kds-card-menu__panel">
-                        <button type="button" class="btn btn-ghost btn-sm btn-full js-issue" data-item-id="${cardItem.orderItemId}" data-product-id="${cardItem.productId}" data-name="${cardItem.quantity} × <c:out value='${cardItem.productName}' />">Báo sự cố</button>
+                        <button type="button" class="btn btn-ghost btn-sm btn-full js-issue"
+                                data-item-id="${cardItem.orderItemId}"
+                                data-product-id="${cardItem.productId}"
+                                data-name="${cardItem.quantity} × <c:out value='${cardItem.productName}' />"
+                        >Báo sự cố</button>
                     </div></details>
                 </c:if>
             </c:when>
@@ -112,14 +122,26 @@
             <c:when test="${cardItem.status == 'MAKING'}">
                 <c:if test="${onShift and cardItem.baristaId == board.currentUserId}">
                     <form action="${ctx}/barista/kds" method="post" class="kds-qrow__ready">
-                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="markReady"><input type="hidden" name="orderItemId" value="${cardItem.orderItemId}">
+                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                        <input type="hidden" name="action" value="markReady">
+                        <input type="hidden" name="orderItemId" value="${cardItem.orderItemId}">
                         <button type="submit" class="btn btn-primary btn-sm" ${cardItem.recipeMissing ? 'disabled' : ''}>Xong</button>
                     </form>
                     <details class="kds-card-menu"><summary>⋯</summary><div class="kds-card-menu__panel kds-subactions">
-                        <button type="button" class="btn btn-ghost btn-sm js-issue" data-item-id="${cardItem.orderItemId}" data-product-id="${cardItem.productId}" data-name="${cardItem.quantity} × <c:out value='${cardItem.productName}' />">Báo sự cố</button>
-                        <button type="button" class="btn btn-ghost btn-sm js-remake" data-item-id="${cardItem.orderItemId}" data-name="${cardItem.quantity} × <c:out value='${cardItem.productName}' />" ${cardItem.recipeMissing ? 'disabled' : ''}>Làm lại</button>
+                        <button type="button" class="btn btn-ghost btn-sm js-issue"
+                                data-item-id="${cardItem.orderItemId}"
+                                data-product-id="${cardItem.productId}"
+                                data-name="${cardItem.quantity} × <c:out value='${cardItem.productName}' />"
+                        >Báo sự cố</button>
+                        <button type="button" class="btn btn-ghost btn-sm js-remake"
+                                data-item-id="${cardItem.orderItemId}"
+                                data-name="${cardItem.quantity} × <c:out value='${cardItem.productName}' />"
+                                ${cardItem.recipeMissing ? 'disabled' : ''}
+                        >Làm lại</button>
                         <form action="${ctx}/barista/kds" method="post" data-confirm="Trả món về hàng chờ để barista khác nhận?">
-                            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="returnQueue"><input type="hidden" name="orderItemId" value="${cardItem.orderItemId}">
+                            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                            <input type="hidden" name="action" value="returnQueue">
+                            <input type="hidden" name="orderItemId" value="${cardItem.orderItemId}">
                             <button type="submit" class="btn btn-ghost btn-sm">Trả lại chờ</button>
                         </form>
                     </div></details>
@@ -131,7 +153,9 @@
                     <span class="kds-qrow__by">Đang pha: <c:out value="${cardItem.baristaName}" /><c:if test="${cardItem.ownerOffDuty}"> · đã rời ca</c:if></span>
                     <c:if test="${cardItem.ownerOffDuty}">
                         <form action="${ctx}/barista/kds" method="post" data-confirm="Người pha món này đã rời ca. Thu hồi món về hàng chờ để pha lại từ đầu?">
-                            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="reclaim"><input type="hidden" name="orderItemId" value="${cardItem.orderItemId}">
+                            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                            <input type="hidden" name="action" value="reclaim">
+                            <input type="hidden" name="orderItemId" value="${cardItem.orderItemId}">
                             <button type="submit" class="btn btn-ghost btn-sm">Thu hồi món</button>
                         </form>
                     </c:if>
@@ -142,7 +166,11 @@
                 <span class="kds-qrow__by">✓ <c:choose><c:when test="${not empty cardItem.preparedByName}"><c:out value="${cardItem.preparedByName}" /></c:when><c:otherwise>đã pha</c:otherwise></c:choose></span>
                 <c:if test="${onShift}">
                     <details class="kds-card-menu"><summary>⋯</summary><div class="kds-card-menu__panel">
-                        <button type="button" class="btn btn-ghost btn-sm btn-full js-remake" data-item-id="${cardItem.orderItemId}" data-name="${cardItem.quantity} × <c:out value='${cardItem.productName}' />" ${cardItem.recipeMissing ? 'disabled' : ''}>Làm lại món</button>
+                        <button type="button" class="btn btn-ghost btn-sm btn-full js-remake"
+                                data-item-id="${cardItem.orderItemId}"
+                                data-name="${cardItem.quantity} × <c:out value='${cardItem.productName}' />"
+                                ${cardItem.recipeMissing ? 'disabled' : ''}
+                        >Làm lại món</button>
                     </div></details>
                 </c:if>
             </c:when>
@@ -150,8 +178,14 @@
             <c:when test="${cardItem.status == 'BLOCKED'}">
                 <c:if test="${onShift}">
                     <form action="${ctx}/barista/kds" method="post" data-confirm="Nguyên liệu/thiết bị đã sẵn sàng lại? Món sẽ về hàng chờ pha.">
-                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="unblock"><input type="hidden" name="orderItemId" value="${cardItem.orderItemId}">
-                        <button type="submit" class="btn btn-primary btn-sm js-unblock" data-item-id="${cardItem.orderItemId}" data-product-id="${cardItem.productId}" data-name="${cardItem.quantity} × <c:out value='${cardItem.productName}' />">Trả về chờ pha</button>
+                        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                        <input type="hidden" name="action" value="unblock">
+                        <input type="hidden" name="orderItemId" value="${cardItem.orderItemId}">
+                        <button type="submit" class="btn btn-primary btn-sm js-unblock"
+                                data-item-id="${cardItem.orderItemId}"
+                                data-product-id="${cardItem.productId}"
+                                data-name="${cardItem.quantity} × <c:out value='${cardItem.productName}' />"
+                        >Trả về chờ pha</button>
                     </form>
                 </c:if>
             </c:when>

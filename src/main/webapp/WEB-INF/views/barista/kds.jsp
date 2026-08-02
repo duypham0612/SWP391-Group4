@@ -53,7 +53,9 @@
         <h3 id="issueTitle">Báo sự cố</h3><p class="muted kds-modal__name" data-modal-name></p>
         <p class="kds-modal__hint">Sự cố sẽ được báo cho Thu ngân/Quản lý; món không tự động bị hủy.</p>
         <form action="${ctx}/barista/kds" method="post">
-            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="reportIssue"><input type="hidden" name="orderItemId" data-item-input>
+            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+            <input type="hidden" name="action" value="reportIssue">
+            <input type="hidden" name="orderItemId" data-item-input>
             <label class="kds-field"><span>Lý do</span><select name="reason" required>
                 <option value="">Chọn lý do</option>
                 <c:forEach var="r" items="${issueReasons}">
@@ -74,7 +76,9 @@
         <h3 id="remakeTitle">Làm lại món</h3><p class="muted kds-modal__name" data-modal-name></p>
         <p class="kds-modal__hint">Hệ thống ghi nhận hao hụt, giữ lịch sử lượt pha cũ và đưa món về Chờ pha với ưu tiên cao.</p>
         <form action="${ctx}/barista/kds" method="post">
-            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="remake"><input type="hidden" name="orderItemId" data-item-input>
+            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+            <input type="hidden" name="action" value="remake">
+            <input type="hidden" name="orderItemId" data-item-input>
             <label class="kds-field"><span>Lý do</span><select name="reason" required>
                 <option value="">Chọn lý do</option>
                 <c:forEach var="r" items="${remakeReasons}">
@@ -92,7 +96,10 @@
         <h3 id="unblockTitle">Trả món về chờ pha</h3><p class="muted kds-modal__name" data-modal-name></p>
         <p class="kds-modal__hint">Nếu nguyên liệu đã có lại, kiểm lại tồn thực tế trước khi trả món về hàng chờ.</p>
         <form action="${ctx}/barista/kds" method="post">
-            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="unblock"><input type="hidden" name="recount" value="1"><input type="hidden" name="orderItemId" data-item-input>
+            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+            <input type="hidden" name="action" value="unblock">
+            <input type="hidden" name="recount" value="1">
+            <input type="hidden" name="orderItemId" data-item-input>
             <div class="kds-field js-recount"><span>Kiểm kê nguyên liệu</span><div data-recount-slot></div></div>
             <div class="kds-modal__actions"><button type="button" class="btn btn-ghost" data-close>Đóng</button><button type="submit" class="btn btn-primary">Xác nhận</button></div>
         </form>

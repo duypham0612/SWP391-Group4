@@ -4,7 +4,8 @@
 > Mỗi lần bắt đầu phiên làm việc mới → **đọc lại mục "Nguyên tắc" và "Ngoài phạm vi" trước tiên.**
 >
 > Nguồn gốc: kết quả rà soát toàn bộ 11 file Java + 6 JSP + 4 fragment + 1 JS của role Barista (2026-08-02).
-> Trạng thái tổng: 🟢 Đợt 1 + Đợt 2 xong (2026-08-02) · ⚪ Đợt 3 chưa bắt đầu (cần hỏi trước)
+> Trạng thái tổng: 🟢 Cả 3 đợt xong (2026-08-02) — còn nợ đúng một mục: cắt dòng dài trong JSP
+> (mới làm 16/247 dòng, phần còn lại cần chạy app kiểm tra bằng mắt — xem cuối §5).
 
 ---
 
@@ -206,18 +207,37 @@ mvn -q test && mvn -q clean package
 ## 5. Đợt 3 — Cấu trúc (cần hỏi trước khi làm)
 
 > **Rủi ro: cao hơn.** Đụng vào cấu trúc class.
-> Trạng thái: ⚪ · **Phải hỏi người dùng xác nhận từng mục trước khi bắt tay.**
+> Trạng thái: 🟢 xong 2026-08-02 (trừ mục cắt dòng dài JSP — làm một phần, xem cuối mục)
 
-- [ ] **`KdsBoardData` → `record`** (`KdsService.java:139-200`). 62 dòng boilerplate cho 16 field, constructor 16 tham số không tên gọi rất dễ truyền nhầm thứ tự.
-  ⚠️ JSP gọi `board.getWaitingCount()`... — record sinh accessor `waitingCount()` **không có tiền tố `get`**, JSTL EL sẽ **gãy**. Phải hoặc giữ getter thủ công, hoặc sửa đồng loạt mọi `${board.xxx}` trong `cards.jsp` + `kds.jsp`. **Kiểm tra kỹ trước khi chọn.**
-- [ ] **Tách `KdsServlet.doPost`** (`:104-175`): if-else 70 dòng, 9 nhánh action, và **4 khối catch lặp gần hệt nhau** (`:177-191`) → mỗi nhánh một private method + gom xử lý lỗi vào một chỗ.
-- [ ] **Gộp 4 constructor telescoping** của `WasteService` (`:46-65`) — 3 cái package-private chỉ để phục vụ test.
-- [ ] **`PrepService.getRecipeJson` / `getRawOnHandJson`** (`:103-155`): build JSON bằng `StringBuilder` thủ công + hàm `esc()` tự viết escape 7 ký tự.
-  → Repo đã có `jackson-databind` trong `pom.xml`. Nhưng đây là đổi cách sinh chuỗi ⇒ **rủi ro đổi hành vi**, phải so sánh output byte-by-byte trước/sau.
-- [ ] **Đổi tên `pourOrder` → `sortForBrewing`** (`KdsService.java:202`). Trong file đầy `orderId`/`OrderItem`, đọc `pourOrder` rất dễ tưởng là "đơn hàng đang rót", trong khi nghĩa thật là "thứ tự pha".
-- [ ] **Tách `KdsService` (483 dòng)** đang ôm 4 vai trò: delegate mỏng sang `OrderService` (17 method 1 dòng), hàm thuần static, DTO `KdsBoardData`, và `QueuePage`.
-  → Đề xuất: tách `KdsBoardData` + `QueuePage` ra file riêng cùng package.
-- [ ] **Cắt dòng dài >120 ký tự** trong JSP: `waste.jsp` 58 dòng · `recipe.jsp` 43 · `queue-row.jsp` 39 · `eightysix.jsp` 29 · `shift.jsp` 24 · `kds.jsp` 19 · `prep.jsp` 17 · `kds-board.js` 16.
+- [x] ~~**`KdsBoardData` → `record`**~~ → **KHÔNG chuyển record, đã xác minh là không khả thi.**
+  `pom.xml` dùng Servlet 5.0 / JSP 3.0 = Jakarta EE 9 ⇒ **EL 4.0**, mà EL chỉ đọc được accessor
+  kiểu record từ **EL 6.0** (EE 11). Chuyển sang record là gãy toàn bộ `${board.waitingCount}`.
+  → Thay vào đó: tách ra file riêng + **bỏ 4 field list chết** (`waitingItems`/`inProgressItems`/
+  `readyItems`/`blockedItems` — JSP chỉ đọc `*Count`). 17 field → 13, ctor 18 tham số → 13.
+  Lý do không dùng record đã ghi thành javadoc ngay trong `KdsBoardData` để không ai thử lại.
+- [x] **Tách `KdsServlet.doPost`** → `dispatch()` dùng `switch`, mỗi use case một method riêng
+  (`startOrder`, `markOrderReady`, `reclaim`, `reportIssue`, `unblock`). 4 khối catch lặp gom còn
+  một chỗ gọi `renderResult`.
+- [x] **Gộp constructor `WasteService`** — kiểm tra thấy chỉ `WasteService(InventoryService)` được
+  `WasteSummaryTest` dùng; 2 constructor còn lại 0 caller → xoá.
+- [x] ~~**`PrepService` JSON → Jackson**~~ → **KHÔNG đổi, cố ý giữ nguyên.**
+  `prep.jsp:196` nhúng JSON **thẳng vào `<script>`** (`var recipes = ${recipeJson};`). Hàm `esc()`
+  tự viết escape `< > & '` thành `\uXXXX` — đúng khuyến nghị OWASP cho JSON trong inline script;
+  tên nguyên liệu chứa `</script>` sẽ đóng sớm thẻ và thành mã chạy được. **Jackson mặc định không
+  escape mấy ký tự đó** ⇒ đổi sang Jackson là hạ cấp bảo mật. Đã ghi lý do vào javadoc của `esc()`.
+- [x] **Đổi tên `pourOrder` → `sortForBrewing`** (private, 0 rủi ro).
+- [x] **Tách `KdsService`** → `KdsService` 345 dòng · `KdsBoardData.java` 62 · `QueuePage.java` 82.
+  Sửa 10 dòng `KdsService.QueuePage` → `QueuePage` trong `KdsQueuePageTest`.
+- [ ] **Cắt dòng dài >120 ký tự trong JSP — MỚI LÀM MỘT PHẦN: 247 → 231 dòng.**
+  Đã làm những nhóm **chắc chắn không đổi render**:
+  · tách chuỗi `<input type="hidden">` xuống dòng riêng (21 thẻ) — thẻ ẩn không render gì;
+  · ngắt giữa các thuộc tính trong thẻ `<button>` của `queue-row.jsp` — không sinh text node nào;
+  · dải số liệu `cards.jsp` — đã xác minh `.kds-stat` là `display:grid` nên bỏ qua text node trắng.
+  **Phần còn lại chưa làm** vì dòng dài do **nội dung text inline**: thêm xuống dòng giữa các thẻ
+  inline sẽ **chèn khoảng trắng vào kết quả render**. Ví dụ thật gặp phải: `.kds-stat__context` có
+  `white-space:nowrap` + `text-overflow:ellipsis`, khoảng trắng thừa đẩy lệch chữ.
+  → Mỗi dòng còn lại phải tra `display` của container trong `cafe-theme.css` rồi mới cắt được.
+  Nên làm thành **task riêng có chạy app kiểm tra bằng mắt**, không gộp vào commit refactor.
 
 ---
 
@@ -244,7 +264,7 @@ mvn -q test && mvn -q clean package
 |---|---|---|---|---|
 | 1 | Xoá code chết + sửa comment sai | 🟢 | `2f49816` | −170/+128 dòng · test 344/345 (1 đỏ sẵn từ trước, xem §6) · WAR build OK |
 | 2 | Gom trùng lặp | 🟢 | `95c90cf` | Thêm `RequestParams` + 2 enum lý do · gỡ 3 bản sao `BLOCKING_REASONS` · 12 literal trạng thái → `OrderItemStatus` · test 345/345 |
-| 3 | Cấu trúc | ⚪ | | Cần hỏi trước |
+| 3 | Cấu trúc | 🟢 | *(điền sau khi commit)* | KdsService 470→345 dòng · tách 2 file · doPost 70→11 dòng · test 345/345. **Còn nợ:** cắt dòng dài JSP mới xong 16/247 |
 
 Chú thích: ⚪ chưa làm · 🟡 đang làm · 🟢 xong · 🔴 bị chặn
 

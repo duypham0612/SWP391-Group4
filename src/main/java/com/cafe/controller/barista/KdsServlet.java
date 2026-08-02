@@ -116,93 +116,129 @@ public class KdsServlet extends HttpServlet {
             return;
         }
         try {
-            if ("start".equals(action)) {
-                if (!service.startItem(intParam(req, "orderItemId"), userId, branchId))
-                    flashConflict(req);
-            } else if ("startOrder".equals(action)) {
-                // Cả đơn thường do một người pha trọn; gộp lại để khỏi bấm N lần trên N ly.
-                int claimed = service.startOrder(intParam(req, "orderId"), userId, branchId);
-                if (claimed == 0) flashConflict(req);
-                else req.getSession().setAttribute("flashOk", "Đã nhận pha " + claimed + " món của đơn này.");
-            } else if ("markOrderReady".equals(action)) {
-                OrderService.BulkReadyResult result =
-                        service.markOrderReady(intParam(req, "orderId"), userId, branchId);
-                if (result.getCompleted() == 0 && result.getSkippedNoRecipe() == 0) flashConflict(req);
-                else if (result.getSkippedNoRecipe() > 0) {
-                    // Nói rõ phần chưa xong và lối thoát — món thiếu công thức sẽ không bao giờ tự xong được.
-                    req.getSession().setAttribute("flashError", "Đã hoàn thành " + result.getCompleted()
-                            + " món. Còn " + result.getSkippedNoRecipe()
-                            + " món chưa có công thức — hãy bấm Báo sự cố cho từng món đó.");
-                } else req.getSession().setAttribute("flashOk",
-                        "Đã hoàn thành " + result.getCompleted() + " món của đơn này.");
-            } else if ("markReady".equals(action)) {
-                if (!service.markReady(intParam(req, "orderItemId"), userId, branchId))
-                    flashConflict(req);
-            } else if ("reclaim".equals(action)) {
-                // Thu hồi món của người đã rời ca. Điều kiện "đã rời ca" kiểm lại ở SERVER, không tin
-                // nút hiện trên màn: bảng có thể đã cũ vài phút và chủ món vừa quay lại quầy.
-                int itemId = intParam(req, "orderItemId");
-                if (!service.reclaimItem(itemId, userId, branchId, u == null ? null : u.getFullName(),
-                        attendance.getOnDutyUserIds(branchId))) {
-                    flashConflict(req);
-                } else req.getSession().setAttribute("flashOk",
-                        "Đã thu hồi món về hàng chờ — ai cũng nhận pha tiếp được.");
-            } else if ("returnQueue".equals(action)) {
-                if (!service.returnToQueue(intParam(req, "orderItemId"), userId, branchId)) flashConflict(req);
-            } else if ("reportIssue".equals(action)) {
-                // Ba nhóm lý do có phạm vi ảnh hưởng khác nhau nên dẫn tới ba hành động khác nhau,
-                // thay vì cùng ghi một cờ như trước (khi đó báo sự cố không đổi hành vi hệ thống).
-                IssueReason reason = IssueReason.fromCode(req.getParameter("reason"));
-                if (reason == IssueReason.OUT_OF_STOCK) {                 // Nhóm A: sửa sổ kho rồi chặn món
-                    if (!service.blockItemForDepletedIngredients(intParam(req, "orderItemId"),
-                            ingredientIds(req), issueReason(req), userId, branchId)) flashConflict(req);
-                    else req.getSession().setAttribute("flashOk",
-                            "Đã ghi hết nguyên liệu vào sổ kho — các món dùng nguyên liệu này tự ẩn khỏi POS/QR, tự hiện lại khi có tồn.");
-                } else if (reason != null && reason.isBlocking()) {       // Nhóm B: chặn món
-                    if (!service.blockItem(intParam(req, "orderItemId"), issueReason(req), userId, branchId))
-                        flashConflict(req);
-                    else req.getSession().setAttribute("flashOk", "Đã chuyển món sang mục Cần xử lý.");
-                } else {                                                 // Nhóm C: chỉ gắn cờ, việc của Thu ngân
-                    if (!service.reportIssue(intParam(req, "orderItemId"), issueReason(req), userId, branchId))
-                        flashConflict(req);
-                    else req.getSession().setAttribute("flashOk", "Đã báo sự cố cho Thu ngân/Quản lý. Món chưa bị hủy.");
-                }
-            } else if ("unblock".equals(action)) {
-                if ("1".equals(req.getParameter("recount"))) {
-                    List<StockAdjustment> recounts = RecountValidator.parse(
-                            req.getParameterValues("ingredientId"), req.getParameterValues("actualQty"));
-                    OrderService.UnblockResult result =
-                            service.unblockItem(intParam(req, "orderItemId"), recounts, userId, branchId);
-                    if (!result.isSuccess()) flashConflict(req);
-                    else if (result.getRemainingBlockedWithRecountedIngredients() > 0) {
-                        req.getSession().setAttribute("flashOk", "Đã trả món về hàng chờ. Còn "
-                                + result.getRemainingBlockedWithRecountedIngredients()
-                                + " món đang cần xử lý dùng nguyên liệu vừa kiểm lại.");
-                    } else req.getSession().setAttribute("flashOk", "Đã trả món về hàng chờ.");
-                } else {
-                    if (!service.unblockItem(intParam(req, "orderItemId"), userId, branchId)) flashConflict(req);
-                    else req.getSession().setAttribute("flashOk", "Đã trả món về hàng chờ.");
-                }
-            } else if ("remake".equals(action)) {
-                if (!service.remakeItem(intParam(req, "orderItemId"), remakeReason(req), userId, branchId)) flashConflict(req);
-                else req.getSession().setAttribute("flashOk", "Đã đưa món về hàng chờ với ưu tiên làm lại.");
-            }
-            renderResult(req, resp, branchId);
+            dispatch(action, req, userId, branchId, u);
         } catch (NumberFormatException e) {
             // Bắt TRƯỚC IllegalArgumentException (là lớp cha): nếu không, message máy móc kiểu
             // "For input string: ..." của intParam sẽ hiện thẳng lên banner của barista.
             req.getSession().setAttribute("flashError", "Dữ liệu món không hợp lệ. Vui lòng tải lại và thử lại.");
-            try { renderResult(req, resp, branchId); }
-            catch (Exception ex) { throw new ServletException(ex); }
         } catch (IllegalArgumentException | BusinessException e) {
             req.getSession().setAttribute("flashError", e.getMessage());
-            try { renderResult(req, resp, branchId); }
-            catch (Exception ex) { throw new ServletException(ex); }
         } catch (Exception e) {
             req.getSession().setAttribute("flashError", "Không thể cập nhật món lúc này. Vui lòng tải lại và thử lại.");
-            try { renderResult(req, resp, branchId); }
-            catch (Exception ex) { throw new ServletException(ex); }
         }
+        // Vẽ lại bảng ở MỌI nhánh — thành công hay lỗi nghiệp vụ đều trả về đúng định dạng
+        // client đang chờ, nên chỉ gọi ở một chỗ duy nhất thay vì lặp trong từng khối catch.
+        try {
+            renderResult(req, resp, branchId);
+        } catch (Exception e) {
+            throw new ServletException(e);
+        }
+    }
+
+    /** Điều phối action đã qua allowlist tới đúng use case. Lỗi để {@link #doPost} bắt tập trung. */
+    private void dispatch(String action, HttpServletRequest req, Integer userId, int branchId, User actor)
+            throws Exception {
+        switch (action) {
+            case "start" -> {
+                if (!service.startItem(intParam(req, "orderItemId"), userId, branchId)) flashConflict(req);
+            }
+            case "startOrder" -> startOrder(req, userId, branchId);
+            case "markOrderReady" -> markOrderReady(req, userId, branchId);
+            case "markReady" -> {
+                if (!service.markReady(intParam(req, "orderItemId"), userId, branchId)) flashConflict(req);
+            }
+            case "reclaim" -> reclaim(req, userId, branchId, actor);
+            case "returnQueue" -> {
+                if (!service.returnToQueue(intParam(req, "orderItemId"), userId, branchId)) flashConflict(req);
+            }
+            case "reportIssue" -> reportIssue(req, userId, branchId);
+            case "unblock" -> unblock(req, userId, branchId);
+            case "remake" -> {
+                if (!service.remakeItem(intParam(req, "orderItemId"), remakeReason(req), userId, branchId))
+                    flashConflict(req);
+                else flashOk(req, "Đã đưa món về hàng chờ với ưu tiên làm lại.");
+            }
+            default -> { /* BaristaWritePolicy đã chặn trước, nhánh này không tới được. */ }
+        }
+    }
+
+    /** Cả đơn thường do một người pha trọn; gộp lại để khỏi bấm N lần trên N ly. */
+    private void startOrder(HttpServletRequest req, Integer userId, int branchId) throws Exception {
+        int claimed = service.startOrder(intParam(req, "orderId"), userId, branchId);
+        if (claimed == 0) flashConflict(req);
+        else flashOk(req, "Đã nhận pha " + claimed + " món của đơn này.");
+    }
+
+    private void markOrderReady(HttpServletRequest req, Integer userId, int branchId) throws Exception {
+        OrderService.BulkReadyResult result = service.markOrderReady(intParam(req, "orderId"), userId, branchId);
+        if (result.getCompleted() == 0 && result.getSkippedNoRecipe() == 0) {
+            flashConflict(req);
+        } else if (result.getSkippedNoRecipe() > 0) {
+            // Nói rõ phần chưa xong và lối thoát — món thiếu công thức sẽ không bao giờ tự xong được.
+            req.getSession().setAttribute("flashError", "Đã hoàn thành " + result.getCompleted()
+                    + " món. Còn " + result.getSkippedNoRecipe()
+                    + " món chưa có công thức — hãy bấm Báo sự cố cho từng món đó.");
+        } else {
+            flashOk(req, "Đã hoàn thành " + result.getCompleted() + " món của đơn này.");
+        }
+    }
+
+    /**
+     * Thu hồi món của người đã rời ca. Điều kiện "đã rời ca" kiểm lại ở SERVER, không tin nút hiện
+     * trên màn: bảng có thể đã cũ vài phút và chủ món vừa quay lại quầy.
+     */
+    private void reclaim(HttpServletRequest req, Integer userId, int branchId, User actor) throws Exception {
+        boolean done = service.reclaimItem(intParam(req, "orderItemId"), userId, branchId,
+                actor == null ? null : actor.getFullName(), attendance.getOnDutyUserIds(branchId));
+        if (!done) flashConflict(req);
+        else flashOk(req, "Đã thu hồi món về hàng chờ — ai cũng nhận pha tiếp được.");
+    }
+
+    /**
+     * Ba nhóm lý do có phạm vi ảnh hưởng khác nhau nên dẫn tới ba hành động khác nhau, thay vì
+     * cùng ghi một cờ như trước (khi đó báo sự cố không đổi hành vi hệ thống).
+     */
+    private void reportIssue(HttpServletRequest req, Integer userId, int branchId) throws Exception {
+        IssueReason reason = IssueReason.fromCode(req.getParameter("reason"));
+        int itemId = intParam(req, "orderItemId");
+        if (reason == IssueReason.OUT_OF_STOCK) {                     // Nhóm A: sửa sổ kho rồi chặn món
+            if (!service.blockItemForDepletedIngredients(itemId, ingredientIds(req),
+                    issueReason(req), userId, branchId)) flashConflict(req);
+            else flashOk(req, "Đã ghi hết nguyên liệu vào sổ kho — các món dùng nguyên liệu này "
+                    + "tự ẩn khỏi POS/QR, tự hiện lại khi có tồn.");
+        } else if (reason != null && reason.isBlocking()) {           // Nhóm B: chặn món
+            if (!service.blockItem(itemId, issueReason(req), userId, branchId)) flashConflict(req);
+            else flashOk(req, "Đã chuyển món sang mục Cần xử lý.");
+        } else {                                                      // Nhóm C: chỉ gắn cờ cho Thu ngân
+            if (!service.reportIssue(itemId, issueReason(req), userId, branchId)) flashConflict(req);
+            else flashOk(req, "Đã báo sự cố cho Thu ngân/Quản lý. Món chưa bị hủy.");
+        }
+    }
+
+    /** Bỏ chặn món; kèm kiểm kê nhanh khi barista khai lại tồn thật cho nguyên liệu vừa có lại. */
+    private void unblock(HttpServletRequest req, Integer userId, int branchId) throws Exception {
+        int itemId = intParam(req, "orderItemId");
+        if (!"1".equals(req.getParameter("recount"))) {
+            if (!service.unblockItem(itemId, userId, branchId)) flashConflict(req);
+            else flashOk(req, "Đã trả món về hàng chờ.");
+            return;
+        }
+        List<StockAdjustment> recounts = RecountValidator.parse(
+                req.getParameterValues("ingredientId"), req.getParameterValues("actualQty"));
+        OrderService.UnblockResult result = service.unblockItem(itemId, recounts, userId, branchId);
+        if (!result.isSuccess()) {
+            flashConflict(req);
+        } else if (result.getRemainingBlockedWithRecountedIngredients() > 0) {
+            flashOk(req, "Đã trả món về hàng chờ. Còn "
+                    + result.getRemainingBlockedWithRecountedIngredients()
+                    + " món đang cần xử lý dùng nguyên liệu vừa kiểm lại.");
+        } else {
+            flashOk(req, "Đã trả món về hàng chờ.");
+        }
+    }
+
+    private static void flashOk(HttpServletRequest req, String message) {
+        req.getSession().setAttribute("flashOk", message);
     }
 
     private void renderResult(HttpServletRequest req, HttpServletResponse resp, int branchId)

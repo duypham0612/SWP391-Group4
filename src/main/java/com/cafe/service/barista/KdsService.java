@@ -85,7 +85,7 @@ public class KdsService {
         int blockedCount = cups(blocked);
         int queueCups = waitingCount + makingCount;
 
-        List<OrderItem> ordered = pourOrder(queue);
+        List<OrderItem> ordered = sortForBrewing(queue);
         int sequence = 1;
         for (OrderItem item : ordered) if (!is(item, OrderItemStatus.READY)) item.setSeqNo(sequence++);
         List<OrderItem> visible = filterWorkbench(ordered, safe.owner(), safe.station(),
@@ -93,7 +93,7 @@ public class KdsService {
         QueuePage page = paginate(visible, safe.page(), QUEUE_PAGE_SIZE);
         markGroupStarts(page.getItems());
         return new KdsBoardData(isPeak(queueCups, peakThreshold), queueCups, ordered.size(), page,
-                safe.owner(), safe.station(), safe.orderType(), waiting, making, ready, blocked,
+                safe.owner(), safe.station(), safe.orderType(),
                 waitingCount, makingCount, readyCount, blockedCount,
                 distinctOrders(waiting, making, ready, blocked), safe.currentUserId());
     }
@@ -112,75 +112,13 @@ public class KdsService {
         }
     }
 
-    public static final class KdsBoardData {
-        private final boolean peakMode;
-        private final int peakQueueCups;
-        private final int queueTotal;
-        private final QueuePage queuePage;
-        private final String filterOwner;
-        private final String filterStation;
-        private final String filterOrderType;
-        private final List<OrderItem> waitingItems;
-        private final List<OrderItem> inProgressItems;
-        private final List<OrderItem> readyItems;
-        private final List<OrderItem> blockedItems;
-        private final int waitingCount;
-        private final int makingCount;
-        private final int readyCount;
-        private final int blockedCount;
-        private final int openOrderCount;
-        private final int currentUserId;
-
-        KdsBoardData(boolean peakMode, int peakQueueCups, int queueTotal, QueuePage queuePage,
-                     String filterOwner, String filterStation, String filterOrderType,
-                     List<OrderItem> waitingItems, List<OrderItem> inProgressItems,
-                     List<OrderItem> readyItems, List<OrderItem> blockedItems,
-                     int waitingCount, int makingCount, int readyCount, int blockedCount,
-                     int openOrderCount, Integer currentUserId) {
-            this.peakMode = peakMode;
-            this.peakQueueCups = peakQueueCups;
-            this.queueTotal = queueTotal;
-            this.queuePage = queuePage;
-            this.filterOwner = filterOwner;
-            this.filterStation = filterStation;
-            this.filterOrderType = filterOrderType;
-            this.waitingItems = waitingItems;
-            this.inProgressItems = inProgressItems;
-            this.readyItems = readyItems;
-            this.blockedItems = blockedItems;
-            this.waitingCount = waitingCount;
-            this.makingCount = makingCount;
-            this.readyCount = readyCount;
-            this.blockedCount = blockedCount;
-            this.openOrderCount = openOrderCount;
-            this.currentUserId = currentUserId == null ? 0 : currentUserId;
-        }
-
-        public boolean isPeakMode() { return peakMode; }
-        public int getPeakQueueCups() { return peakQueueCups; }
-        public int getQueueTotal() { return queueTotal; }
-        public QueuePage getQueuePage() { return queuePage; }
-        public String getFilterOwner() { return filterOwner; }
-        public String getFilterStation() { return filterStation; }
-        public String getFilterOrderType() { return filterOrderType; }
-        public List<OrderItem> getWaitingItems() { return waitingItems; }
-        public List<OrderItem> getInProgressItems() { return inProgressItems; }
-        public List<OrderItem> getReadyItems() { return readyItems; }
-        public List<OrderItem> getBlockedItems() { return blockedItems; }
-        public int getWaitingCount() { return waitingCount; }
-        public int getMakingCount() { return makingCount; }
-        public int getReadyCount() { return readyCount; }
-        public int getBlockedCount() { return blockedCount; }
-        public int getOpenOrderCount() { return openOrderCount; }
-        public int getCurrentUserId() { return currentUserId; }
-    }
 
     /**
      * Thứ tự danh sách một cột: việc còn phải làm (chờ pha · đang pha · cần xử lý) giữ nguyên
      * thứ tự pha do truy vấn trả về (làm lại trước, rồi FIFO theo giờ đặt); món ĐÃ pha xong dồn
      * xuống cuối vì chúng chỉ còn chờ người giao, không phải việc của quầy.
      */
-    private static List<OrderItem> pourOrder(List<OrderItem> queue) {
+    private static List<OrderItem> sortForBrewing(List<OrderItem> queue) {
         List<OrderItem> out = new ArrayList<>(queue.size());
         for (OrderItem item : queue) if (!is(item, OrderItemStatus.READY)) out.add(item);
         for (OrderItem item : queue) if (is(item, OrderItemStatus.READY)) out.add(item);
@@ -331,75 +269,6 @@ public class KdsService {
      */
     public static QueuePage paginate(List<OrderItem> items, int page, int pageSize) {
         return new QueuePage(items, page, pageSize);
-    }
-
-    /** Một trang của hàng chờ — thuần phép cắt danh sách, không truy vấn lại DB. */
-    public static class QueuePage {
-        private final List<OrderItem> items;
-        private final int total;
-        private final int page;
-        private final int pageSize;
-        private final int totalPages;
-        private final int startRow;
-
-        QueuePage(List<OrderItem> all, int page, int pageSize) {
-            this.total = all.size();
-            this.pageSize = Math.max(1, pageSize);
-            List<List<OrderItem>> pages = splitPages(all, this.pageSize);
-            this.totalPages = Math.max(1, pages.size());
-            this.page = Math.min(Math.max(1, page), this.totalPages);
-            int before = 0;
-            for (int i = 0; i < this.page - 1 && i < pages.size(); i++) before += pages.get(i).size();
-            this.startRow = total == 0 ? 0 : before + 1;
-            this.items = pages.isEmpty() ? new ArrayList<>() : pages.get(this.page - 1);
-        }
-
-        /**
-         * Cắt trang theo KHỐI ĐƠN: các dòng liền nhau cùng một đơn không bao giờ bị tách sang hai
-         * trang — pha hết trang 1 mà đơn còn hai ly ở trang 2 là cách chắc chắn nhất để giao thiếu.
-         *
-         * <p>Trang nhận trọn khối chừng nào chưa đạt {@code pageSize}, nên trang có thể dài hơn
-         * mức chuẩn đúng bằng phần dôi của khối cuối (khung hàng chờ vốn đã cuộn được). Trang rỗng
-         * luôn nhận khối, kể cả khối lớn hơn cả trang — nếu không vòng lặp không bao giờ tiến.
-         */
-        private static List<List<OrderItem>> splitPages(List<OrderItem> all, int pageSize) {
-            List<List<OrderItem>> pages = new ArrayList<>();
-            List<OrderItem> current = new ArrayList<>();
-            int i = 0;
-            while (i < all.size()) {
-                int end = i + 1;
-                while (end < all.size() && all.get(end).getOrderId() == all.get(i).getOrderId()) end++;
-                if (current.size() >= pageSize) {
-                    pages.add(current);
-                    current = new ArrayList<>();
-                }
-                current.addAll(all.subList(i, end));
-                i = end;
-            }
-            if (!current.isEmpty()) pages.add(current);
-            return pages;
-        }
-
-        public List<OrderItem> getItems() { return items; }
-        public int getTotal() { return total; }
-        public int getPage() { return page; }
-        public int getPageSize() { return pageSize; }
-        public int getTotalPages() { return totalPages; }
-        public boolean isHasPrevious() { return page > 1; }
-        public boolean isHasNext() { return page < totalPages; }
-        public int getStartRow() { return startRow; }
-        public int getEndRow() { return total == 0 ? 0 : startRow + items.size() - 1; }
-
-        /** Tối đa 5 số trang quanh trang hiện tại để pager không phình khi hàng chờ dài. */
-        public List<Integer> getVisiblePages() {
-            List<Integer> pages = new ArrayList<>();
-            int totalPages = getTotalPages();
-            int start = Math.max(1, page - 2);
-            int end = Math.min(totalPages, start + 4);
-            start = Math.max(1, end - 4);
-            for (int value = start; value <= end; value++) pages.add(value);
-            return pages;
-        }
     }
 
     /** Nhận pha một món — WAITING → MAKING. */
