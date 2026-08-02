@@ -8,7 +8,8 @@ import com.cafe.model.StockAdjustment;
 import com.cafe.model.User;
 import com.cafe.service.barista.KdsService;
 import com.cafe.service.manager.AttendanceService;
-import com.cafe.service.shared.OrderService;
+import com.cafe.service.shared.KdsOrderWorkflowService;
+import com.cafe.service.shared.OrderIssueService;
 import com.cafe.web.support.BaristaShiftSupport;
 import com.cafe.web.support.BaristaWritePolicy;
 import com.cafe.web.support.BranchContext;
@@ -170,7 +171,8 @@ public class KdsServlet extends HttpServlet {
     }
 
     private void markOrderReady(HttpServletRequest req, Integer userId, int branchId) throws Exception {
-        OrderService.BulkReadyResult result = service.markOrderReady(intParam(req, "orderId"), userId, branchId);
+        KdsOrderWorkflowService.BulkReadyResult result =
+                service.markOrderReady(intParam(req, "orderId"), userId, branchId);
         if (result.getCompleted() == 0 && result.getSkippedNoRecipe() == 0) {
             flashConflict(req);
         } else if (result.getSkippedNoRecipe() > 0) {
@@ -225,7 +227,7 @@ public class KdsServlet extends HttpServlet {
         }
         List<StockAdjustment> recounts = RecountValidator.parse(
                 req.getParameterValues("ingredientId"), req.getParameterValues("actualQty"));
-        OrderService.UnblockResult result = service.unblockItem(itemId, recounts, userId, branchId);
+        OrderIssueService.UnblockResult result = service.unblockItem(itemId, recounts, userId, branchId);
         if (!result.isSuccess()) {
             flashConflict(req);
         } else if (result.getRemainingBlockedWithRecountedIngredients() > 0) {

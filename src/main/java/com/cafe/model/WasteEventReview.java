@@ -9,19 +9,32 @@ public class WasteEventReview {
     private String ingredientName; private String reviewType; private BigDecimal qtyBefore; private BigDecimal qtyAfter;
     private String status; private String note; private LocalDateTime createdAt; private Integer resolvedBy;
     private LocalDateTime resolvedAt; private String resolutionNote;
-    public long getWasteEntryId(){return wasteEntryId;} public void setWasteEntryId(long v){wasteEntryId=v;}
-    public String getEventGroupId(){return eventGroupId;} public void setEventGroupId(String v){eventGroupId=v;}
-    public int getIngredientId(){return ingredientId;} public void setIngredientId(int v){ingredientId=v;}
-    public String getIngredientName(){return ingredientName;} public void setIngredientName(String v){ingredientName=v;}
-    public String getReviewType(){return reviewType;} public void setReviewType(String v){reviewType=v;}
-    public BigDecimal getQtyBefore(){return qtyBefore;} public void setQtyBefore(BigDecimal v){qtyBefore=v;}
-    public BigDecimal getQtyAfter(){return qtyAfter;} public void setQtyAfter(BigDecimal v){qtyAfter=v;}
-    public String getStatus(){return status;} public void setStatus(String v){status=v;}
-    public String getNote(){return note;} public void setNote(String v){note=v;}
-    public LocalDateTime getCreatedAt(){return createdAt;} public void setCreatedAt(LocalDateTime v){createdAt=v;}
-    public Integer getResolvedBy(){return resolvedBy;} public void setResolvedBy(Integer v){resolvedBy=v;}
-    public LocalDateTime getResolvedAt(){return resolvedAt;} public void setResolvedAt(LocalDateTime v){resolvedAt=v;}
-    public String getResolutionNote(){return resolutionNote;} public void setResolutionNote(String v){resolutionNote=v;}
+    public long getWasteEntryId() { return wasteEntryId; }
+    public void setWasteEntryId(long wasteEntryId) { this.wasteEntryId = wasteEntryId; }
+    public String getEventGroupId() { return eventGroupId; }
+    public void setEventGroupId(String eventGroupId) { this.eventGroupId = eventGroupId; }
+    public int getIngredientId() { return ingredientId; }
+    public void setIngredientId(int ingredientId) { this.ingredientId = ingredientId; }
+    public String getIngredientName() { return ingredientName; }
+    public void setIngredientName(String ingredientName) { this.ingredientName = ingredientName; }
+    public String getReviewType() { return reviewType; }
+    public void setReviewType(String reviewType) { this.reviewType = reviewType; }
+    public BigDecimal getQtyBefore() { return qtyBefore; }
+    public void setQtyBefore(BigDecimal qtyBefore) { this.qtyBefore = qtyBefore; }
+    public BigDecimal getQtyAfter() { return qtyAfter; }
+    public void setQtyAfter(BigDecimal qtyAfter) { this.qtyAfter = qtyAfter; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+    public String getNote() { return note; }
+    public void setNote(String note) { this.note = note; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public Integer getResolvedBy() { return resolvedBy; }
+    public void setResolvedBy(Integer resolvedBy) { this.resolvedBy = resolvedBy; }
+    public LocalDateTime getResolvedAt() { return resolvedAt; }
+    public void setResolvedAt(LocalDateTime resolvedAt) { this.resolvedAt = resolvedAt; }
+    public String getResolutionNote() { return resolutionNote; }
+    public void setResolutionNote(String resolutionNote) { this.resolutionNote = resolutionNote; }
     public boolean isOpen(){return "OPEN".equals(status);}
     /** Tồn âm vượt ngưỡng cần xử lý trước — dùng để tô đậm dòng trên màn đối soát. */
     public boolean isUrgent(){return "HARD_NEGATIVE".equals(reviewType);}

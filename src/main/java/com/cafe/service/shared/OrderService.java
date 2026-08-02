@@ -63,34 +63,6 @@ public final class OrderService {
         public List<Integer> optionIds = new ArrayList<>();
     }
 
-    /** Kết quả bỏ chặn kèm kiểm kê — bản chuyển tiếp của {@link OrderIssueService.UnblockResult}. */
-    public static class UnblockResult {
-        private final boolean success;
-        private final int remaining;
-
-        public UnblockResult(boolean success, int remaining) {
-            this.success = success;
-            this.remaining = remaining;
-        }
-
-        public boolean isSuccess() { return success; }
-        public int getRemainingBlockedWithRecountedIngredients() { return remaining; }
-    }
-
-    /** Kết quả hoàn thành cả đơn — bản chuyển tiếp của {@link KdsOrderWorkflowService.BulkReadyResult}. */
-    public static class BulkReadyResult {
-        private final int completed;
-        private final int skippedNoRecipe;
-
-        public BulkReadyResult(int completed, int skippedNoRecipe) {
-            this.completed = completed;
-            this.skippedNoRecipe = skippedNoRecipe;
-        }
-
-        public int getCompleted() { return completed; }
-        public int getSkippedNoRecipe() { return skippedNoRecipe; }
-    }
-
     // ── Đặt món (placement) ──────────────────────────────────────────────────────────────
 
     public int placeOrder(int branchId, Integer tableId, String source, String orderType,
@@ -151,10 +123,9 @@ public final class OrderService {
         return kds.startAllInOrder(orderId, userId, sessionBranchId);
     }
 
-    public BulkReadyResult markOrderReady(int orderId, Integer userId, int sessionBranchId)
-            throws SQLException {
-        KdsOrderWorkflowService.BulkReadyResult result = kds.markOrderReady(orderId, userId, sessionBranchId);
-        return new BulkReadyResult(result.getCompleted(), result.getSkippedNoRecipe());
+    public KdsOrderWorkflowService.BulkReadyResult markOrderReady(int orderId, Integer userId,
+                                                                  int sessionBranchId) throws SQLException {
+        return kds.markOrderReady(orderId, userId, sessionBranchId);
     }
 
     public int countMyMakingItems(int branchId, int userId) throws SQLException {
@@ -192,10 +163,9 @@ public final class OrderService {
         return issues.unblockItem(orderItemId, userId, branchId);
     }
 
-    public UnblockResult unblockItem(int orderItemId, List<StockAdjustment> recounts,
-                                     Integer userId, int branchId) throws SQLException {
-        OrderIssueService.UnblockResult result = issues.unblockItem(orderItemId, recounts, userId, branchId);
-        return new UnblockResult(result.isSuccess(), result.getRemainingBlockedWithRecountedIngredients());
+    public OrderIssueService.UnblockResult unblockItem(int orderItemId, List<StockAdjustment> recounts,
+                                                       Integer userId, int branchId) throws SQLException {
+        return issues.unblockItem(orderItemId, recounts, userId, branchId);
     }
 
     public boolean remakeItem(int orderItemId, String reason, Integer userId, int branchId)

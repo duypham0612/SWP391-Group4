@@ -18,18 +18,31 @@ public class WasteEvent {
     private LocalDateTime createdAt;
     private String productName;
 
-    public String getEventGroupId() { return eventGroupId; } public void setEventGroupId(String v) { eventGroupId=v; }
-    public int getBranchId() { return branchId; } public void setBranchId(int v) { branchId=v; }
-    public String getEventKind() { return eventKind; } public void setEventKind(String v) { eventKind=v; }
-    public String getSource() { return source; } public void setSource(String v) { source=v; }
-    public Integer getProductId() { return productId; } public void setProductId(Integer v) { productId=v; }
-    public Integer getOrderItemId() { return orderItemId; } public void setOrderItemId(Integer v) { orderItemId=v; }
-    public Integer getCupQuantity() { return cupQuantity; } public void setCupQuantity(Integer v) { cupQuantity=v; }
-    public String getCauseCode() { return causeCode; } public void setCauseCode(String v) { causeCode=v; }
-    public String getCauseDetail() { return causeDetail; } public void setCauseDetail(String v) { causeDetail=v; }
-    public Integer getShiftAssignmentId() { return shiftAssignmentId; } public void setShiftAssignmentId(Integer v) { shiftAssignmentId=v; }
-    public int getCreatedBy() { return createdBy; } public void setCreatedBy(int v) { createdBy=v; }
-    public LocalDateTime getCreatedAt() { return createdAt; } public void setCreatedAt(LocalDateTime v) { createdAt=v; }
-    public String getProductName() { return productName; } public void setProductName(String v) { productName=v; }
+    public String getEventGroupId() { return eventGroupId; }
+    public void setEventGroupId(String eventGroupId) { this.eventGroupId = eventGroupId; }
+    public int getBranchId() { return branchId; }
+    public void setBranchId(int branchId) { this.branchId = branchId; }
+    public String getEventKind() { return eventKind; }
+    public void setEventKind(String eventKind) { this.eventKind = eventKind; }
+    public String getSource() { return source; }
+    public void setSource(String source) { this.source = source; }
+    public Integer getProductId() { return productId; }
+    public void setProductId(Integer productId) { this.productId = productId; }
+    public Integer getOrderItemId() { return orderItemId; }
+    public void setOrderItemId(Integer orderItemId) { this.orderItemId = orderItemId; }
+    public Integer getCupQuantity() { return cupQuantity; }
+    public void setCupQuantity(Integer cupQuantity) { this.cupQuantity = cupQuantity; }
+    public String getCauseCode() { return causeCode; }
+    public void setCauseCode(String causeCode) { this.causeCode = causeCode; }
+    public String getCauseDetail() { return causeDetail; }
+    public void setCauseDetail(String causeDetail) { this.causeDetail = causeDetail; }
+    public Integer getShiftAssignmentId() { return shiftAssignmentId; }
+    public void setShiftAssignmentId(Integer shiftAssignmentId) { this.shiftAssignmentId = shiftAssignmentId; }
+    public int getCreatedBy() { return createdBy; }
+    public void setCreatedBy(int createdBy) { this.createdBy = createdBy; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public String getProductName() { return productName; }
+    public void setProductName(String productName) { this.productName = productName; }
     public boolean isRemake() { return "REMAKE".equals(eventKind); }
 }

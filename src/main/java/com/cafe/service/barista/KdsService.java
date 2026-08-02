@@ -10,6 +10,8 @@ import com.cafe.model.Recipe;
 import com.cafe.model.StockAdjustment;
 import com.cafe.service.admin.BranchService;
 import com.cafe.service.manager.AttendanceService;
+import com.cafe.service.shared.KdsOrderWorkflowService;
+import com.cafe.service.shared.OrderIssueService;
 import com.cafe.service.shared.OrderService;
 
 import java.sql.SQLException;
@@ -287,7 +289,8 @@ public class KdsService {
     }
 
     /** Hoàn thành mọi món CHÍNH barista này đang pha trong một đơn. */
-    public OrderService.BulkReadyResult markOrderReady(int orderId, Integer userId, int branchId) throws SQLException {
+    public KdsOrderWorkflowService.BulkReadyResult markOrderReady(int orderId, Integer userId, int branchId)
+            throws SQLException {
         return orderService.markOrderReady(orderId, userId, branchId);
     }
 
@@ -322,9 +325,8 @@ public class KdsService {
     }
 
     /** BLOCKED → WAITING kèm kiểm kê nhanh tồn thật cho các nguyên liệu vừa có lại. */
-    public OrderService.UnblockResult unblockItem(int orderItemId,
-                                                  List<StockAdjustment> recounts,
-                                                  Integer userId, int branchId) throws SQLException {
+    public OrderIssueService.UnblockResult unblockItem(int orderItemId, List<StockAdjustment> recounts,
+                                                       Integer userId, int branchId) throws SQLException {
         return orderService.unblockItem(orderItemId, recounts, userId, branchId);
     }
 
