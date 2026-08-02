@@ -1,0 +1,303 @@
+# KẾ HOẠCH DỌN CODE — OrderService & tầng shared
+
+> **Mục đích file này:** giữ agent/người làm bám đúng một phạm vi đã chốt, không lan sang việc khác.
+> Mỗi phiên làm việc mới → **đọc §0 Nguyên tắc và §2 Ngoài phạm vi trước tiên.**
+>
+> Nối tiếp [`KE_HOACH_CLEAN_CODE_BARISTA.md`](KE_HOACH_CLEAN_CODE_BARISTA.md) — mục đầu tiên trong
+> sổ ghi nhận §6 của file đó (`OrderService.java:50`).
+> Trạng thái tổng: ⚪ Chưa bắt đầu · Khảo sát xong 2026-08-02
+
+---
+
+## ⚠️ ĐỌC TRƯỚC: plan này KHÁC plan Barista ở một điểm sống còn
+
+Plan Barista có **lưới an toàn 345 unit test** — sai là `mvn test` đỏ ngay. Ở đây **không có**:
+
+| Service đích | Unit test |
+|---|---|
+| `OrderPlacementService` | **0** |
+| `OrderQueryService` | **0** |
+| `KdsOrderWorkflowService` | **0** |
+| `OrderIssueService` | **0** |
+| `OrderHandoffService` | **0** |
+| `OrderRepository` | **0** |
+
+Chỉ có 3 integration test (`BaristaTransactionIT`, `CriticalIntegrityIT`, `DatabaseNormalizationIT`)
+— chạy bằng **failsafe trong một profile**, cần **Testcontainers + Docker**. Đã kiểm: **Docker
+không chạy trên máy này**, nên `mvn verify` cũng không cứu được.
+
+**Hệ quả bắt buộc cho mọi việc trong file này:**
+
+> Chỉ làm những thay đổi mà **trình biên dịch chứng minh được là đúng**.
+> Không làm thay đổi cần test mới biết đúng/sai.
+
+Đó là lý do §5 (bỏ hẳn facade) bị xếp cuối và **có điều kiện tiên quyết**, chứ không phải vì nó khó.
+
+---
+
+## 0. Nguyên tắc bất di bất dịch
+
+| # | Nguyên tắc |
+|---|---|
+| N1 | **KHÔNG đổi hành vi.** Refactor thuần. |
+| N2 | **Chỉ thay đổi compiler kiểm được.** Xem cảnh báo phía trên. Đổi thứ tự tham số, gộp nhánh điều kiện, đổi kiểu trả về… đều KHÔNG thuộc nhóm này nếu compiler không bắt được. |
+| N3 | **KHÔNG sửa bug gặp dọc đường** — ghi vào §6. |
+| N4 | **KHÔNG động file ngoài §1.** |
+| N5 | **Mỗi đợt = 1 commit.** Không trailer `Co-Authored-By`. |
+| N6 | **`mvn test` + `mvn clean package` phải xanh sau mỗi đợt.** Biết rõ nó không phủ được OrderService, nhưng vẫn phải xanh để chắc không vỡ chỗ khác. |
+| N7 | **Không thêm dependency**, không đổi `pom.xml`. |
+| N8 | Comment tiếng Việt, theo quy ước repo. |
+
+### Ràng buộc ArchUnit (`MvcArchitectureTest`)
+- `service/` không được phụ thuộc `controller/`, `filter/`, `listener/`, `web/`.
+- `service.*` **phải không có chu trình** (`service_packages_must_be_acyclic`) — quan trọng ở §5:
+  nếu `service/barista` gọi thẳng `service/shared` thì vẫn một chiều, không tạo chu trình. An toàn.
+- `controller/`, `web/` không được chạm `dao/`, `java.sql..`, `DBConnection`.
+
+---
+
+## 1. Phạm vi
+
+| File | Dòng | Vai trò |
+|---|---|---|
+| `service/shared/OrderService.java` | **56** | Facade — trọng tâm |
+| `model/WasteEvent.java` | 60 | POJO nhồi getter/setter |
+| `model/WasteEventReview.java` | 55 | POJO nhồi getter/setter |
+
+**Chỉ ở Đợt 3** (khi bỏ facade) mới được đụng 7 file gọi, liệt kê sẵn ở §5.
+
+---
+
+## 2. NGOÀI PHẠM VI
+
+- ❌ 5 service đích (`OrderPlacementService`, `OrderQueryService`, `KdsOrderWorkflowService`,
+  `OrderIssueService`, `OrderHandoffService`) và `OrderRepository` — **logic thật nằm ở đây**,
+  đụng vào là rời khỏi vùng compiler bảo vệ.
+- ❌ `InventoryService` và các service tồn kho — **cùng kiến trúc nhưng đã viết đúng chuẩn**,
+  chính nó là khuôn mẫu (§3.1). Không sửa.
+- ❌ `dao/**`, `sql/**`, `pom.xml`, JSP/CSS/JS.
+- ❌ Viết test mới cho logic chưa có test (trừ khi làm §5 — xem điều kiện tiên quyết).
+- ❌ Các file barista đã dọn xong ở plan trước.
+
+---
+
+## 3. Hiện trạng — số đo, không phải cảm tính
+
+### 3.1 `OrderService` là facade uỷ thác thuần, kiến trúc ĐÃ ĐÚNG
+
+56 dòng, không chứa logic nghiệp vụ nào. Nó chỉ chuyển tiếp sang 5 service chuyên trách. **Vấn đề
+hoàn toàn là trình bày**, không phải thiết kế:
+
+| Dòng | Độ dài | Nhồi bao nhiêu method |
+|---|---|---|
+| 50 | 760 ký tự | 7 |
+| 51 | 875 ký tự | 7 |
+| 52 | **1096 ký tự** | 8 |
+| 53 | 239 ký tự | 2 |
+| 54 | 680 ký tự | 6 |
+| 55 | 374 ký tự | 4 |
+
+**37 method public dồn vào 6 dòng.** Tham số bị rút còn một ký tự: `int i, Integer u, int b`.
+
+**Đây là ca cá biệt, không phải bệnh chung của repo** — đã quét toàn bộ `src/main/java`:
+chỉ `OrderService` (7 dòng nhồi) và 2 file model (13 dòng mỗi file) mắc lỗi này.
+
+### 3.2 Đã có sẵn khuôn mẫu đúng trong repo
+
+`InventoryService` là **y hệt kiến trúc** — facade 149 dòng uỷ thác sang 5 service tồn kho — nhưng
+viết chuẩn:
+
+```java
+public PrepBatch createSuggestedPrepBatch(int branchId, int ingredientId, BigDecimal quantity,
+                                          int userId, String requestId) throws SQLException {
+    return prep.createSuggestedPrepBatch(branchId, ingredientId, quantity, userId, requestId);
+}
+```
+
+→ Không phải nghĩ ra style mới. **Chép đúng style của `InventoryService`.**
+
+### 3.3 Tên tham số đúng KHÔNG phải đoán
+
+Chữ ký thật nằm sẵn ở service đích, chỉ việc chép sang:
+
+| Facade viết | Service đích viết | Ghi chú |
+|---|---|---|
+| `int i` | `int orderItemId` | |
+| `Integer u` | `Integer userId` / `Integer actorUserId` | `reclaimItem` dùng `actorUserId` |
+| `int b` | `int sessionBranchId` **hoặc** `int branchId` | ⚠️ **KHÁC NHAU** — xem dưới |
+| `int o` | `int orderId` | |
+| `String r` | `String reason` | |
+| `String n` | `String actorName` | |
+| `Set<Integer> duty` | `Set<Integer> onDutyUserIds` | |
+| `List<Integer> ids` | `List<Integer> ingredientIds` | |
+| `LocalDateTime d` | `LocalDateTime businessDayStartUtc` | |
+
+⚠️ **Chi tiết dễ mất:** `KdsOrderWorkflowService.startItem` nhận `sessionBranchId` (chi nhánh của
+phiên đăng nhập, dùng để chặn thao tác chéo chi nhánh), còn `countMyMakingItems` nhận `branchId`
+thường. Facade gọi cả hai là `b` nên xoá mất phân biệt này. **Chép đúng tên từ service đích, không
+đặt lại theo ý mình.**
+
+### 3.4 Có 5 method chết trong facade
+
+Đã grep toàn `src/main` + `src/test` + `webapp`, 0 caller:
+
+| Method | Ghi chú |
+|---|---|
+| `getKdsQueue` | `KdsService` cũng từng có bản chết, đã xoá ở plan Barista |
+| `getOrder` | |
+| `getStaleItems` | Khu "Đơn treo" đã gỡ khỏi UI |
+| `serveAllReady` | ⚠️ Đừng nhầm với `serveAllPickedUp` và `pickUpAllReady` — hai cái này **đang dùng** |
+| `getBaristaWorkbench(int)` | Chỉ overload **1 tham số** chết; bản 2 tham số đang dùng |
+
+### 3.5 Hai kiểu kết quả bị nhân đôi
+
+`OrderService.UnblockResult` và `OrderService.BulkReadyResult` là **bản sao** của
+`OrderIssueService.UnblockResult` / `KdsOrderWorkflowService.BulkReadyResult`, kèm code chuyển đổi:
+
+```java
+OrderIssueService.UnblockResult x = issues.unblockItem(i, rs, u, b);
+return new UnblockResult(x.isSuccess(), x.getRemainingBlockedWithRecountedIngredients());
+```
+
+Cùng 2 field, cùng tên getter. Thêm field mới phải sửa 2 nơi + hàm chuyển đổi.
+
+### 3.6 Ai đang gọi facade
+
+| File gọi | Số method | Thực chất cần service nào |
+|---|---|---|
+| `service/barista/KdsService.java` | 14 | kds(6), issues(5), query(3) |
+| `controller/barista/KdsServlet.java` | 9 | issues(4), kds(3), query(2) |
+| `service/cashier/PickupService.java` | 8 | handoff(5), query(3) |
+| `controller/cashier/OrderInboxServlet.java` | 5 | issues(2), handoff(2), query(1) |
+| `service/customer/QrOrderService.java` | 4 | query(2), placement(1), issues(1) |
+| `controller/cashier/PosServlet.java` | 2 | placement(1), query(1) |
+| `web/support/BaristaShiftSupport.java` | 1 | kds(1) |
+
+Không file nào dùng cả 5 service → facade không phục vụ ai trọn vẹn.
+
+---
+
+## 4. Đợt 1 & 2 — an toàn, compiler bảo chứng
+
+### Đợt 1 — Trải phẳng `OrderService` ⚪
+
+> **Rủi ro: rất thấp.** Chỉ xuống dòng và đổi tên tham số. Compiler bắt mọi sai sót.
+> **Payoff cao nhất trên mỗi đơn vị rủi ro** — làm trước.
+
+- [ ] Xoá 5 method chết ở §3.4. **Xoá trước khi trải phẳng** để khỏi format thứ vứt đi.
+- [ ] Trải 6 dòng nhồi thành 32 method, mỗi method 3 dòng, theo đúng style `InventoryService`.
+- [ ] Khôi phục tên tham số **bằng cách chép từ service đích** (§3.3), giữ đúng
+      `sessionBranchId` vs `branchId`.
+- [ ] Nhóm method theo service đích, mỗi nhóm một comment một dòng:
+      `// ── Đặt món (placement) ──` · `// ── Đọc (query) ──` · `// ── Quầy pha (kds) ──` ·
+      `// ── Sự cố / chặn món (issues) ──` · `// ── Giao nhận (handoff) ──`
+- [ ] Javadoc lớp ghi rõ: đây là facade tương thích, logic nằm ở 5 service, **thêm use case mới thì
+      viết thẳng vào service chuyên trách chứ không nống facade to ra**.
+- [ ] Giữ nguyên `CartLine`, `UnblockResult`, `BulkReadyResult` (Đợt 2 mới đụng).
+
+**Nghiệm thu:** `OrderService` ~150 dòng, không dòng nào >120 ký tự, không tham số 1 ký tự.
+`mvn test` xanh, `mvn clean package` ra WAR.
+**Kiểm chứng thêm (bắt buộc, vì test không phủ):**
+```bash
+# Danh sách method public phải KHÔNG đổi ngoài 5 cái cố ý xoá
+git show HEAD:src/main/java/com/cafe/service/shared/OrderService.java \
+  | grep -oE 'public [A-Za-z<>,.\[\] ]+ \w+\(' | sort > /tmp/before.txt
+grep -oE 'public [A-Za-z<>,.\[\] ]+ \w+\(' src/main/java/com/cafe/service/shared/OrderService.java \
+  | sort > /tmp/after.txt
+diff /tmp/before.txt /tmp/after.txt      # chỉ được thiếu đúng 5 dòng đã liệt kê ở §3.4
+```
+
+### Đợt 2 — Gỡ hai kiểu kết quả nhân đôi ⚪
+
+> **Rủi ro: thấp–trung bình.** Đổi kiểu trả về công khai; compiler bắt hết điểm gọi.
+
+- [ ] Xoá `OrderService.UnblockResult`, trả thẳng `OrderIssueService.UnblockResult`.
+- [ ] Xoá `OrderService.BulkReadyResult`, trả thẳng `KdsOrderWorkflowService.BulkReadyResult`.
+- [ ] Sửa điểm gọi (compiler sẽ chỉ ra): `KdsService.markOrderReady`, `KdsService.unblockItem`,
+      `KdsServlet` (2 chỗ dùng `OrderService.BulkReadyResult` / `OrderService.UnblockResult`).
+- [ ] ⚠️ **Không đổi tên getter.** `getRemainingBlockedWithRecountedIngredients()` dài nhưng
+      hai lớp trùng tên getter — đổi là gãy chỗ khác mà compiler báo ở nơi khó lần.
+- [ ] Cân nhắc: `CartLine` (`OrderService.CartLine`) có nên chuyển sang `OrderPlacementService`
+      không? → **Kiểm `web/form/OrderCartForm.java` trước**, nó có tham chiếu `CartLine`.
+      Nếu tốn hơn 3 file thì để lại, ghi §6.
+
+**Nghiệm thu:** không còn lớp kết quả nào bị nhân đôi. `mvn test` xanh.
+
+### Đợt 2b — Hai file model ⚪
+
+> **Rủi ro: gần bằng 0.** POJO thuần, chỉ xuống dòng.
+
+- [ ] `model/WasteEvent.java` — 13 dòng dạng
+      `public String getX() { return x; } public void setX(String v) { x=v; }` → tách đôi.
+- [ ] `model/WasteEventReview.java` — tương tự 13 dòng.
+- [ ] Đổi tham số setter `v` → tên field cho khớp phần còn lại của repo.
+- [ ] ⚠️ **Không đổi tên getter/setter** — JSP đọc qua EL, đổi tên là gãy **âm thầm lúc chạy**,
+      compiler không bắt. Trước khi commit, grep tên field trong `webapp/` để chắc không lỡ tay.
+
+---
+
+## 5. Đợt 3 — Bỏ hẳn facade ⚪ · CÓ ĐIỀU KIỆN TIÊN QUYẾT
+
+> **Không bắt tay khi chưa thoả điều kiện dưới đây.** Đây không phải "để sau cho đỡ ngại" —
+> đây là việc sửa đúng 7 file thuộc 4 role mà **không có một unit test nào đỡ**.
+
+**Điều kiện tiên quyết (phải đủ CẢ HAI):**
+1. Có Docker chạy được để `mvn verify` chạy 3 integration test; **hoặc** đã bổ sung unit test cho
+   ít nhất `KdsOrderWorkflowService` + `OrderIssueService` (hai service bị gọi nhiều nhất).
+2. Người dùng xác nhận muốn đổi kiến trúc, không chỉ muốn dễ đọc.
+
+**Nội dung nếu làm:** mỗi caller tự giữ đúng service nó cần, bỏ tầng trung gian.
+
+| File | Đổi thành |
+|---|---|
+| `service/barista/KdsService.java` | giữ `KdsOrderWorkflowService` + `OrderIssueService` + `OrderQueryService` |
+| `controller/barista/KdsServlet.java` | qua `KdsService`, **không** giữ service shared trực tiếp |
+| `service/cashier/PickupService.java` | `OrderHandoffService` + `OrderQueryService` |
+| `controller/cashier/OrderInboxServlet.java` | qua service của cashier |
+| `service/customer/QrOrderService.java` | `OrderQueryService` + `OrderPlacementService` + `OrderIssueService` |
+| `controller/cashier/PosServlet.java` | `OrderPlacementService` + `OrderQueryService` |
+| `web/support/BaristaShiftSupport.java` | chỉ `KdsOrderWorkflowService` (1 method) |
+
+**Lợi ích:** đọc constructor là biết màn đó đụng vào phần nào của luồng đơn.
+**Giá phải trả:** 7 file, 4 role, không lưới an toàn; constructor test phải sửa theo.
+
+**Gợi ý thứ tự nếu làm:** `BaristaShiftSupport` (1 method) → `PosServlet` (2) → `QrOrderService` (4)
+→ `OrderInboxServlet` (5) → `PickupService` (8) → `KdsServlet` (9) → `KdsService` (14).
+Dễ nhất trước để lộ vấn đề sớm khi giá còn rẻ.
+
+---
+
+## 6. Sổ ghi nhận phát sinh
+
+| Ngày | File | Vấn đề | Trạng thái |
+|---|---|---|---|
+| 2026-08-02 | 5 service đích + `OrderRepository` | **0 unit test.** Toàn bộ luồng đơn hàng — đặt món, pha, chặn, giao — không có test đơn vị nào. IT cần Docker mà máy không có. | ⚪ Rủi ro nền của cả repo, lớn hơn phạm vi plan này |
+| 2026-08-02 | `web/form/OrderCartForm.java` | Có tham chiếu `OrderService.CartLine` — kiểm trước khi động vào `CartLine` ở Đợt 2 | ⚪ Cần kiểm |
+| | | | |
+
+---
+
+## 7. Bảng theo dõi
+
+| Đợt | Nội dung | Rủi ro | Trạng thái | Commit |
+|---|---|---|---|---|
+| 1 | Trải phẳng `OrderService` + xoá 5 method chết | Rất thấp | ⚪ | |
+| 2 | Gỡ 2 kiểu kết quả nhân đôi | Thấp–TB | ⚪ | |
+| 2b | 2 file model | ~0 | ⚪ | |
+| 3 | Bỏ facade | **Cao** | ⚪ | Chờ điều kiện tiên quyết §5 |
+
+⚪ chưa làm · 🟡 đang làm · 🟢 xong · 🔴 bị chặn
+
+---
+
+## 8. Khuyến nghị
+
+**Làm Đợt 1 + 2 + 2b.** Ba đợt này giải quyết trọn vẹn điều đã ghi trong sổ plan Barista
+("7 method nhồi trên 1 dòng, tên tham số 1 ký tự"), đều nằm trong vùng compiler bảo chứng, và
+không đụng file nào của Cashier/QR/Manager.
+
+**Hoãn Đợt 3.** Nó đổi kiến trúc chứ không phải dọn dẹp, và giá trị của nó (đọc constructor biết
+màn đụng gì) nhỏ hơn nhiều so với rủi ro sửa 7 file thuộc 4 role mà không có test.
+
+Nếu muốn đầu tư tiếp vào vùng này, **việc đáng làm hơn Đợt 3 là bổ sung unit test cho
+`KdsOrderWorkflowService` và `OrderIssueService`** — vừa tự nó có giá trị, vừa mở khoá Đợt 3.
