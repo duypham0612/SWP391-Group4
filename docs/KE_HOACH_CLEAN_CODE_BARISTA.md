@@ -264,7 +264,7 @@ mvn -q test && mvn -q clean package
 |---|---|---|---|---|
 | 1 | Xoá code chết + sửa comment sai | 🟢 | `2f49816` | −170/+128 dòng · test 344/345 (1 đỏ sẵn từ trước, xem §6) · WAR build OK |
 | 2 | Gom trùng lặp | 🟢 | `95c90cf` | Thêm `RequestParams` + 2 enum lý do · gỡ 3 bản sao `BLOCKING_REASONS` · 12 literal trạng thái → `OrderItemStatus` · test 345/345 |
-| 3 | Cấu trúc | 🟢 | *(điền sau khi commit)* | KdsService 470→345 dòng · tách 2 file · doPost 70→11 dòng · test 345/345. **Còn nợ:** cắt dòng dài JSP mới xong 16/247 |
+| 3 | Cấu trúc | 🟢 | `503bd0c` | KdsService 470→345 dòng · tách 2 file · doPost 70→11 dòng · test 345/345. **Còn nợ:** cắt dòng dài JSP mới xong 16/247 |
 
 Chú thích: ⚪ chưa làm · 🟡 đang làm · 🟢 xong · 🔴 bị chặn
 
