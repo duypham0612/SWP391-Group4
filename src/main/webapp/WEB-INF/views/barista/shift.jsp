@@ -153,15 +153,23 @@
                             <c:param name="state" value="${historyState}" /><c:param name="pageSize" value="${historyPage.pageSize}" />
                             <c:param name="page" value="${historyPage.page - 1}" />
                         </c:url>
-                        <a class="page" href="${firstShiftPageUrl}" aria-disabled="${not historyPage.hasPrevious}" title="Trang đầu">«</a>
-                        <a class="page" href="${previousShiftPageUrl}" aria-disabled="${not historyPage.hasPrevious}" title="Trang trước">‹</a>
+                        <a class="page"
+                           href="${firstShiftPageUrl}"
+                           aria-disabled="${not historyPage.hasPrevious}"
+                           title="Trang đầu">«</a>
+                        <a class="page"
+                           href="${previousShiftPageUrl}"
+                           aria-disabled="${not historyPage.hasPrevious}"
+                           title="Trang trước">‹</a>
                         <c:forEach var="pageNumber" items="${historyPage.visiblePages}">
                             <c:url var="shiftPageUrl" value="/barista/shift">
                                 <c:param name="month" value="${month}" /><c:param name="q" value="${historyQuery}" />
                                 <c:param name="state" value="${historyState}" /><c:param name="pageSize" value="${historyPage.pageSize}" />
                                 <c:param name="page" value="${pageNumber}" />
                             </c:url>
-                            <a class="page ${pageNumber == historyPage.page ? 'is-active' : ''}" href="${shiftPageUrl}" aria-current="${pageNumber == historyPage.page ? 'page' : 'false'}">${pageNumber}</a>
+                            <a class="page ${pageNumber == historyPage.page ? 'is-active' : ''}"
+                               href="${shiftPageUrl}"
+                               aria-current="${pageNumber == historyPage.page ? 'page' : 'false'}">${pageNumber}</a>
                         </c:forEach>
                         <c:url var="nextShiftPageUrl" value="/barista/shift">
                             <c:param name="month" value="${month}" /><c:param name="q" value="${historyQuery}" />
@@ -173,8 +181,14 @@
                             <c:param name="state" value="${historyState}" /><c:param name="pageSize" value="${historyPage.pageSize}" />
                             <c:param name="page" value="${historyPage.totalPages}" />
                         </c:url>
-                        <a class="page" href="${nextShiftPageUrl}" aria-disabled="${not historyPage.hasNext}" title="Trang sau">›</a>
-                        <a class="page" href="${lastShiftPageUrl}" aria-disabled="${not historyPage.hasNext}" title="Trang cuối">»</a>
+                        <a class="page"
+                           href="${nextShiftPageUrl}"
+                           aria-disabled="${not historyPage.hasNext}"
+                           title="Trang sau">›</a>
+                        <a class="page"
+                           href="${lastShiftPageUrl}"
+                           aria-disabled="${not historyPage.hasNext}"
+                           title="Trang cuối">»</a>
                     </div>
                 </c:if>
             </div>

@@ -126,7 +126,9 @@
                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                         <input type="hidden" name="action" value="markReady">
                         <input type="hidden" name="orderItemId" value="${cardItem.orderItemId}">
-                        <button type="submit" class="btn btn-primary btn-sm" ${cardItem.recipeMissing ? 'disabled' : ''}>Xong</button>
+                        <button type="submit"
+                                class="btn btn-primary btn-sm"
+                                ${cardItem.recipeMissing ? 'disabled' : ''}>Xong</button>
                     </form>
                     <details class="kds-card-menu"><summary>⋯</summary><div class="kds-card-menu__panel kds-subactions">
                         <button type="button" class="btn btn-ghost btn-sm js-issue"
@@ -139,7 +141,9 @@
                                 data-name="${cardItem.quantity} × <c:out value='${cardItem.productName}' />"
                                 ${cardItem.recipeMissing ? 'disabled' : ''}
                         >Làm lại</button>
-                        <form action="${ctx}/barista/kds" method="post" data-confirm="Trả món về hàng chờ để barista khác nhận?">
+                        <form action="${ctx}/barista/kds"
+                              method="post"
+                              data-confirm="Trả món về hàng chờ để barista khác nhận?">
                             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                             <input type="hidden" name="action" value="returnQueue">
                             <input type="hidden" name="orderItemId" value="${cardItem.orderItemId}">
@@ -153,7 +157,9 @@
                 <c:if test="${onShift and cardItem.baristaId != board.currentUserId}">
                     <span class="kds-qrow__by">Đang pha: <c:out value="${cardItem.baristaName}" /><c:if test="${cardItem.ownerOffDuty}"> · đã rời ca</c:if></span>
                     <c:if test="${cardItem.ownerOffDuty}">
-                        <form action="${ctx}/barista/kds" method="post" data-confirm="Người pha món này đã rời ca. Thu hồi món về hàng chờ để pha lại từ đầu?">
+                        <form action="${ctx}/barista/kds"
+                              method="post"
+                              data-confirm="Người pha món này đã rời ca. Thu hồi món về hàng chờ để pha lại từ đầu?">
                             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                             <input type="hidden" name="action" value="reclaim">
                             <input type="hidden" name="orderItemId" value="${cardItem.orderItemId}">
@@ -178,7 +184,9 @@
             <%-- BỊ CHẶN --%>
             <c:when test="${cardItem.status == 'BLOCKED'}">
                 <c:if test="${onShift}">
-                    <form action="${ctx}/barista/kds" method="post" data-confirm="Nguyên liệu/thiết bị đã sẵn sàng lại? Món sẽ về hàng chờ pha.">
+                    <form action="${ctx}/barista/kds"
+                          method="post"
+                          data-confirm="Nguyên liệu/thiết bị đã sẵn sàng lại? Món sẽ về hàng chờ pha.">
                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                         <input type="hidden" name="action" value="unblock">
                         <input type="hidden" name="orderItemId" value="${cardItem.orderItemId}">

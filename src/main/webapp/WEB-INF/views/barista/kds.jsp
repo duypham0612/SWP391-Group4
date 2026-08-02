@@ -10,9 +10,21 @@
 
 <div class="kds-toolbar">
     <div class="kds-filters" id="kdsOwnerFilters" role="group" aria-label="Lọc theo người phụ trách">
-        <button type="button" class="chip-filter is-active" data-filter-group="owner" data-filter-value="all" aria-pressed="true">Tất cả món</button>
-        <button type="button" class="chip-filter" data-filter-group="owner" data-filter-value="mine" aria-pressed="false">Món của tôi</button>
-        <button type="button" class="chip-filter" data-filter-group="owner" data-filter-value="unassigned" aria-pressed="false">Chưa nhận</button>
+        <button type="button"
+                class="chip-filter is-active"
+                data-filter-group="owner"
+                data-filter-value="all"
+                aria-pressed="true">Tất cả món</button>
+        <button type="button"
+                class="chip-filter"
+                data-filter-group="owner"
+                data-filter-value="mine"
+                aria-pressed="false">Món của tôi</button>
+        <button type="button"
+                class="chip-filter"
+                data-filter-group="owner"
+                data-filter-value="unassigned"
+                aria-pressed="false">Chưa nhận</button>
     </div>
     <details class="kds-more" id="kdsMoreFilters">
         <summary class="chip-filter">Quầy &amp; loại đơn <span class="kds-filter-badge" id="kdsFilterBadge" hidden></span></summary>

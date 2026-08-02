@@ -11,7 +11,15 @@
     <form id="recipeFilterForm" action="${ctx}/barista/recipe" method="get" class="recipe-filter__form">
         <input type="hidden" name="filter" value="1">
         <div class="form-group recipe-filter__search"><label for="q">Tìm món</label>
-            <input id="q" type="search" name="q" class="form-control" value="<c:out value='${q}'/>" placeholder="Nhập tên món..." autocomplete="off" enterkeyhint="search" aria-describedby="recipeSearchHint">
+            <input id="q"
+                   type="search"
+                   name="q"
+                   class="form-control"
+                   value="<c:out value='${q}'/>"
+                   placeholder="Nhập tên món..."
+                   autocomplete="off"
+                   enterkeyhint="search"
+                   aria-describedby="recipeSearchHint">
             <small id="recipeSearchHint">Kết quả tự cập nhật khi bạn ngừng gõ.</small>
         </div>
         <div class="form-group recipe-filter__select">
@@ -32,7 +40,11 @@
             </select>
         </div>
         <label class="recipe-filter__branch">
-            <input id="fBranchOnly" type="checkbox" name="branchOnly" value="1" <c:if test="${fBranchOnly}">checked</c:if>>
+            <input id="fBranchOnly"
+                   type="checkbox"
+                   name="branchOnly"
+                   value="1"
+                   <c:if test="${fBranchOnly}">checked</c:if>>
             Chỉ món chi nhánh tôi
         </label>
         <a id="clearFilters" class="btn btn-ghost" href="${ctx}/barista/recipe"

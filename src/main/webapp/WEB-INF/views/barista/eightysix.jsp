@@ -71,7 +71,11 @@
                         <c:set var="openReq" value="${openRequests[m.productId]}" />
                         <tr data-name="${m.productName}" data-state="${m.temporarilyUnavailable ? 'out' : 'available'}">
                             <td style="display:flex;align-items:center;gap:10px">
-                                <img class="prod-thumb" src="${imgSrc}" alt="${m.productName}" loading="lazy" onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
+                                <img class="prod-thumb"
+                                     src="${imgSrc}"
+                                     alt="${m.productName}"
+                                     loading="lazy"
+                                     onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
                                 ${m.productName}
                             </td>
                             <td>
@@ -121,14 +125,21 @@
                                                 <input type="hidden" name="state" value="${filterState}">
                                                 <input type="hidden" name="page" value="${menuPage.page}">
                                                 <input type="hidden" name="pageSize" value="${menuPage.pageSize}">
-                                                <select name="reasonCode" class="form-control reason-select" required ${onShift ? '' : 'disabled'}>
+                                                <select name="reasonCode"
+                                                        class="form-control reason-select"
+                                                        required
+                                                        ${onShift ? '' : 'disabled'}>
                                                     <option value="">Chọn lý do</option>
                                                     <c:forEach var="r" items="${reasons}">
                                                         <option value="${r.code}" data-quick-notes='${r.quickNotesJson}'>${r.label}</option>
                                                     </c:forEach>
                                                 </select>
                                                 <div class="chips quick-note-chips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
-                                                <input name="note" class="form-control note-input" maxlength="255" placeholder="Ghi chú" ${onShift ? '' : 'disabled'}>
+                                                <input name="note"
+                                                       class="form-control note-input"
+                                                       maxlength="255"
+                                                       placeholder="Ghi chú"
+                                                       ${onShift ? '' : 'disabled'}>
                                                 <label class="muted" style="font-size:.82em">Dự kiến có lại (nếu ước lượng được — sự cố bất định có thể bỏ trống)</label>
                                                 <input type="datetime-local" name="backInEta" class="form-control"
                                                        min="${etaMin}" max="${etaMax}" ${onShift ? '' : 'disabled'}>
@@ -158,8 +169,14 @@
                         <c:param name="q" value="${filterQuery}" /><c:param name="state" value="${filterState}" />
                         <c:param name="pageSize" value="${menuPage.pageSize}" /><c:param name="page" value="${menuPage.page - 1}" />
                     </c:url>
-                    <a class="page" href="${firstE86PageUrl}" aria-disabled="${not menuPage.hasPrevious}" title="Trang đầu">«</a>
-                    <a class="page" href="${previousE86PageUrl}" aria-disabled="${not menuPage.hasPrevious}" title="Trang trước">‹</a>
+                    <a class="page"
+                       href="${firstE86PageUrl}"
+                       aria-disabled="${not menuPage.hasPrevious}"
+                       title="Trang đầu">«</a>
+                    <a class="page"
+                       href="${previousE86PageUrl}"
+                       aria-disabled="${not menuPage.hasPrevious}"
+                       title="Trang trước">‹</a>
                     <c:forEach var="pageNumber" items="${menuPage.visiblePages}">
                         <c:url var="e86PageUrl" value="/barista/eightysix">
                             <c:param name="q" value="${filterQuery}" /><c:param name="state" value="${filterState}" />
@@ -176,8 +193,14 @@
                         <c:param name="q" value="${filterQuery}" /><c:param name="state" value="${filterState}" />
                         <c:param name="pageSize" value="${menuPage.pageSize}" /><c:param name="page" value="${menuPage.totalPages}" />
                     </c:url>
-                    <a class="page" href="${nextE86PageUrl}" aria-disabled="${not menuPage.hasNext}" title="Trang sau">›</a>
-                    <a class="page" href="${lastE86PageUrl}" aria-disabled="${not menuPage.hasNext}" title="Trang cuối">»</a>
+                    <a class="page"
+                       href="${nextE86PageUrl}"
+                       aria-disabled="${not menuPage.hasNext}"
+                       title="Trang sau">›</a>
+                    <a class="page"
+                       href="${lastE86PageUrl}"
+                       aria-disabled="${not menuPage.hasNext}"
+                       title="Trang cuối">»</a>
                 </div>
             </c:if>
         </div>
