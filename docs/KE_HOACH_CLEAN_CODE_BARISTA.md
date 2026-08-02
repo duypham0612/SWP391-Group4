@@ -240,7 +240,7 @@ mvn -q test && mvn -q clean package
 
 | Đợt | Nội dung | Trạng thái | Commit | Ghi chú |
 |---|---|---|---|---|
-| 1 | Xoá code chết + sửa comment sai | 🟢 | *(điền sau khi commit)* | −170/+128 dòng · test 344/345 (1 đỏ sẵn từ trước, xem §6) · WAR build OK |
+| 1 | Xoá code chết + sửa comment sai | 🟢 | `2f49816` | −170/+128 dòng · test 344/345 (1 đỏ sẵn từ trước, xem §6) · WAR build OK |
 | 2 | Gom trùng lặp | ⚪ | | Sẵn sàng bắt đầu |
 | 3 | Cấu trúc | ⚪ | | Cần hỏi trước |
 
