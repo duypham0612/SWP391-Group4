@@ -16,16 +16,22 @@ Plan Barista có **lưới an toàn 345 unit test** — sai là `mvn test` đỏ
 
 | Service đích | Unit test |
 |---|---|
-| `OrderPlacementService` | **0** |
-| `OrderQueryService` | **0** |
-| `KdsOrderWorkflowService` | **0** |
-| `OrderIssueService` | **0** |
-| `OrderHandoffService` | **0** |
-| `OrderRepository` | **0** |
+| `OrderPlacementService` · `OrderQueryService` · `KdsOrderWorkflowService` · `OrderIssueService` · `OrderHandoffService` · `OrderRepository` | **0** |
 
-Chỉ có 3 integration test (`BaristaTransactionIT`, `CriticalIntegrityIT`, `DatabaseNormalizationIT`)
-— chạy bằng **failsafe trong một profile**, cần **Testcontainers + Docker**. Đã kiểm: **Docker
-không chạy trên máy này**, nên `mvn verify` cũng không cứu được.
+Các service này chỉ có **integration test** — chạy bằng **failsafe trong profile `integration`**,
+cần **Testcontainers + Docker**. Đã kiểm: **Docker không chạy trên máy này**, nên `mvn verify`
+cũng không cứu được *tại chỗ*.
+
+> 📌 **Đính chính (2026-08-03).** Bản đầu của mục này viết "toàn bộ luồng đơn hàng không có test
+> nào — rủi ro nền lớn nhất repo". **Nói quá.** Khảo sát lại: repo có **8 file IT / 1796 dòng**, và
+> `.github/workflows/database-integration.yml` chạy `mvn verify -Pintegration` trên **mọi PR và push
+> vào main**. `BaristaTransactionIT` phủ đúng ba đường nguy hiểm nhất (nhận trùng · **trừ kho hai
+> lần** · đặt chỗ tồn khi làm lại). Kết luận "0 test" sai vì chỉ grep tên service trong `src/test`
+> mà không xem IT phủ gì và CI có chạy không.
+>
+> Khoảng trống **thật** lúc đó: 3/14 method của hai service có test. Đã bổ sung
+> `BaristaIssueWorkflowIT` (16 test) → **12/14** (`8fae5db`). Còn `cancelItem`, `voidOrder` —
+> thao tác phía Thu ngân, nên nằm ở IT của cashier.
 
 **Hệ quả bắt buộc cho mọi việc trong file này:**
 
@@ -268,10 +274,13 @@ chỉ ra điểm gọi" trong file này **bắt buộc dùng `clean compile`**.
 > **Không bắt tay khi chưa thoả điều kiện dưới đây.** Đây không phải "để sau cho đỡ ngại" —
 > đây là việc sửa đúng 7 file thuộc 4 role mà **không có một unit test nào đỡ**.
 
-**Điều kiện tiên quyết (phải đủ CẢ HAI):**
-1. Có Docker chạy được để `mvn verify` chạy 3 integration test; **hoặc** đã bổ sung unit test cho
-   ít nhất `KdsOrderWorkflowService` + `OrderIssueService` (hai service bị gọi nhiều nhất).
-2. Người dùng xác nhận muốn đổi kiến trúc, không chỉ muốn dễ đọc.
+**Điều kiện tiên quyết:**
+1. ~~Có test cho `KdsOrderWorkflowService` + `OrderIssueService`~~ → 🟢 **đã xong** `8fae5db`
+   (`BaristaIssueWorkflowIT`, 12/14 method). ⚠️ Nhưng vẫn cần **Docker cục bộ** thì lưới này mới
+   dùng được lúc refactor — chạy trên CI nghĩa là biết mình sai *sau khi đẩy code*, không phải lúc gõ.
+2. ⚪ **`CartLine` phải chuyển ra khỏi facade TRƯỚC** — xem §6. Hiện `OrderPlacementService` nhận
+   `List<OrderService.CartLine>`, xoá facade là gãy chính service đích.
+3. ⚪ Người dùng xác nhận muốn đổi kiến trúc, không chỉ muốn dễ đọc.
 
 **Nội dung nếu làm:** mỗi caller tự giữ đúng service nó cần, bỏ tầng trung gian.
 
