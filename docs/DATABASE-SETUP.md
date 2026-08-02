@@ -108,12 +108,14 @@ mvn -Pintegration verify \
 
 ## Đổi file SQL thì phải làm gì
 
-`MigrationChecksumTest` khoá checksum của file migration. Sau khi sửa
-`V1__database.sql`, cập nhật lại manifest:
+`MigrationChecksumTest` khoá checksum của file migration. Test chuẩn hoá CRLF/CR
+thành LF trước khi băm, vì vậy manifest giống nhau trên Windows và Linux.
+Sau khi chủ đích sửa `V1__database.sql`, cập nhật manifest bằng script:
 
-```bash
-sha256sum src/main/resources/db/migration/V1__database.sql
-# chép hash vào sql/migration-checksums.sha256, giữ nguyên định dạng "<hash>  <đường dẫn>"
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\tools\update-migration-checksum.ps1
+mvn -Dtest=MigrationChecksumTest test
 ```
 
 Vì checksum đổi, Flyway sẽ báo lỗi validate trên database đã migrate — phải tạo lại

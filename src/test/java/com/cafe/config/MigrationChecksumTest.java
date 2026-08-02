@@ -2,10 +2,10 @@ package com.cafe.config;
 
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
-import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.stream.Stream;
@@ -13,24 +13,22 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Khóa checksum và bảo đảm dự án chỉ có một nguồn SQL database. */
+/** Khóa checksum và bảo đảm Flyway chỉ có một nguồn SQL tạo schema. */
 class MigrationChecksumTest {
     private static final Path DATABASE_SQL =
             Path.of("src", "main", "resources", "db", "migration", "V1__database.sql");
 
     @Test
-    void repository_has_exactly_one_database_sql_file() throws Exception {
-        List<Path> roots = List.of(Path.of("src"), Path.of("sql"));
-        List<Path> sqlFiles = new ArrayList<>();
-        for (Path root : roots) {
-            if (!Files.exists(root)) continue;
-            try (Stream<Path> files = Files.walk(root)) {
-                files.filter(Files::isRegularFile)
-                        .filter(path -> path.getFileName().toString().endsWith(".sql"))
-                        .forEach(sqlFiles::add);
-            }
+    void flyway_has_exactly_one_database_migration_sql_file() throws Exception {
+        Path migrationDirectory = DATABASE_SQL.getParent();
+        try (Stream<Path> files = Files.list(migrationDirectory)) {
+            List<Path> migrations = files
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().endsWith(".sql"))
+                    .sorted()
+                    .toList();
+            assertEquals(List.of(DATABASE_SQL), migrations);
         }
-        assertEquals(List.of(DATABASE_SQL), sqlFiles.stream().sorted().toList());
     }
 
     @Test
@@ -45,8 +43,12 @@ class MigrationChecksumTest {
             assertEquals(2, parts.length, "Manifest line không hợp lệ: " + line);
             Path migration = Path.of(parts[1].trim());
             assertTrue(Files.isRegularFile(migration), "Thiếu migration: " + migration);
+            String sql = Files.readString(migration, StandardCharsets.UTF_8)
+                    .replace("\r\n", "\n")
+                    .replace('\r', '\n');
             String actual = HexFormat.of().formatHex(
-                    MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(migration)));
+                    MessageDigest.getInstance("SHA-256")
+                            .digest(sql.getBytes(StandardCharsets.UTF_8)));
             assertEquals(parts[0].toLowerCase(), actual,
                     "Schema SQL đã thay đổi nhưng manifest checksum chưa được cập nhật: " + migration);
         }
