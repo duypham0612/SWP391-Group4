@@ -10,6 +10,7 @@ import com.cafe.web.support.BaristaWritePolicy;
 import com.cafe.model.User;
 import com.cafe.service.shared.BranchMenuService;
 import com.cafe.web.support.BranchContext;
+import com.cafe.web.support.RequestParams;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -42,12 +43,12 @@ public class EightySixServlet extends HttpServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         int branchId = BranchContext.requireBranchId(req);
-        String query = textParam(req, "q", 100);
+        String query = RequestParams.text(req, "q", 100);
         String state = normalizeState(req.getParameter("state"));
-        int pageSize = normalizePageSize(positiveIntParam(req, "pageSize", 10));
+        int pageSize = normalizePageSize(RequestParams.positiveInt(req, "pageSize", 10));
         try {
             BranchMenuService.MenuAvailabilityPage menuPage = service.getMenuAvailabilityPage(
-                    branchId, query, state, positiveIntParam(req, "page", 1), pageSize);
+                    branchId, query, state, RequestParams.positiveInt(req, "page", 1), pageSize);
             req.setAttribute("menuPage", menuPage);
             req.setAttribute("items", menuPage.getItems());
             req.setAttribute("filterQuery", query);
@@ -119,29 +120,13 @@ public class EightySixServlet extends HttpServlet {
         return value == 20 || value == 50 ? value : 10;
     }
 
-    private static int positiveIntParam(HttpServletRequest req, String name, int fallback) {
-        try {
-            int value = Integer.parseInt(req.getParameter(name));
-            return value > 0 ? value : fallback;
-        } catch (NumberFormatException e) {
-            return fallback;
-        }
-    }
-
-    private static String textParam(HttpServletRequest req, String name, int maxLength) {
-        String value = req.getParameter(name);
-        if (value == null || value.isBlank()) return "";
-        value = value.trim();
-        return value.length() <= maxLength ? value : value.substring(0, maxLength);
-    }
-
     private static String returnUrl(HttpServletRequest req) {
         StringBuilder url = new StringBuilder(req.getContextPath()).append("/barista/eightysix");
-        appendQueryParam(url, "q", textParam(req, "q", 100));
+        appendQueryParam(url, "q", RequestParams.text(req, "q", 100));
         appendQueryParam(url, "state", normalizeState(req.getParameter("state")));
-        int page = positiveIntParam(req, "page", 1);
+        int page = RequestParams.positiveInt(req, "page", 1);
         if (page > 1) appendQueryParam(url, "page", String.valueOf(page));
-        int pageSize = normalizePageSize(positiveIntParam(req, "pageSize", 10));
+        int pageSize = normalizePageSize(RequestParams.positiveInt(req, "pageSize", 10));
         if (pageSize != 10) appendQueryParam(url, "pageSize", String.valueOf(pageSize));
         return url.toString();
     }

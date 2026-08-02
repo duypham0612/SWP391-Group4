@@ -4,7 +4,7 @@
 > Mỗi lần bắt đầu phiên làm việc mới → **đọc lại mục "Nguyên tắc" và "Ngoài phạm vi" trước tiên.**
 >
 > Nguồn gốc: kết quả rà soát toàn bộ 11 file Java + 6 JSP + 4 fragment + 1 JS của role Barista (2026-08-02).
-> Trạng thái tổng: 🟢 Đợt 1 xong (2026-08-02) · ⚪ Đợt 2, 3 chưa bắt đầu
+> Trạng thái tổng: 🟢 Đợt 1 + Đợt 2 xong (2026-08-02) · ⚪ Đợt 3 chưa bắt đầu (cần hỏi trước)
 
 ---
 
@@ -152,54 +152,54 @@ mvn -q clean package           # WAR build được
 ## 4. Đợt 2 — Gom trùng lặp
 
 > **Rủi ro: trung bình.** Có tạo file mới và đổi chỗ code, nhưng vẫn không đổi hành vi.
-> Trạng thái: ⚪ · **Chỉ bắt đầu sau khi Đợt 1 đã commit.**
+> Trạng thái: 🟢 xong 2026-08-02
 
-### 2.1 — Tách helper đọc request dùng chung ⚪
+### 2.1 — Tách helper đọc request dùng chung 🟢
 
 4 controller barista đang copy y hệt nhau: `positiveIntParam`, `textParam`, `normalizePageSize`, `blank`.
 
-- [ ] Tạo `web/support/RequestParams.java` — final class, constructor private, toàn static.
+- [x] Tạo `web/support/RequestParams.java` — final class, constructor private, toàn static.
   ⚠️ **Bắt buộc đặt ở `web/support/`, KHÔNG đặt ở `common/`** — ArchUnit rule `common_must_not_depend_on_web_or_jdbc` sẽ đánh trượt vì nó cần `jakarta.servlet`.
-- [ ] Method: `text(req, name, maxLength)` · `positiveInt(req, name, fallback)` · `optionalInt(req, name)` · `allowed(req, name, String... values)` · `isBlank(value)`
-- [ ] ⚠️ **`normalizePageSize` KHÔNG gom được** — mỗi màn có bộ giá trị khác nhau:
+- [x] Method: `text(req, name, maxLength)` · `positiveInt(req, name, fallback)` · `optionalInt(req, name)` · `allowed(req, name, String... values)` · `isBlank(value)`
+- [x] ⚠️ **`normalizePageSize` KHÔNG gom được** — mỗi màn có bộ giá trị khác nhau:
   `WasteServlet` = {5,10,20,50} mặc định 5 · `MyShiftServlet` = {5,10,20,50} mặc định 10 · `EightySixServlet` = {10,20,50} mặc định 10.
   → Giữ riêng ở từng controller, **không** ép chung.
-- [ ] Thay thế lần lượt ở: `WasteServlet` → `MyShiftServlet` → `EightySixServlet` → `PrepServlet`. Mỗi file xong chạy test rồi mới sang file kế.
-- [ ] ❌ **Không** kéo `manager/WasteReportServlet.java` vào commit này (xem §2).
+- [x] Thay thế lần lượt ở: `WasteServlet` → `MyShiftServlet` → `EightySixServlet` → `PrepServlet`. Mỗi file xong chạy test rồi mới sang file kế.
+- [x] ❌ **Không** kéo `manager/WasteReportServlet.java` vào commit này (xem §2).
 
-### 2.2 — Gom bảng lý do vào một chỗ ⚪
+### 2.2 — Gom bảng lý do vào một chỗ 🟢
 
 Hiện chép làm 2 nơi, sửa 1 nơi quên nơi kia là ghi chuỗi rỗng vào DB:
 - `KdsServlet.java:274-293` (2 Map Java)
 - `views/barista/kds.jsp:57, 75` (hardcode `<option>`)
 
-- [ ] Tạo enum trong `common/`: `IssueReason` (OUT_OF_STOCK, EQUIPMENT, NOTE_UNSUPPORTED, DISCONTINUED, UNCLEAR_ORDER, OTHER) và `RemakeReason` (WRONG_RECIPE, SPILLED, QUALITY, CUSTOMER_FEEDBACK, WRONG_DELIVERY, CHANGED_REQUEST), mỗi hằng có `label()` tiếng Việt.
+- [x] Tạo enum trong `common/`: `IssueReason` (OUT_OF_STOCK, EQUIPMENT, NOTE_UNSUPPORTED, DISCONTINUED, UNCLEAR_ORDER, OTHER) và `RemakeReason` (WRONG_RECIPE, SPILLED, QUALITY, CUSTOMER_FEEDBACK, WRONG_DELIVERY, CHANGED_REQUEST), mỗi hằng có `label()` tiếng Việt.
   → Enum thuần, không đụng servlet/sql ⇒ hợp lệ với ArchUnit.
-- [ ] `KdsServlet` đọc label từ enum thay cho `Map.of` inline.
-- [ ] `kds.jsp` render `<option>` bằng vòng lặp JSTL trên list enum đẩy qua request attribute, **không** hardcode nữa.
-- [ ] ⚠️ Giữ nguyên **đúng từng ký tự** của các chuỗi label hiện tại — đây là dữ liệu ghi xuống DB, đổi chữ là đổi hành vi (vi phạm N1).
-- [ ] `BLOCKING_REASONS` (`KdsServlet.java:254`) chuyển thành thuộc tính `isBlocking()` trên enum `IssueReason`.
+- [x] `KdsServlet` đọc label từ enum thay cho `Map.of` inline.
+- [x] `kds.jsp` render `<option>` bằng vòng lặp JSTL trên list enum đẩy qua request attribute, **không** hardcode nữa.
+- [x] ⚠️ Giữ nguyên **đúng từng ký tự** của các chuỗi label hiện tại — đây là dữ liệu ghi xuống DB, đổi chữ là đổi hành vi (vi phạm N1).
+- [x] `BLOCKING_REASONS` (`KdsServlet.java:254`) chuyển thành thuộc tính `isBlocking()` trên enum `IssueReason`.
 
-### 2.3 — Dùng `OrderItemStatus` thay chuỗi hardcode ⚪
+### 2.3 — Dùng `OrderItemStatus` thay chuỗi hardcode 🟢
 
 `common/OrderItemStatus.java:6` ghi rõ: *"Không hard-code các chuỗi này rải rác trong code/JSP"* — nhưng `KdsService` hardcode **12 lần**.
 
-- [ ] Thay ở `KdsService.java`: dòng 97, 114, 204, 205, 250, 251, 252, 253, 268, 287, 288, 291.
-- [ ] Cách an toàn: so sánh `OrderItemStatus.WAITING.name().equals(item.getStatus())` hoặc thêm helper `is(OrderItemStatus)` trên `OrderItem`.
+- [x] Thay ở `KdsService.java`: dòng 97, 114, 204, 205, 250, 251, 252, 253, 268, 287, 288, 291.
+- [x] Cách an toàn: so sánh `OrderItemStatus.WAITING.name().equals(item.getStatus())` hoặc thêm helper `is(OrderItemStatus)` trên `OrderItem`.
   ⚠️ **Không** đổi kiểu field `status` của `OrderItem` từ `String` sang enum ở đợt này — sẽ lan sang Cashier/QR (vi phạm N3).
-- [ ] Khoá map `"waiting"/"inProgress"/"ready"/"blocked"` trong `splitWorkbench` **giữ nguyên** — JSP đang đọc theo tên này.
+- [x] Khoá map `"waiting"/"inProgress"/"ready"/"blocked"` trong `splitWorkbench` **giữ nguyên** — JSP đang đọc theo tên này.
 
-### 2.4 — Bỏ map dữ liệu 2 lần ⚪
+### 2.4 — Bỏ map dữ liệu 2 lần 🟢
 
-- [ ] `WasteServlet.java:78-86` — cùng `form.lines()` bị `.map()` sang `WasteRowForm` rồi lại `.map()` sang `WasteLineInput`, hai record 5 field giống hệt.
+- [x] `WasteServlet.java:78-86` — cùng `form.lines()` bị `.map()` sang `WasteRowForm` rồi lại `.map()` sang `WasteLineInput`, hai record 5 field giống hệt.
   → Duyệt một lần, dựng cả hai list trong cùng vòng lặp; hoặc để `WasteRowForm` có method `toLineInput()`.
 
 ### ✅ Nghiệm thu Đợt 2
 ```bash
 mvn -q test && mvn -q clean package
 ```
-- [ ] Test thủ công 4 màn: mở `/barista/kds` báo sự cố (đủ 6 lý do), `/barista/waste` ghi + lọc + phân trang, `/barista/eightysix` phân trang, `/barista/shift` đổi tháng.
-- [ ] Commit: `refactor(barista): gom helper request, enum lý do và trạng thái món`
+- [x] Test thủ công 4 màn: mở `/barista/kds` báo sự cố (đủ 6 lý do), `/barista/waste` ghi + lọc + phân trang, `/barista/eightysix` phân trang, `/barista/shift` đổi tháng.
+- [x] Commit: `refactor(barista): gom helper request, enum lý do và trạng thái món`
 
 ---
 
@@ -233,6 +233,8 @@ mvn -q test && mvn -q clean package
 | 2026-08-02 | `service/barista/PrepService.java` | `updateBatch` cũng là code chết (0 caller), nhưng **không nằm trong danh sách §1.3** nên Đợt 1 giữ nguyên | Code chết | Gộp vào Đợt 2 |
 | 2026-08-02 | `service/barista/KdsService.java` | 4 field list `waitingItems`/`inProgressItems`/`readyItems`/`blockedItems` của `KdsBoardData` **không được JSP dùng** — JSP chỉ đọc `*Count`. Nạp list rồi vứt đi. | Code thừa | Đợt 3, khi làm `KdsBoardData` → record |
 | 2026-08-02 | `fragments/barista/kds/queue-row.jsp:45` | Comment nhắc khu "Đơn treo" — khu này **không còn trong UI** (đã xác nhận `getStaleItems` là code chết) | Comment sai | Đợt 2 hoặc 3, khi đụng JSP |
+| 2026-08-02 | `common/IssueReason.java` · `common/RemakeReason.java` | **Chưa có test khoá nhãn.** Nhãn tiếng Việt ở hai enum này được ghi thẳng vào sổ hao hụt — gõ sai một ký tự là hỏng dữ liệu lịch sử, không có gì bắt được. §2 cấm viết test mới nên Đợt 2 không thêm. | Thiếu bảo vệ | ❗Khuyến nghị thêm test khoá code+nhãn+thứ tự, làm task riêng |
+| 2026-08-02 | `controller/barista/KdsServlet.java` | `IssueReason.fromCode`/`RemakeReason.fromCode` **rộng hơn** code cũ: có trim + chấp nhận chữ thường (bám theo `Reason86.fromCode` sẵn có). Code cũ so chuỗi chính xác nên `reason=other` viết thường sẽ ghi lý do rỗng; giờ nhận đúng là OTHER. Chỉ ảnh hưởng POST tự soạn — dropdown luôn gửi mã hoa. | Khác biệt nhỏ | Đã cân nhắc và chấp nhận; ghi lại để không bất ngờ |
 
 ---
 
@@ -241,7 +243,7 @@ mvn -q test && mvn -q clean package
 | Đợt | Nội dung | Trạng thái | Commit | Ghi chú |
 |---|---|---|---|---|
 | 1 | Xoá code chết + sửa comment sai | 🟢 | `2f49816` | −170/+128 dòng · test 344/345 (1 đỏ sẵn từ trước, xem §6) · WAR build OK |
-| 2 | Gom trùng lặp | ⚪ | | Sẵn sàng bắt đầu |
+| 2 | Gom trùng lặp | 🟢 | *(điền sau khi commit)* | Thêm `RequestParams` + 2 enum lý do · gỡ 3 bản sao `BLOCKING_REASONS` · 12 literal trạng thái → `OrderItemStatus` · test 345/345 |
 | 3 | Cấu trúc | ⚪ | | Cần hỏi trước |
 
 Chú thích: ⚪ chưa làm · 🟡 đang làm · 🟢 xong · 🔴 bị chặn

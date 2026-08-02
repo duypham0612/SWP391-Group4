@@ -1,7 +1,9 @@
 package com.cafe.controller.barista;
 
 import com.cafe.common.BusinessException;
+import com.cafe.common.IssueReason;
 import com.cafe.common.RecountValidator;
+import com.cafe.common.RemakeReason;
 import com.cafe.model.StockAdjustment;
 import com.cafe.model.User;
 import com.cafe.service.barista.KdsService;
@@ -11,6 +13,7 @@ import com.cafe.web.support.BaristaShiftSupport;
 import com.cafe.web.support.BaristaWritePolicy;
 import com.cafe.web.support.BranchContext;
 import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.RequestParams;
 import com.cafe.web.support.SessionUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -21,9 +24,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Quầy pha chế: MỘT hàng chờ xếp theo thứ tự pha, kèm dải số liệu bốn trạng thái
@@ -31,9 +32,6 @@ import java.util.Set;
  */
 @WebServlet("/barista/kds")
 public class KdsServlet extends HttpServlet {
-
-    /** Lý do khiến món KHÔNG pha được → chặn món. Các lý do còn lại chỉ cần gắn cờ cho Thu ngân. */
-    private static final Set<String> BLOCKING_REASONS = Set.of("EQUIPMENT", "DISCONTINUED");
 
     private final KdsService service;
     private final AttendanceService attendance;
@@ -58,7 +56,7 @@ public class KdsServlet extends HttpServlet {
             // Danh sách nguyên liệu của một món — nạp theo yêu cầu khi mở modal "Hết nguyên liệu",
             // thay vì nhúng sẵn vào mọi card (60 card × N nguyên liệu sẽ phình DOM lúc đông khách).
             if ("recipe".equals(req.getParameter("partial"))) {
-                Integer productId = optionalIntParam(req, "productId");
+                Integer productId = RequestParams.optionalInt(req, "productId");
                 // Thiếu/sai productId thì trả fragment rỗng để modal hiện lời nhắc,
                 // không để NumberFormatException đội lên thành trang lỗi 500.
                 req.setAttribute("recipeLines", productId == null
@@ -68,7 +66,7 @@ public class KdsServlet extends HttpServlet {
                 return;
             }
             if ("depleted".equals(req.getParameter("partial"))) {
-                Integer productId = optionalIntParam(req, "productId");
+                Integer productId = RequestParams.optionalInt(req, "productId");
                 req.setAttribute("depletedLines", productId == null
                         ? List.of() : service.getDepletedRecipeIngredients(branchId, productId));
                 req.getRequestDispatcher("/WEB-INF/fragments/barista/kds/recount-picker.jsp")
@@ -76,6 +74,11 @@ public class KdsServlet extends HttpServlet {
                 return;
             }
             loadBoard(req, branchId);
+            // Dropdown lý do dựng từ enum để mã + nhãn chỉ khai ở MỘT nơi; blockingCodes cho JS
+            // biết lý do nào cần hiện cảnh báo "món sẽ rời hàng chờ".
+            req.setAttribute("issueReasons", IssueReason.selectableValues());
+            req.setAttribute("remakeReasons", RemakeReason.selectableValues());
+            req.setAttribute("blockingReasonCodes", IssueReason.blockingCodesCsv());
             req.setAttribute("pageTitle", "Quầy pha chế");
             boolean partial = "1".equals(req.getParameter("partial"));
             shiftSupport.expose(req, "/barista/kds");
@@ -149,13 +152,13 @@ public class KdsServlet extends HttpServlet {
             } else if ("reportIssue".equals(action)) {
                 // Ba nhóm lý do có phạm vi ảnh hưởng khác nhau nên dẫn tới ba hành động khác nhau,
                 // thay vì cùng ghi một cờ như trước (khi đó báo sự cố không đổi hành vi hệ thống).
-                String code = req.getParameter("reason");
-                if ("OUT_OF_STOCK".equals(code)) {                       // Nhóm A: sửa sổ kho rồi chặn món
+                IssueReason reason = IssueReason.fromCode(req.getParameter("reason"));
+                if (reason == IssueReason.OUT_OF_STOCK) {                 // Nhóm A: sửa sổ kho rồi chặn món
                     if (!service.blockItemForDepletedIngredients(intParam(req, "orderItemId"),
                             ingredientIds(req), issueReason(req), userId, branchId)) flashConflict(req);
                     else req.getSession().setAttribute("flashOk",
                             "Đã ghi hết nguyên liệu vào sổ kho — các món dùng nguyên liệu này tự ẩn khỏi POS/QR, tự hiện lại khi có tồn.");
-                } else if (BLOCKING_REASONS.contains(code)) {            // Nhóm B: chặn món
+                } else if (reason != null && reason.isBlocking()) {       // Nhóm B: chặn món
                     if (!service.blockItem(intParam(req, "orderItemId"), issueReason(req), userId, branchId))
                         flashConflict(req);
                     else req.getSession().setAttribute("flashOk", "Đã chuyển món sang mục Cần xử lý.");
@@ -244,8 +247,7 @@ public class KdsServlet extends HttpServlet {
 
     /** Trang đang xem; thiếu/không phải số/nhỏ hơn 1 → trang đầu. Vượt trần thì QueuePage kéo về biên. */
     private static int pageParam(HttpServletRequest req) {
-        Integer value = optionalIntParam(req, "page");
-        return value == null || value < 1 ? 1 : value;
+        return RequestParams.positiveInt(req, "page", 1);
     }
 
     /** Món đã bị thao tác khác đổi trạng thái trước — báo cho barista biết bảng vừa được làm mới. */
@@ -266,41 +268,23 @@ public class KdsServlet extends HttpServlet {
         return out;
     }
 
+    /**
+     * Chữ lý do sẽ ghi vào nhật ký món. Mã lạ → chuỗi rỗng (Service tự quyết có bắt buộc hay không),
+     * riêng OTHER thì lấy nguyên văn barista gõ tay.
+     */
     private static String issueReason(HttpServletRequest req) {
-        String selected = req.getParameter("reason");
-        if (selected == null || selected.isBlank()) return "";
-        if ("OTHER".equals(selected)) return req.getParameter("otherReason");
-        Map<String, String> reasons = Map.of(
-                "OUT_OF_STOCK", "Hết nguyên liệu",
-                "EQUIPMENT", "Máy móc gặp sự cố",
-                "NOTE_UNSUPPORTED", "Không đáp ứng được ghi chú",
-                "DISCONTINUED", "Món đã ngừng bán",
-                "UNCLEAR_ORDER", "Thông tin đơn không rõ");
-        return reasons.getOrDefault(selected, "");
+        IssueReason reason = IssueReason.fromCode(req.getParameter("reason"));
+        if (reason == null) return "";
+        return reason == IssueReason.OTHER ? req.getParameter("otherReason") : reason.label();
     }
 
     private static String remakeReason(HttpServletRequest req) {
-        String selected = req.getParameter("reason");
-        if (selected == null || selected.isBlank()) return "";
-        Map<String, String> reasons = Map.of(
-                "WRONG_RECIPE", "Pha sai công thức",
-                "SPILLED", "Làm đổ hoặc hư món",
-                "QUALITY", "Chất lượng không đạt",
-                "CUSTOMER_FEEDBACK", "Khách phản hồi",
-                "WRONG_DELIVERY", "Giao nhầm",
-                "CHANGED_REQUEST", "Khách thay đổi yêu cầu");
-        return reasons.getOrDefault(selected, "");
+        RemakeReason reason = RemakeReason.fromCode(req.getParameter("reason"));
+        return reason == null ? "" : reason.label();
     }
 
     private static int intParam(HttpServletRequest req, String name) {
         return Integer.parseInt(req.getParameter(name));
     }
 
-    /** Như intParam nhưng trả null khi thiếu/không phải số — dùng cho request GET đọc, không ném lỗi. */
-    private static Integer optionalIntParam(HttpServletRequest req, String name) {
-        String raw = req.getParameter(name);
-        if (raw == null || raw.isBlank()) return null;
-        try { return Integer.valueOf(raw.trim()); }
-        catch (NumberFormatException e) { return null; }
-    }
 }

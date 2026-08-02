@@ -41,7 +41,8 @@
     </div>
 </div>
 
-<div id="kdsBoard" class="kds-board" data-endpoint="${ctx}/barista/kds" aria-busy="false">
+<div id="kdsBoard" class="kds-board" data-endpoint="${ctx}/barista/kds"
+     data-blocking-reasons="${blockingReasonCodes}" aria-busy="false">
         <jsp:include page="/WEB-INF/fragments/barista/kds/cards.jsp" />
 </div>
 <div id="kdsLiveNotice" class="kds-live-notice" role="status" aria-live="assertive" hidden></div>
@@ -54,7 +55,10 @@
         <form action="${ctx}/barista/kds" method="post">
             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="reportIssue"><input type="hidden" name="orderItemId" data-item-input>
             <label class="kds-field"><span>Lý do</span><select name="reason" required>
-                <option value="">Chọn lý do</option><option value="OUT_OF_STOCK">Hết nguyên liệu</option><option value="EQUIPMENT">Máy móc gặp sự cố</option><option value="NOTE_UNSUPPORTED">Không đáp ứng được ghi chú</option><option value="DISCONTINUED">Món đã ngừng bán</option><option value="UNCLEAR_ORDER">Thông tin đơn không rõ</option><option value="OTHER">Lý do khác</option>
+                <option value="">Chọn lý do</option>
+                <c:forEach var="r" items="${issueReasons}">
+                    <option value="${r.code}"><c:out value="${r.label}" /></option>
+                </c:forEach>
             </select></label>
             <label class="kds-field js-other-reason" hidden><span>Lý do khác</span><input type="text" name="otherReason" maxlength="255" autocomplete="off"></label>
             <div class="kds-field js-ingredients" hidden><span>Nguyên liệu đã hết</span><div data-ingredient-slot></div></div>
@@ -72,7 +76,10 @@
         <form action="${ctx}/barista/kds" method="post">
             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="remake"><input type="hidden" name="orderItemId" data-item-input>
             <label class="kds-field"><span>Lý do</span><select name="reason" required>
-                <option value="">Chọn lý do</option><option value="WRONG_RECIPE">Pha sai công thức</option><option value="SPILLED">Làm đổ hoặc hư món</option><option value="QUALITY">Chất lượng không đạt</option><option value="CUSTOMER_FEEDBACK">Khách phản hồi</option><option value="WRONG_DELIVERY">Giao nhầm</option><option value="CHANGED_REQUEST">Khách thay đổi yêu cầu</option>
+                <option value="">Chọn lý do</option>
+                <c:forEach var="r" items="${remakeReasons}">
+                    <option value="${r.code}"><c:out value="${r.label}" /></option>
+                </c:forEach>
             </select></label>
             <div class="kds-modal__actions"><button type="button" class="btn btn-ghost" data-close>Đóng</button><button type="submit" class="btn btn-danger">Xác nhận làm lại</button></div>
         </form>

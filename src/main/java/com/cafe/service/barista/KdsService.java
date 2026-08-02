@@ -2,6 +2,7 @@ package com.cafe.service.barista;
 
 import com.cafe.common.BusinessDay;
 import com.cafe.common.Constants;
+import com.cafe.common.OrderItemStatus;
 import com.cafe.model.Branch;
 import com.cafe.model.OrderGroupInfo;
 import com.cafe.model.OrderItem;
@@ -69,7 +70,7 @@ public class KdsService {
         annotateOrderLines(queue, safe.currentUserId());
         Set<Integer> onDuty = attendanceService.getOnDutyUserIds(branchId);
         for (OrderItem item : queue) {
-            item.setOwnerOffDuty("MAKING".equals(item.getStatus()) && item.getBaristaId() != null
+            item.setOwnerOffDuty(is(item, OrderItemStatus.MAKING) && item.getBaristaId() != null
                     && !onDuty.contains(item.getBaristaId()));
         }
 
@@ -86,7 +87,7 @@ public class KdsService {
 
         List<OrderItem> ordered = pourOrder(queue);
         int sequence = 1;
-        for (OrderItem item : ordered) if (!"READY".equals(item.getStatus())) item.setSeqNo(sequence++);
+        for (OrderItem item : ordered) if (!is(item, OrderItemStatus.READY)) item.setSeqNo(sequence++);
         List<OrderItem> visible = filterWorkbench(ordered, safe.owner(), safe.station(),
                 safe.orderType(), safe.currentUserId());
         QueuePage page = paginate(visible, safe.page(), QUEUE_PAGE_SIZE);
@@ -181,8 +182,8 @@ public class KdsService {
      */
     private static List<OrderItem> pourOrder(List<OrderItem> queue) {
         List<OrderItem> out = new ArrayList<>(queue.size());
-        for (OrderItem item : queue) if (!"READY".equals(item.getStatus())) out.add(item);
-        for (OrderItem item : queue) if ("READY".equals(item.getStatus())) out.add(item);
+        for (OrderItem item : queue) if (!is(item, OrderItemStatus.READY)) out.add(item);
+        for (OrderItem item : queue) if (is(item, OrderItemStatus.READY)) out.add(item);
         return out;
     }
 
@@ -210,6 +211,20 @@ public class KdsService {
         return queueCups >= threshold;
     }
 
+    /**
+     * So khớp trạng thái dòng món qua {@link OrderItemStatus} thay vì rải chuỗi literal khắp file —
+     * gõ sai một ký tự trong literal thì compiler không bắt được, còn hằng enum thì có.
+     *
+     * <p>Trạng thái null trả false, đúng như cách so chuỗi literal trước đây.
+     */
+    private static boolean is(OrderItem item, OrderItemStatus status) {
+        return is(item.getStatus(), status);
+    }
+
+    private static boolean is(String status, OrderItemStatus expected) {
+        return expected.name().equals(status);
+    }
+
     /** Phân giỏ thuần theo trạng thái — tách khỏi truy vấn DB để test được. */
     public static Map<String, List<OrderItem>> splitWorkbench(List<OrderItem> items) {
         Map<String, List<OrderItem>> board = new LinkedHashMap<>();
@@ -218,10 +233,10 @@ public class KdsService {
         board.put("ready", new ArrayList<>());
         board.put("blocked", new ArrayList<>());
         for (OrderItem item : items) {
-            if ("WAITING".equals(item.getStatus())) board.get("waiting").add(item);
-            else if ("MAKING".equals(item.getStatus())) board.get("inProgress").add(item);
-            else if ("READY".equals(item.getStatus())) board.get("ready").add(item);
-            else if ("BLOCKED".equals(item.getStatus())) board.get("blocked").add(item);
+            if (is(item, OrderItemStatus.WAITING)) board.get("waiting").add(item);
+            else if (is(item, OrderItemStatus.MAKING)) board.get("inProgress").add(item);
+            else if (is(item, OrderItemStatus.READY)) board.get("ready").add(item);
+            else if (is(item, OrderItemStatus.BLOCKED)) board.get("blocked").add(item);
         }
         return board;
     }
@@ -236,7 +251,7 @@ public class KdsService {
                                                   String orderType, Integer currentUserId) {
         List<OrderItem> out = new ArrayList<>(items.size());
         for (OrderItem item : items) {
-            if ("BLOCKED".equals(item.getStatus())
+            if (is(item, OrderItemStatus.BLOCKED)
                     || (ownerMatches(item, owner, currentUserId)
                         && valueMatches(station, item.getStation())
                         && valueMatches(orderType, item.getOrderType()))) {
@@ -255,11 +270,11 @@ public class KdsService {
         String status = item.getStatus();
         if ("mine".equals(owner)) {
             // Món của tôi = tôi đang pha, hoặc chính tôi vừa pha xong.
-            Integer holder = "MAKING".equals(status) ? item.getBaristaId()
-                    : "READY".equals(status) ? item.getPreparedBy() : null;
+            Integer holder = is(status, OrderItemStatus.MAKING) ? item.getBaristaId()
+                    : is(status, OrderItemStatus.READY) ? item.getPreparedBy() : null;
             return currentUserId != null && currentUserId.equals(holder);
         }
-        if ("unassigned".equals(owner)) return "WAITING".equals(status);
+        if ("unassigned".equals(owner)) return is(status, OrderItemStatus.WAITING);
         return true;
     }
 

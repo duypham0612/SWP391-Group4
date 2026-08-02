@@ -9,7 +9,10 @@
   var FILTER_KEY = 'kdsFiltersV2';
   var ALERT_KEY = 'kdsAlertOpen';
   var DEFAULT_FILTERS = { owner: 'all', station: 'all', orderType: 'all' };
-  var BLOCKING_REASONS = ['EQUIPMENT', 'DISCONTINUED'];
+  // Danh sách do server đẩy xuống từ enum IssueReason — không khai lại ở đây để mã lý do
+  // chỉ tồn tại ở MỘT nơi. Thiếu attribute thì coi như không lý do nào gây chặn: cùng lắm
+  // là mất dòng ghi chú gợi ý, không chặn nhầm thao tác của barista.
+  var BLOCKING_REASONS = (board.dataset.blockingReasons || '').split(',').filter(Boolean);
   var filters = readFilters();
   var refreshing = false;
   var queuedJump = null;      // lần đổi trang/bộ lọc bị dồn lại vì đang có yêu cầu chạy dở

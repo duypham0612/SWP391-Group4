@@ -10,6 +10,7 @@ import com.cafe.model.PrepBatch;
 import com.cafe.model.User;
 import com.cafe.service.barista.PrepService;
 import com.cafe.web.support.BranchContext;
+import com.cafe.web.support.RequestParams;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -68,7 +69,7 @@ public class PrepServlet extends HttpServlet {
         if (shiftSupport.guardWrite(req, resp, "/barista/prep")) return;   // ngoài ca → chặn ghi
         try {
             if ("createBatch".equals(action)) {
-                int ingredientId = positiveIntParam(req, "preppedIngredientId", 0);
+                int ingredientId = RequestParams.positiveInt(req, "preppedIngredientId", 0);
                 if (ingredientId <= 0) throw new BusinessException("Chưa chọn nguyên liệu pha sẵn.");
                 String rawQty = req.getParameter("quantityProduced");
                 if (blank(rawQty)) throw new BusinessException("Chưa nhập sản lượng thực tế.");
@@ -121,14 +122,5 @@ public class PrepServlet extends HttpServlet {
     }
 
     private static boolean blank(String s) { return s == null || s.isBlank(); }
-
-    private static int positiveIntParam(HttpServletRequest req, String name, int fallback) {
-        try {
-            int value = Integer.parseInt(req.getParameter(name));
-            return value > 0 ? value : fallback;
-        } catch (NumberFormatException e) {
-            return fallback;
-        }
-    }
 
 }

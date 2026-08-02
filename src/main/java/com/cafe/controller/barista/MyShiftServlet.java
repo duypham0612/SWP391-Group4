@@ -9,6 +9,7 @@ import com.cafe.model.MonthlyAttendanceRow;
 import com.cafe.model.User;
 import com.cafe.service.manager.AttendanceService;
 import com.cafe.web.support.BranchContext;
+import com.cafe.web.support.RequestParams;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -41,7 +42,7 @@ public class MyShiftServlet extends HttpServlet {
         int branchId = BranchContext.requireBranchId(req);
         User u = SessionUtil.currentUser(req);
         YearMonth ym = parseMonth(req.getParameter("month"));
-        String query = textParam(req, "q", 100);
+        String query = RequestParams.text(req, "q", 100);
         String state = stateParam(req);
         int pageSize = pageSizeParam(req);
         try {
@@ -54,7 +55,7 @@ public class MyShiftServlet extends HttpServlet {
                 req.setAttribute("monthSummary",
                         attendanceService.getMyMonthlySummary(u.getUserId(), branchId, ym, monthRows));
                 req.setAttribute("historyPage", attendanceService.getMyMonthlyHistoryPage(
-                        u.getUserId(), branchId, ym, query, state, positiveIntParam(req, "page", 1), pageSize));
+                        u.getUserId(), branchId, ym, query, state, RequestParams.positiveInt(req, "page", 1), pageSize));
             }
             req.setAttribute("month", ym.toString());
             req.setAttribute("prevMonth", ym.minusMonths(1));
@@ -89,36 +90,16 @@ public class MyShiftServlet extends HttpServlet {
         }
     }
 
-    private static String textParam(HttpServletRequest req, String name, int maxLength) {
-        String value = req.getParameter(name);
-        if (value == null || value.isBlank()) return "";
-        value = value.trim();
-        return value.length() <= maxLength ? value : value.substring(0, maxLength);
-    }
-
     /**
      * Bộ lọc trạng thái chỉ nhận đúng các mục có trên giao diện; giá trị lạ coi như "Tất cả".
      * ABSENT/OPEN là trạng thái suy ra từ mốc chấm công, không chỉ từ AttendanceStatus.
      */
     private static String stateParam(HttpServletRequest req) {
-        String value = textParam(req, "state", 20).toUpperCase();
-        for (String allowed : new String[]{"APPROVED", "PENDING", "REJECTED", "OPEN", "ABSENT"}) {
-            if (allowed.equals(value)) return value;
-        }
-        return "";
-    }
-
-    private static int positiveIntParam(HttpServletRequest req, String name, int fallback) {
-        try {
-            int value = Integer.parseInt(req.getParameter(name));
-            return value > 0 ? value : fallback;
-        } catch (NumberFormatException e) {
-            return fallback;
-        }
+        return RequestParams.allowed(req, "state", "APPROVED", "PENDING", "REJECTED", "OPEN", "ABSENT");
     }
 
     private static int pageSizeParam(HttpServletRequest req) {
-        return normalizePageSize(positiveIntParam(req, "pageSize", 10));
+        return normalizePageSize(RequestParams.positiveInt(req, "pageSize", 10));
     }
 
     /** Chỉ nhận đúng các mức có trên giao diện; giá trị lạ (kể cả rất lớn) rơi về mặc định. */

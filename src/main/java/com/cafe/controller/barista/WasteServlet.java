@@ -12,6 +12,7 @@ import com.cafe.service.shared.InventoryService;
 import com.cafe.web.form.FormBindingException;
 import com.cafe.web.form.WasteBatchForm;
 import com.cafe.web.support.BranchContext;
+import com.cafe.web.support.RequestParams;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -75,16 +77,18 @@ public class WasteServlet extends HttpServlet {
         try {
             if ("createIngredientWaste".equals(action)) {
                 WasteBatchForm form = WasteBatchForm.from(req);
-                List<WasteRowForm> submitted = form.lines().stream()
-                        .map(row -> new WasteRowForm(row.ingredientId(), row.quantity(), row.wasteType(),
-                                row.reasonPreset(), row.reasonDetail()))
-                        .toList();
+                // Một vòng duyệt dựng cả hai dạng: WasteRowForm để vẽ lại form khi có lỗi,
+                // WasteLineInput để đẩy xuống Service.
+                List<WasteRowForm> submitted = new ArrayList<>(form.lines().size());
+                List<WasteService.WasteLineInput> lines = new ArrayList<>(form.lines().size());
+                for (WasteBatchForm.Line row : form.lines()) {
+                    submitted.add(new WasteRowForm(row.ingredientId(), row.quantity(), row.wasteType(),
+                            row.reasonPreset(), row.reasonDetail()));
+                    lines.add(new WasteService.WasteLineInput(row.ingredientId(), row.quantity(),
+                            row.wasteType(), row.reasonPreset(), row.reasonDetail()));
+                }
                 req.setAttribute("submittedWasteRows", submitted);
                 req.setAttribute("wasteClientRequestId", form.clientRequestId());
-                List<WasteService.WasteLineInput> lines = form.lines().stream()
-                        .map(row -> new WasteService.WasteLineInput(row.ingredientId(), row.quantity(),
-                                row.wasteType(), row.reasonPreset(), row.reasonDetail()))
-                        .toList();
                 int count = service.logIngredientWasteBatch(branchId,
                         new WasteService.WasteBatchCommand(form.clientRequestId(), lines), userId);
                 req.getSession().setAttribute("flashOk", count == 0 ? "Yêu cầu này đã được ghi trước đó." : "Đã ghi " + count + " dòng hao hụt.");
@@ -134,11 +138,11 @@ public class WasteServlet extends HttpServlet {
     private void forwardPage(HttpServletRequest req, HttpServletResponse resp, int branchId, int userId, String editId)
             throws Exception {
         WasteService.WasteScope scope = service.resolveScope(userId, branchId);
-        String logQuery = textParam(req, "q", 100);
+        String logQuery = RequestParams.text(req, "q", 100);
         String logWasteType = logTypeParam(req);
-        String logStatus = allowedParam(req, "status", "ACTIVE", "VOIDED");
+        String logStatus = RequestParams.allowed(req, "status", "ACTIVE", "VOIDED");
         int logPageSize = pageSizeParam(req);
-        int requestedLogPage = positiveIntParam(req, "page", 1);
+        int requestedLogPage = RequestParams.positiveInt(req, "page", 1);
 
         // Tổng quan giữ nguyên toàn bộ phạm vi; bảng nhật ký thì chỉ lấy đúng trang từ DB.
         List<WasteEventItem> scopedLogs = service.getWasteLogs(branchId, scope);
@@ -215,34 +219,12 @@ public class WasteServlet extends HttpServlet {
     }
 
     private static boolean blank(String value) {
-        return value == null || value.trim().isEmpty();
-    }
-
-    private static String textParam(HttpServletRequest req, String name, int maxLength) {
-        String value = req.getParameter(name);
-        if (blank(value)) return "";
-        value = value.trim();
-        return value.length() <= maxLength ? value : value.substring(0, maxLength);
-    }
-
-    private static String allowedParam(HttpServletRequest req, String name, String... allowed) {
-        String value = textParam(req, name, 20).toUpperCase();
-        for (String item : allowed) if (item.equals(value)) return value;
-        return "";
-    }
-
-    private static int positiveIntParam(HttpServletRequest req, String name, int fallback) {
-        try {
-            int value = Integer.parseInt(req.getParameter(name));
-            return value > 0 ? value : fallback;
-        } catch (NumberFormatException e) {
-            return fallback;
-        }
+        return RequestParams.isBlank(value);
     }
 
     /** Nhật ký mặc định 5 dòng/trang cho dễ theo dõi tại quầy; barista chọn được 10/20/50 khi cần soát lại. */
     private static int pageSizeParam(HttpServletRequest req) {
-        return normalizePageSize(positiveIntParam(req, "pageSize", 5));
+        return normalizePageSize(RequestParams.positiveInt(req, "pageSize", 5));
     }
 
     /** Chỉ nhận đúng các mức có trên giao diện; giá trị lạ (kể cả rất lớn) rơi về mặc định. */
@@ -258,7 +240,7 @@ public class WasteServlet extends HttpServlet {
      * vào URL cũng bị bỏ qua (rơi về "tất cả" của phần hao hụt nguyên liệu).
      */
     private static String logTypeParam(HttpServletRequest req) {
-        return allowedParam(req, "logType", "SPILL", "EXPIRED", "OTHER");
+        return RequestParams.allowed(req, "logType", "SPILL", "EXPIRED", "OTHER");
     }
 
     /**
@@ -266,9 +248,9 @@ public class WasteServlet extends HttpServlet {
      * Không có nó thì ghi/sửa/huỷ xong là văng về trang 1 và mất hết điều kiện đang lọc.
      */
     private static String selfUrlKeepingFilters(HttpServletRequest req, Integer forcePage) {
-        return buildSelfUrl(req.getContextPath(), textParam(req, "q", 100), logTypeParam(req),
-                allowedParam(req, "status", "ACTIVE", "VOIDED"), pageSizeParam(req),
-                forcePage != null ? forcePage : positiveIntParam(req, "page", 1));
+        return buildSelfUrl(req.getContextPath(), RequestParams.text(req, "q", 100), logTypeParam(req),
+                RequestParams.allowed(req, "status", "ACTIVE", "VOIDED"), pageSizeParam(req),
+                forcePage != null ? forcePage : RequestParams.positiveInt(req, "page", 1));
     }
 
     /** Phần thuần của {@link #selfUrlKeepingFilters} — tách ra để test được mà không cần dựng request. */
