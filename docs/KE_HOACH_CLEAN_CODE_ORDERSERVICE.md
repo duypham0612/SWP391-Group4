@@ -278,8 +278,8 @@ chỉ ra điểm gọi" trong file này **bắt buộc dùng `clean compile`**.
 1. ~~Có test cho `KdsOrderWorkflowService` + `OrderIssueService`~~ → 🟢 **đã xong** `8fae5db`
    (`BaristaIssueWorkflowIT`, 12/14 method). ⚠️ Nhưng vẫn cần **Docker cục bộ** thì lưới này mới
    dùng được lúc refactor — chạy trên CI nghĩa là biết mình sai *sau khi đẩy code*, không phải lúc gõ.
-2. ⚪ **`CartLine` phải chuyển ra khỏi facade TRƯỚC** — xem §6. Hiện `OrderPlacementService` nhận
-   `List<OrderService.CartLine>`, xoá facade là gãy chính service đích.
+2. ~~`CartLine` phải chuyển ra khỏi facade TRƯỚC~~ → 🟢 **đã xong** — nay là `model/CartLine.java`,
+   `OrderPlacementService` hết phụ thuộc ngược vào facade.
 3. ⚪ Người dùng xác nhận muốn đổi kiến trúc, không chỉ muốn dễ đọc.
 
 **Nội dung nếu làm:** mỗi caller tự giữ đúng service nó cần, bỏ tầng trung gian.
@@ -307,8 +307,8 @@ Dễ nhất trước để lộ vấn đề sớm khi giá còn rẻ.
 
 | Ngày | File | Vấn đề | Trạng thái |
 |---|---|---|---|
-| 2026-08-02 | 5 service đích + `OrderRepository` | **0 unit test.** Toàn bộ luồng đơn hàng — đặt món, pha, chặn, giao — không có test đơn vị nào. IT cần Docker mà máy không có. | ⚪ Rủi ro nền của cả repo, lớn hơn phạm vi plan này |
-| 2026-08-02 | `OrderService.CartLine` | **Đếm thật: 11 file tham chiếu** — vượt ngưỡng 3 file, Đợt 2 giữ nguyên theo đúng luật plan. Vấn đề sâu hơn: `OrderPlacementService.placeOrder` nhận `List<OrderService.CartLine>`, tức **service chuyên trách phụ thuộc ngược vào facade** cho DTO của chính nó. | ⚪ **Điều kiện chặn của Đợt 3** — bỏ facade thì phải chuyển `CartLine` ra trước (ứng viên: `OrderPlacementService` hoặc `model/`) |
+| 2026-08-02 | 5 service đích + `OrderRepository` | ~~**0 unit test**, rủi ro nền của cả repo~~ → **ĐÁNH GIÁ SAI, đã đính chính**: repo có 8 file IT / 1796 dòng chạy trên CI mọi PR, `BaristaTransactionIT` phủ đúng 3 đường tranh chấp nguy hiểm nhất. Khoảng trống thật chỉ là 3/14 method. Nguyên nhân nhận định sai: chỉ grep tên service trong `src/test` mà không kiểm IT phủ gì và CI có chạy không. | 🟢 **Đã lấp** `8fae5db` — `BaristaIssueWorkflowIT` đưa 3/14 → 12/14. Còn `cancelItem`/`voidOrder` thuộc phía thu ngân |
+| 2026-08-02 | `OrderService.CartLine` | **Đếm thật: 11 file tham chiếu** — vượt ngưỡng 3 file, Đợt 2 giữ nguyên theo đúng luật plan. Vấn đề sâu hơn: `OrderPlacementService.placeOrder` nhận `List<OrderService.CartLine>`, tức **service chuyên trách phụ thuộc ngược vào facade** cho DTO của chính nó. | 🟢 **Xong** — chuyển sang `model/CartLine.java`. Chọn `model/` vì cả ba tầng đều chạm: `web/form` dựng, `service/cashier`+`service/customer` kiểm tra, `OrderPlacementService` tiêu thụ. 11 file đổi import, compiler bắt hết |
 | 2026-08-02 | Quy trình | `mvn -q compile` tăng dần **báo xanh dù code đã hỏng** (dùng lại `.class` cũ). Đã suýt bỏ lọt 4 lỗi ở Đợt 2. | ✅ Đã ghi thành luật: kiểm chứng kiểu "để compiler chỉ ra" phải dùng `clean compile` |
 
 ---

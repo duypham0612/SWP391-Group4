@@ -6,9 +6,9 @@
 > Nguồn gốc: kết quả rà soát toàn bộ 11 file Java + 6 JSP + 4 fragment + 1 JS của role Barista (2026-08-02).
 > Trạng thái tổng: 🟢 **Cả 3 đợt + dọn tồn đọng §6 đã xong** (2026-08-02). Test 344/345 → **352/352**.
 >
-> **Còn lại đúng 2 việc, cả hai đều cần plan riêng — xem §6:**
-> 1. `OrderService.java:50` — nằm ngoài phạm vi, ảnh hưởng Cashier + QR + Manager.
-> 2. 200 dòng JSP dài do nội dung text inline — cần chạy app đối chiếu bằng mắt.
+> **Còn lại đúng 1 việc — xem §6:** 155 dòng JSP dài do nội dung text inline, cần chạy app
+> đối chiếu bằng mắt. (`OrderService.java:50` đã xong ở plan riêng — xem
+> `KE_HOACH_CLEAN_CODE_ORDERSERVICE.md`.)
 
 ---
 
@@ -269,8 +269,8 @@ mvn -q test && mvn -q clean package
 | 2026-08-02 | `fragments/barista/kds/queue-row.jsp:45` | Comment nhắc khu "Đơn treo" đã bị gỡ khỏi UI | Comment sai | 🟢 **Xong** `f1d28e1`. Hoá ra nhánh `⚠` (seqNo == 0) cũng không với tới được vì `loadBoard` đánh số cho mọi món chưa xong → ghi lại đúng là "lưới an toàn", giữ nhánh |
 | 2026-08-02 | `service/barista/KdsService.java` | 4 field list `waitingItems`/`inProgressItems`/`readyItems`/`blockedItems` không được JSP dùng | Code thừa | 🟢 **Xong** `503bd0c` — xoá khi tách `KdsBoardData` |
 | 2026-08-02 | `controller/barista/KdsServlet.java` | `fromCode` rộng hơn code cũ (trim + chấp nhận chữ thường, bám `Reason86.fromCode`). Chỉ ảnh hưởng POST tự soạn — dropdown luôn gửi mã hoa | Khác biệt nhỏ | ✅ Đã cân nhắc và chấp nhận |
-| 2026-08-02 | `service/shared/OrderService.java:50` | 7 method nhồi trên 1 dòng, tên tham số 1 ký tự (`int b`, `LocalDateTime d`) | Khó đọc | ⚪ **CHƯA LÀM** — §2 cấm đụng, ảnh hưởng Cashier + QR + Manager. Cần plan riêng |
-| 2026-08-02 | `views/barista/*.jsp` · `fragments/barista/**` | 200 dòng >120 ký tự còn lại, dài do **nội dung text inline** | Khó đọc | ⚪ **CHƯA LÀM** — máy không cắt an toàn được (xem cuối §5). Cần chạy app đối chiếu bằng mắt |
+| 2026-08-02 | `service/shared/OrderService.java:50` | 7 method nhồi trên 1 dòng, tên tham số 1 ký tự (`int b`, `LocalDateTime d`) | Khó đọc | 🟢 **Xong** `59792c9` qua plan riêng `KE_HOACH_CLEAN_CODE_ORDERSERVICE.md` — 56→240 dòng, 30 method |
+| 2026-08-02 | `views/barista/*.jsp` · `fragments/barista/**` | **155** dòng >120 ký tự còn lại, dài do **nội dung text inline** | Khó đọc | ⚪ **CHƯA LÀM** — máy không cắt an toàn được (xem cuối §5). Cần chạy app đối chiếu bằng mắt |
 
 ---
 
@@ -282,7 +282,7 @@ mvn -q test && mvn -q clean package
 | 2 | Gom trùng lặp | 🟢 | `95c90cf` | Thêm `RequestParams` + 2 enum lý do · gỡ 3 bản sao `BLOCKING_REASONS` · 12 literal trạng thái → `OrderItemStatus` · test 345/345 |
 | 3 | Cấu trúc | 🟢 | `503bd0c` | KdsService 470→345 dòng · tách 2 file · doPost 70→11 dòng · test 345/345 |
 | 4 | Dọn tồn đọng §6 | 🟢 | `f1d28e1` | `ReasonLabelLockTest` 7 test · gỡ bản sao helper thứ 5 · xoá `updateBatch` · sửa comment `queue-row` · test 352/352 |
-| 5 | Ngắt thuộc tính JSP | 🟢 | `4440af9` | 41 thẻ · dòng dài 231→200 · 3 lớp kiểm chứng không đổi render |
+| 5 | Ngắt thuộc tính JSP | 🟢 | `4440af9` | 41 thẻ · dòng dài 231→200 **tính theo byte** (theo ký tự: còn 155 — xem đính chính §5) · 3 lớp kiểm chứng không đổi render |
 
 Chú thích: ⚪ chưa làm · 🟡 đang làm · 🟢 xong · 🔴 bị chặn
 

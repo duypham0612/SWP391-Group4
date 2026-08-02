@@ -22,7 +22,7 @@ public final class OrderPlacementService {
      * Tất cả trong MỘT transaction. Giá tính server-side (giá menu chi nhánh + Σ priceDelta option).
      */
     public int placeOrder(int branchId, Integer tableId, String source, String orderType,
-                          Integer createdBy, List<OrderService.CartLine> lines) throws SQLException {
+                          Integer createdBy, List<CartLine> lines) throws SQLException {
         if ("COUNTER".equals(source) && createdBy == null)
             throw new BusinessException("Đơn tại quầy bắt buộc có nhân viên tạo.");
         if ("QR".equals(source) && createdBy != null)
@@ -72,7 +72,7 @@ public final class OrderPlacementService {
                 o.setPickupCode(pickupPrefix(o.getSource(), o.getOrderType()) + pickupSequence);
                 int orderId = repository.orderDao.insert(conn, o);
 
-                for (OrderService.CartLine line : lines) {
+                for (CartLine line : lines) {
                     if (line.quantity <= 0) continue;
                     BigDecimal base = priceByProduct.get(line.productId);
                     // Chưa có trong menu chi nhánh (hoặc product không còn active) — lỗi phía client gửi lên,

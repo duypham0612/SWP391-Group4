@@ -8,6 +8,7 @@ import com.cafe.model.PosMenuItem;
 import com.cafe.model.DiningTable;
 import com.cafe.model.User;
 import com.cafe.service.shared.CatalogReadService;
+import com.cafe.model.CartLine;
 import com.cafe.service.shared.OrderService;
 import com.cafe.service.cashier.DiningTableService;
 import com.cafe.web.form.FormBindingException;
@@ -107,7 +108,7 @@ public class PosServlet extends HttpServlet {
                 throw new IllegalArgumentException("Bàn không hợp lệ.");
             }
             String orderType = tableId == null ? "TAKEAWAY" : "DINE_IN";
-            List<OrderService.CartLine> lines = form.toCartLines();
+            List<CartLine> lines = form.toCartLines();
 
             int orderId = orderService.placeOrder(branchId, tableId, "COUNTER", orderType, userId, lines);
             if (tableId != null) removeDraftCart(req.getSession(), tableId);

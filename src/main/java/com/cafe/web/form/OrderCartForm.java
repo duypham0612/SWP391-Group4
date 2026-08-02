@@ -1,6 +1,6 @@
 package com.cafe.web.form;
 
-import com.cafe.service.shared.OrderService;
+import com.cafe.model.CartLine;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
@@ -36,10 +36,10 @@ public record OrderCartForm(Integer tableId, List<Line> lines) {
         return new OrderCartForm(tableId, lines);
     }
 
-    public List<OrderService.CartLine> toCartLines() {
-        List<OrderService.CartLine> result = new ArrayList<>(lines.size());
+    public List<CartLine> toCartLines() {
+        List<CartLine> result = new ArrayList<>(lines.size());
         for (Line source : lines) {
-            OrderService.CartLine target = new OrderService.CartLine();
+            CartLine target = new CartLine();
             target.productId = source.productId();
             target.quantity = source.quantity();
             target.note = source.note();

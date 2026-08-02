@@ -9,6 +9,7 @@ import com.cafe.model.Order;
 import com.cafe.model.OrderItem;
 import com.cafe.model.PosMenuItem;
 import com.cafe.service.shared.CatalogReadService;
+import com.cafe.model.CartLine;
 import com.cafe.service.shared.OrderService;
 
 import java.sql.Connection;
@@ -98,7 +99,7 @@ public class QrOrderService {
         return catalogReadService.getPosMenu(branchId);
     }
 
-    public int placeCustomerOrder(int branchId, int tableId, List<OrderService.CartLine> lines)
+    public int placeCustomerOrder(int branchId, int tableId, List<CartLine> lines)
             throws SQLException {
         return orderService.placeOrder(branchId, tableId, "QR", "DINE_IN", null, lines);
     }

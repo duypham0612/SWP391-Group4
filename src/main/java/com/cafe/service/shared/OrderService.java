@@ -4,7 +4,6 @@ import com.cafe.model.*;
 
 import java.sql.SQLException;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -53,14 +52,6 @@ public final class OrderService {
         this.kds = Objects.requireNonNull(kds);
         this.issues = Objects.requireNonNull(issues);
         this.handoff = Objects.requireNonNull(handoff);
-    }
-
-    /** Một dòng giỏ hàng gửi từ POS/QR trước khi thành đơn. */
-    public static class CartLine {
-        public int productId;
-        public int quantity;
-        public String note;
-        public List<Integer> optionIds = new ArrayList<>();
     }
 
     // ── Đặt món (placement) ──────────────────────────────────────────────────────────────

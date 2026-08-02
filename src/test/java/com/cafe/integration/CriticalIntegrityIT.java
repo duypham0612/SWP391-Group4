@@ -1,6 +1,7 @@
 package com.cafe.integration;
 
 import com.cafe.common.BusinessException;
+import com.cafe.model.CartLine;
 import com.cafe.service.cashier.BillingService;
 import com.cafe.service.manager.AttendanceService;
 import com.cafe.service.manager.ShiftService;
@@ -51,8 +52,7 @@ public class CriticalIntegrityIT extends SqlServerIntegrationSupport {
                 futures.add(executor.submit(() -> {
                     ready.countDown();
                     start.await();
-                    com.cafe.service.shared.OrderService.CartLine line =
-                            new com.cafe.service.shared.OrderService.CartLine();
+                    CartLine line = new CartLine();
                     line.productId = productId;
                     line.quantity = 1;
                     return new com.cafe.service.shared.OrderService().placeOrder(

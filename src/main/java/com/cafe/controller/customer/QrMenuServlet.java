@@ -2,6 +2,7 @@ package com.cafe.controller.customer;
 
 import com.cafe.web.support.CsrfUtil;
 import com.cafe.common.ItemUnavailableException;
+import com.cafe.model.CartLine;
 import com.cafe.service.shared.OrderService;
 import com.cafe.service.customer.QrOrderService;
 import com.cafe.web.form.FormBindingException;
@@ -127,7 +128,7 @@ public class QrMenuServlet extends HttpServlet {
                 return;
             }
             OrderCartForm form = OrderCartForm.fromJson(req, mapper);
-            List<OrderService.CartLine> lines = form.toCartLines();
+            List<CartLine> lines = form.toCartLines();
             int orderId = qrService.placeCustomerOrder(branchId, tableId, lines);
             resp.getWriter().write("{\"orderId\":" + orderId + ",\"tableId\":" + tableId + "}");
         } catch (ItemUnavailableException e) {

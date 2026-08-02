@@ -1,5 +1,6 @@
 package com.cafe.service.shared;
 
+import com.cafe.model.CartLine;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -22,8 +23,8 @@ class OrderQuantityValidatorTest {
         assertEquals("Mỗi loại món chỉ được đặt tối đa 20 trong một đơn.", error.getMessage());
     }
 
-    private static OrderService.CartLine line(int productId, int quantity) {
-        OrderService.CartLine line = new OrderService.CartLine();
+    private static CartLine line(int productId, int quantity) {
+        CartLine line = new CartLine();
         line.productId = productId;
         line.quantity = quantity;
         return line;

@@ -15,6 +15,7 @@ import com.cafe.service.admin.ProductService;
 import com.cafe.service.manager.PayrollService;
 import com.cafe.service.manager.StockReceiptService;
 import com.cafe.service.shared.InventoryService;
+import com.cafe.model.CartLine;
 import com.cafe.service.shared.OrderService;
 import org.junit.jupiter.api.Test;
 
@@ -187,7 +188,7 @@ public class DatabaseNormalizationIT extends SqlServerIntegrationSupport {
                 "SELECT ModifierOptionId FROM catalog.ModifierOption WHERE ModifierGroupId=? AND Name=?",
                 groupId, optionName);
 
-        OrderService.CartLine line = new OrderService.CartLine();
+        CartLine line = new CartLine();
         line.productId = productId;
         line.quantity = 1;
         line.optionIds = List.of(optionId);
