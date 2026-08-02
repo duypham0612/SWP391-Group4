@@ -243,7 +243,12 @@ mvn -q test && mvn -q clean package
   3. không biểu thức EL nào bị cắt (bản script đầu cắt vào giữa `${a == b ? 'x' : ''}` — đã sửa để
      coi `${...}`/`#{...}` là nguyên khối).
 
-  **200 dòng còn lại KHÔNG cắt được bằng máy** vì dài do **nội dung text inline**: xuống dòng giữa
+  📌 **Đính chính phép đo (2026-08-02):** các con số 247 / 231 / 200 ở trên đếm bằng
+  `awk 'length>120'` = **BYTE**, không phải ký tự. Tiếng Việt có dấu là 2–3 byte/ký tự nên bị thổi
+  phồng. Đo lại bằng ký tự thật: hiện còn **155 dòng** (không phải 200). Mức cải thiện tương đối
+  vẫn đúng, chỉ con số tuyệt đối bị lệch.
+
+  **Số dòng còn lại KHÔNG cắt được bằng máy** vì dài do **nội dung text inline**: xuống dòng giữa
   hai thẻ inline là chèn khoảng trắng vào bản render. Ca thật đã gặp: `.kds-stat__context` có
   `white-space:nowrap` + `text-overflow:ellipsis` — khoảng trắng thừa đẩy lệch chữ.
   → Mỗi dòng phải tra `display` của container trong `cafe-theme.css`. Nên làm thành **task riêng

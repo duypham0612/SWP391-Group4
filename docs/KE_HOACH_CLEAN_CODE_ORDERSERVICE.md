@@ -179,33 +179,55 @@ Không file nào dùng cả 5 service → facade không phục vụ ai trọn v�
 
 ## 4. Đợt 1 & 2 — an toàn, compiler bảo chứng
 
-### Đợt 1 — Trải phẳng `OrderService` ⚪
+### Đợt 1 — Trải phẳng `OrderService` 🟢 xong `59792c9`
 
 > **Rủi ro: rất thấp.** Chỉ xuống dòng và đổi tên tham số. Compiler bắt mọi sai sót.
 > **Payoff cao nhất trên mỗi đơn vị rủi ro** — làm trước.
 
-- [ ] Xoá 5 method chết ở §3.4. **Xoá trước khi trải phẳng** để khỏi format thứ vứt đi.
-- [ ] Trải 6 dòng nhồi thành 32 method, mỗi method 3 dòng, theo đúng style `InventoryService`.
-- [ ] Khôi phục tên tham số **bằng cách chép từ service đích** (§3.3), giữ đúng
+- [x] Xoá 5 method chết ở §3.4. **Xoá trước khi trải phẳng** để khỏi format thứ vứt đi.
+- [x] Trải 6 dòng nhồi thành **30** method, theo đúng style `InventoryService`.
+      *(Plan ước 32; đếm lại chính xác là 35 method uỷ thác − 5 chết = 30.)*
+- [x] Khôi phục tên tham số **bằng cách chép từ service đích** (§3.3), giữ đúng
       `sessionBranchId` vs `branchId`.
-- [ ] Nhóm method theo service đích, mỗi nhóm một comment một dòng:
-      `// ── Đặt món (placement) ──` · `// ── Đọc (query) ──` · `// ── Quầy pha (kds) ──` ·
-      `// ── Sự cố / chặn món (issues) ──` · `// ── Giao nhận (handoff) ──`
-- [ ] Javadoc lớp ghi rõ: đây là facade tương thích, logic nằm ở 5 service, **thêm use case mới thì
+      → Bắt thêm được một chỗ plan chưa ghi: `serveAllPickedUp` nhận **`tableNumber`** (số bàn
+      hiển thị, kiểu chuỗi) chứ không phải `tableId`. Facade cũ gọi là `t`.
+- [x] Nhóm method theo service đích, mỗi nhóm một comment một dòng.
+- [x] Javadoc lớp ghi rõ: đây là facade tương thích, logic nằm ở 5 service, **thêm use case mới thì
       viết thẳng vào service chuyên trách chứ không nống facade to ra**.
-- [ ] Giữ nguyên `CartLine`, `UnblockResult`, `BulkReadyResult` (Đợt 2 mới đụng).
+- [x] Giữ nguyên `CartLine`, `UnblockResult`, `BulkReadyResult` (Đợt 2 mới đụng).
 
-**Nghiệm thu:** `OrderService` ~150 dòng, không dòng nào >120 ký tự, không tham số 1 ký tự.
-`mvn test` xanh, `mvn clean package` ra WAR.
-**Kiểm chứng thêm (bắt buộc, vì test không phủ):**
-```bash
-# Danh sách method public phải KHÔNG đổi ngoài 5 cái cố ý xoá
-git show HEAD:src/main/java/com/cafe/service/shared/OrderService.java \
-  | grep -oE 'public [A-Za-z<>,.\[\] ]+ \w+\(' | sort > /tmp/before.txt
-grep -oE 'public [A-Za-z<>,.\[\] ]+ \w+\(' src/main/java/com/cafe/service/shared/OrderService.java \
-  | sort > /tmp/after.txt
-diff /tmp/before.txt /tmp/after.txt      # chỉ được thiếu đúng 5 dòng đã liệt kê ở §3.4
+**Kết quả:** 56 → 240 dòng (dài hơn vì mỗi method 3–4 dòng + javadoc), 0 dòng nhồi,
+**0 dòng >120 ký tự**, 352/352 test xanh, WAR build OK.
+
+**Nghiệm thu:** không dòng nào >120 ký tự, không tham số 1 ký tự. `mvn test` xanh, WAR build được.
+
+**Kiểm chứng bắt buộc (vì test không phủ tầng này) — ĐÃ CHẠY, kết quả ở dưới.**
+
+⚠️ So bằng `grep ... 'public ... \w+\('` là **KHÔNG ĐỦ**: nó cắt ở dấu `(` nên một method bị đổi
+kiểu tham số hay kiểu trả về vẫn lọt. Phải so **chữ ký đầy đủ theo KIỂU** (bỏ qua tên tham số, vì
+đổi tên chính là mục tiêu của đợt này):
+
+```python
+# so chữ ký chuẩn hoá giữa HEAD và bản làm việc
+import re, subprocess
+def sigs(text):
+    text = re.sub(r'\s+', ' ', text)
+    out = set()
+    for m in re.finditer(r'public (?:final )?(?:static )?([\w<>,.\[\] ]+?) (\w+)\(([^)]*)\)', text):
+        ret, name, params = m.group(1).strip(), m.group(2), m.group(3)
+        if name == 'OrderService': continue
+        types = [' '.join(p.split()[:-1]) or p for p in
+                 (x.strip() for x in params.split(',')) if p]
+        out.add(f"{ret} {name}({', '.join(types)})")
+    return out
 ```
+
+**Kết quả thật:** 39 → 34 chữ ký · mất đúng 5 cái đã liệt kê §3.4 · **thêm mới RỖNG**
+⇒ không method nào bị đổi kiểu trả về hay kiểu tham số. Đây là bằng chứng thay cho test.
+
+📌 **Bẫy đo lường (áp dụng cho cả plan Barista):** `awk 'length>120'` đếm **BYTE**, không phải ký
+tự. Tiếng Việt có dấu là 2–3 byte/ký tự, `─` là 3 byte — nên awk báo `OrderService` còn 11 dòng dài
+trong khi thực tế là **0**. Đo độ dài dòng phải dùng `len()` của Python trên chuỗi đã decode UTF-8.
 
 ### Đợt 2 — Gỡ hai kiểu kết quả nhân đôi ⚪
 
@@ -281,7 +303,7 @@ Dễ nhất trước để lộ vấn đề sớm khi giá còn rẻ.
 
 | Đợt | Nội dung | Rủi ro | Trạng thái | Commit |
 |---|---|---|---|---|
-| 1 | Trải phẳng `OrderService` + xoá 5 method chết | Rất thấp | ⚪ | |
+| 1 | Trải phẳng `OrderService` + xoá 5 method chết | Rất thấp | 🟢 | `59792c9` — 56→240 dòng, 30 method, 0 dòng >120 ký tự, 352/352 |
 | 2 | Gỡ 2 kiểu kết quả nhân đôi | Thấp–TB | ⚪ | |
 | 2b | 2 file model | ~0 | ⚪ | |
 | 3 | Bỏ facade | **Cao** | ⚪ | Chờ điều kiện tiên quyết §5 |
