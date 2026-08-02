@@ -5,7 +5,8 @@
 >
 > Nối tiếp [`KE_HOACH_CLEAN_CODE_BARISTA.md`](KE_HOACH_CLEAN_CODE_BARISTA.md) — mục đầu tiên trong
 > sổ ghi nhận §6 của file đó (`OrderService.java:50`).
-> Trạng thái tổng: ⚪ Chưa bắt đầu · Khảo sát xong 2026-08-02
+> Trạng thái tổng: 🟢 **Đợt 1 + 2 + 2b xong** (2026-08-02) — tức toàn bộ phần khuyến nghị ở §8.
+> ⚪ Đợt 3 (bỏ facade) chưa làm, **có điều kiện tiên quyết** — xem §5.
 
 ---
 
@@ -229,32 +230,36 @@ def sigs(text):
 tự. Tiếng Việt có dấu là 2–3 byte/ký tự, `─` là 3 byte — nên awk báo `OrderService` còn 11 dòng dài
 trong khi thực tế là **0**. Đo độ dài dòng phải dùng `len()` của Python trên chuỗi đã decode UTF-8.
 
-### Đợt 2 — Gỡ hai kiểu kết quả nhân đôi ⚪
+### Đợt 2 — Gỡ hai kiểu kết quả nhân đôi 🟢 xong `e95c72a`
 
 > **Rủi ro: thấp–trung bình.** Đổi kiểu trả về công khai; compiler bắt hết điểm gọi.
 
-- [ ] Xoá `OrderService.UnblockResult`, trả thẳng `OrderIssueService.UnblockResult`.
-- [ ] Xoá `OrderService.BulkReadyResult`, trả thẳng `KdsOrderWorkflowService.BulkReadyResult`.
-- [ ] Sửa điểm gọi (compiler sẽ chỉ ra): `KdsService.markOrderReady`, `KdsService.unblockItem`,
-      `KdsServlet` (2 chỗ dùng `OrderService.BulkReadyResult` / `OrderService.UnblockResult`).
-- [ ] ⚠️ **Không đổi tên getter.** `getRemainingBlockedWithRecountedIngredients()` dài nhưng
-      hai lớp trùng tên getter — đổi là gãy chỗ khác mà compiler báo ở nơi khó lần.
-- [ ] Cân nhắc: `CartLine` (`OrderService.CartLine`) có nên chuyển sang `OrderPlacementService`
-      không? → **Kiểm `web/form/OrderCartForm.java` trước**, nó có tham chiếu `CartLine`.
-      Nếu tốn hơn 3 file thì để lại, ghi §6.
+- [x] Xoá `OrderService.UnblockResult`, trả thẳng `OrderIssueService.UnblockResult`.
+- [x] Xoá `OrderService.BulkReadyResult`, trả thẳng `KdsOrderWorkflowService.BulkReadyResult`.
+- [x] Sửa 4 điểm gọi — compiler chỉ ra **đúng 4 chỗ như plan dự đoán**.
+      → Hiệu ứng phụ đáng ghi: `KdsServlet` **không còn tham chiếu `OrderService`** nữa,
+      giờ chỉ biết `KdsService` + hai kiểu kết quả. Tầng phân chia rõ hơn.
+- [x] Không đổi tên getter.
+- [x] `CartLine` → **GIỮ NGUYÊN.** Đếm thật: **11 file** tham chiếu (`OrderCartForm`, `PosServlet`,
+      `QrMenuServlet`, `CashierOrderValidator`, `OrderPlacementService`, `QrOrderService`,
+      `OrderQuantityValidator` + 2 IT + 2 test). Vượt xa ngưỡng 3 file plan đặt để dừng → ghi §6.
 
-**Nghiệm thu:** không còn lớp kết quả nào bị nhân đôi. `mvn test` xanh.
+⚠️ **Bẫy gặp phải:** `mvn -q compile` (biên dịch tăng dần) **báo thành công dù code đã hỏng** vì
+dùng lại `.class` cũ. Phải `mvn -q clean compile` mới lộ 4 lỗi. Mọi lần kiểm chứng kiểu "để compiler
+chỉ ra điểm gọi" trong file này **bắt buộc dùng `clean compile`**.
 
-### Đợt 2b — Hai file model ⚪
+### Đợt 2b — Hai file model 🟢 xong `e95c72a`
 
 > **Rủi ro: gần bằng 0.** POJO thuần, chỉ xuống dòng.
 
-- [ ] `model/WasteEvent.java` — 13 dòng dạng
-      `public String getX() { return x; } public void setX(String v) { x=v; }` → tách đôi.
-- [ ] `model/WasteEventReview.java` — tương tự 13 dòng.
-- [ ] Đổi tham số setter `v` → tên field cho khớp phần còn lại của repo.
-- [ ] ⚠️ **Không đổi tên getter/setter** — JSP đọc qua EL, đổi tên là gãy **âm thầm lúc chạy**,
-      compiler không bắt. Trước khi commit, grep tên field trong `webapp/` để chắc không lỡ tay.
+- [x] `model/WasteEvent.java` — tách 13 cặp getter/setter.
+- [x] `model/WasteEventReview.java` — tách 13 cặp.
+- [x] Đổi tham số setter `v` → tên field, thêm `this.`.
+- [x] **Không đổi tên getter/setter.** Script tự `assert` danh sách tên method không đổi **trước
+      khi ghi file** — mạnh hơn grep thủ công. Đối chiếu thêm: `productName` dùng ở 14 JSP,
+      `status` ở 20 JSP, nên đổi tên là gãy diện rộng mà compiler không bắt.
+
+**Kết quả chung:** toàn repo **hết sạch dòng nhồi nhiều method**. 352/352 test xanh.
 
 ---
 
@@ -294,8 +299,8 @@ Dễ nhất trước để lộ vấn đề sớm khi giá còn rẻ.
 | Ngày | File | Vấn đề | Trạng thái |
 |---|---|---|---|
 | 2026-08-02 | 5 service đích + `OrderRepository` | **0 unit test.** Toàn bộ luồng đơn hàng — đặt món, pha, chặn, giao — không có test đơn vị nào. IT cần Docker mà máy không có. | ⚪ Rủi ro nền của cả repo, lớn hơn phạm vi plan này |
-| 2026-08-02 | `web/form/OrderCartForm.java` | Có tham chiếu `OrderService.CartLine` — kiểm trước khi động vào `CartLine` ở Đợt 2 | ⚪ Cần kiểm |
-| | | | |
+| 2026-08-02 | `OrderService.CartLine` | **Đếm thật: 11 file tham chiếu** — vượt ngưỡng 3 file, Đợt 2 giữ nguyên theo đúng luật plan. Vấn đề sâu hơn: `OrderPlacementService.placeOrder` nhận `List<OrderService.CartLine>`, tức **service chuyên trách phụ thuộc ngược vào facade** cho DTO của chính nó. | ⚪ **Điều kiện chặn của Đợt 3** — bỏ facade thì phải chuyển `CartLine` ra trước (ứng viên: `OrderPlacementService` hoặc `model/`) |
+| 2026-08-02 | Quy trình | `mvn -q compile` tăng dần **báo xanh dù code đã hỏng** (dùng lại `.class` cũ). Đã suýt bỏ lọt 4 lỗi ở Đợt 2. | ✅ Đã ghi thành luật: kiểm chứng kiểu "để compiler chỉ ra" phải dùng `clean compile` |
 
 ---
 
@@ -304,8 +309,8 @@ Dễ nhất trước để lộ vấn đề sớm khi giá còn rẻ.
 | Đợt | Nội dung | Rủi ro | Trạng thái | Commit |
 |---|---|---|---|---|
 | 1 | Trải phẳng `OrderService` + xoá 5 method chết | Rất thấp | 🟢 | `59792c9` — 56→240 dòng, 30 method, 0 dòng >120 ký tự, 352/352 |
-| 2 | Gỡ 2 kiểu kết quả nhân đôi | Thấp–TB | ⚪ | |
-| 2b | 2 file model | ~0 | ⚪ | |
+| 2 | Gỡ 2 kiểu kết quả nhân đôi | Thấp–TB | 🟢 | `e95c72a` — 4 điểm gọi, `KdsServlet` hết phụ thuộc `OrderService` |
+| 2b | 2 file model | ~0 | 🟢 | `e95c72a` — 26 cặp getter/setter, tên method giữ nguyên |
 | 3 | Bỏ facade | **Cao** | ⚪ | Chờ điều kiện tiên quyết §5 |
 
 ⚪ chưa làm · 🟡 đang làm · 🟢 xong · 🔴 bị chặn
