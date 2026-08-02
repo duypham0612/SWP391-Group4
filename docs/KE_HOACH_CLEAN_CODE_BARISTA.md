@@ -4,8 +4,11 @@
 > Mỗi lần bắt đầu phiên làm việc mới → **đọc lại mục "Nguyên tắc" và "Ngoài phạm vi" trước tiên.**
 >
 > Nguồn gốc: kết quả rà soát toàn bộ 11 file Java + 6 JSP + 4 fragment + 1 JS của role Barista (2026-08-02).
-> Trạng thái tổng: 🟢 Cả 3 đợt xong (2026-08-02) — còn nợ đúng một mục: cắt dòng dài trong JSP
-> (mới làm 16/247 dòng, phần còn lại cần chạy app kiểm tra bằng mắt — xem cuối §5).
+> Trạng thái tổng: 🟢 **Cả 3 đợt + dọn tồn đọng §6 đã xong** (2026-08-02). Test 344/345 → **352/352**.
+>
+> **Còn lại đúng 2 việc, cả hai đều cần plan riêng — xem §6:**
+> 1. `OrderService.java:50` — nằm ngoài phạm vi, ảnh hưởng Cashier + QR + Manager.
+> 2. 200 dòng JSP dài do nội dung text inline — cần chạy app đối chiếu bằng mắt.
 
 ---
 
@@ -228,16 +231,23 @@ mvn -q test && mvn -q clean package
 - [x] **Đổi tên `pourOrder` → `sortForBrewing`** (private, 0 rủi ro).
 - [x] **Tách `KdsService`** → `KdsService` 345 dòng · `KdsBoardData.java` 62 · `QueuePage.java` 82.
   Sửa 10 dòng `KdsService.QueuePage` → `QueuePage` trong `KdsQueuePageTest`.
-- [ ] **Cắt dòng dài >120 ký tự trong JSP — MỚI LÀM MỘT PHẦN: 247 → 231 dòng.**
-  Đã làm những nhóm **chắc chắn không đổi render**:
+- [ ] **Cắt dòng dài >120 ký tự trong JSP — LÀM ĐƯỢC TỚI ĐÂU: 247 → 200 dòng** (`4440af9`).
+  Đã làm hết những nhóm **chứng minh được là không đổi render**:
   · tách chuỗi `<input type="hidden">` xuống dòng riêng (21 thẻ) — thẻ ẩn không render gì;
-  · ngắt giữa các thuộc tính trong thẻ `<button>` của `queue-row.jsp` — không sinh text node nào;
+  · ngắt giữa các **thuộc tính bên trong thẻ** (41 thẻ) — không sinh text node nào;
   · dải số liệu `cards.jsp` — đã xác minh `.kds-stat` là `display:grid` nên bỏ qua text node trắng.
-  **Phần còn lại chưa làm** vì dòng dài do **nội dung text inline**: thêm xuống dòng giữa các thẻ
-  inline sẽ **chèn khoảng trắng vào kết quả render**. Ví dụ thật gặp phải: `.kds-stat__context` có
-  `white-space:nowrap` + `text-overflow:ellipsis`, khoảng trắng thừa đẩy lệch chữ.
-  → Mỗi dòng còn lại phải tra `display` của container trong `cafe-theme.css` rồi mới cắt được.
-  Nên làm thành **task riêng có chạy app kiểm tra bằng mắt**, không gộp vào commit refactor.
+
+  Ba lớp kiểm chứng đã chạy trước khi áp dụng đợt ngắt thuộc tính:
+  1. bỏ hết khoảng trắng → nội dung 10 file **giống hệt** trước ⇒ chỉ khoảng trắng đổi;
+  2. số lần ngắt dòng **giữa hai thẻ** giữ nguyên **1406 → 1406** ⇒ không sinh text node trắng nào;
+  3. không biểu thức EL nào bị cắt (bản script đầu cắt vào giữa `${a == b ? 'x' : ''}` — đã sửa để
+     coi `${...}`/`#{...}` là nguyên khối).
+
+  **200 dòng còn lại KHÔNG cắt được bằng máy** vì dài do **nội dung text inline**: xuống dòng giữa
+  hai thẻ inline là chèn khoảng trắng vào bản render. Ca thật đã gặp: `.kds-stat__context` có
+  `white-space:nowrap` + `text-overflow:ellipsis` — khoảng trắng thừa đẩy lệch chữ.
+  → Mỗi dòng phải tra `display` của container trong `cafe-theme.css`. Nên làm thành **task riêng
+  có chạy app đối chiếu bằng mắt**, không gộp vào commit refactor.
 
 ---
 
@@ -245,16 +255,17 @@ mvn -q test && mvn -q clean package
 
 > Thấy vấn đề nằm ngoài phạm vi → ghi vào đây, **không sửa** (N2, N3).
 
-| Ngày | File:dòng | Vấn đề | Loại | Xử lý sau |
+| Ngày | File:dòng | Vấn đề | Loại | Trạng thái |
 |---|---|---|---|---|
-| 2026-08-02 | `service/shared/OrderService.java:50` | 7 method nhồi trên 1 dòng, tên tham số 1 ký tự (`int b`, `LocalDateTime d`) | Khó đọc | Task riêng — ảnh hưởng Cashier + QR + Manager |
-| 2026-08-02 | `controller/manager/WasteReportServlet.java` | Trùng helper `positiveIntParam`/`textParam` với barista | Trùng lặp | Sau Đợt 2, dùng lại `RequestParams` |
-| 2026-08-02 | `sql/migration-checksums.sha256` | **Test `MigrationChecksumTest` đang ĐỎ SẴN** trên nhánh `minhnhat`. Commit `f95a9ff` ("tối giản schema từ 49 xuống 25 bảng") đổi `V1__database.sql` nhưng không cập nhật manifest checksum. Đã verify bằng `git stash` — không liên quan Đợt 1. | Test đỏ | ❗Cần xử lý riêng, thuộc phần DB (§2 cấm đụng) |
-| 2026-08-02 | `service/barista/PrepService.java` | `updateBatch` cũng là code chết (0 caller), nhưng **không nằm trong danh sách §1.3** nên Đợt 1 giữ nguyên | Code chết | Gộp vào Đợt 2 |
-| 2026-08-02 | `service/barista/KdsService.java` | 4 field list `waitingItems`/`inProgressItems`/`readyItems`/`blockedItems` của `KdsBoardData` **không được JSP dùng** — JSP chỉ đọc `*Count`. Nạp list rồi vứt đi. | Code thừa | Đợt 3, khi làm `KdsBoardData` → record |
-| 2026-08-02 | `fragments/barista/kds/queue-row.jsp:45` | Comment nhắc khu "Đơn treo" — khu này **không còn trong UI** (đã xác nhận `getStaleItems` là code chết) | Comment sai | Đợt 2 hoặc 3, khi đụng JSP |
-| 2026-08-02 | `common/IssueReason.java` · `common/RemakeReason.java` | **Chưa có test khoá nhãn.** Nhãn tiếng Việt ở hai enum này được ghi thẳng vào sổ hao hụt — gõ sai một ký tự là hỏng dữ liệu lịch sử, không có gì bắt được. §2 cấm viết test mới nên Đợt 2 không thêm. | Thiếu bảo vệ | ❗Khuyến nghị thêm test khoá code+nhãn+thứ tự, làm task riêng |
-| 2026-08-02 | `controller/barista/KdsServlet.java` | `IssueReason.fromCode`/`RemakeReason.fromCode` **rộng hơn** code cũ: có trim + chấp nhận chữ thường (bám theo `Reason86.fromCode` sẵn có). Code cũ so chuỗi chính xác nên `reason=other` viết thường sẽ ghi lý do rỗng; giờ nhận đúng là OTHER. Chỉ ảnh hưởng POST tự soạn — dropdown luôn gửi mã hoa. | Khác biệt nhỏ | Đã cân nhắc và chấp nhận; ghi lại để không bất ngờ |
+| 2026-08-02 | `sql/migration-checksums.sha256` | `MigrationChecksumTest` đỏ sẵn từ `f95a9ff` — manifest ghi hash không ứng với `V1__database.sql` được commit | Test đỏ | 🟢 **Xong** `6b540c5`. Đã loại trừ line-ending/BOM và xác nhận SQL nguyên vẹn (25 bảng) trước khi tính lại hash |
+| 2026-08-02 | `common/IssueReason.java` · `common/RemakeReason.java` | Chưa có gì bảo vệ nhãn tiếng Việt ghi thẳng vào sổ hao hụt | Thiếu bảo vệ | 🟢 **Xong** `f1d28e1`. `ReasonLabelLockTest` 7 test; đã kiểm chứng bằng cách cố tình gõ sai một dấu → test đỏ đúng chỗ |
+| 2026-08-02 | `controller/manager/WasteReportServlet.java` | Trùng helper `positiveIntParam`/`textParam`/`allowedParam` — bản sao thứ 5 | Trùng lặp | 🟢 **Xong** `f1d28e1`. Toàn repo không còn bản sao nào |
+| 2026-08-02 | `service/barista/PrepService.java` | `updateBatch` là code chết (0 caller), sót lại vì không nằm trong danh sách §1.3 | Code chết | 🟢 **Xong** `f1d28e1` |
+| 2026-08-02 | `fragments/barista/kds/queue-row.jsp:45` | Comment nhắc khu "Đơn treo" đã bị gỡ khỏi UI | Comment sai | 🟢 **Xong** `f1d28e1`. Hoá ra nhánh `⚠` (seqNo == 0) cũng không với tới được vì `loadBoard` đánh số cho mọi món chưa xong → ghi lại đúng là "lưới an toàn", giữ nhánh |
+| 2026-08-02 | `service/barista/KdsService.java` | 4 field list `waitingItems`/`inProgressItems`/`readyItems`/`blockedItems` không được JSP dùng | Code thừa | 🟢 **Xong** `503bd0c` — xoá khi tách `KdsBoardData` |
+| 2026-08-02 | `controller/barista/KdsServlet.java` | `fromCode` rộng hơn code cũ (trim + chấp nhận chữ thường, bám `Reason86.fromCode`). Chỉ ảnh hưởng POST tự soạn — dropdown luôn gửi mã hoa | Khác biệt nhỏ | ✅ Đã cân nhắc và chấp nhận |
+| 2026-08-02 | `service/shared/OrderService.java:50` | 7 method nhồi trên 1 dòng, tên tham số 1 ký tự (`int b`, `LocalDateTime d`) | Khó đọc | ⚪ **CHƯA LÀM** — §2 cấm đụng, ảnh hưởng Cashier + QR + Manager. Cần plan riêng |
+| 2026-08-02 | `views/barista/*.jsp` · `fragments/barista/**` | 200 dòng >120 ký tự còn lại, dài do **nội dung text inline** | Khó đọc | ⚪ **CHƯA LÀM** — máy không cắt an toàn được (xem cuối §5). Cần chạy app đối chiếu bằng mắt |
 
 ---
 
@@ -264,7 +275,9 @@ mvn -q test && mvn -q clean package
 |---|---|---|---|---|
 | 1 | Xoá code chết + sửa comment sai | 🟢 | `2f49816` | −170/+128 dòng · test 344/345 (1 đỏ sẵn từ trước, xem §6) · WAR build OK |
 | 2 | Gom trùng lặp | 🟢 | `95c90cf` | Thêm `RequestParams` + 2 enum lý do · gỡ 3 bản sao `BLOCKING_REASONS` · 12 literal trạng thái → `OrderItemStatus` · test 345/345 |
-| 3 | Cấu trúc | 🟢 | `503bd0c` | KdsService 470→345 dòng · tách 2 file · doPost 70→11 dòng · test 345/345. **Còn nợ:** cắt dòng dài JSP mới xong 16/247 |
+| 3 | Cấu trúc | 🟢 | `503bd0c` | KdsService 470→345 dòng · tách 2 file · doPost 70→11 dòng · test 345/345 |
+| 4 | Dọn tồn đọng §6 | 🟢 | `f1d28e1` | `ReasonLabelLockTest` 7 test · gỡ bản sao helper thứ 5 · xoá `updateBatch` · sửa comment `queue-row` · test 352/352 |
+| 5 | Ngắt thuộc tính JSP | 🟢 | `4440af9` | 41 thẻ · dòng dài 231→200 · 3 lớp kiểm chứng không đổi render |
 
 Chú thích: ⚪ chưa làm · 🟡 đang làm · 🟢 xong · 🔴 bị chặn
 
