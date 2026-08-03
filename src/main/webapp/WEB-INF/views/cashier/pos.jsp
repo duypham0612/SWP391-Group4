@@ -42,7 +42,7 @@
                   <div class="pos-product__body">
                     <div style="display:flex;justify-content:space-between;align-items:baseline">
                         <strong>${m.name}</strong>
-                        <span class="muted"><fmt:formatNumber value="${m.price}" maxFractionDigits="0"/> ₫</span>
+                        <span class="muted">${view.grouped(m.price)} ₫</span>
                     </div>
                     <c:if test="${m.availabilityState == 'LOW'}">
                         <div class="badge badge-waiting" style="margin-top:8px">⚠ <c:out value="${view.stockMessage(m)}" /></div>
@@ -65,7 +65,7 @@
                                            class="pos-opt" data-option-id="${o.modifierOptionId}"
                                            data-delta="${o.priceDelta}" data-name="${o.name}"
                                            data-default="${isDefault}" ${isDefault ? 'checked' : ''}>
-                                    ${o.name}<c:if test="${o.priceDelta > 0}"> <span class="muted">(+<fmt:formatNumber value="${o.priceDelta}" maxFractionDigits="0"/>₫)</span></c:if>
+                                    ${o.name}<c:if test="${o.priceDelta > 0}"> <span class="muted">(+${view.grouped(o.priceDelta)}₫)</span></c:if>
                                 </label>
                             </c:forEach>
                         </div>

@@ -58,7 +58,7 @@
                          onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
                     <div style="flex:1;display:flex;justify-content:space-between;align-items:baseline">
                         <span class="name">${m.name}</span>
-                        <span class="price"><fmt:formatNumber value="${m.price}" maxFractionDigits="0"/> ₫</span>
+                        <span class="price">${view.grouped(m.price)} ₫</span>
                     </div>
                 </div>
                 <c:if test="${m.availabilityState == 'LOW'}">
@@ -78,7 +78,7 @@
                             <label><input type="${g.maxSelect == 1 ? 'radio' : 'checkbox'}" name="g-${m.productId}-${g.groupId}"
                                           class="pos-opt" data-option-id="${o.modifierOptionId}" data-delta="${o.priceDelta}" data-name="${o.name}"
                                           data-default="${isDefault}" ${isDefault ? 'checked' : ''}>
-                                ${o.name}<c:if test="${o.priceDelta > 0}"> <span class="price">+<fmt:formatNumber value="${o.priceDelta}" maxFractionDigits="0"/>₫</span></c:if></label>
+                                ${o.name}<c:if test="${o.priceDelta > 0}"> <span class="price">+${view.grouped(o.priceDelta)}₫</span></c:if></label>
                         </c:forEach>
                     </div>
                 </c:forEach>

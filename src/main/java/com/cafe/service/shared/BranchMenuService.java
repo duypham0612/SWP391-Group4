@@ -74,9 +74,20 @@ public class BranchMenuService {
 
     /** Bật/tắt bán + giá riêng. Cờ 86 giữ nguyên — chỉ {@link #request86} / {@link #reopen86} được đổi. */
     public void save(int branchId, int productId, boolean available, BigDecimal localPrice) throws SQLException {
+        validateLocalPrice(localPrice);
         Tx.run(conn -> {
- dao.upsert(conn, branchId, productId, available, localPrice);
+            dao.upsert(conn, branchId, productId, available, localPrice);
         });
+    }
+
+    static void validateLocalPrice(BigDecimal localPrice) {
+        if (localPrice == null) return;
+        if (localPrice.signum() <= 0) {
+            throw new BusinessException("Giá tại chi nhánh phải lớn hơn 0.");
+        }
+        if (localPrice.stripTrailingZeros().scale() > 0) {
+            throw new BusinessException("Giá tại chi nhánh phải là số nguyên đồng.");
+        }
     }
 
     /**

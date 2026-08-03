@@ -30,8 +30,11 @@ public class HomeServlet extends HttpServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         try {
-            req.setAttribute("sections", catalog.getPublicMenu());
-            req.setAttribute("home", catalog.getHomeBranch(resolveBranchId(req)));
+            Integer requestedBranchId = resolveBranchId(req);
+            com.cafe.model.Branch home = catalog.getHomeBranch(requestedBranchId);
+            Integer effectiveBranchId = home == null ? null : home.getBranchId();
+            req.setAttribute("sections", catalog.getPublicMenu(effectiveBranchId));
+            req.setAttribute("home", home);
             req.getRequestDispatcher("/WEB-INF/views/customer/home.jsp").forward(req, resp);
         } catch (Exception e) { throw new ServletException(e); }
     }

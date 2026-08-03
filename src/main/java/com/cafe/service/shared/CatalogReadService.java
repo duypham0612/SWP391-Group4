@@ -113,35 +113,80 @@ public class CatalogReadService {
      * (IsActive + ShowOnHome), trong mỗi danh mục sắp theo HomeSortOrder rồi tên.
      */
     public List<MenuSection> getPublicMenu() throws SQLException {
+        return getPublicMenu(null);
+    }
+
+    public List<MenuSection> getPublicMenu(Integer branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
+            Branch branch = resolveHomeBranch(conn, branchId);
+            java.util.Map<Integer, BranchMenuItem> branchItems = new java.util.HashMap<>();
+            if (branch != null) {
+                for (BranchMenuItem item : branchMenuDao.listForBranch(conn, branch.getBranchId())) {
+                    branchItems.put(item.getProductId(), item);
+                }
+            }
             java.util.LinkedHashMap<Integer, MenuSection> byCat = new java.util.LinkedHashMap<>();
             for (Product p : productDao.findForHome(conn)) {  // đã lọc Active+ShowOnHome, ORDER BY SortOrder, HomeSortOrder, Name
+                BranchMenuItem branchItem = branchItems.get(p.getProductId());
+                if (branch != null && !isPubliclyListed(branchItem)) continue;
                 MenuSection s = byCat.get(p.getCategoryId());
                 if (s == null) { s = new MenuSection(); s.name = p.getCategoryName(); byCat.put(p.getCategoryId(), s); }
-                s.products.add(p);
+                s.products.add(new PublicMenuItem(
+                        p.getName(), p.getImageUrl(), effectivePublicPrice(p, branchItem)));
             }
             return new ArrayList<>(byCat.values());
         }
     }
 
+    static BigDecimal effectivePublicPrice(Product product, BranchMenuItem branchItem) {
+        if (branchItem != null && branchItem.getLocalPrice() != null) {
+            return branchItem.getLocalPrice();
+        }
+        return product.getBasePrice();
+    }
+
+    static boolean isPubliclyListed(BranchMenuItem branchItem) {
+        return branchItem != null && branchItem.isPublished() && branchItem.isListed();
+    }
+
     /** Nội dung hero của trang Home (tiêu đề/mô tả/ảnh) do Admin cấu hình; null nếu chưa cấu hình. */
     public Branch getHomeBranch(Integer branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            if (branchId != null && branchId > 0) {
-                Branch selected = branchDao.findActiveById(conn, branchId);
-                if (selected != null) return selected;
-            }
-            return branchDao.findFirstActive(conn);
+            return resolveHomeBranch(conn, branchId);
         }
+    }
+
+    private Branch resolveHomeBranch(Connection conn, Integer branchId) throws SQLException {
+        if (branchId != null && branchId > 0) {
+            Branch selected = branchDao.findActiveById(conn, branchId);
+            if (selected != null) return selected;
+        }
+        return branchDao.findFirstActive(conn);
     }
 
     /** Một nhóm trên trang Home: tên danh mục + danh sách sản phẩm. */
     public static class MenuSection {
         private String name;
-        private final List<Product> products = new ArrayList<>();
+        private final List<PublicMenuItem> products = new ArrayList<>();
         public String getName() { return name; }
-        public List<Product> getProducts() { return products; }
+        public List<PublicMenuItem> getProducts() { return products; }
         public int getCount() { return products.size(); }
+    }
+
+    public static class PublicMenuItem {
+        private final String name;
+        private final String imageUrl;
+        private final BigDecimal price;
+
+        PublicMenuItem(String name, String imageUrl, BigDecimal price) {
+            this.name = name;
+            this.imageUrl = imageUrl;
+            this.price = price;
+        }
+
+        public String getName() { return name; }
+        public String getImageUrl() { return imageUrl; }
+        public BigDecimal getPrice() { return price; }
     }
 
     // ===== B6 · Tra cứu công thức (Barista, read-only) =====
