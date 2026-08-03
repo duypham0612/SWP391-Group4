@@ -7,7 +7,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>In mã QR bàn</title>
-<link rel="stylesheet" href="${ctx}/assets/css/cafe-theme.css?v=${applicationScope.assetVersion}">
+<link rel="stylesheet" href="${ctx}/assets/css/core.css?v=${applicationScope.assetVersion}">
+<link rel="stylesheet" href="${ctx}/assets/css/responsive.css?v=${applicationScope.assetVersion}">
 <style>
   body{background:var(--paper);margin:0}
   .qr-page{max-width:1080px;margin:0 auto;padding:28px 20px 48px}
@@ -78,7 +79,7 @@
   </c:if>
 </main>
 
-<script src="${ctx}/assets/js/qrcode.min.js"></script>
+<script src="${ctx}/assets/js/vendor/qrcode.min.js"></script>
 <script>
 const QR_SERVER_BASE='${baseUrl}';
 

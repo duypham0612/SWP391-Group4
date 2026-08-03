@@ -1,13 +1,15 @@
 package com.cafe.service.shared;
 
-import com.cafe.common.EventPublisher;
 import com.cafe.common.EventType;
 import com.cafe.common.BusinessException;
+import com.cafe.common.BusinessDay;
 import com.cafe.common.Menu86Validator;
 import com.cafe.config.DBConnection;
-import com.cafe.dao.shared.BranchMenuDao;
+import com.cafe.config.Tx;
+import com.cafe.dao.admin.BranchMenuDao;
 import com.cafe.dao.shared.MenuBlockRequestDao;
-import com.cafe.dao.shared.ProductRecipeDao;
+import com.cafe.dao.shared.OutboxEventDao;
+import com.cafe.dao.admin.RecipeDao;
 import com.cafe.model.BranchMenuItem;
 import com.cafe.model.MenuBlockRequest;
 import com.cafe.model.Suggest86Row;
@@ -17,6 +19,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -24,14 +27,26 @@ import java.util.Map;
 
 public class BranchMenuService {
 
-    private final BranchMenuDao dao = new BranchMenuDao();
-    private final MenuBlockRequestDao menuBlockDao = new MenuBlockRequestDao();
-    private final ProductRecipeDao productRecipeDao = new ProductRecipeDao();
+    private final BranchMenuDao dao;
+    private final MenuBlockRequestDao menuBlockDao;
+    private final RecipeDao recipeDao;
+    private final OutboxEventDao outboxEventDao;
+
+    public BranchMenuService() {
+        this(new BranchMenuDao(), new MenuBlockRequestDao(), new RecipeDao(), new OutboxEventDao());
+    }
+    public BranchMenuService(BranchMenuDao dao, MenuBlockRequestDao menuBlockDao,
+                             RecipeDao recipeDao, OutboxEventDao outboxEventDao) {
+        this.dao = java.util.Objects.requireNonNull(dao);
+        this.menuBlockDao = java.util.Objects.requireNonNull(menuBlockDao);
+        this.recipeDao = java.util.Objects.requireNonNull(recipeDao);
+        this.outboxEventDao = java.util.Objects.requireNonNull(outboxEventDao);
+    }
 
     /** B3 · Gợi ý 86 (soft): món còn bán nhưng có nguyên liệu đã cạn (≤0) — để barista cân nhắc báo hết. */
     public List<Suggest86Row> getSuggested86(int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            return productRecipeDao.findProductsWithDepletedIngredient(conn, branchId);
+            return recipeDao.findProductsWithDepletedIngredient(conn, branchId);
         }
     }
 
@@ -59,31 +74,29 @@ public class BranchMenuService {
 
     /** Bật/tắt bán + giá riêng. Cờ 86 giữ nguyên — chỉ {@link #request86} / {@link #reopen86} được đổi. */
     public void save(int branchId, int productId, boolean available, BigDecimal localPrice) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try { dao.upsert(conn, branchId, productId, available, localPrice); conn.commit(); }
-            catch (SQLException e) { conn.rollback(); throw e; }
-            catch (RuntimeException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+        Tx.run(conn -> {
+ dao.upsert(conn, branchId, productId, available, localPrice);
+        });
     }
 
     /**
      * B3 · Barista báo tạm hết: mở yêu cầu chờ duyệt + khoá món khỏi POS/QR trong CÙNG tx.
      *
      * <p>Đây là ĐƯỜNG DUY NHẤT bật cờ 86, cặp với {@link #reopen86} là đường duy nhất tắt. Cờ
-     * {@code BranchMenu.Is86} và yêu cầu còn mở trong {@code catalog.MenuBlockRequest} phải luôn khớp:
-     * unique index {@code UX_MenuBlockRequest_Open} chỉ cho mỗi món một yêu cầu mở, nên nếu có đường
+     * {@code BranchMenu.IsTemporarilyUnavailable} và các cột {@code BranchMenu.Block*} phải luôn khớp; nếu có đường
      * khác hạ cờ mà bỏ quên yêu cầu thì barista sẽ không báo hết món đó lại được nữa. Vì vậy
      * {@link #save} và {@code BranchMenuDao.upsert} cố ý không ghi cột này.
      */
     public void request86(int branchId, int productId, String reasonCode, String note,
                           LocalDateTime backInEta, int userId) throws SQLException {
         if (userId <= 0) throw new BusinessException("Không xác định được người báo tạm hết.");
-        Menu86Validator.Validated v = Menu86Validator.validate(reasonCode, note, backInEta, LocalDateTime.now());
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
+        // datetime-local mang giờ tường VN. Validate trước khi đổi sang UTC để các giới hạn ETA
+        // khớp đúng với những gì barista nhìn thấy trên form.
+        Menu86Validator.Validated v = Menu86Validator.validate(
+                reasonCode, note, backInEta, LocalDateTime.now(BusinessDay.VN_ZONE));
+        LocalDateTime etaUtc = BusinessDay.toUtc(v.getBackInEta());
+        try {
+            Tx.run(conn -> {
                 ensurePublished(conn, branchId, productId);
                 if (menuBlockDao.findOpen(conn, branchId, productId) != null) {
                     throw new BusinessException("Món này đang có yêu cầu chờ xử lý.");
@@ -93,61 +106,47 @@ public class BranchMenuService {
                 r.setProductId(productId);
                 r.setReason(v.getReason().name());
                 r.setNote(v.getNote());
-                r.setBackInEta(v.getBackInEta());
+                r.setBackInEta(etaUtc);
                 r.setRequestedBy(userId);
                 int requestId = menuBlockDao.insert(conn, r);
+                if (requestId == 0)
+                    throw new BusinessException("Món này đang có yêu cầu chờ xử lý.");
                 // ETA có thể null (sự cố bất định) — cột BackInEta đã cho NULL.
-                Timestamp etaTs = v.getBackInEta() == null ? null : Timestamp.valueOf(v.getBackInEta());
+                Timestamp etaTs = etaUtc == null ? null : Timestamp.valueOf(etaUtc);
                 if (dao.updateIs86(conn, branchId, productId, true, etaTs) != 1) {
                     throw new BusinessException("Món này không còn trong menu chi nhánh. Vui lòng tải lại.");
                 }
-                String etaJson = v.getBackInEta() == null ? "null" : "\"" + v.getBackInEta() + "\"";
+                String etaJson = etaUtc == null ? "null"
+                        : "\"" + etaUtc.atOffset(ZoneOffset.UTC) + "\"";
                 String payload = "{\"productId\":" + productId
                         + ",\"is86\":true,\"eta\":" + etaJson
                         + ",\"reason\":\"" + v.getReason().name()
                         + "\",\"by\":" + userId
                         + ",\"requestId\":" + requestId + "}";
-                EventPublisher.publish(conn, EventType.MENU_86_CHANGED, String.valueOf(productId), branchId, payload);
-                conn.commit();
-            } catch (SQLException e) {
-                conn.rollback();
-                if (isDuplicateOpenRequest(e)) {
-                    throw new BusinessException("Món này đang có yêu cầu chờ xử lý.");
-                }
+                outboxEventDao.insert(conn, EventType.MENU_86_CHANGED, String.valueOf(productId), branchId, payload);
+            });
+        } catch (SQLException e) {
+            if (e.getErrorCode() >= 50000)
+                    throw new BusinessException("Người báo tạm hết không còn hoạt động tại chi nhánh này.");
                 throw e;
-            } catch (RuntimeException e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(true);
-            }
         }
     }
 
     public void requestReopen(int branchId, int productId, int userId) throws SQLException {
         if (userId <= 0) throw new BusinessException("Không xác định được người gửi yêu cầu.");
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                MenuBlockRequest open = menuBlockDao.findOpen(conn, branchId, productId);
-                if (open == null) throw new BusinessException("Món này không còn chờ xử lý.");
-                int affected = menuBlockDao.markReopenRequested(conn, open.getRequestId(), branchId);
-                if (affected != 1) throw new BusinessException("Món này không còn chờ xử lý.");
-                conn.commit();
-            } catch (SQLException | RuntimeException e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(true);
-            }
-        }
+        Tx.run(conn -> {
+            MenuBlockRequest open = menuBlockDao.findOpen(conn, branchId, productId);
+            if (open == null) throw new BusinessException("Món này không còn chờ xử lý.");
+            int affected = menuBlockDao.markReopenRequested(
+                    conn, open.getMenuBlockRequestId(), branchId);
+            if (affected != 1) throw new BusinessException("Món này không còn chờ xử lý.");
+        });
     }
 
     public void reopen86(int branchId, int requestId, int reviewerId, String reviewNote, boolean rejected) throws SQLException {
         if (reviewerId <= 0) throw new BusinessException("Không xác định được người duyệt.");
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
+        try {
+            Tx.run(conn -> {
                 MenuBlockRequest open = menuBlockDao.findOpenById(conn, requestId, branchId);
                 if (open == null) throw new BusinessException("Yêu cầu đã được xử lý.");
                 if (rejected && !"PENDING".equals(open.getStatus())) {
@@ -162,20 +161,33 @@ public class BranchMenuService {
                 String payload = "{\"productId\":" + open.getProductId()
                         + ",\"is86\":false,\"requestId\":" + requestId
                         + ",\"by\":" + reviewerId + "}";
-                EventPublisher.publish(conn, EventType.MENU_86_CHANGED, String.valueOf(open.getProductId()), branchId, payload);
-                conn.commit();
-            } catch (SQLException | RuntimeException e) {
-                conn.rollback();
+                outboxEventDao.insert(conn, EventType.MENU_86_CHANGED, String.valueOf(open.getProductId()), branchId, payload);
+            });
+        } catch (SQLException e) {
+            if (e.getErrorCode() >= 50000)
+                    throw new BusinessException("Người duyệt không còn hoạt động tại chi nhánh này.");
                 throw e;
-            } finally {
-                conn.setAutoCommit(true);
-            }
         }
     }
 
-    /** Danh sách món của chi nhánh (cho 86 board). */
-    public List<BranchMenuItem> getMenuAvailability(int branchId) throws SQLException {
-        return listForBranch(branchId);
+    /** Manager duyệt việc chặn món; yêu cầu vẫn mở cho tới khi món được mở bán lại. */
+    public void approve86(int branchId, int productId, int reviewerId, String reviewNote)
+            throws SQLException {
+        if (reviewerId <= 0) throw new BusinessException("Không xác định được người duyệt.");
+        try {
+            Tx.run(conn -> {
+                MenuBlockRequest open = menuBlockDao.findOpenById(conn, productId, branchId);
+                if (open == null || !"PENDING".equals(open.getStatus()))
+                    throw new BusinessException("Yêu cầu đã được xử lý.");
+                if (menuBlockDao.review(conn, productId, branchId, "APPROVED",
+                        reviewerId, reviewNote, false) != 1)
+                    throw new BusinessException("Yêu cầu đã được xử lý.");
+            });
+        } catch (SQLException e) {
+            if (e.getErrorCode() >= 50000)
+                    throw new BusinessException("Người duyệt không còn hoạt động tại chi nhánh này.");
+                throw e;
+        }
     }
 
     /** Barista 86 board: filtering, counting and slicing all happen in the database. */
@@ -236,38 +248,25 @@ public class BranchMenuService {
     /** M8 · Ẩn (ngừng bán) nhiều món cùng lúc — giữ nguyên giá địa phương & cờ 86, trong 1 transaction. */
     public void hideMany(int branchId, java.util.Set<Integer> productIds) throws SQLException {
         if (productIds == null || productIds.isEmpty()) return;
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                for (BranchMenuItem it : dao.listForBranch(conn, branchId)) {
-                    if (productIds.contains(it.getProductId()) && it.isAvailable()) {
-                        dao.upsert(conn, branchId, it.getProductId(), false, it.getLocalPrice());
-                    }
+        Tx.run(conn -> {
+            for (BranchMenuItem it : dao.listForBranch(conn, branchId)) {
+                if (productIds.contains(it.getProductId()) && it.isListed()) {
+                    dao.upsert(conn, branchId, it.getProductId(), false, it.getLocalPrice());
                 }
-                conn.commit();
-            } catch (SQLException e) { conn.rollback(); throw e; }
-            catch (RuntimeException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+            }
+        });
     }
 
     /**
      * Gỡ món khỏi menu chi nhánh. Xoá dòng BranchMenu là mất luôn cờ 86, nên yêu cầu báo hết còn mở
      * phải đóng theo trong CÙNG tx — bỏ sót thì lần publish lại sau đó barista vướng
-     * {@code UX_MenuBlockRequest_Open} và không báo hết món này được nữa.
+     * trạng thái Block* phải được ghi lịch sử trước khi xoá dòng menu.
      */
     public void remove(int branchId, int productId) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                menuBlockDao.closeOpenByProduct(conn, branchId, productId, "Món đã gỡ khỏi menu chi nhánh");
-                dao.remove(conn, branchId, productId);
-                conn.commit();
-            }
-            catch (SQLException e) { conn.rollback(); throw e; }
-            catch (RuntimeException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+        Tx.run(conn -> {
+            menuBlockDao.closeOpenByProduct(conn, branchId, productId, "Món đã gỡ khỏi menu chi nhánh");
+            dao.remove(conn, branchId, productId);
+        });
     }
 
     private void ensurePublished(Connection conn, int branchId, int productId) throws SQLException {
@@ -280,15 +279,4 @@ public class BranchMenuService {
         throw new BusinessException("Món không hợp lệ.");
     }
 
-    private boolean isDuplicateOpenRequest(SQLException e) {
-        for (Throwable t = e; t != null; t = t.getCause()) {
-            if (t instanceof SQLException se) {
-                int code = se.getErrorCode();
-                if (code == 2601 || code == 2627) return true;
-                String msg = se.getMessage();
-                if (msg != null && msg.contains("UX_MenuBlockRequest_Open")) return true;
-            }
-        }
-        return false;
-    }
 }

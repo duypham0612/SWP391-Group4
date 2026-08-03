@@ -22,9 +22,22 @@ class SupplierServiceTest {
         assertThrows(BusinessException.class, () -> SupplierService.validate(supplier("03A8025819")));
     }
 
+    @Test
+    void requires_name_and_address_at_service_boundary() {
+        Supplier missingName = supplier("0338025819");
+        missingName.setName("  ");
+        assertThrows(BusinessException.class, () -> SupplierService.validate(missingName));
+
+        Supplier missingAddress = supplier("0338025819");
+        missingAddress.setAddress(null);
+        assertThrows(BusinessException.class, () -> SupplierService.validate(missingAddress));
+    }
+
     private Supplier supplier(String phone) {
         Supplier supplier = new Supplier();
+        supplier.setName("Nhà cung cấp demo");
         supplier.setPhone(phone);
+        supplier.setAddress("Hà Nội");
         return supplier;
     }
 }

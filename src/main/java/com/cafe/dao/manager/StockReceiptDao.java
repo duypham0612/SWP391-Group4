@@ -2,83 +2,91 @@ package com.cafe.dao.manager;
 
 import com.cafe.model.StockReceipt;
 
-import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.sql.Timestamp;
-import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
 
+/** Read/update aggregate phiếu nhập từ các dòng inventory.StockReceiptLine. */
 public class StockReceiptDao {
 
     private static final String SELECT =
-        "SELECT r.StockReceiptId, r.BranchId, r.SupplierId, r.ReceivedBy, r.ReceiptDate, r.Status, " +
-        "       CASE WHEN costs.LineCount > 0 THEN costs.DetailTotal ELSE r.TotalCost END AS TotalCost, r.Note, " +
-        "       s.Name AS SupplierName, u.FullName AS ReceivedByName " +
-        "FROM inventory.StockReceipt r " +
-        "LEFT JOIN inventory.Supplier s ON r.SupplierId = s.SupplierId " +
-        "LEFT JOIN iam.[User] u ON r.ReceivedBy = u.UserId " +
-        "OUTER APPLY (SELECT COUNT(*) AS LineCount, COALESCE(SUM(d.Quantity*d.UnitCost),0) AS DetailTotal " +
-        "             FROM inventory.StockReceiptDetail d WHERE d.StockReceiptId=r.StockReceiptId) costs ";
+        "SELECT r.ReceiptBatchId,r.BranchId,r.SupplierId,r.ReceivedBy,r.DocumentDate,r.CreatedAt,r.Status," +
+        "       r.TotalCost,r.Note,s.Name AS SupplierName,u.FullName AS ReceivedByName " +
+        "FROM (SELECT ReceiptBatchId,MAX(BranchId) AS BranchId,MAX(SupplierId) AS SupplierId," +
+        "             MAX(ReceivedBy) AS ReceivedBy,MAX(DocumentDate) AS DocumentDate," +
+        "             MAX(CreatedAt) AS CreatedAt,MAX(Status) AS Status,MAX(Note) AS Note," +
+        "             SUM(UnitCost*EnteredQuantity) AS TotalCost " +
+        "      FROM inventory.StockReceiptLine GROUP BY ReceiptBatchId) r " +
+        "LEFT JOIN inventory.Supplier s ON r.SupplierId=s.SupplierId " +
+        "LEFT JOIN iam.UserAccount u ON r.ReceivedBy=u.UserId ";
 
     public List<StockReceipt> findByBranch(Connection conn, int branchId) throws SQLException {
         List<StockReceipt> out = new ArrayList<>();
-        try (PreparedStatement ps = conn.prepareStatement(SELECT + "WHERE r.BranchId=? ORDER BY r.StockReceiptId DESC")) {
+        try (PreparedStatement ps = conn.prepareStatement(
+                SELECT + "WHERE r.BranchId=? ORDER BY r.CreatedAt DESC,r.ReceiptBatchId DESC")) {
             ps.setInt(1, branchId);
             try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
         }
         return out;
     }
 
-    public StockReceipt findById(Connection conn, int id) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(SELECT + "WHERE r.StockReceiptId=?")) {
-            ps.setInt(1, id);
+    public StockReceipt findById(Connection conn, String batchId, int branchId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                SELECT + "WHERE r.ReceiptBatchId=? AND r.BranchId=?")) {
+            ps.setString(1, batchId);
+            ps.setInt(2, branchId);
             try (ResultSet rs = ps.executeQuery()) { return rs.next() ? map(rs) : null; }
         }
     }
 
-    public int insertDraft(Connection conn, StockReceipt r) throws SQLException {
-        final String sql = "INSERT INTO inventory.StockReceipt(BranchId, SupplierId, ReceivedBy, Status, Note) VALUES (?,?,?,'DRAFT',?)";
-        try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            ps.setInt(1, r.getBranchId());
-            if (r.getSupplierId() == null) ps.setNull(2, Types.INTEGER); else ps.setInt(2, r.getSupplierId());
-            ps.setInt(3, r.getReceivedBy());
-            ps.setString(4, r.getNote());
-            ps.executeUpdate();
-            try (ResultSet k = ps.getGeneratedKeys()) { return k.next() ? k.getInt(1) : 0; }
+    /** Khóa toàn bộ dòng DRAFT của batch đến hết transaction. */
+    public StockReceipt findDraftForUpdate(Connection conn, String batchId, int branchId) throws SQLException {
+        final String lockSql = "SELECT StockReceiptLineId FROM inventory.StockReceiptLine WITH (UPDLOCK,HOLDLOCK) "
+                + "WHERE ReceiptBatchId=? AND BranchId=? AND Status='DRAFT'";
+        boolean found = false;
+        try (PreparedStatement ps = conn.prepareStatement(lockSql)) {
+            ps.setString(1, batchId);
+            ps.setInt(2, branchId);
+            try (ResultSet rs = ps.executeQuery()) { found = rs.next(); }
         }
+        return found ? findById(conn, batchId, branchId) : null;
     }
 
-    public void confirm(Connection conn, int id, BigDecimal totalCost) throws SQLException {
+    public int confirm(Connection conn, String batchId, int branchId) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE inventory.StockReceipt SET Status='CONFIRMED', TotalCost=? WHERE StockReceiptId=? AND Status='DRAFT'")) {
-            ps.setBigDecimal(1, totalCost);
-            ps.setInt(2, id);
-            ps.executeUpdate();
+                "UPDATE inventory.StockReceiptLine SET Status='CONFIRMED' "
+                + "WHERE ReceiptBatchId=? AND BranchId=? AND Status='DRAFT'")) {
+            ps.setString(1, batchId);
+            ps.setInt(2, branchId);
+            return ps.executeUpdate();
         }
     }
 
-    public void cancel(Connection conn, int id) throws SQLException {
+    public int cancel(Connection conn, String batchId, int branchId) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE inventory.StockReceipt SET Status='CANCELLED' WHERE StockReceiptId=? AND Status='DRAFT'")) {
-            ps.setInt(1, id);
-            ps.executeUpdate();
+                "UPDATE inventory.StockReceiptLine SET Status='CANCELLED' "
+                + "WHERE ReceiptBatchId=? AND BranchId=? AND Status='DRAFT'")) {
+            ps.setString(1, batchId);
+            ps.setInt(2, branchId);
+            return ps.executeUpdate();
         }
     }
 
-    private StockReceipt map(ResultSet rs) throws SQLException {
+    private static StockReceipt map(ResultSet rs) throws SQLException {
         StockReceipt r = new StockReceipt();
-        r.setStockReceiptId(rs.getInt("StockReceiptId"));
+        r.setReceiptBatchId(rs.getString("ReceiptBatchId"));
         r.setBranchId(rs.getInt("BranchId"));
-        int sid = rs.getInt("SupplierId");
-        r.setSupplierId(rs.wasNull() ? null : sid);
+        int supplierId = rs.getInt("SupplierId");
+        r.setSupplierId(rs.wasNull() ? null : supplierId);
         r.setReceivedBy(rs.getInt("ReceivedBy"));
-        Timestamp d = rs.getTimestamp("ReceiptDate");
-        r.setReceiptDate(d == null ? null : d.toLocalDateTime());
+        java.sql.Date documentDate = rs.getDate("DocumentDate");
+        r.setDocumentDate(documentDate == null ? null : documentDate.toLocalDate());
+        Timestamp createdAt = rs.getTimestamp("CreatedAt");
+        r.setCreatedAt(createdAt == null ? null : createdAt.toLocalDateTime());
         r.setStatus(rs.getString("Status"));
         r.setTotalCost(rs.getBigDecimal("TotalCost"));
         r.setNote(rs.getString("Note"));

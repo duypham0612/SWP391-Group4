@@ -1,0 +1,48 @@
+/* 2/7 · Đăng nhập / quên mật khẩu. Chỉ views/auth.
+   Tách từ cafe-theme.css (1627 dòng) — xem docs/KE_HOACH_CLEAN_CODE_ORDERSERVICE.md §5g.
+   THỨ TỰ NẠP LÀ MỘT PHẦN CỦA ĐÚNG/SAI: header.jsp phát <link> theo đúng thứ tự các khối
+   này vốn nằm trong file gốc. Đảo thứ tự sẽ làm các luật cùng độ đặc hiệu đổi kết quả
+   mà KHÔNG có lỗi nào được báo. */
+
+/* ============================ Login / Auth ============================== */
+.login-wrap{min-height:100vh; display:grid; grid-template-columns:1.05fr .95fr}
+.login-brandpanel{
+  position:relative; overflow:hidden; color:#F6E7DC; padding:clamp(28px,4vh,44px) clamp(36px,4vw,64px) 28px;
+  background:linear-gradient(150deg,var(--wine-900),var(--wine-700) 55%,var(--brand-700));
+  display:grid; grid-template-rows:auto minmax(0,1fr) auto; gap:clamp(14px,2vh,24px);
+}
+.login-brandpanel::before{content:""; position:absolute; right:-120px; top:-120px; width:420px; height:420px; border-radius:50%; background:radial-gradient(circle,rgba(192,147,74,.22),transparent 60%)}
+.login-brandpanel::after{content:""; position:absolute; left:-90px; bottom:-120px; width:360px; height:360px; border-radius:50%; background:radial-gradient(circle,rgba(192,147,74,.12),transparent 60%)}
+.lb-top{display:flex; align-items:center; gap:var(--s3); position:relative; z-index:1}
+.lb-top .logo{width:46px; height:46px; border-radius:13px; background:linear-gradient(135deg,var(--gold),#A9762F); color:#2A0E12; display:grid; place-items:center; font-family:'Playfair Display',serif; font-weight:700; font-size:24px}
+.lb-top .name{font-family:'Playfair Display',serif; font-size:var(--fs-xl); color:#fff}
+.lb-mid{position:relative; z-index:1; width:100%; max-width:560px; margin:0 auto}
+.lb-mid .eyebrow{font-size:12px; letter-spacing:.24em; text-transform:uppercase; color:var(--gold-soft); margin-bottom:10px}
+.lb-mid h1{font-size:clamp(30px,3vw,40px); line-height:1.14; color:#fff; margin:0 0 10px}
+.lb-mid p{color:rgba(246,231,220,.82); font-size:15px; line-height:1.55; margin:0}
+.lb-foot{position:relative; z-index:1; font-size:12.5px; color:rgba(231,210,166,.6)}
+.login-formwrap{display:grid; place-items:center; padding:var(--s6); background:var(--paper)}
+.login-card{width:100%; max-width:420px; animation:fadeInUp .4s ease both}
+.login-card .form-head{margin-bottom:var(--s5)}
+.login-card .form-head h2{font-family:'Playfair Display',serif; font-size:var(--fs-2xl); margin:0 0 6px}
+.login-card .form-head p{color:var(--muted); margin:0; font-size:14px}
+.login-hint{margin-top:var(--s4); font-size:12.5px; color:var(--muted); line-height:1.7; text-align:center; padding-top:var(--s4); border-top:1px solid var(--line)}
+.login-hint a{font-weight:600}
+
+/* Brand panel: hero + tính năng */
+.lb-center{position:relative; z-index:1; min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center}
+.lb-hero{display:block; width:clamp(170px,27vh,250px); height:auto; margin:0 auto clamp(8px,1.5vh,16px); filter:drop-shadow(0 16px 28px rgba(0,0,0,.34)); animation:floaty 6.5s ease-in-out infinite}
+@keyframes floaty{0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)}}
+.lb-features{list-style:none; margin:14px 0 0; padding:0; display:grid; grid-template-columns:1fr 1fr; gap:8px 20px}
+.lb-features li{display:flex; align-items:flex-start; gap:9px; color:rgba(246,231,220,.92); font-size:13px; line-height:1.45}
+.lb-features li:last-child{grid-column:1 / -1}
+.lb-features svg{width:21px; height:21px; flex-shrink:0; color:var(--gold-soft)}
+
+/* Ô nhập có nút phụ (ẩn/hiện mật khẩu) */
+.input-affix{position:relative}
+.input-affix .form-control{padding-right:46px}
+.input-toggle{position:absolute; right:7px; top:50%; transform:translateY(-50%); width:34px; height:34px; border:none; background:transparent; color:var(--muted); cursor:pointer; display:grid; place-items:center; border-radius:8px; transition:var(--t-fast)}
+.input-toggle:hover{color:var(--brand); background:var(--surface-2)}
+.input-toggle svg{width:18px; height:18px} .input-toggle .eye-off{display:none}
+.input-toggle.is-on .eye{display:none} .input-toggle.is-on .eye-off{display:block}
+

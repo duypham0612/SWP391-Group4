@@ -1,5 +1,7 @@
 package com.cafe.controller.barista;
 
+import com.cafe.web.support.BaristaWritePolicy;
+
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;

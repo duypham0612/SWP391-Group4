@@ -1,9 +1,9 @@
 package com.cafe.controller.barista;
 
-import com.cafe.controller.manager.InventoryDashboardServlet;
 import com.cafe.model.Product;
-import com.cafe.model.ProductRecipe;
+import com.cafe.model.Recipe;
 import com.cafe.service.shared.CatalogReadService;
+import com.cafe.web.support.BranchContext;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /** B6 · RecipeLookupServlet → /barista/recipe. Tra cứu công thức + tác động modifier (read-only). */
@@ -25,7 +26,12 @@ public class RecipeLookupServlet extends HttpServlet {
     // để thu hẹp danh sách, phân trang chỉ dùng khi duyệt lần lượt.
     private static final int PAGE_SIZE = 5;
 
-    private final CatalogReadService catalogReadService = new CatalogReadService();
+    private final CatalogReadService catalogReadService;
+
+    public RecipeLookupServlet() { this(new CatalogReadService()); }
+    RecipeLookupServlet(CatalogReadService catalogReadService) {
+        this.catalogReadService = Objects.requireNonNull(catalogReadService);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -36,7 +42,7 @@ public class RecipeLookupServlet extends HttpServlet {
             String recipeState = parseRecipeState(req.getParameter("recipeState"));
             int page = parsePage(req.getParameter("page"));
             boolean branchOnly = parseBranchOnly(req);
-            Integer branchId = branchOnly ? InventoryDashboardServlet.branchId(req) : null;
+            Integer branchId = branchOnly ? BranchContext.requireBranchId(req) : null;
 
             CatalogReadService.ProductPage productPage = catalogReadService.getRecipeProductPage(
                     q, categoryId, recipeState, branchId, page, PAGE_SIZE);
@@ -62,12 +68,12 @@ public class RecipeLookupServlet extends HttpServlet {
                                 "Món được chọn không còn thuộc phạm vi tra cứu hiện tại.");
                     } else {
                         req.setAttribute("selected", selected);
-                        List<ProductRecipe> recipe = catalogReadService.getRecipeForProduct(productId);
+                        List<Recipe> recipe = catalogReadService.getRecipeForProduct(productId);
                         req.setAttribute("recipe", recipe);
                         List<CatalogReadService.OptionImpactRow> impacts =
                                 catalogReadService.getModifierImpactsForProduct(productId);
                         Set<Integer> baseIngredientIds = new HashSet<>();
-                        for (ProductRecipe r : recipe) baseIngredientIds.add(r.getIngredientId());
+                        for (Recipe r : recipe) baseIngredientIds.add(r.getIngredientId());
                         boolean hasExtraIngredient = false;
                         for (CatalogReadService.OptionImpactRow im : impacts) {
                             im.setInBaseRecipe(baseIngredientIds.contains(im.getIngredientId()));
@@ -77,12 +83,13 @@ public class RecipeLookupServlet extends HttpServlet {
                         req.setAttribute("hasExtraIngredient", hasExtraIngredient);
                         // Định mức pha sẵn cho từng nguyên liệu PREPPED trong công thức.
                         List<PrepSection> preps = new ArrayList<>();
-                        for (ProductRecipe r : recipe) {
+                        for (Recipe r : recipe) {
                             if ("PREPPED".equalsIgnoreCase(r.getIngredientType())) {
                                 PrepSection ps = new PrepSection();
                                 ps.name = r.getIngredientName();
                                 ps.unit = r.getIngredientUnit();
                                 ps.lines = catalogReadService.getPrepRecipe(r.getIngredientId());
+                                ps.sharedYield = r.getPrepYieldQty();
                                 if (!ps.lines.isEmpty()) preps.add(ps);
                             }
                         }
@@ -134,26 +141,19 @@ public class RecipeLookupServlet extends HttpServlet {
     public static class PrepSection {
         public String name;
         public String unit;
-        public List<com.cafe.model.PrepRecipe> lines;
+        public List<Recipe> lines = List.of();
+        public java.math.BigDecimal sharedYield;
         public String getName() { return name; }
         public String getUnit() { return unit; }
-        public List<com.cafe.model.PrepRecipe> getLines() { return lines; }
+        public List<Recipe> getLines() { return lines; }
 
         /**
          * Sản lượng 1 mẻ để hiển thị ở đầu thẻ thay vì lặp lại trên từng dòng nguyên liệu.
          *
-         * YieldQty được lưu theo từng dòng PrepRecipe và schema không ràng buộc các dòng của
-         * cùng một nguyên liệu PREPPED phải bằng nhau. Nếu dữ liệu lệch nhau thì trả null để
-         * view giữ lại cột "Sản lượng" — thà hiển thị lặp còn hơn hiển thị sai một con số.
+         * YieldQty là thuộc tính duy nhất của header nên mọi dòng nguyên liệu dùng cùng sản lượng.
          */
-        public String getSharedYieldDisplay() {
-            if (lines == null || lines.isEmpty()) return null;
-            java.math.BigDecimal first = lines.get(0).getYieldQty();
-            if (first == null) return null;
-            for (com.cafe.model.PrepRecipe l : lines) {
-                if (l.getYieldQty() == null || first.compareTo(l.getYieldQty()) != 0) return null;
-            }
-            return lines.get(0).getYieldDisplay();
+        public java.math.BigDecimal getSharedYield() {
+            return sharedYield;
         }
     }
 }

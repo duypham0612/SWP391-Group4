@@ -1,6 +1,7 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
+<c:set var="cssBundles" value="list-controls" scope="request" />
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
@@ -87,10 +88,10 @@
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                 <input type="hidden" name="action" value="updateLine">
                                 <input type="hidden" name="productId" value="${product.productId}">
-                                <input type="hidden" name="lineId" value="${l.productRecipeId}">
+                            <input type="hidden" name="lineId" value="${l.recipeId}">
                                 <input type="number" name="quantity" class="form-control"
                                        style="width:100px" min="2" max="999999999"
-                                       step="1" value="${l.quantityIntegerDisplay}" required>
+                                       step="1" value="${view.integer(l.quantity)}" required>
                                 <span class="muted">${l.ingredientUnit}</span>
                                 <button type="submit" class="btn btn-ghost btn-sm">Lưu</button>
                             </form>
@@ -100,7 +101,7 @@
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                 <input type="hidden" name="action" value="deleteLine">
                                 <input type="hidden" name="productId" value="${product.productId}">
-                                <input type="hidden" name="lineId" value="${l.productRecipeId}">
+                            <input type="hidden" name="lineId" value="${l.recipeId}">
                                 <button type="submit" class="btn btn-ghost btn-sm">Xoá</button>
                             </form>
                         </td>

@@ -1,8 +1,8 @@
 package com.cafe.controller.manager;
 
 import com.cafe.common.BusinessException;
-import com.cafe.common.CsrfUtil;
-import com.cafe.common.SessionUtil;
+import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.SessionUtil;
 import com.cafe.model.User;
 import com.cafe.service.shared.InventoryService;
 import jakarta.servlet.ServletException;
@@ -16,12 +16,17 @@ import java.io.IOException;
 /** Manager xem và đính chính mẻ pha sai của chính chi nhánh. */
 @WebServlet("/manager/prep")
 public class ManagerPrepServlet extends HttpServlet {
-    private final InventoryService inventoryService = new InventoryService();
+    private final InventoryService inventoryService;
+
+    public ManagerPrepServlet() { this(new InventoryService()); }
+    ManagerPrepServlet(InventoryService inventoryService) {
+        this.inventoryService = java.util.Objects.requireNonNull(inventoryService);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         try {
             req.setAttribute("batches", inventoryService.getRecentPrepBatches(branchId, 50));
             req.setAttribute("pendingBatches", inventoryService.getPendingApprovalBatches(branchId));
@@ -37,7 +42,7 @@ public class ManagerPrepServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         User user = SessionUtil.currentUser(req);
         try {
             String action = req.getParameter("action");

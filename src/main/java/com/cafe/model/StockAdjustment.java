@@ -7,12 +7,21 @@ import java.time.LocalDateTime;
 public class StockAdjustment {
     private int stockAdjustmentId;
     private int branchId;
+    /** UUID nhóm các dòng cùng phiên; null = điều chỉnh lẻ (Barista báo hết / đếm lại). */
+    private String countBatchId;
+    private LocalDateTime countedAt;
+    private Integer countedBy;
+    private String countNote;
     private int ingredientId;
-    private BigDecimal systemQty;
-    private BigDecimal actualQty;
+    private BigDecimal systemBaseQty;
+    private BigDecimal actualBaseQty;
+    /** Lựa chọn tạm từ form: 0=đơn vị gốc, 1=đơn vị mua; không lưu DB. */
+    private int unitChoice;
+    private BigDecimal countedQuantity;
+    private String unitNameAtCount;
+    private BigDecimal factorToBaseAtCount;
     private BigDecimal diffQty;
     private String reason;
-    private String unit;            // đơn vị đếm per-line (vd "Túi"); null = dùng đơn vị gốc nguyên liệu
     private int adjustedBy;
     private LocalDateTime adjustedAt;
 
@@ -24,34 +33,40 @@ public class StockAdjustment {
     public int getStockAdjustmentId() { return stockAdjustmentId; }
     public void setStockAdjustmentId(int stockAdjustmentId) { this.stockAdjustmentId = stockAdjustmentId; }
 
+    public String getCountBatchId() { return countBatchId; }
+    public void setCountBatchId(String v) { this.countBatchId = v; }
+    public LocalDateTime getCountedAt() { return countedAt; }
+    public void setCountedAt(LocalDateTime v) { this.countedAt = v; }
+    public Integer getCountedBy() { return countedBy; }
+    public void setCountedBy(Integer v) { this.countedBy = v; }
+    public String getCountNote() { return countNote; }
+    public void setCountNote(String v) { this.countNote = v; }
+
     public int getBranchId() { return branchId; }
     public void setBranchId(int branchId) { this.branchId = branchId; }
 
     public int getIngredientId() { return ingredientId; }
     public void setIngredientId(int ingredientId) { this.ingredientId = ingredientId; }
 
-    public BigDecimal getSystemQty() { return systemQty; }
-    public void setSystemQty(BigDecimal systemQty) { this.systemQty = systemQty; }
+    public BigDecimal getSystemBaseQty() { return systemBaseQty; }
+    public void setSystemBaseQty(BigDecimal value) { systemBaseQty = value; }
 
-    public BigDecimal getActualQty() { return actualQty; }
-    public void setActualQty(BigDecimal actualQty) { this.actualQty = actualQty; }
+    public BigDecimal getActualBaseQty() { return actualBaseQty; }
+    public void setActualBaseQty(BigDecimal value) { actualBaseQty = value; }
+    public int getUnitChoice() { return unitChoice; }
+    public void setUnitChoice(int value) { unitChoice = value; }
+    public BigDecimal getCountedQuantity() { return countedQuantity; }
+    public void setCountedQuantity(BigDecimal value) { countedQuantity = value; }
+    public String getUnitNameAtCount() { return unitNameAtCount; }
+    public void setUnitNameAtCount(String value) { unitNameAtCount = value; }
+    public BigDecimal getFactorToBaseAtCount() { return factorToBaseAtCount; }
+    public void setFactorToBaseAtCount(BigDecimal value) { factorToBaseAtCount = value; }
 
     public BigDecimal getDiffQty() { return diffQty; }
     public void setDiffQty(BigDecimal diffQty) { this.diffQty = diffQty; }
 
-    /** Cho JSP — bỏ .000 thừa. */
-    public String getSystemQtyDisplay() { return com.cafe.common.QuantityFormat.groupedVi(systemQty); }
-    public String getActualQtyDisplay() { return com.cafe.common.QuantityFormat.groupedVi(actualQty); }
-    public String getDiffQtyDisplay() { return com.cafe.common.QuantityFormat.groupedVi(diffQty); }
-
     public String getReason() { return reason; }
     public void setReason(String reason) { this.reason = reason; }
-
-    public String getUnit() { return unit; }
-    public void setUnit(String unit) { this.unit = unit; }
-
-    /** Đơn vị hiển thị: ưu tiên đơn vị đếm per-line, fallback về đơn vị gốc nguyên liệu. */
-    public String getDisplayUnit() { return (unit == null || unit.isBlank()) ? ingredientUnit : unit; }
 
     public int getAdjustedBy() { return adjustedBy; }
     public void setAdjustedBy(int adjustedBy) { this.adjustedBy = adjustedBy; }

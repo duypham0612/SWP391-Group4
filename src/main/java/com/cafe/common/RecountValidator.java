@@ -33,7 +33,7 @@ public final class RecountValidator {
 
             StockAdjustment a = new StockAdjustment();
             a.setIngredientId(ingredientId);
-            a.setActualQty(actualQty);
+            a.setActualBaseQty(actualQty);
             out.add(a);
         }
         return out;

@@ -12,9 +12,12 @@ import java.util.List;
 public class OrderItem {
     private int orderItemId;
     private int orderId;
+    private int branchId;
     private int productId;
     private int quantity;
-    private BigDecimal unitPrice;      // giá tại thời điểm đặt (đã gồm modifier)
+    private BigDecimal unitPrice;      // giá sản phẩm tại thời điểm đặt; modifier snapshot ở OrderItemModifier
+    private Integer billId;
+    private BigDecimal billedAmount;   // snapshot chốt bill, tuyệt đối không tính lại khi đọc bill cũ
     private String note;
     private String status;             // OrderItemStatus
     private LocalDateTime startedAt;
@@ -33,14 +36,14 @@ public class OrderItem {
     private boolean remakeInventoryReserved;
 
     // join / hiển thị
-    private String productName;
+    private String productNameAtOrder;
     private String tableNumber;
     private String pickupCode;         // mã gọi món của đơn (join hiển thị)
     private String orderType;
     private String categoryName;
     private String baristaName;
     private String preparedByName;
-    private String sessionStatus;      // sales.TableSession.Status (OPEN/CLOSED) — nhận biết khách đã thanh toán
+    private String tableStatus;        // sales.DiningTable.Status (EMPTY/OCCUPIED)
     private Integer orderBranchId;
     private List<OrderItemModifier> modifiers = new ArrayList<>();
     private int waitedSeconds;
@@ -61,6 +64,9 @@ public class OrderItem {
     public int getOrderId() { return orderId; }
     public void setOrderId(int v) { this.orderId = v; }
 
+    public int getBranchId() { return branchId; }
+    public void setBranchId(int v) { this.branchId = v; }
+
     public int getProductId() { return productId; }
     public void setProductId(int v) { this.productId = v; }
 
@@ -69,6 +75,12 @@ public class OrderItem {
 
     public BigDecimal getUnitPrice() { return unitPrice; }
     public void setUnitPrice(BigDecimal v) { this.unitPrice = v; }
+
+    public Integer getBillId() { return billId; }
+    public void setBillId(Integer v) { this.billId = v; }
+
+    public BigDecimal getBilledAmount() { return billedAmount; }
+    public void setBilledAmount(BigDecimal v) { this.billedAmount = v; }
 
     public String getNote() { return note; }
     public void setNote(String v) { this.note = v; }
@@ -108,8 +120,10 @@ public class OrderItem {
     public boolean isRemakeInventoryReserved() { return remakeInventoryReserved; }
     public void setRemakeInventoryReserved(boolean v) { this.remakeInventoryReserved = v; }
 
-    public String getProductName() { return productName; }
-    public void setProductName(String v) { this.productName = v; }
+    public String getProductName() { return productNameAtOrder; }
+    public void setProductName(String v) { this.productNameAtOrder = v; }
+    public String getProductNameAtOrder() { return productNameAtOrder; }
+    public void setProductNameAtOrder(String v) { this.productNameAtOrder = v; }
 
     public String getTableNumber() { return tableNumber; }
     public void setTableNumber(String v) { this.tableNumber = v; }
@@ -126,8 +140,8 @@ public class OrderItem {
     public String getPreparedByName() { return preparedByName; }
     public void setPreparedByName(String v) { this.preparedByName = v; }
 
-    public String getSessionStatus() { return sessionStatus; }
-    public void setSessionStatus(String v) { this.sessionStatus = v; }
+    public String getTableStatus() { return tableStatus; }
+    public void setTableStatus(String v) { this.tableStatus = v; }
 
     public Integer getOrderBranchId() { return orderBranchId; }
     public void setOrderBranchId(Integer v) { this.orderBranchId = v; }
@@ -171,26 +185,11 @@ public class OrderItem {
     /** Dòng này có thuộc một đơn nhiều món không — quyết định hiện nhãn "món 2/3". */
     public boolean isGrouped() { return groupInfo != null && groupInfo.isGrouped(); }
 
-    /** Mốc pha chuẩn dùng để tính trễ: theo món; số bất thường (chưa nạp/0) thì lùi về mặc định 12'. */
-    private int effectivePrepSeconds() {
-        return prepSeconds >= 60 ? prepSeconds : Constants.KDS_SLA_SECONDS;
-    }
-
-    public String getServeWaitDisplay() {
-        return serveWaitSeconds == null ? "" : formatMinutesLabel(serveWaitSeconds);
-    }
-
     public int getCupCount() { return quantity; }
-
-    public String getOrderTypeLabel() {
-        if ("TAKEAWAY".equals(orderType)) return "Mang đi";
-        if ("DELIVERY".equals(orderType)) return "Giao hàng";
-        return "Tại bàn";
-    }
 
     public String getStation() {
         String value = ((categoryName == null ? "" : categoryName) + " "
-                + (productName == null ? "" : productName)).toLowerCase(java.util.Locale.ROOT);
+                + (productNameAtOrder == null ? "" : productNameAtOrder)).toLowerCase(java.util.Locale.ROOT);
         if (value.contains("xay") || value.contains("đá xay")) return "BLENDER";
         if (value.contains("trà") || value.contains("tea")) return "TEA";
         return "COFFEE";
@@ -205,104 +204,20 @@ public class OrderItem {
         return createdVn.isBefore(java.time.LocalDate.now(BusinessDay.VN_ZONE));
     }
 
-    public String getCreatedDisplay() {
-        return BusinessDay.fmtTimeVn(orderCreatedAt);
-    }
-
-    public String getStartedDisplay() {
-        return BusinessDay.fmtTimeVn(startedAt);
-    }
-
-    public String getDoneDisplay() {
-        return BusinessDay.fmtTimeVn(doneAt);
-    }
-
-    /**
-     * Nhãn thời gian CHÍNH trên card — chỉ một con số để liếc 1 giây là quyết được:
-     * còn bao lâu, hay đã quá bao lâu. Phần "đã chờ X/12 phút" nằm ở dòng phụ
-     * ({@link #getWaitProgressLabel()}) vì biết đã-chờ và định-mức thì còn-lại tự suy ra;
-     * ba con số cùng cỡ sẽ cạnh tranh với tên món, đúng lỗi ưu tiên ngược cần tránh.
-     */
-    public String getSlaLabel() {
-        if (isOvernight()) return "Trễ từ hôm qua";
-        int remaining = effectivePrepSeconds() - waitedSeconds;
-        // Phút làm tròn xuống, nên cả phút đầu tiên hai bên vạch đều ra "0 phút" —
-        // "Trễ 0 phút" thì vô nghĩa, nói thẳng là vừa chạm hạn.
-        if (remaining <= 0 && remaining > -60) return "Vừa quá hạn";
-        if (remaining <= 0) return "Trễ " + formatMinutesLabel(-remaining);
-        if (remaining < 60) return "Sắp hết giờ";
-        return "Còn " + formatMinutesLabel(remaining);
-    }
-
-    /** Dòng phụ: đã chờ bao lâu so với mốc pha chuẩn CỦA MÓN. Gọn dạng "5/12 phút". */
-    public String getWaitProgressLabel() {
-        return "Đã chờ " + (Math.max(0, waitedSeconds) / 60)
-                + "/" + (effectivePrepSeconds() / 60) + " phút";
-    }
-
-    /**
-     * Món pha xong đã nằm chờ quá lâu → cảnh báo chất lượng (đồ nguội, đá tan).
-     * Tách khỏi bậc SLA hàng chờ vì đây là vấn đề của khâu bàn giao, không phải khâu pha.
-     */
-    public boolean isStaleReady() {
-        return serveWaitSeconds != null && serveWaitSeconds >= Constants.PICKUP_CRIT_SECONDS;
-    }
-
-    /**
-     * Chỉ ba bậc: bình thường / sắp trễ / đã trễ. Bỏ bậc "severe" cũ vì đơn qua đêm nay nằm
-     * ở khu "Đơn treo" riêng — giữ nó lại thì mọi card đều đỏ chỉ vì dữ liệu cũ, và cảnh báo
-     * lúc nào cũng bật thì không còn là cảnh báo. Đỏ dành riêng cho quá giờ thật hoặc sự cố thật.
-     */
-    public String getSlaTier() {
-        if (hasIssue) return "blocked";
-        int prep = effectivePrepSeconds();
-        if (waitedSeconds >= prep) return "late";           // quá mốc pha chuẩn của chính món này
-        if (waitedSeconds >= prep * 2 / 3) return "warn";   // sắp tới hạn (2/3 chặng)
-        return "ok";
-    }
-
     public boolean isPriority() { return remakeCount > 0; }
 
-    /** Tier SLA chờ nhân viên nhận món, tính từ DoneAt. */
-    public String getServeTier() {
-        if (serveWaitSeconds == null) return "ok";
-        if (serveWaitSeconds >= Constants.PICKUP_CRIT_SECONDS) return "crit";
-        if (serveWaitSeconds >= Constants.PICKUP_WARN_SECONDS) return "warn";
-        return "ok";
-    }
-
-    public int getWaitedMinutes() { return waitedSeconds / 60; }
-
-    public String getWaitedDisplay() { return formatDuration(waitedSeconds); }
-
-    public Integer getMakingMinutes() {
-        return makingSeconds == null ? null : makingSeconds / 60;
-    }
-
-    public String getMakingDisplay() {
-        return makingSeconds == null ? "" : formatMinutesLabel(makingSeconds);
-    }
-
-    public static String formatDuration(int seconds) {
-        int minutes = Math.max(0, seconds) / 60;
-        int hours = minutes / 60;
-        int mins = minutes % 60;
-        return hours > 0 ? hours + "h" + mins + "′" : mins + "′";
-    }
-
-    /**
-     * Nhãn thời lượng cho KDS. Dưới 2 tiếng dùng phút (barista nhẩm được ngay);
-     * quá đó đổi sang giờ vì "1770 phút" không ai đọc ra là gần 30 tiếng.
-     */
-    public static String formatMinutesLabel(int seconds) {
-        int minutes = Math.max(0, seconds) / 60;
-        if (minutes < 120) return minutes + " phút";
-        int hours = minutes / 60;
-        int mins = minutes % 60;
-        return mins == 0 ? hours + " tiếng" : hours + " tiếng " + mins + " phút";
-    }
-
     public BigDecimal getLineTotal() {
-        return unitPrice == null ? BigDecimal.ZERO : unitPrice.multiply(BigDecimal.valueOf(quantity));
+        if (billedAmount != null) return billedAmount;
+        BigDecimal total = unitPrice == null
+                ? BigDecimal.ZERO
+                : unitPrice.multiply(BigDecimal.valueOf(quantity));
+        if (modifiers != null) {
+            for (OrderItemModifier modifier : modifiers) {
+                if (modifier != null && modifier.getPriceDelta() != null) {
+                    total = total.add(modifier.getPriceDelta());
+                }
+            }
+        }
+        return total;
     }
 }

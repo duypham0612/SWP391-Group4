@@ -1,11 +1,10 @@
 package com.cafe.controller.cashier;
-import com.cafe.controller.manager.InventoryDashboardServlet;
 
-import com.cafe.common.CsrfUtil;
-import com.cafe.common.QrLink;
-import com.cafe.common.SessionUtil;
+import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.QrLink;
+import com.cafe.web.support.SessionUtil;
 import com.cafe.model.User;
-import com.cafe.service.cashier.TableSessionService;
+import com.cafe.service.cashier.DiningTableService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -14,16 +13,21 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 
-/** C3 · TableServlet → /cashier/table. Sơ đồ bàn + phiên bàn. */
+/** C3 · TableServlet → /cashier/table. Sơ đồ bàn và trạng thái phục vụ. */
 @WebServlet("/cashier/table")
 public class TableServlet extends HttpServlet {
 
-    private final TableSessionService service = new TableSessionService();
+    private final DiningTableService service;
+
+    public TableServlet() { this(new DiningTableService()); }
+    TableServlet(DiningTableService service) {
+        this.service = java.util.Objects.requireNonNull(service);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         try {
             java.util.List<com.cafe.model.DiningTable> tables = service.getFloorMap(branchId);
             req.setAttribute("tables", tables);
@@ -50,7 +54,7 @@ public class TableServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         User u = SessionUtil.currentUser(req);
         Integer userId = u != null ? u.getUserId() : null;
         String action = req.getParameter("action");
@@ -58,27 +62,27 @@ public class TableServlet extends HttpServlet {
         try {
             if ("openTable".equals(action)) {
                 int tableId = Integer.parseInt(req.getParameter("tableId"));
-                int sessionId = service.openSession(branchId, tableId, userId);
-                // Phiên bàn giống hệt nhau ở cả hai kiểu — chỉ khác chỗ thu ngân được đưa tới:
+                service.openTable(branchId, tableId, userId);
+                // Bàn được mở giống hệt nhau ở cả hai kiểu — chỉ khác chỗ thu ngân được đưa tới:
                 // "qr" thì quay về sơ đồ bàn và bật sẵn mã QR để đưa khách quét;
                 // còn lại mở thẳng POS để thu ngân bấm món hộ khách tại quầy.
                 if ("qr".equals(req.getParameter("mode"))) {
                     resp.sendRedirect(ctx + "/cashier/table?qr=" + tableId);
                 } else {
-                    resp.sendRedirect(ctx + "/cashier/pos?sessionId=" + sessionId);
+                    resp.sendRedirect(ctx + "/cashier/pos?tableId=" + tableId);
                 }
                 return;
             } else if ("closeTable".equals(action)) {
-                boolean closed = service.closeSessionIfNoActiveItems(
-                        Integer.parseInt(req.getParameter("sessionId")), branchId);
+                boolean closed = service.closeTableIfNoUnpaidOrders(
+                        Integer.parseInt(req.getParameter("tableId")), branchId);
                 if (!closed) {
                     req.getSession().setAttribute("flashError",
-                            "Bàn còn món chưa phục vụ — huỷ món ở Đơn đến hoặc thu tiền trước khi đóng bàn.");
+                            "Bàn còn món chưa thanh toán — huỷ món ở Đơn đến hoặc thu tiền trước khi đóng bàn.");
                     req.getSession().setAttribute("flashErrorHref", ctx + "/cashier/inbox");
                 }
             } else if ("ackSignal".equals(action)) {
                 boolean acknowledged = service.acknowledgeSignals(
-                        branchId, Integer.parseInt(req.getParameter("sessionId")));
+                        branchId, Integer.parseInt(req.getParameter("tableId")));
                 if (!acknowledged) {
                     req.getSession().setAttribute("flashError",
                             "Tín hiệu không còn hợp lệ hoặc không thuộc chi nhánh hiện tại.");
@@ -91,12 +95,12 @@ public class TableServlet extends HttpServlet {
                             "Bàn không tồn tại hoặc không thuộc chi nhánh hiện tại.");
                 }
             } else if ("merge".equals(action)) {
-                boolean merged = service.mergeSessions(branchId,
-                        Integer.parseInt(req.getParameter("srcSessionId")),
-                        Integer.parseInt(req.getParameter("dstSessionId")));
+                boolean merged = service.mergeTables(branchId,
+                        Integer.parseInt(req.getParameter("sourceTableId")),
+                        Integer.parseInt(req.getParameter("targetTableId")));
                 if (!merged) {
                     req.getSession().setAttribute("flashError",
-                            "Không thể gộp: hai phiên phải thuộc cùng chi nhánh và còn đang mở.");
+                            "Không thể gộp: hai bàn phải thuộc cùng chi nhánh và còn đang phục vụ.");
                 }
             }
             resp.sendRedirect(ctx + "/cashier/table");

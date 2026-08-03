@@ -9,7 +9,10 @@
   var FILTER_KEY = 'kdsFiltersV2';
   var ALERT_KEY = 'kdsAlertOpen';
   var DEFAULT_FILTERS = { owner: 'all', station: 'all', orderType: 'all' };
-  var BLOCKING_REASONS = ['EQUIPMENT', 'DISCONTINUED'];
+  // Danh sách do server đẩy xuống từ enum IssueReason — không khai lại ở đây để mã lý do
+  // chỉ tồn tại ở MỘT nơi. Thiếu attribute thì coi như không lý do nào gây chặn: cùng lắm
+  // là mất dòng ghi chú gợi ý, không chặn nhầm thao tác của barista.
+  var BLOCKING_REASONS = (board.dataset.blockingReasons || '').split(',').filter(Boolean);
   var filters = readFilters();
   var refreshing = false;
   var queuedJump = null;      // lần đổi trang/bộ lọc bị dồn lại vì đang có yêu cầu chạy dở
@@ -39,7 +42,7 @@
     return {
       owner: validChoice(params.get('owner'), ['all', 'mine', 'unassigned'], 'all'),
       station: validChoice(params.get('station'), ['all', 'COFFEE', 'TEA', 'BLENDER'], 'all'),
-      orderType: validChoice(params.get('orderType'), ['all', 'DINE_IN', 'TAKEAWAY', 'DELIVERY'], 'all')
+      orderType: validChoice(params.get('orderType'), ['all', 'DINE_IN', 'TAKEAWAY'], 'all')
     };
   }
 
@@ -53,7 +56,7 @@
         return {
           owner: validChoice(parsed.owner, ['all', 'mine', 'unassigned'], 'all'),
           station: validChoice(parsed.station, ['all', 'COFFEE', 'TEA', 'BLENDER'], 'all'),
-          orderType: validChoice(parsed.orderType, ['all', 'DINE_IN', 'TAKEAWAY', 'DELIVERY'], 'all')
+          orderType: validChoice(parsed.orderType, ['all', 'DINE_IN', 'TAKEAWAY'], 'all')
         };
       } catch (ignore) { /* migrate the former single filter below */ }
     }
@@ -63,7 +66,7 @@
     var old = storageGet('kdsFilter');
     if (old === 'mine' || old === 'unassigned') migrated.owner = old;
     else if (old && old.indexOf('station:') === 0) migrated.station = validChoice(old.slice(8), ['COFFEE', 'TEA', 'BLENDER'], 'all');
-    else if (old && old.indexOf('type:') === 0) migrated.orderType = validChoice(old.slice(5), ['DINE_IN', 'TAKEAWAY', 'DELIVERY'], 'all');
+    else if (old && old.indexOf('type:') === 0) migrated.orderType = validChoice(old.slice(5), ['DINE_IN', 'TAKEAWAY'], 'all');
     return migrated;
   }
 

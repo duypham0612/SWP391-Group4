@@ -1,12 +1,15 @@
 package com.cafe.controller.barista;
 
 import com.cafe.common.BusinessDay;
-import com.cafe.common.CsrfUtil;
-import com.cafe.common.SessionUtil;
-import com.cafe.controller.manager.InventoryDashboardServlet;
+import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.SessionUtil;
+import com.cafe.web.support.BaristaShiftSupport;
+import com.cafe.web.support.BaristaWritePolicy;
 import com.cafe.model.MonthlyAttendanceRow;
 import com.cafe.model.User;
 import com.cafe.service.manager.AttendanceService;
+import com.cafe.web.support.BranchContext;
+import com.cafe.web.support.RequestParams;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -14,6 +17,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
 import java.util.List;
@@ -23,19 +27,26 @@ import java.util.List;
 public class MyShiftServlet extends HttpServlet {
 
     static final String PATH = "/barista/shift";
-    private final AttendanceService attendanceService = new AttendanceService();
+    private final AttendanceService attendanceService;
+    private final BaristaShiftSupport shiftSupport;
+
+    public MyShiftServlet() { this(new AttendanceService(), new BaristaShiftSupport()); }
+    MyShiftServlet(AttendanceService attendanceService, BaristaShiftSupport shiftSupport) {
+        this.attendanceService = Objects.requireNonNull(attendanceService);
+        this.shiftSupport = Objects.requireNonNull(shiftSupport);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = BranchContext.requireBranchId(req);
         User u = SessionUtil.currentUser(req);
         YearMonth ym = parseMonth(req.getParameter("month"));
-        String query = textParam(req, "q", 100);
+        String query = RequestParams.text(req, "q", 100);
         String state = stateParam(req);
         int pageSize = pageSizeParam(req);
         try {
-            BaristaShift.expose(req, PATH);
+            shiftSupport.expose(req, PATH);
             if (u != null) {
                 // Tổng hợp tháng đọc cả tháng; bảng lịch sử chỉ lấy đúng trang đang xem từ DB.
                 List<MonthlyAttendanceRow> monthRows =
@@ -44,7 +55,7 @@ public class MyShiftServlet extends HttpServlet {
                 req.setAttribute("monthSummary",
                         attendanceService.getMyMonthlySummary(u.getUserId(), branchId, ym, monthRows));
                 req.setAttribute("historyPage", attendanceService.getMyMonthlyHistoryPage(
-                        u.getUserId(), branchId, ym, query, state, positiveIntParam(req, "page", 1), pageSize));
+                        u.getUserId(), branchId, ym, query, state, RequestParams.positiveInt(req, "page", 1), pageSize));
             }
             req.setAttribute("month", ym.toString());
             req.setAttribute("prevMonth", ym.minusMonths(1));
@@ -66,7 +77,7 @@ public class MyShiftServlet extends HttpServlet {
             resp.sendRedirect(req.getContextPath() + PATH);
             return;
         }
-        String redirect = BaristaShift.handleClock(req, action, PATH);
+        String redirect = shiftSupport.handleClock(req, action, PATH);
         resp.sendRedirect(req.getContextPath() + (redirect == null ? PATH : redirect));
     }
 
@@ -79,36 +90,16 @@ public class MyShiftServlet extends HttpServlet {
         }
     }
 
-    private static String textParam(HttpServletRequest req, String name, int maxLength) {
-        String value = req.getParameter(name);
-        if (value == null || value.isBlank()) return "";
-        value = value.trim();
-        return value.length() <= maxLength ? value : value.substring(0, maxLength);
-    }
-
     /**
      * Bộ lọc trạng thái chỉ nhận đúng các mục có trên giao diện; giá trị lạ coi như "Tất cả".
-     * ABSENT/OPEN là trạng thái suy ra từ mốc chấm công, không phải cột Attendance.Status.
+     * ABSENT/OPEN là trạng thái suy ra từ mốc chấm công, không chỉ từ AttendanceStatus.
      */
     private static String stateParam(HttpServletRequest req) {
-        String value = textParam(req, "state", 20).toUpperCase();
-        for (String allowed : new String[]{"APPROVED", "PENDING", "REJECTED", "OPEN", "ABSENT"}) {
-            if (allowed.equals(value)) return value;
-        }
-        return "";
-    }
-
-    private static int positiveIntParam(HttpServletRequest req, String name, int fallback) {
-        try {
-            int value = Integer.parseInt(req.getParameter(name));
-            return value > 0 ? value : fallback;
-        } catch (NumberFormatException e) {
-            return fallback;
-        }
+        return RequestParams.allowed(req, "state", "APPROVED", "PENDING", "REJECTED", "OPEN", "ABSENT");
     }
 
     private static int pageSizeParam(HttpServletRequest req) {
-        return normalizePageSize(positiveIntParam(req, "pageSize", 10));
+        return normalizePageSize(RequestParams.positiveInt(req, "pageSize", 10));
     }
 
     /** Chỉ nhận đúng các mức có trên giao diện; giá trị lạ (kể cả rất lớn) rơi về mặc định. */

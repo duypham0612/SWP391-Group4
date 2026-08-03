@@ -1,6 +1,6 @@
 package com.cafe.controller.admin;
 
-import com.cafe.common.CsrfUtil;
+import com.cafe.web.support.CsrfUtil;
 import com.cafe.model.Branch;
 import com.cafe.service.admin.BranchService;
 import com.cafe.service.shared.BranchMenuService;
@@ -17,8 +17,14 @@ import java.math.BigDecimal;
 @WebServlet("/admin/branch-menu")
 public class BranchMenuServlet extends HttpServlet {
 
-    private final BranchMenuService service = new BranchMenuService();
-    private final BranchService branchService = new BranchService();
+    private final BranchMenuService service;
+    private final BranchService branchService;
+
+    public BranchMenuServlet() { this(new BranchMenuService(), new BranchService()); }
+    BranchMenuServlet(BranchMenuService service, BranchService branchService) {
+        this.service = java.util.Objects.requireNonNull(service);
+        this.branchService = java.util.Objects.requireNonNull(branchService);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -59,7 +65,7 @@ public class BranchMenuServlet extends HttpServlet {
                 service.remove(branchId, productId);
             } else {
                 // Cờ 86 KHÔNG nhận từ form này: nó gắn với yêu cầu báo hết của barista
-                // (catalog.MenuBlockRequest) nên chỉ manager mở bán lại qua /manager/menu-block mới đổi được.
+                // (BranchMenu.Block*) nên chỉ manager mở bán lại qua /manager/menu-block mới đổi được.
                 boolean available = req.getParameter("available") != null;
                 BigDecimal localPrice = null;
                 String lp = req.getParameter("localPrice");

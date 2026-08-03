@@ -2,6 +2,7 @@ package com.cafe.service.manager;
 
 import com.cafe.common.BusinessException;
 import com.cafe.config.DBConnection;
+import com.cafe.config.Tx;
 import com.cafe.dao.manager.SupplierDao;
 import com.cafe.model.Supplier;
 
@@ -12,7 +13,10 @@ import java.util.List;
 /** M6 · SupplierService (đặc tả mục 5). */
 public class SupplierService {
 
-    private final SupplierDao dao = new SupplierDao();
+    private final SupplierDao dao;
+
+    public SupplierService() { this(new SupplierDao()); }
+    public SupplierService(SupplierDao dao) { this.dao = java.util.Objects.requireNonNull(dao); }
 
     public List<Supplier> getSupplierList() throws SQLException {
         try (Connection c = DBConnection.getConnection()) { return dao.findAll(c); }
@@ -31,7 +35,6 @@ public class SupplierService {
         validate(s);
         txVoid(c -> dao.update(c, s));
     }
-    public void setSupplierActive(int id, boolean active) throws SQLException { txVoid(c -> dao.updateActive(c, id, active)); }
 
     /** Đảo trạng thái active (đọc + flip trong 1 tx) — bật/tắt 2 chiều. */
     public void toggleActive(int id) throws SQLException {
@@ -39,20 +42,29 @@ public class SupplierService {
     }
 
     static void validate(Supplier supplier) {
-        String phone = supplier == null ? null : supplier.getPhone();
-        if (phone == null || !phone.matches("0\\d{9}")) {
+        if (supplier == null) throw new BusinessException("Thông tin nhà cung cấp là bắt buộc.");
+        String name = clean(supplier.getName());
+        String phone = clean(supplier.getPhone());
+        String address = clean(supplier.getAddress());
+        if (name == null) throw new BusinessException("Tên nhà cung cấp không được để trống.");
+        if (phone == null) throw new BusinessException("Số điện thoại không được để trống.");
+        if (!phone.matches("0\\d{9}")) {
             throw new BusinessException("Số điện thoại không hợp lệ. Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng 0.");
         }
+        if (address == null) throw new BusinessException("Địa chỉ không được để trống.");
+        supplier.setName(name);
+        supplier.setPhone(phone);
+        supplier.setAddress(address);
     }
 
-    private interface Fn<T>{ T run(Connection c) throws SQLException; }
-    private interface V{ void run(Connection c) throws SQLException; }
-    private <T> T tx(Fn<T> fn) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try { T r = fn.run(c); c.commit(); return r; }
-            catch (SQLException e){ c.rollback(); throw e; } finally { c.setAutoCommit(true); }
-        }
+    private static String clean(String value) {
+        return value == null || value.isBlank() ? null : value.trim().replaceAll("\\s+", " ");
     }
-    private void txVoid(V v) throws SQLException { tx(c -> { v.run(c); return null; }); }
+
+    // Bản tx riêng của file này đã bị gỡ: nó CHỈ bắt SQLException, nên nếu lambda ném
+    // RuntimeException (BusinessException) giữa chừng thì không rollback, rồi
+    // finally setAutoCommit(true) lại COMMIT phần đã ghi dở. Hiện chưa gây hại vì mọi kiểm tra
+    // của service này chạy trước khi vào tx, nhưng đó là bẫy chờ người sau thêm kiểm tra vào trong.
+    private <T> T tx(Tx.Block<T> fn) throws SQLException { return Tx.call(fn); }
+    private void txVoid(Tx.VoidBlock v) throws SQLException { Tx.run(v); }
 }

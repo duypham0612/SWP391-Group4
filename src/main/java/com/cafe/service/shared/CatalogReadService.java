@@ -1,29 +1,25 @@
 package com.cafe.service.shared;
 
-import com.cafe.common.QuantityFormat;
+import com.cafe.common.ModifierGroupNames;
 import com.cafe.config.DBConnection;
 import com.cafe.dao.admin.CategoryDao;
-import com.cafe.dao.admin.HomeSettingDao;
 import com.cafe.dao.admin.ProductDao;
-import com.cafe.dao.shared.BranchMenuDao;
-import com.cafe.dao.shared.ModifierGroupDao;
-import com.cafe.dao.shared.ModifierIngredientImpactDao;
-import com.cafe.dao.shared.ModifierOptionDao;
-import com.cafe.dao.shared.PrepRecipeDao;
-import com.cafe.dao.shared.ProductModifierGroupDao;
-import com.cafe.dao.shared.ProductRecipeDao;
+import com.cafe.dao.admin.BranchMenuDao;
+import com.cafe.dao.admin.BranchDao;
+import com.cafe.dao.admin.ModifierGroupDao;
+import com.cafe.dao.admin.ModifierOptionDao;
+import com.cafe.dao.admin.ProductModifierGroupDao;
+import com.cafe.dao.admin.RecipeDao;
 import com.cafe.model.BranchMenuItem;
 import com.cafe.model.Category;
-import com.cafe.model.HomeSetting;
+import com.cafe.model.Branch;
 import com.cafe.model.ModifierGroup;
-import com.cafe.model.ModifierIngredientImpact;
 import com.cafe.model.ModifierOption;
 import com.cafe.model.PosMenuItem;
 import com.cafe.model.ProductStockStatus;
-import com.cafe.model.PrepRecipe;
 import com.cafe.model.Product;
 import com.cafe.model.ProductModifierGroup;
-import com.cafe.model.ProductRecipe;
+import com.cafe.model.Recipe;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -33,20 +29,32 @@ import java.util.List;
 
 /** Đọc menu để dựng màn POS / QR (chỉ món available, chưa 86) + tra cứu công thức (Barista, read-only). */
 public class CatalogReadService {
-    private static final String GROUP_SIZE = "Size";
-    private static final String GROUP_SUGAR = "\u0110\u01b0\u1eddng";
-    private static final String GROUP_ICE = "\u0110\u00e1";
+    private final BranchMenuDao branchMenuDao;
+    private final ProductModifierGroupDao pmgDao;
+    private final ModifierGroupDao groupDao;
+    private final ModifierOptionDao optionDao;
+    private final RecipeDao recipeDao;
+    private final ProductDao productDao;
+    private final CategoryDao categoryDao;
+    private final BranchDao branchDao;
 
-    private final BranchMenuDao branchMenuDao = new BranchMenuDao();
-    private final ProductModifierGroupDao pmgDao = new ProductModifierGroupDao();
-    private final ModifierGroupDao groupDao = new ModifierGroupDao();
-    private final ModifierOptionDao optionDao = new ModifierOptionDao();
-    private final ProductRecipeDao productRecipeDao = new ProductRecipeDao();
-    private final PrepRecipeDao prepRecipeDao = new PrepRecipeDao();
-    private final ModifierIngredientImpactDao impactDao = new ModifierIngredientImpactDao();
-    private final ProductDao productDao = new ProductDao();
-    private final CategoryDao categoryDao = new CategoryDao();
-    private final HomeSettingDao homeSettingDao = new HomeSettingDao();
+    public CatalogReadService() {
+        this(new BranchMenuDao(), new ProductModifierGroupDao(), new ModifierGroupDao(),
+                new ModifierOptionDao(), new RecipeDao(), new ProductDao(), new CategoryDao(), new BranchDao());
+    }
+    public CatalogReadService(BranchMenuDao branchMenuDao, ProductModifierGroupDao pmgDao,
+                              ModifierGroupDao groupDao, ModifierOptionDao optionDao,
+                              RecipeDao recipeDao, ProductDao productDao,
+                              CategoryDao categoryDao, BranchDao branchDao) {
+        this.branchMenuDao = java.util.Objects.requireNonNull(branchMenuDao);
+        this.pmgDao = java.util.Objects.requireNonNull(pmgDao);
+        this.groupDao = java.util.Objects.requireNonNull(groupDao);
+        this.optionDao = java.util.Objects.requireNonNull(optionDao);
+        this.recipeDao = java.util.Objects.requireNonNull(recipeDao);
+        this.productDao = java.util.Objects.requireNonNull(productDao);
+        this.categoryDao = java.util.Objects.requireNonNull(categoryDao);
+        this.branchDao = java.util.Objects.requireNonNull(branchDao);
+    }
 
     /**
      * Menu của chi nhánh. Món OUT/86 vẫn được trả về để Cashier/khách biết lý do,
@@ -55,10 +63,10 @@ public class CatalogReadService {
     public List<PosMenuItem> getPosMenu(int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             java.util.Map<Integer, ProductStockStatus> stockByProduct =
-                    productRecipeDao.findProductStockStatuses(conn, branchId);
+                    recipeDao.findProductStockStatuses(conn, branchId);
             List<PosMenuItem> out = new ArrayList<>();
             for (BranchMenuItem bm : branchMenuDao.listForBranch(conn, branchId)) {
-                if (!bm.isPublished() || !bm.isAvailable()) continue;
+                if (!bm.isPublished() || !bm.isListed()) continue;
                 PosMenuItem item = new PosMenuItem();
                 item.setProductId(bm.getProductId());
                 item.setName(bm.getProductName());
@@ -66,13 +74,13 @@ public class CatalogReadService {
                 item.setPrice(bm.getLocalPrice() != null ? bm.getLocalPrice() : bm.getBasePrice());
 
                 ProductStockStatus stock = stockByProduct.get(bm.getProductId());
-                if (bm.isIs86()) {
+                if (bm.isTemporarilyUnavailable()) {
                     item.setAvailabilityState("EIGHTY_SIX");
-                    item.setStockMessage("Tạm ngừng bán");
                     item.setOrderable(false);
                 } else if (stock != null) {
                     item.setAvailabilityState(stock.getState());
-                    item.setStockMessage(stock.getMessage());
+                    item.setLowIngredients(stock.getLowIngredients());
+                    item.setOutIngredients(stock.getOutIngredients());
                     item.setOrderable(!stock.isOut());
                 }
 
@@ -82,7 +90,7 @@ public class CatalogReadService {
                         if (g == null || !isChoiceGroup(g.getName())) continue;
                         PosMenuItem.Group grp = new PosMenuItem.Group();
                         grp.setGroupId(g.getModifierGroupId());
-                        grp.setName(g.getName());
+                        grp.setName(ModifierGroupNames.display(g.getName()));
                         grp.setRequired(g.isRequired());
                         grp.setMinSelect(g.getMinSelect());
                         grp.setMaxSelect(g.getMaxSelect());
@@ -117,9 +125,13 @@ public class CatalogReadService {
     }
 
     /** Nội dung hero của trang Home (tiêu đề/mô tả/ảnh) do Admin cấu hình; null nếu chưa cấu hình. */
-    public HomeSetting getHomeSetting() throws SQLException {
+    public Branch getHomeBranch(Integer branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            return homeSettingDao.find(conn);
+            if (branchId != null && branchId > 0) {
+                Branch selected = branchDao.findActiveById(conn, branchId);
+                if (selected != null) return selected;
+            }
+            return branchDao.findFirstActive(conn);
         }
     }
 
@@ -145,12 +157,6 @@ public class CatalogReadService {
             List<Product> items = productDao.findForRecipeLookup(
                     conn, q, categoryId, recipeState, branchId, offset, safePageSize);
             return new ProductPage(items, total, safePage, totalPages);
-        }
-    }
-
-    public Product getRecipeProduct(int productId) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            return productDao.findById(conn, productId);
         }
     }
 
@@ -189,16 +195,16 @@ public class CatalogReadService {
     }
 
     /** Công thức món: từng dòng nguyên liệu (RAW/PREPPED) + định mức. */
-    public List<ProductRecipe> getRecipeForProduct(int productId) throws SQLException {
+    public List<Recipe> getRecipeForProduct(int productId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            return productRecipeDao.findByProduct(conn, productId);
+            return recipeDao.findByProduct(conn, productId);
         }
     }
 
     /** Định mức pha sẵn của 1 nguyên liệu PREPPED (RAW → PREPPED + yield). */
-    public List<PrepRecipe> getPrepRecipe(int preppedIngredientId) throws SQLException {
+    public List<Recipe> getPrepRecipe(int preppedIngredientId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            return prepRecipeDao.findByPrepped(conn, preppedIngredientId);
+            return recipeDao.findByPrepped(conn, preppedIngredientId);
         }
     }
 
@@ -212,14 +218,14 @@ public class CatalogReadService {
                 for (ModifierOption o : optionDao.findByGroup(conn, g.getModifierGroupId())) {
                     // Barista chỉ cần định mức của lựa chọn còn có thể bán trên POS.
                     if (!o.isActive()) continue;
-                    for (ModifierIngredientImpact imp : impactDao.findByOption(conn, o.getModifierOptionId())) {
+                    for (Recipe imp : recipeDao.findByOption(conn, o.getModifierOptionId())) {
                         OptionImpactRow r = new OptionImpactRow();
-                        r.groupName = g.getName();
+                        r.groupName = ModifierGroupNames.display(g.getName());
                         r.optionName = o.getName();
                         r.ingredientId = imp.getIngredientId();
                         r.ingredientName = imp.getIngredientName();
                         r.ingredientUnit = imp.getIngredientUnit();
-                        r.qtyDelta = imp.getQtyDelta();
+                        r.qtyDelta = imp.getQuantity();
                         rows.add(r);
                     }
                 }
@@ -252,20 +258,9 @@ public class CatalogReadService {
          */
         public void setInBaseRecipe(boolean inBaseRecipe) { this.inBaseRecipe = inBaseRecipe; }
 
-        /**
-         * Cho JSP — bỏ .000 thừa và gắn sẵn dấu +/-.
-         *
-         * In thẳng BigDecimal ra sẽ thành "+6.000 ml": theo quy ước số của VN dấu chấm
-         * là phân tách nghìn nên pha chế đọc nhầm thành 6000 ml. Dùng chung
-         * {@link QuantityFormat} với định mức gốc để hai bảng hiển thị nhất quán.
-         */
-        public String getQtyDeltaDisplay() {
-            String plain = QuantityFormat.plain(qtyDelta);
-            return qtyDelta != null && qtyDelta.signum() > 0 ? "+" + plain : plain;
-        }
     }
 
     private static boolean isChoiceGroup(String name) {
-        return GROUP_SIZE.equals(name) || GROUP_SUGAR.equals(name) || GROUP_ICE.equals(name);
+        return ModifierGroupNames.isStandardChoice(name);
     }
 }

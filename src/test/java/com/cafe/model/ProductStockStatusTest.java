@@ -2,6 +2,8 @@ package com.cafe.model;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.Set;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -15,7 +17,7 @@ class ProductStockStatusTest {
 
         assertTrue(status.isLow());
         assertFalse(status.isOut());
-        assertEquals("Sắp hết Syrup Đào", status.getMessage());
+        assertEquals(Set.of("Syrup Đào"), status.getLowIngredients());
     }
 
     @Test
@@ -25,6 +27,6 @@ class ProductStockStatusTest {
         status.include(ProductStockStatus.OUT, "Syrup Đào");
 
         assertTrue(status.isOut());
-        assertEquals("Hết Syrup Đào", status.getMessage());
+        assertEquals(Set.of("Syrup Đào"), status.getOutIngredients());
     }
 }

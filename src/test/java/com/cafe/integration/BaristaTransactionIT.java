@@ -1,6 +1,7 @@
 package com.cafe.integration;
 
-import com.cafe.service.shared.OrderService;
+import com.cafe.service.shared.KdsOrderWorkflowService;
+import com.cafe.service.shared.OrderIssueService;
 import com.cafe.service.shared.InventoryService;
 import com.cafe.common.BusinessException;
 import com.cafe.common.TxnType;
@@ -31,59 +32,58 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
     @Test
     void simultaneous_claim_allows_exactly_one_barista() throws Exception {
         Fixture f = fixture(false);
-        List<Boolean> results = concurrently(() -> new OrderService().startItem(f.orderItemId, f.baristaOneId, f.branchId),
-                () -> new OrderService().startItem(f.orderItemId, f.baristaTwoId, f.branchId));
+        List<Boolean> results = concurrently(() -> new KdsOrderWorkflowService().startItem(f.orderItemId, f.baristaOneId, f.branchId),
+                () -> new KdsOrderWorkflowService().startItem(f.orderItemId, f.baristaTwoId, f.branchId));
 
         assertEquals(1, results.stream().filter(Boolean::booleanValue).count());
         assertEquals("MAKING", scalarString("SELECT Status FROM sales.OrderItem WHERE OrderItemId=?", f.orderItemId));
-        assertEquals(1, scalarInt("SELECT COUNT(*) FROM ops.OrderItemActionLog WHERE OrderItemId=? AND ActionType='CLAIM'", f.orderItemId));
+        assertEquals(1, scalarInt("SELECT COUNT(*) FROM ops.ActivityLog WHERE EntityType='ORDER_ITEM' AND EntityId=? AND ActionType='CLAIM'", f.orderItemId));
     }
 
     @Test
     void simultaneous_ready_deducts_recipe_and_modifier_once() throws Exception {
         Fixture f = fixture(true);
-        OrderService service = new OrderService();
+        KdsOrderWorkflowService service = new KdsOrderWorkflowService();
         assertTrue(service.startItem(f.orderItemId, f.baristaOneId, f.branchId));
 
-        List<Boolean> results = concurrently(() -> new OrderService().markItemReady(f.orderItemId, f.baristaOneId, f.branchId),
-                () -> new OrderService().markItemReady(f.orderItemId, f.baristaOneId, f.branchId));
+        List<Boolean> results = concurrently(() -> new KdsOrderWorkflowService().markItemReady(f.orderItemId, f.baristaOneId, f.branchId),
+                () -> new KdsOrderWorkflowService().markItemReady(f.orderItemId, f.baristaOneId, f.branchId));
 
         assertEquals(1, results.stream().filter(Boolean::booleanValue).count());
         assertEquals("READY", scalarString("SELECT Status FROM sales.OrderItem WHERE OrderItemId=?", f.orderItemId));
         // 2 ly × (10 RAW theo công thức + 2 RAW từ modifier) = 24; ledger phải chỉ có một lần trừ.
         assertEquals(new BigDecimal("-24.000"), scalarDecimal(
-                "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction WHERE RefTable='OrderItem' AND RefId=? AND TxnType='DEDUCT'", f.orderItemId));
-        assertEquals(1, scalarInt("SELECT COUNT(*) FROM ops.OrderItemActionLog WHERE OrderItemId=? AND ActionType='COMPLETE'", f.orderItemId));
+                "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction WHERE ReferenceType='ORDER_ITEM' AND ReferenceId=? AND TxnType='DEDUCT'", f.orderItemId));
+        assertEquals(1, scalarInt("SELECT COUNT(*) FROM ops.ActivityLog WHERE EntityType='ORDER_ITEM' AND EntityId=? AND ActionType='COMPLETE'", f.orderItemId));
     }
 
     @Test
     void simultaneous_remake_creates_one_reservation_and_one_waste_event() throws Exception {
         Fixture f = fixture(false);
-        OrderService service = new OrderService();
+        KdsOrderWorkflowService service = new KdsOrderWorkflowService();
         assertTrue(service.startItem(f.orderItemId, f.baristaOneId, f.branchId));
         assertTrue(service.markItemReady(f.orderItemId, f.baristaOneId, f.branchId));
 
-        List<Boolean> results = concurrently(() -> new OrderService().remakeItem(f.orderItemId, "Sai ly", f.baristaOneId, f.branchId),
-                () -> new OrderService().remakeItem(f.orderItemId, "Sai ly", f.baristaOneId, f.branchId));
+        List<Boolean> results = concurrently(() -> new OrderIssueService().remakeItem(f.orderItemId, "Sai ly", f.baristaOneId, f.branchId),
+                () -> new OrderIssueService().remakeItem(f.orderItemId, "Sai ly", f.baristaOneId, f.branchId));
 
         assertEquals(1, results.stream().filter(Boolean::booleanValue).count());
         assertEquals("WAITING", scalarString("SELECT Status FROM sales.OrderItem WHERE OrderItemId=?", f.orderItemId));
-        assertEquals(1, scalarInt("SELECT COUNT(*) FROM inventory.WasteEvent WHERE OrderItemId=? AND EventKind='REMAKE'", f.orderItemId));
-        assertEquals(1, scalarInt("SELECT COUNT(*) FROM inventory.WasteLog WHERE WasteEventId IN (SELECT WasteEventId FROM inventory.WasteEvent WHERE OrderItemId=?)", f.orderItemId));
+        assertEquals(1, scalarInt("SELECT COUNT(*) FROM inventory.WasteEntry WHERE OrderItemId=? AND EventKind='REMAKE'", f.orderItemId));
     }
 
     @Test
     void voiding_manual_waste_keeps_audit_and_nets_ledger_to_zero() throws Exception {
         Fixture f = fixture(false);
         InventoryService inventory = new InventoryService();
-        int wasteLogId = inventory.logWaste(f.branchId, f.rawIngredientId, new BigDecimal("5"), "SPILL", "IT spill", f.baristaOneId);
+        long wasteEntryId = inventory.logWaste(f.branchId, f.rawIngredientId, new BigDecimal("5"), "SPILL", "IT spill", f.baristaOneId);
 
-        inventory.voidWaste(f.branchId, wasteLogId, f.baristaOneId);
+        inventory.voidWaste(f.branchId, wasteEntryId, f.baristaOneId);
 
-        assertEquals("VOIDED", scalarString("SELECT Status FROM inventory.WasteLog WHERE WasteLogId=?", wasteLogId));
+        assertEquals("VOIDED", scalarString("SELECT Status FROM inventory.WasteEntry WHERE WasteEntryId=?", wasteEntryId));
         assertEquals(new BigDecimal("0.000"), scalarDecimal(
-                "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction WHERE RefTable='WasteLog' AND RefId=?", wasteLogId));
-        assertEquals(2, scalarInt("SELECT COUNT(*) FROM inventory.InventoryTransaction WHERE RefTable='WasteLog' AND RefId=?", wasteLogId));
+                "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction WHERE ReferenceType='WASTE_ENTRY' AND ReferenceId=?", wasteEntryId));
+        assertEquals(2, scalarInt("SELECT COUNT(*) FROM inventory.InventoryTransaction WHERE ReferenceType='WASTE_ENTRY' AND ReferenceId=?", wasteEntryId));
     }
 
     @Test
@@ -97,7 +97,7 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
         assertFalse(inventory.cancelPrepBatch(f.branchId, prepBatchId, f.baristaOneId));
         assertEquals("CANCELLED", scalarString("SELECT Status FROM inventory.PrepBatch WHERE PrepBatchId=?", prepBatchId));
         assertEquals(new BigDecimal("0.000"), scalarDecimal(
-                "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction WHERE RefTable='PrepBatch' AND RefId=?", prepBatchId));
+                "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction WHERE ReferenceType='PREP_BATCH' AND ReferenceId=?", prepBatchId));
     }
 
     @Test
@@ -105,14 +105,19 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
         Fixture f = fixture(false);
         InventoryService inventory = new InventoryService();
         int prepBatchId = inventory.createPrepBatch(f.branchId, f.preppedIngredientId,
-                new BigDecimal("100"), java.time.LocalDateTime.now(java.time.ZoneOffset.UTC).minusHours(1), f.baristaOneId);
+                new BigDecimal("100"), java.time.LocalDateTime.now(java.time.ZoneOffset.UTC).plusHours(1), f.baristaOneId);
+        // Keep the historical batch lifecycle valid (MadeAt <= ExpiresAt), while making it expired now.
+        execute("UPDATE inventory.PrepBatch "
+                        + "SET MadeAt=DATEADD(hour,-2,SYSUTCDATETIME()), "
+                        + "ExpiresAt=DATEADD(hour,-1,SYSUTCDATETIME()) WHERE PrepBatchId=?",
+                prepBatchId);
 
-        int wasteLogId = inventory.writeOffExpiredPrepBatch(f.branchId, prepBatchId, new BigDecimal("100"), f.baristaOneId);
+        long wasteEntryId = inventory.writeOffExpiredPrepBatch(f.branchId, prepBatchId, new BigDecimal("100"), f.baristaOneId);
 
-        assertTrue(wasteLogId > 0);
+        assertTrue(wasteEntryId > 0);
         assertThrows(BusinessException.class, () -> inventory.writeOffExpiredPrepBatch(
                 f.branchId, prepBatchId, new BigDecimal("100"), f.baristaOneId));
-        assertEquals(1, scalarInt("SELECT COUNT(*) FROM inventory.WasteLog WHERE WasteLogId=?", wasteLogId));
+        assertEquals(1, scalarInt("SELECT COUNT(*) FROM inventory.WasteEntry WHERE WasteEntryId=?", wasteEntryId));
     }
 
     @Test
@@ -131,10 +136,10 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
                 "SELECT COUNT(*) FROM inventory.PrepBatch WHERE PrepBatchId=?", first.getPrepBatchId()));
         assertEquals(new BigDecimal("100.000"), scalarDecimal(
                 "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction "
-                        + "WHERE RefTable='PrepBatch' AND RefId=? AND TxnType='PREP_IN'", first.getPrepBatchId()));
+                        + "WHERE ReferenceType='PREP_BATCH' AND ReferenceId=? AND TxnType='PREP_IN'", first.getPrepBatchId()));
         assertEquals(new BigDecimal("-10.000"), scalarDecimal(
                 "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction "
-                        + "WHERE RefTable='PrepBatch' AND RefId=? AND TxnType='PREP_OUT'", first.getPrepBatchId()));
+                        + "WHERE ReferenceType='PREP_BATCH' AND ReferenceId=? AND TxnType='PREP_OUT'", first.getPrepBatchId()));
         assertEquals(1, scalarInt(
                 "SELECT CASE WHEN ExpiresAt IS NULL THEN 0 ELSE 1 END FROM inventory.PrepBatch WHERE PrepBatchId=?",
                 first.getPrepBatchId()));
@@ -161,7 +166,7 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
 
         execute("UPDATE inventory.BranchInventory SET PrepTargetQty=1000 WHERE BranchId=? AND IngredientId=?",
                 f.branchId, f.preppedIngredientId);
-        execute("DELETE FROM catalog.PrepRecipe WHERE PreppedIngredientId=?", f.preppedIngredientId);
+        execute("DELETE FROM catalog.Recipe WHERE OwnerType='PREPPED' AND OwnerId=?", f.preppedIngredientId);
         assertThrows(BusinessException.class, () -> inventory.createSuggestedPrepBatch(
                 f.branchId, f.preppedIngredientId, new BigDecimal("100"), f.baristaOneId,
                 UUID.randomUUID().toString()));
@@ -194,7 +199,7 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
                 reversible.branchId, reversibleBatch.getPrepBatchId(), reversible.baristaOneId));
         assertEquals(new BigDecimal("0.000"), scalarDecimal(
                 "SELECT SUM(ChangeQty) FROM inventory.InventoryTransaction "
-                        + "WHERE RefTable='PrepBatch' AND RefId=?", reversibleBatch.getPrepBatchId()));
+                        + "WHERE ReferenceType='PREP_BATCH' AND ReferenceId=?", reversibleBatch.getPrepBatchId()));
 
         Fixture consumed = fixture(false);
         PrepBatch consumedBatch = inventory.createSuggestedPrepBatch(
@@ -203,7 +208,8 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
         try (Connection conn = connection()) {
             conn.setAutoCommit(false);
             inventory.applyTxn(conn, consumed.branchId, consumed.preppedIngredientId,
-                    new BigDecimal("-10"), TxnType.DEDUCT, "OrderItem",
+                    new BigDecimal("-10"), TxnType.DEDUCT,
+                    com.cafe.common.InventoryReferenceType.ORDER_ITEM,
                     (long) consumed.orderItemId, consumed.baristaOneId);
             conn.commit();
         }
@@ -241,37 +247,38 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
     private Fixture fixture(boolean withModifier) throws Exception {
         String key = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         try (Connection conn = connection(); Statement st = conn.createStatement()) {
-            st.executeUpdate("IF NOT EXISTS (SELECT 1 FROM iam.Role WHERE Code='BARISTA') "
-                    + "INSERT iam.Role(Code,Name) VALUES ('BARISTA',N'Barista')");
             st.executeUpdate("INSERT org.Branch(Code,Name,OpenTime,CloseTime) VALUES ('B" + key + "',N'IT Branch','00:00','23:59')");
-            int roleId = id(conn, "SELECT RoleId FROM iam.Role WHERE Code=?", "BARISTA");
             int branchId = id(conn, "SELECT BranchId FROM org.Branch WHERE Code=?", "B" + key);
-            st.executeUpdate("INSERT iam.[User](Username,PasswordHash,FullName,RoleId,BranchId) VALUES ('b1" + key + "','x',N'Barista One'," + roleId + "," + branchId + "),('b2" + key + "','x',N'Barista Two'," + roleId + "," + branchId + ")");
-            int one = id(conn, "SELECT UserId FROM iam.[User] WHERE Username=?", "b1" + key);
-            int two = id(conn, "SELECT UserId FROM iam.[User] WHERE Username=?", "b2" + key);
-            st.executeUpdate("INSERT catalog.Category(Name) VALUES (N'IT Category')");
+            st.executeUpdate("INSERT iam.UserAccount(Username,PasswordHash,FullName,RoleCode,BranchId) VALUES ('b1" + key + "','x',N'Barista One','BARISTA'," + branchId + "),('b2" + key + "','x',N'Barista Two','BARISTA'," + branchId + ")");
+            int one = id(conn, "SELECT UserId FROM iam.UserAccount WHERE Username=?", "b1" + key);
+            int two = id(conn, "SELECT UserId FROM iam.UserAccount WHERE Username=?", "b2" + key);
+            st.executeUpdate("INSERT catalog.Category(Name) VALUES (N'IT Category " + key + "')");
             int category = id(conn, "SELECT MAX(CategoryId) FROM catalog.Category");
-            st.executeUpdate("INSERT catalog.Product(CategoryId,Name,BasePrice) VALUES (" + category + ",N'IT Drink',10000)");
+            st.executeUpdate("INSERT catalog.Product(CategoryId,Name,BasePrice) VALUES (" + category + ",N'IT Drink " + key + "',10000)");
             int product = id(conn, "SELECT MAX(ProductId) FROM catalog.Product");
             st.executeUpdate("INSERT catalog.Ingredient(Name,Unit,IngredientType,ShelfLifeMinutes) VALUES "
                     + "(N'IT Raw " + key + "',N'g','RAW',NULL),(N'IT Prepped " + key + "',N'ml','PREPPED',1440)");
             int ingredient = id(conn, "SELECT IngredientId FROM catalog.Ingredient WHERE Name=?", "IT Raw " + key);
             int prepped = id(conn, "SELECT IngredientId FROM catalog.Ingredient WHERE Name=?", "IT Prepped " + key);
-            st.executeUpdate("INSERT catalog.ProductRecipe(ProductId,IngredientId,Quantity) VALUES (" + product + "," + ingredient + ",10)");
-            st.executeUpdate("INSERT catalog.PrepRecipe(PreppedIngredientId,RawIngredientId,Quantity,YieldQty) VALUES (" + prepped + "," + ingredient + ",10,100)");
+            st.executeUpdate("INSERT catalog.Recipe(OwnerType,OwnerId,IngredientId,Quantity) VALUES ('PRODUCT'," + product + "," + ingredient + ",10)");
+            st.executeUpdate("UPDATE catalog.Ingredient SET PrepYieldQty=100 WHERE IngredientId=" + prepped);
+            st.executeUpdate("INSERT catalog.Recipe(OwnerType,OwnerId,IngredientId,Quantity) VALUES ('PREPPED'," + prepped + "," + ingredient + ",10)");
             st.executeUpdate("INSERT inventory.BranchInventory(BranchId,IngredientId,QuantityOnHand,MinThreshold,PrepTargetQty) "
                     + "VALUES (" + branchId + "," + ingredient + ",1000,0,NULL),(" + branchId + "," + prepped + ",0,300,1000)");
-            st.executeUpdate("INSERT sales.Orders(BranchId,Source,OrderType,Status,CreatedBy) VALUES (" + branchId + ",'COUNTER','TAKEAWAY','ACTIVE'," + one + ")");
-            int orderId = id(conn, "SELECT MAX(OrderId) FROM sales.Orders");
-            st.executeUpdate("INSERT sales.OrderItem(OrderId,ProductId,Quantity,UnitPrice,Status) VALUES (" + orderId + "," + product + ",2,10000,'WAITING')");
+            st.executeUpdate("INSERT sales.SalesOrder(BranchId,Source,OrderType,Status,CreatedBy,BusinessDate) VALUES ("
+                    + branchId + ",'QR','TAKEAWAY','ACTIVE',NULL"
+                    + ",CONVERT(date,DATEADD(hour,7,SYSUTCDATETIME())))");
+            int orderId = id(conn, "SELECT MAX(OrderId) FROM sales.SalesOrder");
+            st.executeUpdate("INSERT sales.OrderItem(OrderId,BranchId,ProductId,Quantity,UnitPrice,Status,ProductNameAtOrder) VALUES ("
+                    + orderId + "," + branchId + "," + product + ",2,10000,'WAITING',N'IT Drink " + key + "')");
             int itemId = id(conn, "SELECT MAX(OrderItemId) FROM sales.OrderItem");
             if (withModifier) {
-                st.executeUpdate("INSERT catalog.ModifierGroup(Name) VALUES (N'IT Extra')");
+                st.executeUpdate("INSERT catalog.ModifierGroup(ProductId,Name,SortOrder) VALUES (" + product + ",N'IT Extra " + key + "',5)");
                 int groupId = id(conn, "SELECT MAX(ModifierGroupId) FROM catalog.ModifierGroup");
-                st.executeUpdate("INSERT catalog.ModifierOption(ModifierGroupId,Name,PriceDelta) VALUES (" + groupId + ",N'IT Extra',0)");
+                st.executeUpdate("INSERT catalog.ModifierOption(ModifierGroupId,Name,PriceDelta) VALUES (" + groupId + ",N'IT Extra " + key + "',0)");
                 int optionId = id(conn, "SELECT MAX(ModifierOptionId) FROM catalog.ModifierOption");
-                st.executeUpdate("INSERT catalog.ModifierIngredientImpact(ModifierOptionId,IngredientId,QtyDelta) VALUES (" + optionId + "," + ingredient + ",2)");
-                st.executeUpdate("INSERT sales.OrderItemModifier(OrderItemId,ModifierOptionId,PriceDelta) VALUES (" + itemId + "," + optionId + ",0)");
+                st.executeUpdate("INSERT catalog.Recipe(OwnerType,OwnerId,IngredientId,Quantity) VALUES ('MODIFIER'," + optionId + "," + ingredient + ",2)");
+                st.executeUpdate("INSERT sales.OrderItemModifier(OrderItemId,ModifierOptionId,PriceDelta,ModifierOptionNameAtOrder) VALUES (" + itemId + "," + optionId + ",0,N'IT Extra " + key + "')");
             }
             return new Fixture(branchId, one, two, itemId, ingredient, prepped);
         }
@@ -284,7 +291,7 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
         }
     }
 
-    private static int scalarInt(String sql, int id) throws Exception {
+    private static int scalarInt(String sql, long id) throws Exception {
         try (Connection conn = connection()) { return id(conn, sql, id); }
     }
 
@@ -294,11 +301,11 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
             ps.executeUpdate();
         }
     }
-    private static String scalarString(String sql, int id) throws Exception {
-        try (Connection conn = connection(); PreparedStatement ps = conn.prepareStatement(sql)) { ps.setInt(1, id); try (ResultSet rs = ps.executeQuery()) { rs.next(); return rs.getString(1); } }
+    private static String scalarString(String sql, long id) throws Exception {
+        try (Connection conn = connection(); PreparedStatement ps = conn.prepareStatement(sql)) { ps.setLong(1, id); try (ResultSet rs = ps.executeQuery()) { rs.next(); return rs.getString(1); } }
     }
-    private static BigDecimal scalarDecimal(String sql, int id) throws Exception {
-        try (Connection conn = connection(); PreparedStatement ps = conn.prepareStatement(sql)) { ps.setInt(1, id); try (ResultSet rs = ps.executeQuery()) { rs.next(); return rs.getBigDecimal(1); } }
+    private static BigDecimal scalarDecimal(String sql, long id) throws Exception {
+        try (Connection conn = connection(); PreparedStatement ps = conn.prepareStatement(sql)) { ps.setLong(1, id); try (ResultSet rs = ps.executeQuery()) { rs.next(); return rs.getBigDecimal(1); } }
     }
 
     private record Fixture(int branchId, int baristaOneId, int baristaTwoId, int orderItemId,

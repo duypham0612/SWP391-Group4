@@ -46,7 +46,7 @@ class KdsQueuePageTest {
 
     @Test
     void page_slices_the_queue_and_reports_its_range() {
-        KdsService.QueuePage page = KdsService.paginate(waiting(25), 2, 12);
+        QueuePage page = KdsService.paginate(waiting(25), 2, 12);
 
         assertEquals(List.of(13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24), ids(page.getItems()));
         assertEquals(25, page.getTotal());
@@ -60,7 +60,7 @@ class KdsQueuePageTest {
     /** Trang cuối chỉ còn phần dư — không được vượt quá cuối danh sách. */
     @Test
     void last_page_holds_only_the_remainder() {
-        KdsService.QueuePage page = KdsService.paginate(waiting(25), 3, 12);
+        QueuePage page = KdsService.paginate(waiting(25), 3, 12);
 
         assertEquals(List.of(25), ids(page.getItems()));
         assertEquals(25, page.getStartRow());
@@ -71,7 +71,7 @@ class KdsQueuePageTest {
     /** Hàng chờ ngắn đi sau một thao tác → trang đang xem có thể không còn; phải kéo về trang cuối. */
     @Test
     void page_beyond_the_end_falls_back_to_the_last_page() {
-        KdsService.QueuePage page = KdsService.paginate(waiting(5), 9, 12);
+        QueuePage page = KdsService.paginate(waiting(5), 9, 12);
 
         assertEquals(1, page.getPage());
         assertEquals(5, page.getItems().size());
@@ -79,7 +79,7 @@ class KdsQueuePageTest {
 
     @Test
     void empty_queue_still_reports_one_page() {
-        KdsService.QueuePage page = KdsService.paginate(List.of(), 1, 12);
+        QueuePage page = KdsService.paginate(List.of(), 1, 12);
 
         assertTrue(page.getItems().isEmpty());
         assertEquals(1, page.getTotalPages());
@@ -161,7 +161,7 @@ class KdsQueuePageTest {
         for (int i = 1; i <= 10; i++) items.add(lineOf(i, 200 + i));   // 10 đơn một dòng
         for (int i = 11; i <= 14; i++) items.add(lineOf(i, 999));      // một đơn 4 dòng
 
-        KdsService.QueuePage page = KdsService.paginate(items, 1, 12);
+        QueuePage page = KdsService.paginate(items, 1, 12);
 
         assertEquals(14, page.getItems().size());   // kéo trọn khối 4 dòng thay vì cắt ở dòng 12
         assertEquals(1, page.getTotalPages());
@@ -178,7 +178,7 @@ class KdsQueuePageTest {
         for (int i = 11; i <= 14; i++) items.add(lineOf(i, 999));      // trang 1 dôi thành 14 dòng
         for (int i = 15; i <= 17; i++) items.add(lineOf(i, 300 + i));
 
-        KdsService.QueuePage second = KdsService.paginate(items, 2, 12);
+        QueuePage second = KdsService.paginate(items, 2, 12);
 
         assertEquals(List.of(15, 16, 17), ids(second.getItems()));
         assertEquals(2, second.getTotalPages());
@@ -196,8 +196,8 @@ class KdsQueuePageTest {
         for (int i = 1; i <= 15; i++) items.add(lineOf(i, 999));
         items.add(lineOf(16, 777));
 
-        KdsService.QueuePage first = KdsService.paginate(items, 1, 12);
-        KdsService.QueuePage second = KdsService.paginate(items, 2, 12);
+        QueuePage first = KdsService.paginate(items, 1, 12);
+        QueuePage second = KdsService.paginate(items, 2, 12);
 
         assertEquals(15, first.getItems().size());
         assertEquals(2, first.getTotalPages());
@@ -214,7 +214,7 @@ class KdsQueuePageTest {
         tea.setProductName("Trà sen vàng");
         items.add(tea);
 
-        KdsService.QueuePage page = KdsService.paginate(
+        QueuePage page = KdsService.paginate(
                 KdsService.filterWorkbench(items, "all", "TEA", "all", 7), 1, 12);
 
         assertEquals(1, page.getTotal());

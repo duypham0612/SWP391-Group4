@@ -6,10 +6,8 @@ public class DiningTable {
     private int branchId;
     private String tableNumber;
     private String qrCode;
-    private String status;             // EMPTY | OCCUPIED | CLEANING
+    private String status;             // EMPTY | OCCUPIED
 
-    // join: phiên đang OPEN (nếu có)
-    private Integer activeSessionId;
     private Integer activeItemCount;
 
     public int getDiningTableId() { return diningTableId; }
@@ -27,11 +25,7 @@ public class DiningTable {
     public String getStatus() { return status; }
     public void setStatus(String v) { this.status = v; }
 
-    public Integer getActiveSessionId() { return activeSessionId; }
-    public void setActiveSessionId(Integer v) { this.activeSessionId = v; }
-
     public Integer getActiveItemCount() { return activeItemCount; }
     public void setActiveItemCount(Integer v) { this.activeItemCount = v; }
 
-    public boolean isOccupied() { return activeSessionId != null; }
 }

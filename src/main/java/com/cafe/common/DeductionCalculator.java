@@ -1,7 +1,6 @@
 package com.cafe.common;
 
-import com.cafe.model.ModifierIngredientImpact;
-import com.cafe.model.ProductRecipe;
+import com.cafe.model.Recipe;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
@@ -21,19 +20,19 @@ public final class DeductionCalculator {
     private DeductionCalculator() {}
 
     public static Map<Integer, BigDecimal> computeRequired(
-            List<ProductRecipe> recipe,
-            List<ModifierIngredientImpact> impacts,
+            List<Recipe> recipe,
+            List<Recipe> impacts,
             int orderItemQty) {
 
         Map<Integer, BigDecimal> perUnit = new LinkedHashMap<>();
         if (recipe != null) {
-            for (ProductRecipe r : recipe) {
+            for (Recipe r : recipe) {
                 perUnit.merge(r.getIngredientId(), r.getQuantity(), BigDecimal::add);
             }
         }
         if (impacts != null) {
-            for (ModifierIngredientImpact m : impacts) {
-                perUnit.merge(m.getIngredientId(), m.getQtyDelta(), BigDecimal::add);
+            for (Recipe m : impacts) {
+                perUnit.merge(m.getIngredientId(), m.getQuantity(), BigDecimal::add);
             }
         }
 

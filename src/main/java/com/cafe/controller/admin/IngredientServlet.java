@@ -1,6 +1,6 @@
 package com.cafe.controller.admin;
 
-import com.cafe.common.CsrfUtil;
+import com.cafe.web.support.CsrfUtil;
 import com.cafe.common.BusinessException;
 import com.cafe.model.Ingredient;
 import com.cafe.service.admin.IngredientService;
@@ -15,7 +15,12 @@ import java.io.IOException;
 @WebServlet("/admin/ingredient")
 public class IngredientServlet extends HttpServlet {
 
-    private final IngredientService service = new IngredientService();
+    private final IngredientService service;
+
+    public IngredientServlet() { this(new IngredientService()); }
+    IngredientServlet(IngredientService service) {
+        this.service = java.util.Objects.requireNonNull(service);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -77,6 +82,10 @@ public class IngredientServlet extends HttpServlet {
         i.setName(trim(req.getParameter("name")));
         i.setUnit(trim(req.getParameter("unit")));
         i.setIngredientType(trim(req.getParameter("ingredientType")));
+        i.setPurchaseUnitName(trim(req.getParameter("purchaseUnitName")));
+        String purchaseFactor = trim(req.getParameter("purchaseFactorToBase"));
+        if (purchaseFactor != null && !purchaseFactor.isBlank())
+            i.setPurchaseFactorToBase(decimal(purchaseFactor));
         if ("PREPPED".equals(i.getIngredientType())) {
             String hours = trim(req.getParameter("shelfLifeHours"));
             if (hours != null && !hours.isBlank()) {
@@ -103,4 +112,8 @@ public class IngredientServlet extends HttpServlet {
     }
 
     private String trim(String s) { return s == null ? null : s.trim(); }
+    private java.math.BigDecimal decimal(String value) {
+        try { return value == null ? null : new java.math.BigDecimal(value.trim()); }
+        catch (RuntimeException e) { throw new BusinessException("Hệ số quy đổi không hợp lệ."); }
+    }
 }

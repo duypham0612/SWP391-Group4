@@ -8,7 +8,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Đặt món · ${table.tableNumber}</title>
-<link rel="stylesheet" href="${ctx}/assets/css/cafe-theme.css?v=${applicationScope.assetVersion}">
+<link rel="stylesheet" href="${ctx}/assets/css/core.css?v=${applicationScope.assetVersion}">
+<link rel="stylesheet" href="${ctx}/assets/css/customer.css?v=${applicationScope.assetVersion}">
+<link rel="stylesheet" href="${ctx}/assets/css/responsive.css?v=${applicationScope.assetVersion}">
 <style>
   body{background:var(--paper);margin:0}
   .qr-app{max-width:540px;margin:0 auto;padding:0 0 132px}
@@ -40,7 +42,7 @@
     <div class="qr-top">
         <div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
             <h1>Cà Phê Chain</h1>
-            <a href="${ctx}/qr/track?s=${sessionId}" style="color:#fff;font-size:.86rem">Xem đơn đã gọi</a>
+            <a href="${ctx}/qr/track?t=${tableId}" style="color:#fff;font-size:.86rem">Xem đơn đã gọi</a>
         </div>
         <div class="sub">${table.tableNumber} · Quét QR đặt món tại bàn</div>
     </div>
@@ -60,13 +62,13 @@
                     </div>
                 </div>
                 <c:if test="${m.availabilityState == 'LOW'}">
-                    <div class="badge badge-waiting" style="margin-top:10px">⚠ <c:out value="${m.stockMessage}" /></div>
+                    <div class="badge badge-waiting" style="margin-top:10px">⚠ <c:out value="${view.stockMessage(m)}" /></div>
                 </c:if>
                 <c:if test="${m.availabilityState == 'OUT'}">
-                    <div class="badge badge-cancelled" style="margin-top:10px">Hết món · <c:out value="${m.stockMessage}" /></div>
+                    <div class="badge badge-cancelled" style="margin-top:10px">Hết món · <c:out value="${view.stockMessage(m)}" /></div>
                 </c:if>
                 <c:if test="${m.availabilityState == 'EIGHTY_SIX'}">
-                    <div class="badge badge-cancelled" style="margin-top:10px"><c:out value="${m.stockMessage}" /></div>
+                    <div class="badge badge-cancelled" style="margin-top:10px"><c:out value="${view.stockMessage(m)}" /></div>
                 </c:if>
                 <c:forEach var="g" items="${m.groups}">
                     <div class="qr-grp" data-group-name="${g.name}" data-required="${g.required}" data-min="${g.minSelect}" data-max="${g.maxSelect}">
@@ -101,7 +103,7 @@
 </div>
 
 <script>
-const CSRF='${sessionScope.csrfToken}', CTX='${ctx}', SID=${sessionId};
+const CSRF='${sessionScope.csrfToken}', CTX='${ctx}', TABLE_ID=${tableId};
 let cart=[];
 function fmt(n){return new Intl.NumberFormat('vi-VN').format(n)+' ₫';}
 function showProductError(card,text){
@@ -158,7 +160,7 @@ function placeOrder(){
   fetch(CTX+'/qr/menu?_csrf='+encodeURIComponent(CSRF),{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},
     body:JSON.stringify({items:cart.map(l=>({productId:l.productId,quantity:l.quantity,optionIds:l.optionIds}))})})
    .then(r=>r.json().then(j=>({ok:r.ok,j}))).then(({ok,j})=>{
-     if(ok){location.href=CTX+'/qr/track?s='+j.sessionId;}
+     if(ok){location.href=CTX+'/qr/track?t='+j.tableId;}
      else{
        if(j.code==='ITEM_UNAVAILABLE'&&j.productId){
          cart.forEach(l=>{if(l.productId===j.productId){l.unavailable=true;l.unavailableReason=j.error||'Món hiện không nhận đặt.';}});

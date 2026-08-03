@@ -17,7 +17,6 @@ public enum EventType {
     TABLE_OPEN_REQUESTED("table.open_requested"), // Khách quét QR ở bàn chưa mở — xin quầy mở bàn
     BILL_REQUESTED("bill.requested"),
     BILL_VOIDED("bill.voided"),
-    BILL_REFUNDED("bill.refunded"),
     CASHIER_SHIFT_HANDOVER("cashier.shift_handover");
 
     private final String wire;

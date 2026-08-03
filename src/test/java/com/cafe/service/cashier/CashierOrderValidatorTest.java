@@ -1,6 +1,6 @@
 package com.cafe.service.cashier;
 
-import com.cafe.service.shared.OrderService;
+import com.cafe.model.CartLine;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -33,8 +33,8 @@ class CashierOrderValidatorTest {
                 CashierOrderValidator.validate(List.of(line(1, 20), line(2, 20))));
     }
 
-    private static OrderService.CartLine line(int productId, int quantity) {
-        OrderService.CartLine line = new OrderService.CartLine();
+    private static CartLine line(int productId, int quantity) {
+        CartLine line = new CartLine();
         line.productId = productId;
         line.quantity = quantity;
         return line;

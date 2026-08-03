@@ -1,11 +1,14 @@
 package com.cafe.controller.admin;
 
-import com.cafe.common.CsrfUtil;
+import com.cafe.web.support.CsrfUtil;
 import com.cafe.model.Product;
 import com.cafe.service.admin.BranchService;
 import com.cafe.service.admin.CategoryService;
 import com.cafe.service.admin.ProductService;
 import com.cafe.service.admin.ProductService.ProductSizeConfig;
+import com.cafe.common.BusinessException;
+import com.cafe.web.form.FormBindingException;
+import com.cafe.web.form.ProductForm;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -13,15 +16,25 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
-import java.math.BigDecimal;
+import java.util.Objects;
 
 /** Admin product management. */
 @WebServlet("/admin/product")
 public class ProductServlet extends HttpServlet {
 
-    private final ProductService service = new ProductService();
-    private final CategoryService categoryService = new CategoryService();
-    private final BranchService branchService = new BranchService();
+    private final ProductService service;
+    private final CategoryService categoryService;
+    private final BranchService branchService;
+
+    public ProductServlet() {
+        this(new ProductService(), new CategoryService(), new BranchService());
+    }
+
+    ProductServlet(ProductService service, CategoryService categoryService, BranchService branchService) {
+        this.service = Objects.requireNonNull(service, "service");
+        this.categoryService = Objects.requireNonNull(categoryService, "categoryService");
+        this.branchService = Objects.requireNonNull(branchService, "branchService");
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -102,17 +115,9 @@ public class ProductServlet extends HttpServlet {
                 resp.sendRedirect(ctx + "/admin/product");
                 return;
             }
-            Product p = bind(req);
-            ProductSizeConfig sizeConfig = bindSizeConfig(req);
-            String error = validate(p);
-            if (error == null) error = validateSizeConfig(sizeConfig);
-            if (error != null) {
-                req.setAttribute("product", p);
-                req.setAttribute("sizeConfig", sizeConfig);
-                req.setAttribute("errorMsg", error);
-                forwardForm(req, resp, p.getProductId() == 0 ? "Thêm sản phẩm" : "Sửa sản phẩm");
-                return;
-            }
+            ProductForm form = ProductForm.from(req);
+            Product p = form.product();
+            ProductSizeConfig sizeConfig = form.sizeConfig();
             if (p.getProductId() == 0) {
                 service.createProduct(p, sizeConfig);
                 req.getSession().setAttribute("flashOk", "Đã thêm sản phẩm thành công.");
@@ -121,44 +126,10 @@ public class ProductServlet extends HttpServlet {
                 req.getSession().setAttribute("flashOk", "Đã cập nhật sản phẩm thành công.");
             }
             resp.sendRedirect(ctx + "/admin/product");
+        } catch (BusinessException | FormBindingException e) {
+            req.getSession().setAttribute("flashError", e.getMessage());
+            resp.sendRedirect(ctx + "/admin/product");
         } catch (Exception e) { throw new ServletException(e); }
-    }
-
-    private Product bind(HttpServletRequest req) {
-        Product p = new Product();
-        String id = req.getParameter("productId");
-        if (id != null && !id.isBlank()) p.setProductId(Integer.parseInt(id));
-        p.setCategoryId(parsePositiveInt(req.getParameter("categoryId")));
-        p.setName(trim(req.getParameter("name")));
-        String price = req.getParameter("basePrice");
-        try { p.setBasePrice(price == null || price.isBlank() ? BigDecimal.ZERO : new BigDecimal(price.trim().replace(",", ""))); }
-        catch (NumberFormatException e) { p.setBasePrice(BigDecimal.valueOf(-1)); }
-        p.setImageUrl(trim(req.getParameter("imageUrl")));
-        p.setActive(req.getParameter("active") != null);
-        String prep = req.getParameter("prepMinutes");
-        try { p.setPrepSeconds(prep == null || prep.isBlank() ? 720 : Integer.parseInt(prep.trim()) * 60); }
-        catch (NumberFormatException e) { p.setPrepSeconds(-1); }
-        return p;
-    }
-
-    private ProductSizeConfig bindSizeConfig(HttpServletRequest req) {
-        ProductSizeConfig cfg = ProductSizeConfig.defaults();
-        cfg.setSizeMDelta(parseMoney(req.getParameter("sizeMDelta")));
-        cfg.setSizeLDelta(parseMoney(req.getParameter("sizeLDelta")));
-        return cfg;
-    }
-
-    private String validate(Product p) {
-        if (p.getName() == null || p.getName().isBlank()) return "Tên sản phẩm không được để trống.";
-        if (p.getCategoryId() <= 0) return "Vui lòng chọn danh mục.";
-        if (p.getBasePrice() == null || p.getBasePrice().signum() < 0) return "Giá phải là số lớn hơn hoặc bằng 0.";
-        if (p.getPrepSeconds() < 60) return "Thời gian pha chuẩn phải là số phút lớn hơn hoặc bằng 1.";
-        return null;
-    }
-
-    private String validateSizeConfig(ProductSizeConfig cfg) {
-        if (cfg.getSizeMDelta().signum() < 0 || cfg.getSizeLDelta().signum() < 0) return "Giá tăng size phải lớn hơn hoặc bằng 0.";
-        return null;
     }
 
     private void forwardForm(HttpServletRequest req, HttpServletResponse resp, String title)
@@ -167,17 +138,6 @@ public class ProductServlet extends HttpServlet {
         catch (Exception e) { throw new ServletException(e); }
         req.setAttribute("pageTitle", title);
         req.getRequestDispatcher("/WEB-INF/views/admin/product-form.jsp").forward(req, resp);
-    }
-
-    private String trim(String s) { return s == null ? null : s.trim(); }
-
-    private BigDecimal parseMoney(String raw) {
-        try {
-            if (raw == null || raw.isBlank()) return BigDecimal.ZERO;
-            return new BigDecimal(raw.trim().replace(",", ""));
-        } catch (NumberFormatException e) {
-            return BigDecimal.valueOf(-1);
-        }
     }
 
     private int parsePositiveInt(String raw) {

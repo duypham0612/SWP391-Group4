@@ -1,13 +1,16 @@
 package com.cafe.controller.barista;
-import com.cafe.controller.manager.InventoryDashboardServlet;
 
 import com.cafe.common.BusinessException;
 import com.cafe.common.Constants;
-import com.cafe.common.CsrfUtil;
+import com.cafe.web.support.CsrfUtil;
 import com.cafe.common.Reason86;
-import com.cafe.common.SessionUtil;
+import com.cafe.web.support.SessionUtil;
+import com.cafe.web.support.BaristaShiftSupport;
+import com.cafe.web.support.BaristaWritePolicy;
 import com.cafe.model.User;
 import com.cafe.service.shared.BranchMenuService;
+import com.cafe.web.support.BranchContext;
+import com.cafe.web.support.RequestParams;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -17,6 +20,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -25,19 +29,26 @@ import java.time.format.DateTimeParseException;
 @WebServlet("/barista/eightysix")
 public class EightySixServlet extends HttpServlet {
 
-    private final BranchMenuService service = new BranchMenuService();
+    private final BranchMenuService service;
+    private final BaristaShiftSupport shiftSupport;
     private static final DateTimeFormatter HTML_DT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm");
+
+    public EightySixServlet() { this(new BranchMenuService(), new BaristaShiftSupport()); }
+    EightySixServlet(BranchMenuService service, BaristaShiftSupport shiftSupport) {
+        this.service = Objects.requireNonNull(service);
+        this.shiftSupport = Objects.requireNonNull(shiftSupport);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
-        String query = textParam(req, "q", 100);
+        int branchId = BranchContext.requireBranchId(req);
+        String query = RequestParams.text(req, "q", 100);
         String state = normalizeState(req.getParameter("state"));
-        int pageSize = normalizePageSize(positiveIntParam(req, "pageSize", 10));
+        int pageSize = normalizePageSize(RequestParams.positiveInt(req, "pageSize", 10));
         try {
             BranchMenuService.MenuAvailabilityPage menuPage = service.getMenuAvailabilityPage(
-                    branchId, query, state, positiveIntParam(req, "page", 1), pageSize);
+                    branchId, query, state, RequestParams.positiveInt(req, "page", 1), pageSize);
             req.setAttribute("menuPage", menuPage);
             req.setAttribute("items", menuPage.getItems());
             req.setAttribute("filterQuery", query);
@@ -49,7 +60,7 @@ public class EightySixServlet extends HttpServlet {
             req.setAttribute("etaMin", now.plusMinutes(Constants.MENU86_ETA_MIN_MINUTES).format(HTML_DT));
             req.setAttribute("etaMax", now.plusDays(Constants.MENU86_ETA_MAX_DAYS).format(HTML_DT));
             req.setAttribute("pageTitle", "Báo hết món");
-            BaristaShift.expose(req, "/barista/eightysix");   // trực ca: banner + khoá thao tác khi ngoài ca
+            shiftSupport.expose(req, "/barista/eightysix");   // trực ca: banner + khoá thao tác khi ngoài ca
             req.getRequestDispatcher("/WEB-INF/views/barista/eightysix.jsp").forward(req, resp);
         } catch (Exception e) { throw new ServletException(e); }
     }
@@ -65,8 +76,8 @@ public class EightySixServlet extends HttpServlet {
             resp.sendRedirect(redirect);
             return;
         }
-        if (BaristaShift.guardWrite(req, resp, "/barista/eightysix")) return;   // ngoài ca → chặn ghi
-        int branchId = InventoryDashboardServlet.branchId(req);
+        if (shiftSupport.guardWrite(req, resp, "/barista/eightysix")) return;   // ngoài ca → chặn ghi
+        int branchId = BranchContext.requireBranchId(req);
         User u = SessionUtil.currentUser(req);
         int userId = u != null ? u.getUserId() : 0;
         try {
@@ -109,29 +120,13 @@ public class EightySixServlet extends HttpServlet {
         return value == 20 || value == 50 ? value : 10;
     }
 
-    private static int positiveIntParam(HttpServletRequest req, String name, int fallback) {
-        try {
-            int value = Integer.parseInt(req.getParameter(name));
-            return value > 0 ? value : fallback;
-        } catch (NumberFormatException e) {
-            return fallback;
-        }
-    }
-
-    private static String textParam(HttpServletRequest req, String name, int maxLength) {
-        String value = req.getParameter(name);
-        if (value == null || value.isBlank()) return "";
-        value = value.trim();
-        return value.length() <= maxLength ? value : value.substring(0, maxLength);
-    }
-
     private static String returnUrl(HttpServletRequest req) {
         StringBuilder url = new StringBuilder(req.getContextPath()).append("/barista/eightysix");
-        appendQueryParam(url, "q", textParam(req, "q", 100));
+        appendQueryParam(url, "q", RequestParams.text(req, "q", 100));
         appendQueryParam(url, "state", normalizeState(req.getParameter("state")));
-        int page = positiveIntParam(req, "page", 1);
+        int page = RequestParams.positiveInt(req, "page", 1);
         if (page > 1) appendQueryParam(url, "page", String.valueOf(page));
-        int pageSize = normalizePageSize(positiveIntParam(req, "pageSize", 10));
+        int pageSize = normalizePageSize(RequestParams.positiveInt(req, "pageSize", 10));
         if (pageSize != 10) appendQueryParam(url, "pageSize", String.valueOf(pageSize));
         return url.toString();
     }

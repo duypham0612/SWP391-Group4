@@ -2,16 +2,13 @@ package com.cafe.service.manager;
 
 import com.cafe.model.MonthlyAttendanceRow;
 import com.cafe.model.MonthlyWorkSummary;
+import com.cafe.web.viewmodel.ViewFormatter;
 import org.junit.jupiter.api.Test;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AttendanceMonthlySummaryTest {
 
@@ -59,38 +56,11 @@ class AttendanceMonthlySummaryTest {
         MonthlyAttendanceRow r = absent("PENDING");
         MonthlyWorkSummary s = AttendanceService.summarize(List.of(r));
 
-        assertEquals("Vắng", r.getStateLabel());
-        assertEquals("badge-served", r.getStateBadge());
+        ViewFormatter view = new ViewFormatter();
+        assertEquals("Vắng", view.attendanceState(r));
+        assertEquals("badge-served", view.attendanceBadge(r));
         assertEquals(1, s.getAbsentCount());
         assertEquals(0, s.getPendingHours());
-    }
-
-    @Test
-    void unlockedPayroll_hasNoPay() {
-        MonthlyWorkSummary s = AttendanceService.summarize(List.of(row("APPROVED", 8.0)));
-
-        assertFalse(s.isPayrollLocked());
-        assertNull(s.getLockedPay());
-    }
-
-    @Test
-    void lockedPay_usesLockedHoursNotApprovedHours() {
-        MonthlyWorkSummary s = AttendanceService.summarize(List.of(row("APPROVED", 16.0)));
-        s.setLockedHours(new BigDecimal("160"));
-        s.setHourlyRate(new BigDecimal("30000"));
-
-        assertTrue(s.isPayrollLocked());
-        assertEquals(new BigDecimal("4800000"), s.getLockedPay());
-        assertTrue(s.isHoursMismatch());
-    }
-
-    @Test
-    void matchingLockedHours_areNotMismatch() {
-        MonthlyWorkSummary s = AttendanceService.summarize(List.of(row("APPROVED", 16.0)));
-        s.setLockedHours(new BigDecimal("16.0"));
-        s.setHourlyRate(new BigDecimal("30000"));
-
-        assertFalse(s.isHoursMismatch());
     }
 
     @Test

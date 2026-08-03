@@ -7,7 +7,6 @@ import com.cafe.service.shared.WasteSummary;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 
@@ -22,7 +21,12 @@ public class WasteReportService {
     /** Nhật ký đính chính hiển thị nguyên khối (không phân trang) nên phải có trần. */
     public static final int MAX_CORRECTIONS = 100;
 
-    private final InventoryService inventoryService = new InventoryService();
+    private final InventoryService inventoryService;
+
+    public WasteReportService() { this(new InventoryService()); }
+    public WasteReportService(InventoryService inventoryService) {
+        this.inventoryService = java.util.Objects.requireNonNull(inventoryService);
+    }
 
     /** Chuẩn hoá khoảng ngày từ tham số URL. Hàm thuần — test được, không đụng DB. */
     public static Range resolveRange(String fromParam, String toParam, LocalDate todayVn) {
@@ -59,12 +63,12 @@ public class WasteReportService {
                 query, wasteType, status, page, pageSize);
     }
 
-    public java.util.List<com.cafe.model.WasteReview> openReviews(int branchId) throws SQLException {
+    public java.util.List<com.cafe.model.WasteEventReview> openReviews(int branchId) throws SQLException {
         return inventoryService.getOpenWasteReviews(branchId);
     }
 
     /** Nhật ký đính chính (sửa/huỷ) trong khoảng đang xem — chặn số dòng để màn không phình vô hạn. */
-    public java.util.List<com.cafe.model.WasteAuditEntry> corrections(int branchId, Range range) throws SQLException {
+    public java.util.List<com.cafe.model.WasteEventAudit> corrections(int branchId, Range range) throws SQLException {
         return inventoryService.getWasteCorrections(branchId, range.getFromUtc(), range.getToUtc(), MAX_CORRECTIONS);
     }
 
@@ -83,7 +87,6 @@ public class WasteReportService {
 
     /** Giữ cả mốc VN (render vào input) lẫn mốc UTC (query) để không lẫn múi giờ. */
     public static final class Range {
-        private static final DateTimeFormatter LABEL_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
         private final LocalDate fromDate;
         private final LocalDate toDate;
 
@@ -97,6 +100,5 @@ public class WasteReportService {
         public LocalDateTime getFromUtc() { return BusinessDay.vnDayStartUtc(fromDate); }
         public LocalDateTime getToUtc() { return BusinessDay.vnDayEndExclusiveUtc(toDate); }
         public long getDayCount() { return ChronoUnit.DAYS.between(fromDate, toDate) + 1; }
-        public String getLabel() { return fromDate.format(LABEL_FMT) + " – " + toDate.format(LABEL_FMT); }
     }
 }

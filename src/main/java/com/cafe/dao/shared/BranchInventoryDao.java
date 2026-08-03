@@ -80,6 +80,25 @@ public class BranchInventoryDao {
         }
     }
 
+    /**
+     * Đọc và khóa số dư đến hết transaction kiểm kê. HOLDLOCK cũng giữ range lock
+     * khi dòng chưa tồn tại, tránh một request khác chèn số dư vào giữa lúc đếm.
+     */
+    public BigDecimal[] findQtyAndThresholdForUpdate(Connection conn, int branchId, int ingredientId)
+            throws SQLException {
+        final String sql = "SELECT QuantityOnHand, MinThreshold " +
+                "FROM inventory.BranchInventory WITH (UPDLOCK, HOLDLOCK, ROWLOCK) " +
+                "WHERE BranchId=? AND IngredientId=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setInt(2, ingredientId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return new BigDecimal[]{rs.getBigDecimal(1), rs.getBigDecimal(2)};
+                return null;
+            }
+        }
+    }
+
     public BranchInventory findByBranchIngredient(Connection conn, int branchId, int ingredientId)
             throws SQLException {
         final String sql =

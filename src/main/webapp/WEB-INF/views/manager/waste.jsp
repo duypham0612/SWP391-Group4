@@ -3,6 +3,7 @@
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <%@ taglib prefix="fn" uri="jakarta.tags.functions" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
+<c:set var="cssBundles" value="kds,list-controls" scope="request" />
 <jsp:include page="../layout/header.jsp" />
 
 <c:if test="${not empty sessionScope.flashOk}"><div class="alert alert-success">${sessionScope.flashOk}</div><c:remove var="flashOk" scope="session" /></c:if>
@@ -20,19 +21,37 @@
 <section class="card" style="margin-bottom:22px">
     <div class="waste-card__head">
         <div><h3>Lịch sử kiểm kê và điều chỉnh tồn</h3><p>Các lần ghi nhận chênh lệch giữa số lượng trên hệ thống và số lượng kiểm đếm thực tế.</p></div>
-        <strong>${fn:length(adjustments)} lần</strong>
+        <%-- Đếm số BIÊN BẢN kiểm kê, không đếm số dòng: một lượt kiểm kê tick 20 nguyên liệu
+             là 1 lần, trước đây hiển thị thành "20 lần". --%>
+        <strong>${fn:length(stockCounts)} lần · ${fn:length(adjustments)} dòng</strong>
     </div>
     <c:choose>
         <c:when test="${empty adjustments}">
             <div class="empty-state"><div class="icon">✓</div><p>Chưa phát sinh chênh lệch tồn kho.</p></div>
         </c:when>
         <c:otherwise>
+            <c:if test="${not empty stockCounts}">
+                <div class="table-scroll" style="margin-bottom:14px"><table class="table">
+                    <thead><tr><th>Biên bản</th><th>Thời điểm</th><th>Số nguyên liệu</th><th>Tổng chênh</th><th>Người kiểm</th></tr></thead>
+                    <tbody><c:forEach var="sc" items="${stockCounts}"><tr>
+<td>Batch ${sc.countBatchId}</td>
+                        <td>${sc.countedAt}</td>
+                        <td>${sc.lineCount}</td>
+                        <td><strong><c:if test="${sc.totalDiffQty.signum() > 0}">+</c:if>${view.grouped(sc.totalDiffQty)}</strong></td>
+                        <td>${sc.countedByName}</td>
+                    </tr></c:forEach></tbody>
+                </table></div>
+            </c:if>
             <div class="table-scroll"><table class="table">
-                <thead><tr><th>Mã</th><th>Nguyên liệu</th><th>Tồn hệ thống</th><th>Tồn thực tế</th><th>Chênh lệch</th><th>Lý do</th><th>Người thực hiện</th></tr></thead>
+                <thead><tr><th>Mã</th><th>Biên bản</th><th>Nguyên liệu</th><th>Tồn hệ thống</th><th>Tồn thực tế</th><th>Chênh lệch</th><th>Lý do</th><th>Người thực hiện</th></tr></thead>
                 <tbody><c:forEach var="a" items="${adjustments}"><tr>
-                    <td>#${a.stockAdjustmentId}</td><td>${a.ingredientName}</td>
-                    <td>${a.systemQtyDisplay} ${a.displayUnit}</td><td>${a.actualQtyDisplay} ${a.displayUnit}</td>
-                    <td><strong><c:if test="${a.diffQty.signum() > 0}">+</c:if>${a.diffQtyDisplay}</strong></td>
+                    <td>#${a.stockAdjustmentId}</td>
+                    <%-- null = chỉnh lẻ từ màn pha chế (báo hết nguyên liệu), không thuộc biên bản nào --%>
+<td><c:choose><c:when test="${empty a.countBatchId}"><span class="muted">lẻ</span></c:when>
+<c:otherwise>Batch ${a.countBatchId}</c:otherwise></c:choose></td>
+                    <td>${a.ingredientName}</td>
+                    <td>${view.grouped(a.systemBaseQty)} ${a.unitNameAtCount}</td><td>${view.grouped(a.actualBaseQty)} ${a.unitNameAtCount}</td>
+                    <td><strong><c:if test="${a.diffQty.signum() > 0}">+</c:if>${view.grouped(a.diffQty)}</strong></td>
                     <td><c:out value="${a.reason}" /></td><td>${a.adjustedByName}</td>
                 </tr></c:forEach></tbody>
             </table></div>
@@ -42,7 +61,7 @@
 
 <div class="section-title">
     <h2 style="margin:0">Hao hụt và làm lại món</h2>
-    <p class="muted" style="margin:4px 0 0">Số liệu trong khoảng ${range.label} (${range.dayCount} ngày).</p>
+    <p class="muted" style="margin:4px 0 0">Số liệu trong khoảng ${view.dateRange(range.fromDate, range.toDate)} (${range.dayCount} ngày).</p>
 </div>
 
 <c:url var="todayUrl" value="/manager/reconciliation">
@@ -126,20 +145,20 @@
     </div>
 </section>
 
-<p class="muted">Bốn số trên tính cho toàn bộ khoảng ngày ${range.label}, không chịu ảnh hưởng của bộ lọc và phân trang bên dưới.</p>
+<p class="muted">Bốn số trên tính cho toàn bộ khoảng ngày ${view.dateRange(range.fromDate, range.toDate)}, không chịu ảnh hưởng của bộ lọc và phân trang bên dưới.</p>
 
 <section class="card waste-review-card">
     <div class="waste-card__head"><div><h3>Ngoại lệ cần xử lý</h3><p>Kiểm tra các trường hợp tồn bị âm sau khi ghi nhận hao hụt, sau đó kiểm kê và điều chỉnh nếu cần.</p></div><strong>${fn:length(openReviews)} trường hợp</strong></div>
     <c:choose><c:when test="${empty openReviews}"><p class="muted">Không có ngoại lệ đang chờ xử lý.</p></c:when><c:otherwise>
         <div class="table-scroll"><table class="table"><thead><tr><th>Loại</th><th>Nguyên liệu</th><th>Tồn trước → sau</th><th>Ghi chú</th><th></th></tr></thead><tbody>
-        <c:forEach var="r" items="${openReviews}"><tr><td><span class="badge ${r.urgent ? 'badge-cancelled' : 'badge-making'}">${r.reviewTypeLabel}</span></td><td>${r.ingredientName}</td><td>${r.qtyBeforeDisplay} → ${r.qtyAfterDisplay}</td><td><c:out value="${r.note}" /></td><td><form action="${ctx}/manager/waste" method="post"><input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="resolveReview"><input type="hidden" name="reviewId" value="${r.wasteReviewId}"><input type="hidden" name="from" value="${range.fromDate}"><input type="hidden" name="to" value="${range.toDate}"><input type="hidden" name="q" value="${fn:escapeXml(wasteLogQuery)}"><input type="hidden" name="wasteType" value="${wasteLogWasteType}"><input type="hidden" name="status" value="${wasteLogStatus}"><input type="hidden" name="pageSize" value="${wasteLogPage.pageSize}"><input type="hidden" name="page" value="${wasteLogPage.page}"><input class="form-control" name="note" maxlength="255" placeholder="Ghi chú cách xử lý" required><button class="btn btn-primary btn-sm" type="submit">Đánh dấu đã xử lý</button></form></td></tr></c:forEach>
+<c:forEach var="r" items="${openReviews}"><tr><td><span class="badge ${r.urgent ? 'badge-cancelled' : 'badge-making'}">${view.reviewType(r.reviewType)}</span></td><td>${r.ingredientName}</td><td>${view.grouped(r.qtyBefore)} → ${view.grouped(r.qtyAfter)}</td><td><c:out value="${r.note}" /></td><td><form action="${ctx}/manager/waste" method="post"><input type="hidden" name="_csrf" value="${sessionScope.csrfToken}"><input type="hidden" name="action" value="resolveReview"><input type="hidden" name="wasteEntryId" value="${r.wasteEntryId}"><input type="hidden" name="from" value="${range.fromDate}"><input type="hidden" name="to" value="${range.toDate}"><input type="hidden" name="q" value="${fn:escapeXml(wasteLogQuery)}"><input type="hidden" name="wasteType" value="${wasteLogWasteType}"><input type="hidden" name="status" value="${wasteLogStatus}"><input type="hidden" name="pageSize" value="${wasteLogPage.pageSize}"><input type="hidden" name="page" value="${wasteLogPage.page}"><input class="form-control" name="note" maxlength="255" placeholder="Ghi chú cách xử lý" required><button class="btn btn-primary btn-sm" type="submit">Đánh dấu đã xử lý</button></form></td></tr></c:forEach>
         </tbody></table></div>
     </c:otherwise></c:choose>
 </section>
 
 <section class="card waste-review-card">
     <div class="waste-card__head">
-        <div><h3>Nhật ký đính chính</h3><p>Các lần sửa số lượng hoặc huỷ dòng hao hụt trong khoảng ${range.label}. Huỷ dòng đồng nghĩa tồn kho đã được hoàn lại.</p></div>
+        <div><h3>Nhật ký đính chính</h3><p>Các lần sửa số lượng hoặc huỷ dòng hao hụt trong khoảng ${view.dateRange(range.fromDate, range.toDate)}. Huỷ dòng đồng nghĩa tồn kho đã được hoàn lại.</p></div>
         <strong>${fn:length(corrections)} thao tác</strong>
     </div>
     <c:choose>
@@ -148,10 +167,10 @@
             <div class="table-scroll"><table class="table">
                 <thead><tr><th style="width:110px">Thời gian</th><th style="width:130px">Thao tác</th><th>Nguyên liệu</th><th style="width:150px">Số lượng</th><th>Lý do</th><th>Người thực hiện</th></tr></thead>
                 <tbody><c:forEach var="a" items="${corrections}"><tr>
-                    <td>${a.performedAtDisplay}</td>
-                    <td><span class="badge ${a.voidAction ? 'badge-cancelled' : 'badge-making'}">${a.actionLabel}</span></td>
+                    <td>${view.timeDateUtc(a.performedAt)}</td>
+                    <td><span class="badge ${a.voidAction ? 'badge-cancelled' : 'badge-making'}">${view.auditAction(a.actionType)}</span></td>
                     <td><strong>${a.ingredientName}</strong></td>
-                    <td>${a.changeDisplay} ${a.ingredientUnit}</td>
+                    <td>${view.auditChange(a.beforeValue, a.afterValue)} ${a.ingredientUnit}</td>
                     <td><c:out value="${a.reason}" /></td>
                     <td>${a.performedByName}</td>
                 </tr></c:forEach></tbody>
@@ -228,15 +247,15 @@
                 <c:otherwise>
                     <c:forEach var="w" items="${logs}">
                         <tr class="${w.status == 'VOIDED' ? 'row-muted' : ''}">
-                            <td>${w.loggedAtDisplay}</td>
+                            <td>${view.timeDateUtc(w.loggedAt)}</td>
                             <td>
                                 <strong>${w.ingredientName}</strong>
                                 <c:if test="${w.ingredientType == 'PREPPED'}"><span class="badge badge-making">Pha sẵn</span></c:if>
                             </td>
-                            <td><strong>${w.quantityDisplay}</strong> ${w.ingredientUnit}</td>
-                            <td>${w.wasteTypeLabel}</td>
-                            <td>${w.reason}<c:if test="${not empty w.wasteEvent}"><small class="muted"><br>${w.wasteEvent.sourceLabel}<c:if test="${not empty w.wasteEvent.productName}"> · ${w.wasteEvent.cupQuantity} × ${w.wasteEvent.productName}</c:if></small></c:if></td>
-                            <td><strong>${w.costDisplay}</strong><small class="muted"><br>${w.costBasisLabel}</small></td>
+                            <td><strong>${view.plain(w.quantity)}</strong> ${w.ingredientUnit}</td>
+                            <td>${view.wasteType(w.wasteType)}</td>
+                            <td>${w.reason}<c:if test="${not empty w.wasteEvent}"><small class="muted"><br>${view.wasteSource(w.wasteEvent.source)}<c:if test="${not empty w.wasteEvent.productName}"> · ${w.wasteEvent.cupQuantity} × ${w.wasteEvent.productName}</c:if></small></c:if></td>
+                            <td><strong>${view.wasteCost(w)}</strong><small class="muted"><br>${view.costBasis(w.costBasis)}</small></td>
                             <td>${w.loggedByName}</td>
                             <td>
                                 <c:choose>

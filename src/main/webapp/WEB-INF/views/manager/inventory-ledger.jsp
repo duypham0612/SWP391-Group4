@@ -34,16 +34,16 @@
                             <c:otherwise>Thay đổi khác</c:otherwise>
                         </c:choose></span></td>
                         <td style="font-weight:600;color:${t.changeQty.signum() < 0 ? 'var(--st-cancelled)' : 'var(--st-ready)'}">
-                            <c:if test="${t.changeQty.signum() > 0}">+</c:if>${t.changeQtyDisplay} ${t.ingredientUnit}
+                            <c:if test="${t.changeQty.signum() > 0}">+</c:if>${view.grouped(t.changeQty)} ${t.ingredientUnit}
                         </td>
                         <td><c:choose>
-                            <c:when test="${t.refTable == 'StockReceipt'}">Phiếu nhập</c:when>
-                            <c:when test="${t.refTable == 'OrderItem'}">Món đã pha</c:when>
-                            <c:when test="${t.refTable == 'PrepBatch'}">Mẻ sơ chế</c:when>
-                            <c:when test="${t.refTable == 'WasteLog'}">Ghi nhận hao hụt</c:when>
-                            <c:when test="${t.refTable == 'StockAdjustment'}">Lần kiểm kê</c:when>
-                            <c:otherwise>${t.refTable}</c:otherwise>
-                        </c:choose><c:if test="${not empty t.refId}"> #${t.refId}</c:if></td>
+                                <c:when test="${t.referenceType == 'STOCK_RECEIPT_LINE'}">Phiếu nhập</c:when>
+                            <c:when test="${t.referenceType == 'ORDER_ITEM'}">Món đã pha</c:when>
+                            <c:when test="${t.referenceType == 'PREP_BATCH'}">Mẻ sơ chế</c:when>
+                                <c:when test="${t.referenceType == 'WASTE_ENTRY'}">Ghi nhận hao hụt</c:when>
+                            <c:when test="${t.referenceType == 'STOCK_ADJUSTMENT'}">Lần kiểm kê</c:when>
+                            <c:otherwise>${t.referenceType}</c:otherwise>
+                        </c:choose><c:if test="${not empty t.referenceId}"> #${t.referenceId}</c:if></td>
                         <td>${t.createdByName}</td>
                     </tr>
                 </c:forEach>

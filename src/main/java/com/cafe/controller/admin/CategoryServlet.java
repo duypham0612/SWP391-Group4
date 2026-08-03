@@ -1,8 +1,11 @@
 package com.cafe.controller.admin;
 
-import com.cafe.common.CsrfUtil;
+import com.cafe.web.support.CsrfUtil;
 import com.cafe.model.Category;
 import com.cafe.service.admin.CategoryService;
+import com.cafe.common.BusinessException;
+import com.cafe.web.form.CategoryForm;
+import com.cafe.web.form.FormBindingException;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -10,12 +13,21 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /** Admin category management. */
 @WebServlet("/admin/category")
 public class CategoryServlet extends HttpServlet {
 
-    private final CategoryService service = new CategoryService();
+    private final CategoryService service;
+
+    public CategoryServlet() {
+        this(new CategoryService());
+    }
+
+    CategoryServlet(CategoryService service) {
+        this.service = Objects.requireNonNull(service, "service");
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -51,14 +63,7 @@ public class CategoryServlet extends HttpServlet {
                 resp.sendRedirect(ctx + "/admin/category");
                 return;
             }
-            Category c = bind(req);
-            String error = validate(c);
-            if (error != null) {
-                req.setAttribute("category", c);
-                req.setAttribute("errorMsg", error);
-                forwardForm(req, resp, c.getCategoryId() == 0 ? "Thêm danh mục" : "Sửa danh mục");
-                return;
-            }
+            Category c = CategoryForm.from(req).category();
             if (c.getCategoryId() == 0) {
                 service.createCategory(c);
                 req.getSession().setAttribute("flashOk", "Đã thêm danh mục thành công.");
@@ -67,24 +72,10 @@ public class CategoryServlet extends HttpServlet {
                 req.getSession().setAttribute("flashOk", "Đã cập nhật danh mục thành công.");
             }
             resp.sendRedirect(ctx + "/admin/category");
+        } catch (BusinessException | FormBindingException e) {
+            req.getSession().setAttribute("flashError", e.getMessage());
+            resp.sendRedirect(ctx + "/admin/category");
         } catch (Exception e) { throw new ServletException(e); }
-    }
-
-    private Category bind(HttpServletRequest req) {
-        Category c = new Category();
-        String id = req.getParameter("categoryId");
-        if (id != null && !id.isBlank()) c.setCategoryId(Integer.parseInt(id));
-        c.setName(trim(req.getParameter("name")));
-        c.setSortOrder(parseNonNegativeInt(req.getParameter("sortOrder"), -1));
-        c.setActive(req.getParameter("active") != null);
-        return c;
-    }
-
-    private String validate(Category c) {
-        if (c.getName() == null || c.getName().isBlank()) return "Tên danh mục không được để trống.";
-        if (c.getName().length() > 100) return "Tên danh mục tối đa 100 ký tự.";
-        if (c.getSortOrder() < 0) return "Thứ tự phải lớn hơn hoặc bằng 0.";
-        return null;
     }
 
     private void forwardForm(HttpServletRequest req, HttpServletResponse resp, String title)
@@ -93,15 +84,4 @@ public class CategoryServlet extends HttpServlet {
         req.getRequestDispatcher("/WEB-INF/views/admin/category-form.jsp").forward(req, resp);
     }
 
-    private String trim(String s) { return s == null ? null : s.trim(); }
-
-    private int parseNonNegativeInt(String raw, int fallback) {
-        try {
-            if (raw == null || raw.isBlank()) return 0;
-            int value = Integer.parseInt(raw.trim());
-            return value >= 0 ? value : fallback;
-        } catch (NumberFormatException e) {
-            return fallback;
-        }
-    }
 }

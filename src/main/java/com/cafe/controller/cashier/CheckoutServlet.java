@@ -1,18 +1,18 @@
 package com.cafe.controller.cashier;
-import com.cafe.controller.manager.InventoryDashboardServlet;
 
-import com.cafe.common.CsrfUtil;
-import com.cafe.common.SessionUtil;
+import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.SessionUtil;
 import com.cafe.common.Constants;
 import com.cafe.common.VietQrUtil;
 import com.cafe.model.Bill;
 import com.cafe.model.CashierShift;
-import com.cafe.model.TableSession;
+import com.cafe.model.DiningTable;
 import com.cafe.model.User;
 import com.cafe.service.cashier.BillingService;
 import com.cafe.service.cashier.CashPaymentCalculator;
 import com.cafe.service.cashier.CashierShiftService;
-import com.cafe.service.cashier.TableSessionService;
+import com.cafe.service.cashier.DiningTableService;
+import com.cafe.web.viewmodel.PaymentViewModelAssembler;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -21,28 +21,41 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
-/** C5 · CheckoutServlet → /cashier/checkout. ★ showBill | applyVoucher | splitBill | mergeBill | pay. */
+/** C5 · CheckoutServlet → /cashier/checkout. showBill | setDiscount | splitBill | mergeBill | pay. */
 @WebServlet("/cashier/checkout")
 public class CheckoutServlet extends HttpServlet {
 
-    private final BillingService billingService = new BillingService();
-    private final CashierShiftService shiftService = new CashierShiftService();
-    private final TableSessionService tableSessionService = new TableSessionService();
+    private final BillingService billingService;
+    private final CashierShiftService shiftService;
+    private final DiningTableService tableService;
+    private final PaymentViewModelAssembler paymentAssembler;
+
+    public CheckoutServlet() {
+        this(new BillingService(), new CashierShiftService(), new DiningTableService(),
+                new PaymentViewModelAssembler());
+    }
+
+    CheckoutServlet(BillingService billingService, CashierShiftService shiftService,
+                    DiningTableService tableService, PaymentViewModelAssembler paymentAssembler) {
+        this.billingService = Objects.requireNonNull(billingService, "billingService");
+        this.shiftService = Objects.requireNonNull(shiftService, "shiftService");
+        this.tableService = Objects.requireNonNull(tableService, "tableService");
+        this.paymentAssembler = Objects.requireNonNull(paymentAssembler, "paymentAssembler");
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         User u = SessionUtil.currentUser(req);
         try {
-            String sid = req.getParameter("sessionId");
+            String tid = req.getParameter("tableId");
             String oid = req.getParameter("orderId");
             CashierShift shift = u != null
                     ? shiftService.getCurrentShift(u.getUserId(), branchId) : null;
@@ -61,24 +74,23 @@ public class CheckoutServlet extends HttpServlet {
                 attachPaymentData(req, bills);
                 req.setAttribute("orderId", orderId);
                 req.setAttribute("takeawayCheckout", true);
-            } else if (sid != null && !sid.isBlank()) {
-                int sessionId = Integer.parseInt(sid);
-                TableSession tableSession = tableSessionService.getSession(sessionId);
-                if (tableSession == null || !"OPEN".equals(tableSession.getStatus())
-                        || tableSession.getBranchId() != branchId) {
+            } else if (tid != null && !tid.isBlank()) {
+                int tableId = Integer.parseInt(tid);
+                DiningTable table = billingService.getOpenTableForCheckout(tableId, branchId);
+                if (table == null) {
                     req.getSession().setAttribute("flashError", "Bàn trống, không thể thanh toán.");
                     resp.sendRedirect(req.getContextPath() + "/cashier/table");
                     return;
                 }
                 Integer shiftId = shift != null ? shift.getCashierShiftId() : null;
-                List<Bill> bills = billingService.buildSessionBill(sessionId, branchId, shiftId);
-                req.setAttribute("session", tableSession);
+                List<Bill> bills = billingService.buildTableBill(tableId, branchId, shiftId);
+                req.setAttribute("table", table);
                 req.setAttribute("bills", bills);
                 attachPaymentData(req, bills);
-                req.setAttribute("sessionId", sessionId);
+                req.setAttribute("tableId", tableId);
             } else {
-                // Chưa chọn: liệt kê phiên bàn và cả đơn mang đi chưa có bill.
-                req.setAttribute("openSessions", tableSessionService.getOpenSessions(branchId));
+                // Chưa chọn: liệt kê bàn đang phục vụ và cả đơn mang đi chưa có bill.
+                req.setAttribute("openTables", tableService.getOpenTables(branchId));
                 req.setAttribute("takeawayOrders",
                         billingService.getTakeawayOrdersAwaitingPayment(branchId));
             }
@@ -94,31 +106,27 @@ public class CheckoutServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         User u = SessionUtil.currentUser(req);
         String action = req.getParameter("action");
-        String sessionId = req.getParameter("sessionId");
+        String tableId = req.getParameter("tableId");
         String orderId = req.getParameter("orderId");
-        String back = checkoutBack(req, sessionId, orderId);
+        String back = checkoutBack(req, tableId, orderId);
         try {
-            if ("applyVoucher".equals(action)) {
-                int billId = Integer.parseInt(req.getParameter("billId"));
-                String err = billingService.applyVoucher(billId, req.getParameter("code"), branchId);
-                if (err != null) req.getSession().setAttribute("flashError", err);
-            } else if ("removeVoucher".equals(action)) {
-                billingService.removeVoucher(
-                        Integer.parseInt(req.getParameter("billId")), branchId);
-            } else if ("splitBill".equals(action) && hasText(sessionId)) {
+            if ("setDiscount".equals(action)) {
+                billingService.setDiscount(Integer.parseInt(req.getParameter("billId")),
+                        parseNonNegativeMoney(req.getParameter("discountAmount")), branchId);
+            } else if ("splitBill".equals(action) && hasText(tableId)) {
                 CashierShift shift = u != null
                         ? shiftService.getCurrentShift(u.getUserId(), branchId) : null;
                 Integer shiftId = shift != null ? shift.getCashierShiftId() : null;
-                billingService.splitItems(Integer.parseInt(sessionId), branchId, shiftId, intList(req.getParameterValues("billItemId")));
-            } else if ("mergeBill".equals(action) && hasText(sessionId)) {
+            billingService.splitItems(Integer.parseInt(tableId), branchId, shiftId, intList(req.getParameterValues("orderItemId")));
+            } else if ("mergeBill".equals(action) && hasText(tableId)) {
                 billingService.mergeBills(
                         intList(req.getParameterValues("billId")), branchId);
             } else if ("pay".equals(action)) {
                 int billId = Integer.parseInt(req.getParameter("billId"));
-                String err = validatePayable(billId, branchId);
+                String err = billingService.validatePayable(billId, branchId);
                 if (err != null) {
                     req.getSession().setAttribute("flashError", err);
                 } else {
@@ -134,12 +142,12 @@ public class CheckoutServlet extends HttpServlet {
                     if (!result.paid()) {
                         req.getSession().setAttribute("flashError", "Hoá đơn không thể thanh toán.");
                     } else {
-                        req.getSession().setAttribute("flashOk", paymentSuccessMessage(method, result));
+                        req.getSession().setAttribute("flashOk", paymentAssembler.successMessage(method, result));
                         if (hasText(orderId)) {
                             back = req.getContextPath() + "/cashier/history";
-                        } else if (hasText(sessionId)) {
-                            TableSession session = tableSessionService.getSession(Integer.parseInt(sessionId));
-                            if (session == null || !"OPEN".equals(session.getStatus())) {
+                        } else if (hasText(tableId)) {
+                            DiningTable table = tableService.getTable(Integer.parseInt(tableId));
+                            if (table == null || !"OCCUPIED".equals(table.getStatus())) {
                                 back = req.getContextPath() + "/cashier/table";
                             }
                         }
@@ -169,9 +177,9 @@ public class CheckoutServlet extends HttpServlet {
         return out;
     }
 
-    private String checkoutBack(HttpServletRequest req, String sessionId, String orderId) {
+    private String checkoutBack(HttpServletRequest req, String tableId, String orderId) {
         if (hasText(orderId)) return req.getContextPath() + "/cashier/checkout?orderId=" + orderId;
-        if (hasText(sessionId)) return req.getContextPath() + "/cashier/checkout?sessionId=" + sessionId;
+        if (hasText(tableId)) return req.getContextPath() + "/cashier/checkout?tableId=" + tableId;
         return req.getContextPath() + "/cashier/checkout";
     }
 
@@ -221,29 +229,10 @@ public class CheckoutServlet extends HttpServlet {
         }
     }
 
-    private String paymentSuccessMessage(String method, BillingService.PaymentResult result) {
-        if (!"CASH".equals(method)) return "Đã ghi nhận thanh toán thành công.";
-        return "Đã thu tiền mặt " + formatMoney(result.paidAmount())
-                + " đ. Tiền thối lại khách: " + formatMoney(result.cashChange()) + " đ.";
+    private BigDecimal parseNonNegativeMoney(String value) {
+        BigDecimal amount = parseMoney(value);
+        if (amount.signum() < 0) throw new IllegalArgumentException("Giảm giá không được âm.");
+        return amount;
     }
 
-    private String formatMoney(BigDecimal value) {
-        NumberFormat format = NumberFormat.getIntegerInstance(Locale.forLanguageTag("vi-VN"));
-        return format.format(value);
-    }
-
-    private String validatePayable(int billId, int branchId) throws Exception {
-        Bill bill = billingService.getBill(billId);
-        if (bill == null || bill.getBranchId() != branchId) return "Không tìm thấy hoá đơn.";
-        if (!"UNPAID".equals(bill.getStatus())) return "Hoá đơn đã được thanh toán hoặc đã huỷ.";
-        if (bill.getItems() == null || bill.getItems().isEmpty()) return "Hoá đơn chưa có món, không thể thanh toán.";
-        if (!bill.isReadyForPayment()) {
-            return "Chưa thể thanh toán — Barista phải pha xong và Cashier phải bàn giao đủ món trước.";
-        }
-        BigDecimal total = bill.getTotalAmount() == null ? BigDecimal.ZERO : bill.getTotalAmount();
-        if (total.compareTo(BigDecimal.ZERO) <= 0) return "Tổng tiền hoá đơn phải lớn hơn 0.";
-        String voucherError = billingService.validateBillVoucher(billId, branchId);
-        if (voucherError != null) return voucherError;
-        return null;
-    }
 }

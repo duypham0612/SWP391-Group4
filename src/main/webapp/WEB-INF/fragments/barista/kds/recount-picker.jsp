@@ -12,7 +12,12 @@
                 <input type="hidden" name="ingredientId" value="${line.ingredientId}">
                 <span class="kds-recount__name"><c:out value="${line.ingredientName}" /></span>
                 <span class="kds-recount__current">Hiện có ${line.branchQuantityOnHand.stripTrailingZeros().toPlainString()} <c:out value="${line.ingredientUnit}" /></span>
-                <input type="number" name="actualQty" min="0" step="0.001" inputmode="decimal" placeholder="Tồn thực tế">
+                <input type="number"
+                       name="actualQty"
+                       min="0"
+                       step="0.001"
+                       inputmode="decimal"
+                       placeholder="Tồn thực tế">
             </label>
         </c:forEach>
     </c:otherwise>

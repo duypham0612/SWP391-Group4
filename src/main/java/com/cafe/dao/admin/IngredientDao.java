@@ -13,7 +13,8 @@ import java.util.List;
 public class IngredientDao {
 
     public List<Ingredient> findAll(Connection conn) throws SQLException {
-        final String sql = "SELECT IngredientId, Name, Unit, IngredientType, ShelfLifeMinutes, IsActive " +
+        final String sql = "SELECT IngredientId,Name,Unit,IngredientType,ShelfLifeMinutes,PrepYieldQty," +
+                "PurchaseUnitName,PurchaseFactorToBase,IsActive " +
                 "FROM catalog.Ingredient ORDER BY IngredientType, Name";
         List<Ingredient> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql);
@@ -24,7 +25,8 @@ public class IngredientDao {
     }
 
     public List<Ingredient> findByType(Connection conn, String type) throws SQLException {
-        final String sql = "SELECT IngredientId, Name, Unit, IngredientType, ShelfLifeMinutes, IsActive " +
+        final String sql = "SELECT IngredientId,Name,Unit,IngredientType,ShelfLifeMinutes,PrepYieldQty," +
+                "PurchaseUnitName,PurchaseFactorToBase,IsActive " +
                 "FROM catalog.Ingredient WHERE IngredientType = ? AND IsActive = 1 ORDER BY Name";
         List<Ingredient> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -37,7 +39,8 @@ public class IngredientDao {
     }
 
     public Ingredient findById(Connection conn, int id) throws SQLException {
-        final String sql = "SELECT IngredientId, Name, Unit, IngredientType, ShelfLifeMinutes, IsActive " +
+        final String sql = "SELECT IngredientId,Name,Unit,IngredientType,ShelfLifeMinutes,PrepYieldQty," +
+                "PurchaseUnitName,PurchaseFactorToBase,IsActive " +
                 "FROM catalog.Ingredient WHERE IngredientId = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, id);
@@ -47,28 +50,43 @@ public class IngredientDao {
         }
     }
 
-    public boolean existsByName(Connection conn, String name, int excludeId) throws SQLException {
+    public boolean existsByNameAndUnit(Connection conn, String name, String unit, int excludeId) throws SQLException {
         final String sql =
                 "SELECT 1 FROM catalog.Ingredient " +
-                "WHERE LOWER(LTRIM(RTRIM(Name))) = LOWER(LTRIM(RTRIM(?))) AND IngredientId <> ?";
+                "WHERE UPPER(LTRIM(RTRIM(Name)))=UPPER(LTRIM(RTRIM(?))) " +
+                "AND UPPER(LTRIM(RTRIM(Unit)))=UPPER(LTRIM(RTRIM(?))) AND IngredientId<>?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, name);
-            ps.setInt(2, excludeId);
+            ps.setString(2, unit);
+            ps.setInt(3, excludeId);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();
             }
         }
     }
 
+    public boolean hasInventoryHistory(Connection conn,int ingredientId)throws SQLException{
+        String sql="SELECT 1 WHERE EXISTS(SELECT 1 FROM inventory.InventoryTransaction WHERE IngredientId=?) "
+                + "OR EXISTS(SELECT 1 FROM inventory.BranchInventory WHERE IngredientId=?)";
+        try(PreparedStatement ps=conn.prepareStatement(sql)){ps.setInt(1,ingredientId);ps.setInt(2,ingredientId);try(ResultSet rs=ps.executeQuery()){return rs.next();}}
+    }
+
     public int insert(Connection conn, Ingredient i) throws SQLException {
-        final String sql = "INSERT INTO catalog.Ingredient(Name, Unit, IngredientType, ShelfLifeMinutes, IsActive) VALUES (?,?,?,?,?)";
+        final String sql = "INSERT INTO catalog.Ingredient(Name,Unit,IngredientType,ShelfLifeMinutes,PrepYieldQty," +
+                "PurchaseUnitName,PurchaseFactorToBase,IsActive) VALUES (?,?,?,?,?,?,?,?)";
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, i.getName());
             ps.setString(2, i.getUnit());
             ps.setString(3, i.getIngredientType());
             if (i.getShelfLifeMinutes() == null) ps.setNull(4, java.sql.Types.INTEGER);
             else ps.setInt(4, i.getShelfLifeMinutes());
-            ps.setBoolean(5, i.isActive());
+            if (i.getPrepYieldQty() == null) ps.setNull(5, java.sql.Types.DECIMAL);
+            else ps.setBigDecimal(5, i.getPrepYieldQty());
+            if (i.getPurchaseUnitName() == null) ps.setNull(6, java.sql.Types.NVARCHAR);
+            else ps.setString(6, i.getPurchaseUnitName());
+            if (i.getPurchaseFactorToBase() == null) ps.setNull(7, java.sql.Types.DECIMAL);
+            else ps.setBigDecimal(7, i.getPurchaseFactorToBase());
+            ps.setBoolean(8, i.isActive());
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 return keys.next() ? keys.getInt(1) : 0;
@@ -77,15 +95,22 @@ public class IngredientDao {
     }
 
     public void update(Connection conn, Ingredient i) throws SQLException {
-        final String sql = "UPDATE catalog.Ingredient SET Name=?, Unit=?, IngredientType=?, ShelfLifeMinutes=?, IsActive=? WHERE IngredientId=?";
+        final String sql = "UPDATE catalog.Ingredient SET Name=?,Unit=?,IngredientType=?,ShelfLifeMinutes=?," +
+                "PrepYieldQty=?,PurchaseUnitName=?,PurchaseFactorToBase=?,IsActive=? WHERE IngredientId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, i.getName());
             ps.setString(2, i.getUnit());
             ps.setString(3, i.getIngredientType());
             if (i.getShelfLifeMinutes() == null) ps.setNull(4, java.sql.Types.INTEGER);
             else ps.setInt(4, i.getShelfLifeMinutes());
-            ps.setBoolean(5, i.isActive());
-            ps.setInt(6, i.getIngredientId());
+            if (i.getPrepYieldQty() == null) ps.setNull(5, java.sql.Types.DECIMAL);
+            else ps.setBigDecimal(5, i.getPrepYieldQty());
+            if (i.getPurchaseUnitName() == null) ps.setNull(6, java.sql.Types.NVARCHAR);
+            else ps.setString(6, i.getPurchaseUnitName());
+            if (i.getPurchaseFactorToBase() == null) ps.setNull(7, java.sql.Types.DECIMAL);
+            else ps.setBigDecimal(7, i.getPurchaseFactorToBase());
+            ps.setBoolean(8, i.isActive());
+            ps.setInt(9, i.getIngredientId());
             ps.executeUpdate();
         }
     }
@@ -97,6 +122,17 @@ public class IngredientDao {
         }
     }
 
+    public int updatePrepYield(Connection conn, int ingredientId, java.math.BigDecimal yieldQty)
+            throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE catalog.Ingredient SET PrepYieldQty=? " +
+                "WHERE IngredientId=? AND IngredientType='PREPPED'")) {
+            ps.setBigDecimal(1, yieldQty);
+            ps.setInt(2, ingredientId);
+            return ps.executeUpdate();
+        }
+    }
+
     private Ingredient map(ResultSet rs) throws SQLException {
         Ingredient i = new Ingredient();
         i.setIngredientId(rs.getInt("IngredientId"));
@@ -105,6 +141,9 @@ public class IngredientDao {
         i.setIngredientType(rs.getString("IngredientType"));
         int shelfLife = rs.getInt("ShelfLifeMinutes");
         i.setShelfLifeMinutes(rs.wasNull() ? null : shelfLife);
+        i.setPrepYieldQty(rs.getBigDecimal("PrepYieldQty"));
+        i.setPurchaseUnitName(rs.getString("PurchaseUnitName"));
+        i.setPurchaseFactorToBase(rs.getBigDecimal("PurchaseFactorToBase"));
         i.setActive(rs.getBoolean("IsActive"));
         return i;
     }

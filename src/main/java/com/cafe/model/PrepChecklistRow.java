@@ -33,10 +33,6 @@ public class PrepChecklistRow {
     public BigDecimal getThreshold() { return threshold; }
     public BigDecimal getTargetQty() { return targetQty; }
 
-    /** Cho JSP — bỏ .000 thừa. */
-    public String getOnHandDisplay() { return com.cafe.common.QuantityFormat.plain(onHand); }
-    public String getThresholdDisplay() { return com.cafe.common.QuantityFormat.plain(threshold); }
-    public String getTargetQtyDisplay() { return com.cafe.common.QuantityFormat.plain(targetQty); }
     public boolean isHasRecipe() { return hasRecipe; }
     public boolean isHasTarget() { return targetQty != null; }
     public boolean isHasShelfLife() { return shelfLifeMinutes != null && shelfLifeMinutes > 0; }
@@ -57,15 +53,4 @@ public class PrepChecklistRow {
         return isNeedPrep() ? targetQty.subtract(onHand) : BigDecimal.ZERO;
     }
 
-    public String getSuggestedQtyDisplay() {
-        return com.cafe.common.QuantityFormat.plain(getSuggestedQty());
-    }
-
-    public String getBlockedReason() {
-        if (isOversold()) return "Tồn đang âm — cần Manager kiểm kê.";
-        if (!isHasTarget()) return "Manager chưa đặt mức tồn mục tiêu.";
-        if (!hasRecipe) return "Admin chưa khai báo công thức.";
-        if (!isHasShelfLife()) return "Admin chưa đặt hạn bảo quản.";
-        return "";
-    }
 }

@@ -1,8 +1,8 @@
 package com.cafe.controller.manager;
 
 import com.cafe.common.BusinessException;
-import com.cafe.common.CsrfUtil;
-import com.cafe.common.SessionUtil;
+import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.SessionUtil;
 import com.cafe.model.User;
 import com.cafe.service.shared.BranchMenuService;
 import jakarta.servlet.ServletException;
@@ -16,7 +16,12 @@ import java.io.IOException;
 @WebServlet("/manager/menu-block")
 public class MenuBlockServlet extends HttpServlet {
 
-    private final BranchMenuService service = new BranchMenuService();
+    private final BranchMenuService service;
+
+    public MenuBlockServlet() { this(new BranchMenuService()); }
+    MenuBlockServlet(BranchMenuService service) {
+        this.service = java.util.Objects.requireNonNull(service);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -28,7 +33,7 @@ public class MenuBlockServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         User u = SessionUtil.currentUser(req);
         int reviewerId = u != null ? u.getUserId() : 0;
         String action = req.getParameter("action");
@@ -36,7 +41,10 @@ public class MenuBlockServlet extends HttpServlet {
         try {
             int requestId = Integer.parseInt(req.getParameter("requestId"));
             String reviewNote = req.getParameter("reviewNote");
-            if ("reject".equals(action)) {
+            if ("approve".equals(action)) {
+                service.approve86(branchId, requestId, reviewerId, reviewNote);
+                req.getSession().setAttribute("flashOk", "Đã duyệt yêu cầu tạm ngưng món.");
+            } else if ("reject".equals(action)) {
                 service.reopen86(branchId, requestId, reviewerId, reviewNote, true);
                 req.getSession().setAttribute("flashOk", "Đã từ chối và mở bán lại món.");
             } else if ("reopen".equals(action)) {

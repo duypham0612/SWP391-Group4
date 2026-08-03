@@ -7,7 +7,7 @@
 
 <div class="page-header">
     <div>
-        <div class="eyebrow">Phiếu nhập #${receipt.stockReceiptId}</div>
+        <div class="eyebrow">Phiếu nhập #${receipt.receiptBatchId}</div>
         <h1>
             <c:choose>
                 <c:when test="${receipt.status == 'DRAFT'}"><span class="badge badge-waiting">Nháp</span></c:when>
@@ -25,33 +25,65 @@
 </c:if>
 
 <c:if test="${draft}">
-    <%-- Thêm 1 dòng nhanh: dropdown chỉ tên; ô đơn vị tự điền theo nguyên liệu, sửa được (vd "Túi") --%>
+    <%-- Đơn vị là dữ liệu catalog có hệ số; không nhận text tự do để tránh ghi sai tồn. --%>
     <div class="card" style="margin-bottom:18px">
         <h3 style="margin-top:0">Thêm dòng nguyên liệu</h3>
         <form action="${ctx}/manager/receipt" method="post" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
             <input type="hidden" name="action" value="addLine">
-            <input type="hidden" name="receiptId" value="${receipt.stockReceiptId}">
+            <input type="hidden" name="receiptBatchId" value="${receipt.receiptBatchId}">
             <div class="form-group" style="margin:0;flex:1;min-width:200px"><label>Nguyên liệu</label>
                 <select id="ingSel" name="ingredientId" class="form-control" required>
                     <option value="">-- Chọn --</option>
-                    <c:forEach var="i" items="${ingredients}"><option value="${i.ingredientId}" data-unit="${i.unit}">${i.name}</option></c:forEach>
+                    <c:forEach var="i" items="${ingredients}"><option value="${i.ingredientId}" data-base-unit="${i.unit}">${i.name}</option></c:forEach>
                 </select></div>
-            <div class="form-group" style="margin:0;width:110px"><label>Đơn vị</label>
-                <input id="unitInp" type="text" name="unit" class="form-control" maxlength="20" placeholder="vd: Túi"></div>
+            <div class="form-group" style="margin:0;width:140px"><label>Đơn vị nhập</label>
+                <select id="unitConversionSel" name="unitConversionId" class="form-control" required disabled>
+                    <option value="">-- Chọn --</option>
+                    <c:forEach var="i" items="${ingredients}">
+                    <c:forEach var="u" items="${unitChoicesByIngredient[i.ingredientId]}">
+                        <option value="${u.choiceCode}" data-ingredient="${i.ingredientId}"
+                                    data-factor="${u.factorToBase}" data-unit="${u.unitName}" hidden>${u.unitName}</option>
+                        </c:forEach>
+                    </c:forEach>
+                </select></div>
             <div class="form-group" style="margin:0;width:130px"><label>Số lượng</label>
-                <input type="number" name="quantity" class="form-control" min="0.001" step="0.001" required></div>
+                <input id="enteredQty" type="number" name="quantity" class="form-control" min="0.000001" step="0.000001" required></div>
             <div class="form-group" style="margin:0;width:150px"><label>Đơn giá (₫)</label>
                 <input type="number" name="unitCost" class="form-control" min="0.01" step="0.01" required></div>
             <button type="submit" class="btn btn-primary">+ Thêm</button>
+            <div id="conversionPreview" class="muted" style="flex-basis:100%"></div>
         </form>
         <script>
         (function(){
-            var sel = document.getElementById('ingSel'), inp = document.getElementById('unitInp');
-            if (sel && inp) sel.addEventListener('change', function(){
-                var o = this.options[this.selectedIndex];
-                inp.value = o ? (o.getAttribute('data-unit') || '') : '';
-            });
+            var ingredient = document.getElementById('ingSel');
+            var conversion = document.getElementById('unitConversionSel');
+            var qty = document.getElementById('enteredQty');
+            var preview = document.getElementById('conversionPreview');
+            function updatePreview(){
+                var io = ingredient.options[ingredient.selectedIndex];
+                var uo = conversion.options[conversion.selectedIndex];
+                var amount = Number(qty.value);
+                if (!io || !uo || !uo.value || !Number.isFinite(amount)) { preview.textContent = ''; return; }
+                var base = amount * Number(uo.dataset.factor);
+                preview.textContent = amount + ' ' + uo.dataset.unit + ' = ' + base.toFixed(3) + ' ' + io.dataset.baseUnit;
+            }
+            function filterConversions(){
+                var ingredientId = ingredient.value;
+                conversion.value = '';
+                Array.prototype.forEach.call(conversion.options, function(o, index){
+                    if (index === 0) return;
+                    o.hidden = o.dataset.ingredient !== ingredientId;
+                    o.disabled = o.hidden;
+                });
+                conversion.disabled = !ingredientId;
+                var first = Array.prototype.find.call(conversion.options, function(o){ return o.value && !o.hidden; });
+                if (first) conversion.value = first.value;
+                updatePreview();
+            }
+            ingredient.addEventListener('change', filterConversions);
+            conversion.addEventListener('change', updatePreview);
+            qty.addEventListener('input', updatePreview);
         })();
         </script>
     </div>
@@ -63,19 +95,23 @@
         <form action="${ctx}/manager/receipt" method="post">
             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
             <input type="hidden" name="action" value="addLines">
-            <input type="hidden" name="receiptId" value="${receipt.stockReceiptId}">
+            <input type="hidden" name="receiptBatchId" value="${receipt.receiptBatchId}">
             <table class="table">
                 <thead><tr>
                     <th style="width:40px"><input type="checkbox" onclick="document.querySelectorAll('.pickbox').forEach(c=>c.checked=this.checked)"></th>
-                    <th>Nguyên liệu</th><th style="width:120px">Đơn vị</th><th style="width:140px">Số lượng</th><th style="width:160px">Đơn giá (₫)</th>
+                    <th>Nguyên liệu</th><th style="width:150px">Đơn vị nhập</th><th style="width:140px">Số lượng</th><th style="width:160px">Đơn giá / đơn vị nhập (₫)</th>
                 </tr></thead>
                 <tbody>
                     <c:forEach var="i" items="${ingredients}">
                         <tr>
                             <td><input class="pickbox" type="checkbox" name="pick" value="${i.ingredientId}"></td>
                             <td>${i.name}</td>
-                            <td><input type="text" name="unit_${i.ingredientId}" class="form-control" maxlength="20" value="${i.unit}"></td>
-                            <td><input type="number" name="qty_${i.ingredientId}" class="form-control" min="0.001" step="0.001"></td>
+                            <td><select name="unitConversionId_${i.ingredientId}" class="form-control" required>
+                    <c:forEach var="u" items="${unitChoicesByIngredient[i.ingredientId]}">
+                        <option value="${u.choiceCode}" data-factor="${u.factorToBase}">${u.unitName}</option>
+                                </c:forEach>
+                            </select></td>
+                            <td><input type="number" name="qty_${i.ingredientId}" class="form-control" min="0.000001" step="0.000001"></td>
                             <td><input type="number" name="cost_${i.ingredientId}" class="form-control" min="0.01" step="0.01"></td>
                         </tr>
                     </c:forEach>
@@ -97,16 +133,16 @@
                 <c:forEach var="d" items="${details}">
                     <tr>
                         <td>${d.ingredientName}</td>
-                        <td>${d.quantityDisplay} ${d.displayUnit}</td>
-                        <td>${d.unitCostDisplay} ₫</td>
-                        <td>${d.lineCostDisplay} ₫</td>
+                        <td>${view.plain(d.enteredQuantity)} ${d.unitNameAtEntry}<c:if test="${d.factorToBaseAtEntry != 1}"><div class="muted">= ${view.plain(d.baseQuantity)} ${d.ingredientUnit}</div></c:if></td>
+                        <td>${view.grouped(d.unitCost)} ₫</td>
+                        <td>${view.grouped(d.lineCost)} ₫</td>
                         <c:if test="${draft}">
                             <td>
                                 <form action="${ctx}/manager/receipt" method="post" style="display:inline" onsubmit="return confirm('Xoá dòng?');">
                                     <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                     <input type="hidden" name="action" value="removeLine">
-                                    <input type="hidden" name="receiptId" value="${receipt.stockReceiptId}">
-                                    <input type="hidden" name="detailId" value="${d.stockReceiptDetailId}">
+                                    <input type="hidden" name="receiptBatchId" value="${receipt.receiptBatchId}">
+                                    <input type="hidden" name="lineId" value="${d.stockReceiptLineId}">
                                     <button type="submit" class="btn btn-ghost btn-sm">Xoá</button>
                                 </form>
                             </td>
@@ -119,7 +155,7 @@
 </c:choose>
 
 <c:if test="${receipt.status == 'CONFIRMED'}">
-    <div class="alert alert-success" style="margin-top:18px">Đã nhập kho · Tổng tiền: <strong>${receipt.totalCostDisplay} ₫</strong>. Tồn đã được cộng qua sổ cái.</div>
+    <div class="alert alert-success" style="margin-top:18px">Đã nhập kho · Tổng tiền: <strong>${view.grouped(receipt.totalCost)} ₫</strong>. Tồn đã được cộng qua sổ cái.</div>
 </c:if>
 
 <c:if test="${draft}">
@@ -127,13 +163,13 @@
         <form action="${ctx}/manager/receipt" method="post" onsubmit="return confirm('Xác nhận nhập kho? Tồn sẽ được cộng và không thể sửa.');">
             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
             <input type="hidden" name="action" value="confirm">
-            <input type="hidden" name="receiptId" value="${receipt.stockReceiptId}">
+            <input type="hidden" name="receiptBatchId" value="${receipt.receiptBatchId}">
             <button type="submit" class="btn btn-primary btn-lg" <c:if test="${empty details}">disabled</c:if>>Xác nhận nhập kho</button>
         </form>
         <form action="${ctx}/manager/receipt" method="post" onsubmit="return confirm('Huỷ phiếu này?');">
             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
             <input type="hidden" name="action" value="cancel">
-            <input type="hidden" name="receiptId" value="${receipt.stockReceiptId}">
+            <input type="hidden" name="receiptBatchId" value="${receipt.receiptBatchId}">
             <button type="submit" class="btn btn-ghost btn-lg">Huỷ phiếu</button>
         </form>
     </div>

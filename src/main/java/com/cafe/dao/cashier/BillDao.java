@@ -17,21 +17,22 @@ import java.util.List;
 public class BillDao {
 
     private static final String SELECT =
-        "SELECT b.BillId, b.BranchId, b.TableSessionId, b.CashierShiftId, b.Subtotal, b.VatAmount, b.DiscountAmount, " +
+        "SELECT b.BillId, b.BranchId, b.CashierShiftId, b.Subtotal, b.VatAmount, b.DiscountAmount, " +
         "       b.TotalAmount, b.RoundingAdjustment, b.PaidAmount, b.CashTendered, b.CashChange, " +
-        "       b.VoucherId, b.PaymentMethod, b.Status, b.PaidAt, b.CreatedAt, " +
-        "       dt.TableNumber, v.Code AS VoucherCode " +
+        "       b.PaymentMethod, b.Status, b.PaidAt, b.CreatedAt, " +
+        "       rel.DiningTableId, dt.TableNumber " +
         "FROM payment.Bill b " +
-        "LEFT JOIN sales.TableSession ts ON ts.TableSessionId=b.TableSessionId " +
-        "LEFT JOIN sales.DiningTable  dt ON dt.DiningTableId=ts.DiningTableId " +
-        "LEFT JOIN payment.Voucher    v  ON v.VoucherId=b.VoucherId ";
+        "OUTER APPLY (SELECT TOP(1) o.DiningTableId FROM sales.OrderItem oi " +
+        " JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId " +
+        " WHERE oi.BillId=b.BillId AND o.DiningTableId IS NOT NULL " +
+        " ORDER BY oi.OrderItemId) rel " +
+        "LEFT JOIN sales.DiningTable dt ON dt.DiningTableId=rel.DiningTableId ";
 
-    public int insert(Connection conn, int branchId, Integer sessionId, Integer shiftId) throws SQLException {
-        final String sql = "INSERT INTO payment.Bill(BranchId, TableSessionId, CashierShiftId, Status) VALUES (?,?,?,'UNPAID')";
+    public int insert(Connection conn, int branchId, Integer shiftId) throws SQLException {
+        final String sql = "INSERT INTO payment.Bill(BranchId,CashierShiftId,Status) VALUES (?,?,'UNPAID')";
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setInt(1, branchId);
-            if (sessionId == null) ps.setNull(2, Types.INTEGER); else ps.setInt(2, sessionId);
-            if (shiftId == null) ps.setNull(3, Types.INTEGER); else ps.setInt(3, shiftId);
+            if (shiftId == null) ps.setNull(2, Types.INTEGER); else ps.setInt(2, shiftId);
             ps.executeUpdate();
             try (ResultSet k = ps.getGeneratedKeys()) { return k.next() ? k.getInt(1) : 0; }
         }
@@ -44,7 +45,7 @@ public class BillDao {
         }
     }
 
-    /** Khóa bill đến hết transaction thanh toán để số tiền và voucher không đổi giữa chừng. */
+    /** Khóa bill đến hết transaction thanh toán để số tiền không đổi giữa chừng. */
     public Bill findByIdForUpdate(Connection conn, int id) throws SQLException {
         String lockedSelect = SELECT.replace(
                 "FROM payment.Bill b ",
@@ -55,32 +56,37 @@ public class BillDao {
         }
     }
 
-    /** Các bill của 1 phiên (mọi trạng thái) — để dựng màn checkout. */
-    public List<Bill> findBySession(Connection conn, int sessionId) throws SQLException {
+    /** Các bill chứa dòng của các đơn tại một bàn. */
+    public List<Bill> findByTable(Connection conn, int tableId) throws SQLException {
         List<Bill> out = new ArrayList<>();
-        try (PreparedStatement ps = conn.prepareStatement(SELECT + "WHERE b.TableSessionId=? ORDER BY b.BillId")) {
-            ps.setInt(1, sessionId);
+        final String sql = SELECT + "WHERE b.Status='UNPAID' AND EXISTS (SELECT 1 FROM sales.OrderItem oi " +
+                "JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId " +
+                "WHERE oi.BillId=b.BillId AND o.DiningTableId=?) ORDER BY b.BillId";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, tableId);
             try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
         }
         return out;
     }
 
-    public List<Bill> findUnpaidBySession(Connection conn, int sessionId) throws SQLException {
+    public List<Bill> findUnpaidByTable(Connection conn, int tableId) throws SQLException {
         List<Bill> out = new ArrayList<>();
-        try (PreparedStatement ps = conn.prepareStatement(SELECT + "WHERE b.TableSessionId=? AND b.Status='UNPAID' ORDER BY b.BillId")) {
-            ps.setInt(1, sessionId);
+        final String sql = SELECT + "WHERE b.Status='UNPAID' AND EXISTS (" +
+                "SELECT 1 FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId " +
+                "WHERE oi.BillId=b.BillId AND o.DiningTableId=?) ORDER BY b.BillId";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, tableId);
             try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
         }
         return out;
     }
 
-    /** Các bill chứa món của một đơn, dùng cho đơn mang đi không có TableSession. */
+    /** Các bill chứa món của một đơn. */
     public List<Bill> findByOrder(Connection conn, int orderId) throws SQLException {
         List<Bill> out = new ArrayList<>();
         final String sql = SELECT +
-                "WHERE EXISTS (SELECT 1 FROM payment.BillItem bi " +
-                "JOIN sales.OrderItem oi ON oi.OrderItemId=bi.OrderItemId " +
-                "WHERE bi.BillId=b.BillId AND oi.OrderId=?) ORDER BY b.BillId";
+                "WHERE EXISTS (SELECT 1 FROM sales.OrderItem oi " +
+                "WHERE oi.BillId=b.BillId AND oi.OrderId=?) ORDER BY b.BillId";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, orderId);
             try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
@@ -100,22 +106,15 @@ public class BillDao {
     }
 
     /** Doanh thu PAID hôm nay của chi nhánh (M1 dashboard manager). */
-    public BigDecimal sumPaidToday(Connection conn, int branchId) throws SQLException {
+    public BigDecimal sumPaidToday(Connection conn, int branchId,
+                                   LocalDateTime fromUtc, LocalDateTime toUtc) throws SQLException {
         final String sql = "SELECT ISNULL(SUM(TotalAmount),0) AS Rev FROM payment.Bill " +
-                "WHERE BranchId=? AND Status='PAID' AND CAST(PaidAt AS DATE)=CAST(SYSUTCDATETIME() AS DATE)";
+                "WHERE BranchId=? AND Status='PAID' AND PaidAt>=? AND PaidAt<?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, branchId);
+            ps.setTimestamp(2, Timestamp.valueOf(fromUtc));
+            ps.setTimestamp(3, Timestamp.valueOf(toUtc));
             try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getBigDecimal("Rev") : BigDecimal.ZERO; }
-        }
-    }
-
-    /** Số hoá đơn đã thu (PAID) hôm nay của chi nhánh — "số đơn đã thực hiện" (R1/R2). */
-    public int countPaidToday(Connection conn, int branchId) throws SQLException {
-        final String sql = "SELECT COUNT(*) FROM payment.Bill " +
-                "WHERE BranchId=? AND Status='PAID' AND CAST(PaidAt AS DATE)=CAST(SYSUTCDATETIME() AS DATE)";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, branchId);
-            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getInt(1) : 0; }
         }
     }
 
@@ -149,23 +148,11 @@ public class BillDao {
         }
     }
 
-    /** Status mọi bill của 1 phiên bàn — để suy trạng thái thanh toán cấp đơn (R3). */
-    public List<String> findStatusesBySession(Connection conn, int sessionId) throws SQLException {
-        List<String> out = new ArrayList<>();
-        try (PreparedStatement ps = conn.prepareStatement(
-                "SELECT Status FROM payment.Bill WHERE TableSessionId=?")) {
-            ps.setInt(1, sessionId);
-            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(rs.getString(1)); }
-        }
-        return out;
-    }
-
     /** Status bill gắn trực tiếp với các món của đơn mang đi. */
     public List<String> findStatusesByOrder(Connection conn, int orderId) throws SQLException {
         List<String> out = new ArrayList<>();
         final String sql = "SELECT DISTINCT b.Status FROM payment.Bill b " +
-                "JOIN payment.BillItem bi ON bi.BillId=b.BillId " +
-                "JOIN sales.OrderItem oi ON oi.OrderItemId=bi.OrderItemId WHERE oi.OrderId=?";
+                "JOIN sales.OrderItem oi ON oi.BillId=b.BillId WHERE oi.OrderId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, orderId);
             try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(rs.getString(1)); }
@@ -184,18 +171,18 @@ public class BillDao {
         return out;
     }
 
-    /** Cập nhật số tiền + voucher sau khi gắn dòng / áp voucher. */
-    public void updateAmounts(Connection conn, int billId, BigDecimal subtotal, BigDecimal discount,
-                              BigDecimal vat, BigDecimal total, Integer voucherId) throws SQLException {
-        final String sql = "UPDATE payment.Bill SET Subtotal=?, DiscountAmount=?, VatAmount=?, TotalAmount=?, VoucherId=? WHERE BillId=?";
+    /** Cập nhật số tiền sau khi gắn/chuyển dòng hoặc nhập giảm giá thủ công. */
+    public int updateAmounts(Connection conn, int billId, BigDecimal subtotal, BigDecimal discount,
+                             BigDecimal vat, BigDecimal total) throws SQLException {
+        final String sql = "UPDATE payment.Bill SET Subtotal=?,DiscountAmount=?,VatAmount=?,TotalAmount=? " +
+                "WHERE BillId=? AND Status='UNPAID'";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setBigDecimal(1, subtotal);
             ps.setBigDecimal(2, discount);
             ps.setBigDecimal(3, vat);
             ps.setBigDecimal(4, total);
-            if (voucherId == null) ps.setNull(5, Types.INTEGER); else ps.setInt(5, voucherId);
-            ps.setInt(6, billId);
-            ps.executeUpdate();
+            ps.setInt(5, billId);
+            return ps.executeUpdate();
         }
     }
 
@@ -234,7 +221,7 @@ public class BillDao {
         Bill b = new Bill();
         b.setBillId(rs.getInt("BillId"));
         b.setBranchId(rs.getInt("BranchId"));
-        int ts = rs.getInt("TableSessionId"); if (!rs.wasNull()) b.setTableSessionId(ts);
+        int tableId = rs.getInt("DiningTableId"); if (!rs.wasNull()) b.setDiningTableId(tableId);
         int sh = rs.getInt("CashierShiftId"); if (!rs.wasNull()) b.setCashierShiftId(sh);
         b.setSubtotal(rs.getBigDecimal("Subtotal"));
         b.setVatAmount(rs.getBigDecimal("VatAmount"));
@@ -244,13 +231,11 @@ public class BillDao {
         b.setPaidAmount(rs.getBigDecimal("PaidAmount"));
         b.setCashTendered(rs.getBigDecimal("CashTendered"));
         b.setCashChange(rs.getBigDecimal("CashChange"));
-        int vc = rs.getInt("VoucherId"); if (!rs.wasNull()) b.setVoucherId(vc);
         b.setPaymentMethod(rs.getString("PaymentMethod"));
         b.setStatus(rs.getString("Status"));
         Timestamp pa = rs.getTimestamp("PaidAt"); if (pa != null) b.setPaidAt(pa.toLocalDateTime());
         Timestamp ca = rs.getTimestamp("CreatedAt"); if (ca != null) b.setCreatedAt(ca.toLocalDateTime());
         b.setTableNumber(rs.getString("TableNumber"));
-        b.setVoucherCode(rs.getString("VoucherCode"));
         return b;
     }
 }

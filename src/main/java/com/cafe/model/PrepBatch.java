@@ -2,20 +2,11 @@ package com.cafe.model;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 
 /** inventory.PrepBatch — mẻ pha sẵn (RAW→PREPPED). Contract #2. */
 public class PrepBatch {
 
-    private static final ZoneId VN = ZoneId.of("Asia/Ho_Chi_Minh");
-    private static final DateTimeFormatter F = DateTimeFormatter.ofPattern("dd/MM HH:mm");
-    /** UTC (lưu trong DB) → giờ VN, format dd/MM HH:mm. */
-    private static String fmt(LocalDateTime utc) {
-        if (utc == null) return "";
-        return utc.atZone(ZoneOffset.UTC).withZoneSameInstant(VN).format(F);
-    }
     private int prepBatchId;
     private int branchId;
     private int preppedIngredientId;
@@ -27,7 +18,7 @@ public class PrepBatch {
     private LocalDateTime voidedAt;
     /** Đã ghi hao hụt vì quá hạn — mẻ khép vòng đời, không gợi ý ghi thêm và không huỷ được nữa. */
     private LocalDateTime writtenOffAt;
-    private Integer writeOffWasteLogId;
+    private Long writeOffWasteEntryId;
     private String clientRequestId;
     /** Vượt 1.5x mức mục tiêu lúc tạo — mẻ vào PENDING, chưa cộng PREPPED cho tới khi Manager duyệt. */
     private boolean requiresApproval;
@@ -74,13 +65,12 @@ public class PrepBatch {
     public void setWrittenOffAt(LocalDateTime v) { this.writtenOffAt = v; }
     public boolean isWrittenOff() { return writtenOffAt != null; }
 
-    public Integer getWriteOffWasteLogId() { return writeOffWasteLogId; }
-    public void setWriteOffWasteLogId(Integer v) { this.writeOffWasteLogId = v; }
+    public Long getWriteOffWasteEntryId() { return writeOffWasteEntryId; }
+    public void setWriteOffWasteEntryId(Long v) { this.writeOffWasteEntryId = v; }
     public String getClientRequestId() { return clientRequestId; }
     public void setClientRequestId(String v) { this.clientRequestId = v; }
 
     public boolean isPending() { return "PENDING".equals(status); }
-    public boolean isRejected() { return "REJECTED".equals(status); }
 
     public boolean isRequiresApproval() { return requiresApproval; }
     public void setRequiresApproval(boolean v) { this.requiresApproval = v; }
@@ -116,25 +106,4 @@ public class PrepBatch {
     public void setSuggestedWasteQuantity(BigDecimal v) { this.suggestedWasteQuantity = v == null ? BigDecimal.ZERO : v; }
     public boolean isHasSuggestedWaste() { return suggestedWasteQuantity != null && suggestedWasteQuantity.signum() > 0; }
 
-    // ----- Hiển thị -----
-    public String getMadeAtDisplay() { return fmt(madeAt); }
-    public String getExpiresAtDisplay() { return fmt(expiresAt); }
-    public String getReviewedAtDisplay() { return fmt(reviewedAt); }
-    /** Bỏ .000 thừa, không chấm ngăn nghìn (10000 ml chứ không phải 10.000 ml). */
-    public String getQuantityProducedDisplay() {
-        return com.cafe.common.QuantityFormat.plain(quantityProduced);
-    }
-
-    public String getSuggestedWasteQuantityDisplay() {
-        return com.cafe.common.QuantityFormat.plain(suggestedWasteQuantity);
-    }
-
-    /** Trạng thái hạn dùng (so với now UTC): none | ok | soon (≤2h) | expired. Chỉ tính cho mẻ ACTIVE. */
-    public String getExpiryTier() {
-        if (expiresAt == null || !isActive()) return "none";
-        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
-        if (expiresAt.isBefore(now)) return "expired";
-        if (expiresAt.isBefore(now.plusHours(2))) return "soon";
-        return "ok";
-    }
 }

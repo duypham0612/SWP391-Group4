@@ -3,12 +3,10 @@ package com.cafe.model;
 import com.cafe.common.Reason86;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.time.ZoneOffset;
 
 public class MenuBlockRequest {
-    private static final DateTimeFormatter SHORT_DT = DateTimeFormatter.ofPattern("dd/MM HH:mm");
-
-    private int requestId;
+    private int menuBlockRequestId;
     private int branchId;
     private int productId;
     private String reason;
@@ -28,8 +26,8 @@ public class MenuBlockRequest {
     private String reviewerName;
     private Reason86 reasonEnum;
 
-    public int getRequestId() { return requestId; }
-    public void setRequestId(int requestId) { this.requestId = requestId; }
+    public int getMenuBlockRequestId() { return menuBlockRequestId; }
+    public void setMenuBlockRequestId(int menuBlockRequestId) { this.menuBlockRequestId = menuBlockRequestId; }
 
     public int getBranchId() { return branchId; }
     public void setBranchId(int branchId) { this.branchId = branchId; }
@@ -82,33 +80,10 @@ public class MenuBlockRequest {
     public String getReviewerName() { return reviewerName; }
     public void setReviewerName(String reviewerName) { this.reviewerName = reviewerName; }
 
-    public Reason86 getReasonEnum() { return reasonEnum; }
-    public void setReasonEnum(Reason86 reasonEnum) { this.reasonEnum = reasonEnum; }
-
     /** Quá hạn dự kiến có lại mà chưa mở bán -> manager cần xử lý gấp. */
     public boolean isOverdue() {
-        return closedAt == null && backInEta != null && backInEta.isBefore(LocalDateTime.now());
+        return closedAt == null && backInEta != null
+                && backInEta.isBefore(LocalDateTime.now(ZoneOffset.UTC));
     }
 
-    public String getReasonLabel() {
-        return reasonEnum == null ? "" : reasonEnum.label();
-    }
-
-    public String getStatusLabel() {
-        if ("PENDING".equals(status)) return "Chờ quản lý duyệt";
-        if ("APPROVED".equals(status)) return "Đã duyệt tạm hết";
-        if ("REJECTED".equals(status)) return "Đã từ chối";
-        if ("RESOLVED".equals(status)) return "Đã mở bán lại";
-        return "";
-    }
-
-    public String getBackInEtaText() { return format(backInEta); }
-    public String getRequestedAtText() { return format(requestedAt); }
-    public String getReopenRequestedAtText() { return format(reopenRequestedAt); }
-    public String getReviewedAtText() { return format(reviewedAt); }
-    public String getClosedAtText() { return format(closedAt); }
-
-    private String format(LocalDateTime dt) {
-        return dt == null ? "" : dt.format(SHORT_DT);
-    }
 }

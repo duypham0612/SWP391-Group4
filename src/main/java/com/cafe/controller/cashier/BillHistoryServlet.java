@@ -1,8 +1,7 @@
 package com.cafe.controller.cashier;
-import com.cafe.controller.manager.InventoryDashboardServlet;
 
-import com.cafe.common.CsrfUtil;
-import com.cafe.common.SessionUtil;
+import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.SessionUtil;
 import com.cafe.model.Bill;
 import com.cafe.model.CashierShift;
 import com.cafe.model.User;
@@ -22,13 +21,19 @@ import java.util.List;
 @WebServlet("/cashier/history")
 public class BillHistoryServlet extends HttpServlet {
 
-    private final BillingService service = new BillingService();
-    private final CashierShiftService shiftService = new CashierShiftService();
+    private final BillingService service;
+    private final CashierShiftService shiftService;
+
+    public BillHistoryServlet() { this(new BillingService(), new CashierShiftService()); }
+    BillHistoryServlet(BillingService service, CashierShiftService shiftService) {
+        this.service = java.util.Objects.requireNonNull(service);
+        this.shiftService = java.util.Objects.requireNonNull(shiftService);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         User u = SessionUtil.currentUser(req);
         try {
             if ("view".equals(req.getParameter("action")) && req.getParameter("billId") != null) {
@@ -69,7 +74,7 @@ public class BillHistoryServlet extends HttpServlet {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
         User user = SessionUtil.currentUser(req);
         Integer userId = user != null ? user.getUserId() : null;
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         try {
             String action = req.getParameter("action");
             if ("void".equals(action)) {

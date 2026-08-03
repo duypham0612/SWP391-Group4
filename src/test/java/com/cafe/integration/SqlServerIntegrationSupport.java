@@ -1,38 +1,42 @@
 package com.cafe.integration;
 
+import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.output.MigrateResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Assumptions;
 import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.MSSQLServerContainer;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.regex.Pattern;
 
-/** Khởi tạo SQL Server disposable từ đúng database.sql, không đụng DB local. */
+/** Khởi tạo SQL Server disposable bằng Flyway; chỉ dùng DB ngoài khi caller truyền -Dit.db.url. */
 public abstract class SqlServerIntegrationSupport {
     private static final String IMAGE = "mcr.microsoft.com/mssql/server:2022-latest";
     private static final String EXTERNAL_URL = System.getProperty("it.db.url");
     private static final String EXTERNAL_USERNAME = System.getProperty("it.db.username");
     private static final String EXTERNAL_PASSWORD = System.getProperty("it.db.password");
+    private static final boolean INIT_EXTERNAL_SCHEMA =
+            Boolean.parseBoolean(System.getProperty("it.db.initSchema", "false"));
     protected static final MSSQLServerContainer<?> SQL = new MSSQLServerContainer<>(IMAGE).acceptLicense();
-    private static final Pattern GO = Pattern.compile("(?im)^\\s*GO\\s*(?:--.*)?$");
 
     @BeforeAll
     static void startDatabase() throws Exception {
         if (!usesExternalDatabase()) {
-            Assumptions.assumeTrue(DockerClientFactory.instance().isDockerAvailable(),
-                    "Docker không khả dụng và chưa cấu hình it.db.url.");
-            SQL.start();
-            try (Connection conn = DriverManager.getConnection(SQL.getJdbcUrl(), SQL.getUsername(), SQL.getPassword())) {
-                runScript(conn, Files.readString(Path.of("sql", "database.sql")));
+            if (!DockerClientFactory.instance().isDockerAvailable()) {
+                throw new IllegalStateException(
+                        "Integration profile yêu cầu Docker hoặc -Dit.db.url; không được bỏ qua với 0 test.");
             }
+            SQL.start();
+            createCafeDatabaseIfMissing(SQL.getJdbcUrl(), SQL.getUsername(), SQL.getPassword());
+            migrate(cafeJdbcUrl(), SQL.getUsername(), SQL.getPassword());
+        } else if (INIT_EXTERNAL_SCHEMA) {
+            createCafeDatabaseIfMissing(EXTERNAL_URL, EXTERNAL_USERNAME, EXTERNAL_PASSWORD);
+            migrate(cafeJdbcUrl(), EXTERNAL_USERNAME, EXTERNAL_PASSWORD);
+        } else {
+            migrate(cafeJdbcUrl(), EXTERNAL_USERNAME, EXTERNAL_PASSWORD);
         }
         System.setProperty("db.url", cafeJdbcUrl());
         System.setProperty("db.username", databaseUsername());
@@ -54,31 +58,63 @@ public abstract class SqlServerIntegrationSupport {
         return DriverManager.getConnection(cafeJdbcUrl(), databaseUsername(), databasePassword());
     }
 
-    private static String cafeJdbcUrl() {
-        if (usesExternalDatabase()) return EXTERNAL_URL;
-        return SQL.getJdbcUrl().replaceFirst(
-                "(?i)databaseName=[^;]+", "databaseName=CafeChain");
+    protected static MigrateResult migrate(String url, String username, String password) {
+        return Flyway.configure()
+                .dataSource(url, username, password)
+                .schemas("ops")
+                .defaultSchema("ops")
+                .table("flyway_schema_history")
+                .locations("classpath:db/migration")
+                .cleanDisabled(true)
+                .outOfOrder(false)
+                .validateOnMigrate(true)
+                .baselineOnMigrate(false)
+                .load()
+                .migrate();
+    }
+
+    /**
+     * Đặt {@code databaseName} vào chuỗi kết nối, thay thế nếu đã có và nối thêm nếu chưa.
+     *
+     * <p>Nhánh "nối thêm" là bắt buộc, không phải phòng xa: {@code MSSQLServerContainer.getJdbcUrl()}
+     * trả về {@code jdbc:sqlserver://localhost:32769;encrypt=false} — KHÔNG có {@code databaseName}.
+     * Trước đây nhánh container chỉ gọi {@code replaceFirst}, nên đó là một phép thay thế không
+     * khớp gì cả: mọi test âm thầm chạy trong {@code master}, còn CafeChain vừa tạo xong thì bỏ
+     * không. Chỉ lộ ra khi {@code DatabaseNormalizationIT} so sánh DB hiện tại với master và thấy
+     * hai bên y hệt nhau.
+     */
+    private static String withDatabaseName(String jdbcUrl, String databaseName) {
+        return jdbcUrl.matches("(?i).*databaseName=[^;]+.*")
+                ? jdbcUrl.replaceFirst("(?i)databaseName=[^;]+", "databaseName=" + databaseName)
+                : jdbcUrl + (jdbcUrl.endsWith(";") ? "" : ";") + "databaseName=" + databaseName;
+    }
+
+    private static void createCafeDatabaseIfMissing(String jdbcUrl, String username,
+                                                    String password) throws SQLException {
+        String masterUrl = withDatabaseName(jdbcUrl, "master");
+        try (Connection connection = DriverManager.getConnection(masterUrl, username, password);
+             Statement statement = connection.createStatement()) {
+            statement.execute("IF DB_ID(N'CafeChain') IS NULL CREATE DATABASE CafeChain");
+        }
+    }
+
+    protected static String cafeJdbcUrl() {
+        if (usesExternalDatabase()) {
+            if (!INIT_EXTERNAL_SCHEMA) return EXTERNAL_URL;
+            return withDatabaseName(EXTERNAL_URL, "CafeChain");
+        }
+        return withDatabaseName(SQL.getJdbcUrl(), "CafeChain");
     }
 
     private static boolean usesExternalDatabase() {
         return EXTERNAL_URL != null && !EXTERNAL_URL.isBlank();
     }
 
-    private static String databaseUsername() {
+    protected static String databaseUsername() {
         return usesExternalDatabase() ? EXTERNAL_USERNAME : SQL.getUsername();
     }
 
-    private static String databasePassword() {
+    protected static String databasePassword() {
         return usesExternalDatabase() ? EXTERNAL_PASSWORD : SQL.getPassword();
-    }
-
-    private static void runScript(Connection conn, String script) throws SQLException, IOException {
-        for (String batch : GO.split(script)) {
-            String trimmed = batch.trim();
-            if (trimmed.isEmpty()) continue;
-            try (Statement statement = conn.createStatement()) {
-                statement.execute(trimmed);
-            }
-        }
     }
 }

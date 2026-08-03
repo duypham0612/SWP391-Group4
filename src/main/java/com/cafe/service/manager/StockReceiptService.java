@@ -1,117 +1,156 @@
 package com.cafe.service.manager;
-import com.cafe.service.shared.InventoryService;
 
 import com.cafe.common.BusinessException;
+import com.cafe.common.InventoryUnitConverter;
 import com.cafe.config.DBConnection;
+import com.cafe.config.Tx;
 import com.cafe.dao.manager.StockReceiptDao;
-import com.cafe.dao.shared.StockReceiptDetailDao;
+import com.cafe.dao.admin.IngredientUnitDao;
+import com.cafe.dao.manager.StockReceiptDetailDao;
+import com.cafe.model.InventoryUnitChoice;
 import com.cafe.model.StockReceipt;
 import com.cafe.model.StockReceiptDetail;
+import com.cafe.service.shared.InventoryService;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.UUID;
 
-/**
- * M6 · StockReceiptService (đặc tả mục 5).
- * confirmReceipt → InventoryService.confirmReceiptStock (cộng tồn qua ledger) + set CONFIRMED, CÙNG 1 transaction.
- */
+/** Workflow phiếu nhập đã được gộp vào inventory.StockReceiptLine. */
 public class StockReceiptService {
+    private final StockReceiptDao receiptDao;
+    private final StockReceiptDetailDao detailDao;
+    private final IngredientUnitDao unitDao;
+    private final InventoryService inventoryService;
 
-    private final StockReceiptDao receiptDao = new StockReceiptDao();
-    private final StockReceiptDetailDao detailDao = new StockReceiptDetailDao();
-    private final InventoryService inventoryService = new InventoryService();
+    public StockReceiptService() {
+        this(new StockReceiptDao(), new StockReceiptDetailDao(), new IngredientUnitDao(), new InventoryService());
+    }
+
+    public StockReceiptService(StockReceiptDao receiptDao, StockReceiptDetailDao detailDao,
+                               IngredientUnitDao unitDao, InventoryService inventoryService) {
+        this.receiptDao = java.util.Objects.requireNonNull(receiptDao);
+        this.detailDao = java.util.Objects.requireNonNull(detailDao);
+        this.unitDao = java.util.Objects.requireNonNull(unitDao);
+        this.inventoryService = java.util.Objects.requireNonNull(inventoryService);
+    }
 
     public List<StockReceipt> getReceiptList(int branchId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) { return receiptDao.findByBranch(c, branchId); }
     }
 
-    public StockReceipt getReceipt(int id) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) { return receiptDao.findById(c, id); }
+    public StockReceipt getReceipt(String batchId, int branchId) throws SQLException {
+        try (Connection c = DBConnection.getConnection()) { return receiptDao.findById(c, batchId, branchId); }
     }
 
-    public List<StockReceiptDetail> getReceiptDetails(int receiptId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) { return detailDao.findByReceipt(c, receiptId); }
-    }
-
-    public int createDraftReceipt(StockReceipt r) throws SQLException {
+    public List<StockReceiptDetail> getReceiptDetails(String batchId, int branchId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try { int id = receiptDao.insertDraft(c, r); c.commit(); return id; }
-            catch (SQLException e){ c.rollback(); throw e; } finally { c.setAutoCommit(true); }
+            return detailDao.findByReceiptAndBranch(c, batchId, branchId);
         }
     }
 
-    public void addReceiptLine(int receiptId, int ingredientId, BigDecimal qty, BigDecimal unitCost, String unit) throws SQLException {
+    /** Schema phẳng không biểu diễn được header rỗng, nên tạo DRAFT cùng dòng đầu tiên. */
+    public String createDraftReceipt(StockReceipt receipt, StockReceiptDetail firstLine) throws SQLException {
+        validateLine(firstLine.getEnteredQuantity(), firstLine.getUnitCost());
+        receipt.setReceiptBatchId(UUID.randomUUID().toString());
+        receipt.setDocumentDate(LocalDate.now(ZoneOffset.UTC));
+        receipt.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC));
+        receipt.setStatus("DRAFT");
+        firstLine.setReceiptBatchId(receipt.getReceiptBatchId());
+        return Tx.call(c -> {
+            applyConversionSnapshot(c, firstLine);
+            detailDao.insert(c, receipt, firstLine);
+            return receipt.getReceiptBatchId();
+        });
+    }
+
+    public void addReceiptLine(String batchId, int branchId, int ingredientId,
+                               BigDecimal qty, BigDecimal unitCost, int unitChoice) throws SQLException {
         validateLine(qty, unitCost);
-        StockReceiptDetail d = new StockReceiptDetail();
-        d.setStockReceiptId(receiptId);
-        d.setIngredientId(ingredientId);
-        d.setQuantity(qty);
-        d.setUnitCost(unitCost);
-        d.setUnit(unit);
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try { detailDao.insert(c, d); c.commit(); }
-            catch (SQLException e){ c.rollback(); throw e; } finally { c.setAutoCommit(true); }
-        }
+        StockReceiptDetail line = new StockReceiptDetail();
+        line.setReceiptBatchId(batchId);
+        line.setIngredientId(ingredientId);
+        line.setEnteredQuantity(qty);
+        line.setUnitCost(unitCost);
+        line.setUnitChoice(unitChoice);
+        Tx.run(c -> {
+            StockReceipt receipt = requireDraft(c, batchId, branchId);
+            applyConversionSnapshot(c, line);
+            detailDao.insert(c, receipt, line);
+        });
     }
 
-    /** Thêm nhiều dòng cùng lúc (tickbox chọn nhiều nguyên liệu) — 1 transaction. */
-    public void addReceiptLines(int receiptId, List<StockReceiptDetail> lines) throws SQLException {
+    public void addReceiptLines(String batchId, int branchId, List<StockReceiptDetail> lines) throws SQLException {
         if (lines == null || lines.isEmpty()) return;
-        for (StockReceiptDetail line : lines) validateLine(line.getQuantity(), line.getUnitCost());
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                for (StockReceiptDetail d : lines) {
-                    d.setStockReceiptId(receiptId);
-                    detailDao.insert(c, d);
+        for (StockReceiptDetail line : lines) validateLine(line.getEnteredQuantity(), line.getUnitCost());
+        Tx.run(c -> {
+            StockReceipt receipt = requireDraft(c, batchId, branchId);
+            for (StockReceiptDetail line : lines) {
+                line.setReceiptBatchId(batchId);
+                applyConversionSnapshot(c, line);
+                detailDao.insert(c, receipt, line);
+            }
+        });
+    }
+
+    public void removeReceiptLine(String batchId, int lineId, int branchId) throws SQLException {
+        Tx.run(c -> {
+            requireDraft(c, batchId, branchId);
+            if (detailDao.deleteDraftLine(c, lineId, batchId, branchId) != 1) {
+                throw new BusinessException("Không thể xoá dòng cuối của phiếu nháp; hãy huỷ cả phiếu nếu không dùng nữa.");
+            }
+        });
+    }
+
+    /** DRAFT không ghi ledger; chỉ sau khi toàn batch chuyển CONFIRMED mới cộng tồn. */
+    public void confirmReceipt(String batchId, int branchId, int userId) throws SQLException {
+        Tx.run(c -> {
+            requireDraft(c, batchId, branchId);
+            List<StockReceiptDetail> details = detailDao.findByReceiptAndBranch(c, batchId, branchId);
+            if (details.isEmpty()) throw new BusinessException("Phiếu nhập phải có ít nhất một dòng.");
+            if (receiptDao.confirm(c, batchId, branchId) != details.size()) {
+                throw new BusinessException("Phiếu nhập đã được xử lý bởi yêu cầu khác.");
+            }
+            inventoryService.confirmReceiptStock(c, details, batchId, branchId, userId);
+        });
+    }
+
+    public void cancelReceipt(String batchId, int branchId) throws SQLException {
+        Tx.run(c -> {
+            requireDraft(c, batchId, branchId);
+            if (receiptDao.cancel(c, batchId, branchId) <= 0) {
+                throw new BusinessException("Phiếu nhập đã được xử lý bởi yêu cầu khác.");
+            }
+        });
+    }
+
+    public void cancelManyReceipts(List<String> batchIds, int branchId) throws SQLException {
+        if (batchIds == null || batchIds.isEmpty()) return;
+        Tx.run(c -> {
+            for (String batchId : batchIds) {
+                if (batchId == null || batchId.isBlank()) continue;
+                requireDraft(c, batchId, branchId);
+                if (receiptDao.cancel(c, batchId, branchId) <= 0) {
+                    throw new BusinessException("Có phiếu nhập đã được xử lý bởi yêu cầu khác.");
                 }
-                c.commit();
-            } catch (SQLException e){ c.rollback(); throw e; } finally { c.setAutoCommit(true); }
-        }
+            }
+        });
     }
 
-    public void removeReceiptLine(int detailId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try { detailDao.delete(c, detailId); c.commit(); }
-            catch (SQLException e){ c.rollback(); throw e; } finally { c.setAutoCommit(true); }
+    private StockReceipt requireDraft(Connection c, String batchId, int branchId) throws SQLException {
+        if (batchId == null || batchId.isBlank() || batchId.length() > 36) {
+            throw new BusinessException("Mã batch phiếu nhập không hợp lệ.");
         }
-    }
-
-    /** Xác nhận phiếu: cộng tồn qua ledger + chốt CONFIRMED, nguyên tử. */
-    public void confirmReceipt(int receiptId, int branchId, int userId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                BigDecimal total = inventoryService.confirmReceiptStock(c, receiptId, branchId, userId);
-                receiptDao.confirm(c, receiptId, total);
-                c.commit();
-            } catch (SQLException e){ c.rollback(); throw e; } finally { c.setAutoCommit(true); }
+        StockReceipt receipt = receiptDao.findDraftForUpdate(c, batchId, branchId);
+        if (receipt == null) {
+            throw new BusinessException("Phiếu nhập không thuộc chi nhánh hiện tại hoặc không còn ở trạng thái nháp.");
         }
-    }
-
-    public void cancelReceipt(int receiptId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try { receiptDao.cancel(c, receiptId); c.commit(); }
-            catch (SQLException e){ c.rollback(); throw e; } finally { c.setAutoCommit(true); }
-        }
-    }
-
-    /** Huỷ nhiều phiếu cùng lúc — chỉ phiếu DRAFT bị huỷ (DAO guard Status='DRAFT'), 1 transaction. */
-    public void cancelManyReceipts(List<Integer> receiptIds) throws SQLException {
-        if (receiptIds == null || receiptIds.isEmpty()) return;
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                for (Integer id : receiptIds) if (id != null) receiptDao.cancel(c, id);
-                c.commit();
-            } catch (SQLException e){ c.rollback(); throw e; } finally { c.setAutoCommit(true); }
-        }
+        return receipt;
     }
 
     static void validateLine(BigDecimal quantity, BigDecimal unitCost) {
@@ -121,5 +160,17 @@ public class StockReceiptService {
         if (unitCost == null || unitCost.signum() <= 0) {
             throw new BusinessException("Đơn giá nhập phải lớn hơn 0.");
         }
+    }
+
+    private void applyConversionSnapshot(Connection c, StockReceiptDetail line) throws SQLException {
+        InventoryUnitChoice conversion = unitDao.findForUse(c, line.getUnitChoice(), line.getIngredientId());
+        if (conversion == null) {
+            throw new BusinessException("Đơn vị quy đổi không tồn tại, đã bị tắt hoặc không thuộc nguyên liệu.");
+        }
+        BigDecimal base = InventoryUnitConverter.toBase(line.getEnteredQuantity(), conversion.getFactorToBase());
+        if (base.signum() <= 0) throw new BusinessException("Số lượng sau quy đổi phải lớn hơn 0.");
+        line.setUnitNameAtEntry(conversion.getUnitName());
+        line.setFactorToBaseAtEntry(conversion.getFactorToBase());
+        line.setBaseQuantity(base);
     }
 }

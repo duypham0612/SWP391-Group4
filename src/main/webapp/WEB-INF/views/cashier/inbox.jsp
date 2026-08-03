@@ -2,6 +2,7 @@
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
+<c:set var="cssBundles" value="kds,list-controls" scope="request" />
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
@@ -22,7 +23,7 @@
     <div class="alert alert-error">
         <strong>Món hiện không nhận đặt:</strong>
         <c:forEach var="m" items="${outOfStockItems}" varStatus="loop">
-            <c:out value="${m.name}" /> (<c:out value="${m.stockMessage}" />)${loop.last ? '' : ' · '}
+            <c:out value="${m.name}" /> (<c:out value="${view.stockMessage(m)}" />)${loop.last ? '' : ' · '}
         </c:forEach>
         — nếu đơn đang xử lý có món bị chặn, hãy thông báo khách để đổi hoặc huỷ món.
     </div>
@@ -31,7 +32,7 @@
     <div class="alert alert-info">
         <strong>Cảnh báo sắp hết — vẫn nhận đặt:</strong>
         <c:forEach var="m" items="${lowStockItems}" varStatus="loop">
-            <c:out value="${m.name}" /> (<c:out value="${m.stockMessage}" />)${loop.last ? '' : ' · '}
+            <c:out value="${m.name}" /> (<c:out value="${view.stockMessage(m)}" />)${loop.last ? '' : ' · '}
         </c:forEach>
     </div>
 </c:if>
@@ -41,7 +42,7 @@
         <h2 style="margin:0">Món sẵn bàn giao</h2>
         <span class="badge badge-ready">${tickets.size() + pickedUpGroups.size()} nhóm đang chờ</span>
     </div>
-    <jsp:include page="handoff/cards.jsp" />
+    <jsp:include page="/WEB-INF/fragments/cashier/handoff-cards.jsp" />
 </section>
 
 <h2 id="orders" style="scroll-margin-top:20px">Đơn đang xử lý</h2>
@@ -75,7 +76,7 @@
                                 </c:choose>
                             </strong>
                         </div>
-                        <div class="muted">Đơn #${o.orderId} · ${o.createdAtDisplay} · ${o.items.size()} dòng món</div>
+                        <div class="muted">Đơn #${o.orderId} · ${view.fullUtc(o.createdAt)} · ${o.items.size()} dòng món</div>
                         <div class="muted">Tổng <strong><fmt:formatNumber value="${o.total}" type="number"/>đ</strong></div>
                     </div>
                     <div class="pickup-card__badges">
@@ -96,7 +97,7 @@
                         <section class="kds-ticket-item ${it.status == 'BLOCKED' ? 'kds-issue' : ''}">
                             <div class="kds-ticket-item__head">
                                 <strong>${it.quantity} × <c:out value="${it.productName}" /></strong>
-                                <jsp:include page="../layout/_statusBadge.jsp"><jsp:param name="status" value="${it.status}"/></jsp:include>
+                                <jsp:include page="/WEB-INF/fragments/cashier/status-badge.jsp"><jsp:param name="status" value="${it.status}"/></jsp:include>
                             </div>
                             <c:if test="${it.hasIssue and not empty it.issueReason}">
                                 <div class="kds-note" style="color:var(--st-cancelled)">⚠ <c:out value="${it.issueReason}" /></div>

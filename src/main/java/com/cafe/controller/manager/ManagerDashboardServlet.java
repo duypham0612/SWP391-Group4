@@ -15,12 +15,17 @@ import java.time.LocalDate;
 @WebServlet("/manager/dashboard")
 public class ManagerDashboardServlet extends HttpServlet {
 
-    private final ManagerDashboardService service = new ManagerDashboardService();
+    private final ManagerDashboardService service;
+
+    public ManagerDashboardServlet() { this(new ManagerDashboardService()); }
+    ManagerDashboardServlet(ManagerDashboardService service) {
+        this.service = java.util.Objects.requireNonNull(service);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         LocalDate today = LocalDate.now(BusinessDay.VN_ZONE);
         try {
             req.setAttribute("summary", service.getTodaySummary(branchId, today));

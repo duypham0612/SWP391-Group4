@@ -62,11 +62,10 @@
                             <c:choose>
                                 <c:when test="${b.status == 'PAID'}"><span class="badge badge-ready">Đã thu</span></c:when>
                                 <c:when test="${b.status == 'VOID'}"><span class="badge badge-cancelled">Huỷ</span></c:when>
-                                <c:when test="${b.status == 'REFUND'}"><span class="badge badge-cancelled">Đã hoàn</span></c:when>
                                 <c:otherwise><span class="badge badge-waiting">Chưa thu</span></c:otherwise>
                             </c:choose>
                         </td>
-                        <td>${b.transactionAtDisplay}</td>
+                        <td>${view.fullUtc(not empty b.paidAt ? b.paidAt : b.createdAt)}</td>
                         <td><a class="btn btn-ghost btn-sm" href="${ctx}/cashier/history?action=view&billId=${b.billId}">Xem</a></td>
                     </tr>
                 </c:forEach>

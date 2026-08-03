@@ -1,5 +1,6 @@
 package com.cafe.service.admin;
 
+import com.cafe.common.BusinessDay;
 import com.cafe.config.DBConnection;
 import com.cafe.dao.admin.ReportDao;
 import com.cafe.model.ChainSummary;
@@ -17,10 +18,17 @@ import java.util.Map;
 /** Phase 7 · ReportService — doanh thu toàn chuỗi (Admin, xem chéo chi nhánh). */
 public class ReportService {
 
-    private final ReportDao dao = new ReportDao();
+    private final ReportDao dao;
+
+    public ReportService() { this(new ReportDao()); }
+    public ReportService(ReportDao dao) { this.dao = java.util.Objects.requireNonNull(dao); }
 
     public ChainSummary getChainSummary() throws SQLException {
-        try (Connection c = DBConnection.getConnection()) { return dao.chainSummary(c); }
+        LocalDate today = BusinessDay.todayVn();
+        try (Connection c = DBConnection.getConnection()) {
+            return dao.chainSummary(c, BusinessDay.vnDayStartUtc(today),
+                    BusinessDay.vnDayEndExclusiveUtc(today));
+        }
     }
 
     public List<ReportRow> getRevenueByBranch() throws SQLException {
@@ -38,26 +46,41 @@ public class ReportService {
     // ===== Bản LỌC THEO KHOẢNG NGÀY (Dashboard: filter + biểu đồ + export) =====
 
     public ChainSummary getChainSummary(LocalDate from, LocalDate to) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) { return dao.chainSummary(c, from, to); }
+        LocalDate today = BusinessDay.todayVn();
+        try (Connection c = DBConnection.getConnection()) {
+            return dao.chainSummary(c, BusinessDay.vnDayStartUtc(from),
+                    BusinessDay.vnDayEndExclusiveUtc(to), BusinessDay.vnDayStartUtc(today),
+                    BusinessDay.vnDayEndExclusiveUtc(today));
+        }
     }
 
     public List<ReportRow> getRevenueByBranch(LocalDate from, LocalDate to) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) { return dao.revenueByBranch(c, from, to); }
+        try (Connection c = DBConnection.getConnection()) {
+            return dao.revenueByBranch(c, BusinessDay.vnDayStartUtc(from),
+                    BusinessDay.vnDayEndExclusiveUtc(to));
+        }
     }
 
     public List<ReportRow> getTopProducts(int top, LocalDate from, LocalDate to) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) { return dao.topProducts(c, top, from, to); }
+        try (Connection c = DBConnection.getConnection()) {
+            return dao.topProducts(c, top, BusinessDay.vnDayStartUtc(from),
+                    BusinessDay.vnDayEndExclusiveUtc(to));
+        }
     }
 
     public List<ReportRow> getPaymentBreakdown(LocalDate from, LocalDate to) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) { return dao.paymentBreakdown(c, from, to); }
+        try (Connection c = DBConnection.getConnection()) {
+            return dao.paymentBreakdown(c, BusinessDay.vnDayStartUtc(from),
+                    BusinessDay.vnDayEndExclusiveUtc(to));
+        }
     }
 
     /** Chuỗi doanh thu theo ngày, ĐÃ bù ngày trống = 0 (cho biểu đồ liên tục). */
     public List<ReportRow> getDailyRevenue(LocalDate from, LocalDate to) throws SQLException {
         try (Connection c = DBConnection.getConnection()) {
             Map<String, ReportRow> got = new LinkedHashMap<>();
-            for (ReportRow r : dao.dailyRevenue(c, from, to)) got.put(r.getLabel(), r);
+            for (ReportRow r : dao.dailyRevenue(c, BusinessDay.vnDayStartUtc(from),
+                    BusinessDay.vnDayEndExclusiveUtc(to))) got.put(r.getLabel(), r);
             List<ReportRow> out = new ArrayList<>();
             for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
                 ReportRow r = got.get(d.toString());   // yyyy-MM-dd khớp CONVERT(...,23)

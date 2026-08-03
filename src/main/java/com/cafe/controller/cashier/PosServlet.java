@@ -1,17 +1,19 @@
 package com.cafe.controller.cashier;
-import com.cafe.controller.manager.InventoryDashboardServlet;
 
 import com.cafe.common.Constants;
-import com.cafe.common.CsrfUtil;
-import com.cafe.common.SessionUtil;
+import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.SessionUtil;
 import com.cafe.common.ItemUnavailableException;
 import com.cafe.model.PosMenuItem;
-import com.cafe.model.TableSession;
+import com.cafe.model.DiningTable;
 import com.cafe.model.User;
 import com.cafe.service.shared.CatalogReadService;
-import com.cafe.service.shared.OrderService;
-import com.cafe.service.cashier.CashierOrderValidator;
-import com.cafe.service.cashier.TableSessionService;
+import com.cafe.model.CartLine;
+import com.cafe.service.shared.OrderPlacementService;
+import com.cafe.service.shared.OrderQueryService;
+import com.cafe.service.cashier.DiningTableService;
+import com.cafe.web.form.FormBindingException;
+import com.cafe.web.form.OrderCartForm;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.ServletException;
@@ -22,7 +24,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,15 +32,28 @@ import java.util.Map;
 @WebServlet("/cashier/pos")
 public class PosServlet extends HttpServlet {
 
-    private final CatalogReadService catalogReadService = new CatalogReadService();
-    private final TableSessionService tableSessionService = new TableSessionService();
-    private final OrderService orderService = new OrderService();
+    private final CatalogReadService catalogReadService;
+    private final DiningTableService tableService;
+    private final OrderQueryService orderQuery;
+    private final OrderPlacementService orderPlacement;
     private final ObjectMapper mapper = new ObjectMapper();
+
+    public PosServlet() {
+        this(new CatalogReadService(), new DiningTableService(),
+                new OrderQueryService(), new OrderPlacementService());
+    }
+    PosServlet(CatalogReadService catalogReadService, DiningTableService tableService,
+               OrderQueryService orderQuery, OrderPlacementService orderPlacement) {
+        this.catalogReadService = java.util.Objects.requireNonNull(catalogReadService);
+        this.tableService = java.util.Objects.requireNonNull(tableService);
+        this.orderQuery = java.util.Objects.requireNonNull(orderQuery);
+        this.orderPlacement = java.util.Objects.requireNonNull(orderPlacement);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         try {
             List<PosMenuItem> menu = catalogReadService.getPosMenu(branchId);
             req.setAttribute("menu", menu);
@@ -47,18 +61,18 @@ public class PosServlet extends HttpServlet {
                     .filter(item -> "LOW".equals(item.getAvailabilityState())).toList());
             req.setAttribute("outOfStockItems", menu.stream()
                     .filter(item -> !item.isOrderable()).toList());
-            req.setAttribute("openSessions", tableSessionService.getOpenSessions(branchId));
-            String sid = req.getParameter("sessionId");
-            if (sid != null && !sid.isBlank()) {
-                int sessionId = Integer.parseInt(sid);
-                if (!belongsToBranch(sessionId, branchId)) {
-                    req.getSession().setAttribute("flashError", "Phiên bàn không hợp lệ.");
+            req.setAttribute("openTables", tableService.getOpenTables(branchId));
+            String tid = req.getParameter("tableId");
+            if (tid != null && !tid.isBlank()) {
+                int tableId = Integer.parseInt(tid);
+                if (!belongsToBranch(tableId, branchId)) {
+                    req.getSession().setAttribute("flashError", "Bàn không hợp lệ.");
                     resp.sendRedirect(req.getContextPath() + "/cashier/table");
                     return;
                 }
-                req.setAttribute("sessionId", sessionId);
-                req.setAttribute("draftCartJson", getDraftCart(req, sessionId));
-                req.setAttribute("sessionItems", orderService.getSessionItemStatuses(sessionId));
+                req.setAttribute("tableId", tableId);
+                req.setAttribute("draftCartJson", getDraftCart(req, tableId));
+                req.setAttribute("tableItems", orderQuery.getTableItemStatuses(tableId));
             }
             req.setAttribute("pageTitle", "POS — Đặt món");
             req.getRequestDispatcher("/WEB-INF/views/cashier/pos.jsp").forward(req, resp);
@@ -69,54 +83,41 @@ public class PosServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         User u = SessionUtil.currentUser(req);
         Integer userId = u != null ? u.getUserId() : null;
         String action = req.getParameter("action");
         try {
             if ("saveDraft".equals(action)) {
-                Integer sessionId = parseNullableInt(req.getParameter("sessionId"));
-                if (sessionId != null && belongsToBranch(sessionId, branchId)) {
-                    saveDraftCart(req, sessionId, req.getParameter("cartJson"));
+                Integer tableId = parseNullableInt(req.getParameter("tableId"));
+                if (tableId != null && belongsToBranch(tableId, branchId)) {
+                    saveDraftCart(req, tableId, req.getParameter("cartJson"));
                 }
                 resp.sendRedirect(req.getContextPath() + "/cashier/table");
                 return;
             }
             if ("discardDraft".equals(action)) {
-                Integer sessionId = parseNullableInt(req.getParameter("sessionId"));
-                if (sessionId != null && belongsToBranch(sessionId, branchId)) {
-                    removeDraftCart(req.getSession(), sessionId);
-                    tableSessionService.closeSessionIfNoActiveItems(sessionId);
+                Integer tableId = parseNullableInt(req.getParameter("tableId"));
+                if (tableId != null && belongsToBranch(tableId, branchId)) {
+                    removeDraftCart(req.getSession(), tableId);
+                    tableService.closeTableIfNoUnpaidOrders(tableId, branchId);
                 }
                 resp.sendRedirect(req.getContextPath() + "/cashier/table");
                 return;
             }
 
             resp.setContentType("application/json;charset=UTF-8");
-            JsonNode body = mapper.readTree(req.getInputStream());
-            Integer sessionId = body.hasNonNull("sessionId") ? body.get("sessionId").asInt() : null;
-            if (sessionId != null && !belongsToBranch(sessionId, branchId)) {
-                throw new IllegalArgumentException("Phiên bàn không hợp lệ.");
+            OrderCartForm form = OrderCartForm.fromJson(req, mapper);
+            // OrderCartForm giữ tên field wire cũ để tương thích client; giá trị hiện là tableId.
+        Integer tableId = form.tableId();
+            if (tableId != null && !belongsToBranch(tableId, branchId)) {
+                throw new IllegalArgumentException("Bàn không hợp lệ.");
             }
-            String orderType = sessionId == null ? "TAKEAWAY" : "DINE_IN";
+            String orderType = tableId == null ? "TAKEAWAY" : "DINE_IN";
+            List<CartLine> lines = form.toCartLines();
 
-            List<OrderService.CartLine> lines = new ArrayList<>();
-            JsonNode items = body.get("items");
-            if (items != null && items.isArray()) {
-                for (JsonNode n : items) {
-                    OrderService.CartLine line = new OrderService.CartLine();
-                    line.productId = n.hasNonNull("productId") ? n.get("productId").asInt() : 0;
-                    line.quantity = n.has("quantity") ? n.get("quantity").asInt() : 1;
-                    line.note = n.hasNonNull("note") ? n.get("note").asText() : null;
-                    JsonNode opts = n.get("optionIds");
-                    if (opts != null && opts.isArray()) for (JsonNode o : opts) line.optionIds.add(o.asInt());
-                    lines.add(line);
-                }
-            }
-            CashierOrderValidator.validate(lines);
-
-            int orderId = orderService.placeOrder(branchId, sessionId, "COUNTER", orderType, userId, lines);
-            if (sessionId != null) removeDraftCart(req.getSession(), sessionId);
+            int orderId = orderPlacement.placeOrder(branchId, tableId, "COUNTER", orderType, userId, lines);
+            if (tableId != null) removeDraftCart(req.getSession(), tableId);
             resp.getWriter().write("{\"orderId\":" + orderId + "}");
         } catch (ItemUnavailableException e) {
             resp.setStatus(409);
@@ -126,7 +127,7 @@ public class PosServlet extends HttpServlet {
                     "productName", e.getProductName(),
                     "state", e.getState(),
                     "error", e.getReason()));
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | FormBindingException e) {
             resp.setStatus(400);
             resp.getWriter().write("{\"error\":\"" + escape(e.getMessage()) + "\"}");
         } catch (Exception e) {
@@ -137,17 +138,17 @@ public class PosServlet extends HttpServlet {
 
     private String escape(String s) { return s == null ? "" : s.replace("\"", "'"); }
 
-    private String getDraftCart(HttpServletRequest req, int sessionId) {
+    private String getDraftCart(HttpServletRequest req, int tableId) {
         Map<Integer, String> drafts = getDrafts(req.getSession(false));
-        String json = drafts == null ? null : drafts.get(sessionId);
+        String json = drafts == null ? null : drafts.get(tableId);
         return json == null || json.isBlank() ? "[]" : json;
     }
 
-    private void saveDraftCart(HttpServletRequest req, int sessionId, String cartJson) throws IOException {
+    private void saveDraftCart(HttpServletRequest req, int tableId, String cartJson) throws IOException {
         JsonNode node = mapper.readTree(cartJson == null || cartJson.isBlank() ? "[]" : cartJson);
         if (!node.isArray()) throw new IllegalArgumentException("Giỏ nháp không hợp lệ");
         String safeJson = mapper.writeValueAsString(node).replace("</", "<\\/");
-        getOrCreateDrafts(req.getSession()).put(sessionId, safeJson);
+        getOrCreateDrafts(req.getSession()).put(tableId, safeJson);
     }
 
     @SuppressWarnings("unchecked")
@@ -166,14 +167,14 @@ public class PosServlet extends HttpServlet {
         return drafts;
     }
 
-    private void removeDraftCart(HttpSession session, int sessionId) {
+    private void removeDraftCart(HttpSession session, int tableId) {
         Map<Integer, String> drafts = getDrafts(session);
-        if (drafts != null) drafts.remove(sessionId);
+        if (drafts != null) drafts.remove(tableId);
     }
 
-    private boolean belongsToBranch(int sessionId, int branchId) throws Exception {
-        TableSession session = tableSessionService.getSession(sessionId);
-        return session != null && session.getBranchId() == branchId && "OPEN".equals(session.getStatus());
+    private boolean belongsToBranch(int tableId, int branchId) throws Exception {
+        DiningTable table = tableService.getTable(tableId);
+        return table != null && table.getBranchId() == branchId && "OCCUPIED".equals(table.getStatus());
     }
 
     private Integer parseNullableInt(String value) {

@@ -3,10 +3,12 @@ package com.cafe.model;
 /** catalog.ModifierGroup (Size, Đường, Sữa, Topping...) */
 public class ModifierGroup {
     private int modifierGroupId;
+    private int productId;
     private String name;
     private boolean required;
     private int minSelect;
     private int maxSelect = 1;
+    private int sortOrder;
 
     // transient (đếm cho màn tổng quan, không thuộc bảng ModifierGroup)
     private int optionCount;
@@ -14,6 +16,8 @@ public class ModifierGroup {
 
     public int getModifierGroupId() { return modifierGroupId; }
     public void setModifierGroupId(int modifierGroupId) { this.modifierGroupId = modifierGroupId; }
+    public int getProductId() { return productId; }
+    public void setProductId(int productId) { this.productId = productId; }
 
     public int getOptionCount() { return optionCount; }
     public void setOptionCount(int optionCount) { this.optionCount = optionCount; }
@@ -32,4 +36,6 @@ public class ModifierGroup {
 
     public int getMaxSelect() { return maxSelect; }
     public void setMaxSelect(int maxSelect) { this.maxSelect = maxSelect; }
+    public int getSortOrder() { return sortOrder; }
+    public void setSortOrder(int sortOrder) { this.sortOrder = sortOrder; }
 }

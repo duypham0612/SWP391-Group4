@@ -1,9 +1,11 @@
 package com.cafe.service.admin;
 
+import com.cafe.common.BusinessException;
 import com.cafe.config.DBConnection;
-import com.cafe.dao.admin.HomeSettingDao;
+import com.cafe.config.Tx;
 import com.cafe.dao.admin.ProductDao;
-import com.cafe.model.HomeSetting;
+import com.cafe.dao.admin.BranchDao;
+import com.cafe.model.Branch;
 import com.cafe.model.Product;
 
 import java.sql.Connection;
@@ -16,8 +18,14 @@ import java.util.List;
  */
 public class HomeAdminService {
 
-    private final ProductDao productDao = new ProductDao();
-    private final HomeSettingDao homeSettingDao = new HomeSettingDao();
+    private final ProductDao productDao;
+    private final BranchDao branchDao;
+
+    public HomeAdminService() { this(new ProductDao(), new BranchDao()); }
+    public HomeAdminService(ProductDao productDao, BranchDao branchDao) {
+        this.productDao = java.util.Objects.requireNonNull(productDao);
+        this.branchDao = java.util.Objects.requireNonNull(branchDao);
+    }
 
     /** Danh sách sản phẩm đang bán (gồm cả món đang ẩn) cho màn quản trị Home. */
     public List<Product> getProductsForAdmin() throws SQLException {
@@ -26,10 +34,23 @@ public class HomeAdminService {
         }
     }
 
-    /** Nội dung hero hiện tại (null nếu chưa cấu hình). */
-    public HomeSetting getHomeSetting() throws SQLException {
+    public List<Branch> getBranches() throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            return homeSettingDao.find(conn);
+            return branchDao.findAll(conn);
+        }
+    }
+
+    /** Hero thuộc chi nhánh được chọn; mặc định là chi nhánh active đầu tiên theo BranchId. */
+    public Branch getHomeBranch(Integer branchId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            if (branchId != null && branchId > 0) {
+                Branch selected = branchDao.findById(conn, branchId);
+                if (selected != null) return selected;
+            }
+            Branch active = branchDao.findFirstActive(conn);
+            if (active != null) return active;
+            List<Branch> branches = branchDao.findAll(conn);
+            return branches.isEmpty() ? null : branches.get(0);
         }
     }
 
@@ -41,26 +62,23 @@ public class HomeAdminService {
         if (ids == null || ids.length == 0) return;
         if (shows.length != ids.length || orders.length != ids.length)
             throw new IllegalArgumentException("Số phần tử showOnHome/homeSortOrder không khớp danh sách sản phẩm.");
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                for (int i = 0; i < ids.length; i++) {
-                    int order = Math.max(0, orders[i]);
-                    productDao.updateHomeDisplay(conn, ids[i], shows[i], order);
-                }
-                conn.commit();
-            } catch (SQLException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+        Tx.run(conn -> {
+            for (int i = 0; i < ids.length; i++) {
+                int order = Math.max(0, orders[i]);
+                productDao.updateHomeDisplay(conn, ids[i], shows[i], order);
+            }
+        });
     }
 
     /** Lưu nội dung hero trang Home. */
-    public void saveContent(HomeSetting s) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try { homeSettingDao.update(conn, s); conn.commit(); }
-            catch (SQLException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
+    public void saveContent(Branch branch) throws SQLException {
+        if (branch == null || branch.getBranchId() <= 0) {
+            throw new BusinessException("Vui lòng chọn chi nhánh cần cập nhật hero.");
         }
+        Tx.run(conn -> {
+            if (branchDao.updateHero(conn, branch) != 1) {
+                throw new BusinessException("Không tìm thấy chi nhánh cần cập nhật hero.");
+            }
+        });
     }
 }

@@ -2,49 +2,49 @@ package com.cafe.model;
 
 import java.math.BigDecimal;
 
-/** inventory.StockReceiptDetail — dòng phiếu nhập. */
+/** inventory.StockReceiptLine — dòng phiếu nhập. */
 public class StockReceiptDetail {
-    private int stockReceiptDetailId;
-    private int stockReceiptId;
+    private int stockReceiptLineId;
+    private String receiptBatchId;
     private int ingredientId;
-    private BigDecimal quantity;
+    /** Lựa chọn tạm từ form: 0=đơn vị gốc, 1=đơn vị mua; không lưu DB. */
+    private int unitChoice;
+    private BigDecimal enteredQuantity;
+    private BigDecimal baseQuantity;
     private BigDecimal unitCost = BigDecimal.ZERO;
-    private String unit;            // đơn vị nhập per-line (vd "Túi"); null = dùng đơn vị gốc nguyên liệu
+    private String unitNameAtEntry;
+    private BigDecimal factorToBaseAtEntry;
 
     // join
     private String ingredientName;
     private String ingredientUnit;
 
-    public int getStockReceiptDetailId() { return stockReceiptDetailId; }
-    public void setStockReceiptDetailId(int stockReceiptDetailId) { this.stockReceiptDetailId = stockReceiptDetailId; }
+    public int getStockReceiptLineId() { return stockReceiptLineId; }
+    public void setStockReceiptLineId(int stockReceiptLineId) { this.stockReceiptLineId = stockReceiptLineId; }
 
-    public int getStockReceiptId() { return stockReceiptId; }
-    public void setStockReceiptId(int stockReceiptId) { this.stockReceiptId = stockReceiptId; }
+    public String getReceiptBatchId() { return receiptBatchId; }
+    public void setReceiptBatchId(String receiptBatchId) { this.receiptBatchId = receiptBatchId; }
 
     public int getIngredientId() { return ingredientId; }
     public void setIngredientId(int ingredientId) { this.ingredientId = ingredientId; }
 
-    /** Cho JSP — bỏ .000 thừa. */
-    public String getQuantityDisplay() { return com.cafe.common.QuantityFormat.plain(quantity); }
-
-    public BigDecimal getQuantity() { return quantity; }
-    public void setQuantity(BigDecimal quantity) { this.quantity = quantity; }
+    public BigDecimal getEnteredQuantity() { return enteredQuantity; }
+    public void setEnteredQuantity(BigDecimal value) { enteredQuantity = value; }
+    public BigDecimal getBaseQuantity() { return baseQuantity; }
+    public void setBaseQuantity(BigDecimal value) { baseQuantity = value; }
+    public int getUnitChoice() { return unitChoice; }
+    public void setUnitChoice(int value) { unitChoice = value; }
+    public BigDecimal getFactorToBaseAtEntry() { return factorToBaseAtEntry; }
+    public void setFactorToBaseAtEntry(BigDecimal value) { factorToBaseAtEntry = value; }
 
     public BigDecimal getUnitCost() { return unitCost; }
     public void setUnitCost(BigDecimal unitCost) { this.unitCost = unitCost; }
-    public String getUnitCostDisplay() { return com.cafe.common.QuantityFormat.groupedVi(unitCost); }
-
-    public String getUnit() { return unit; }
-    public void setUnit(String unit) { this.unit = unit; }
-
-    /** Đơn vị hiển thị: ưu tiên đơn vị nhập per-line, fallback về đơn vị gốc nguyên liệu. */
-    public String getDisplayUnit() { return (unit == null || unit.isBlank()) ? ingredientUnit : unit; }
+    public String getUnitNameAtEntry() { return unitNameAtEntry; }
+    public void setUnitNameAtEntry(String value) { unitNameAtEntry = value; }
 
     public BigDecimal getLineCost() {
-        return quantity == null || unitCost == null ? BigDecimal.ZERO : quantity.multiply(unitCost);
+        return enteredQuantity == null || unitCost == null ? BigDecimal.ZERO : enteredQuantity.multiply(unitCost);
     }
-    public String getLineCostDisplay() { return com.cafe.common.QuantityFormat.groupedVi(getLineCost()); }
-
     public String getIngredientName() { return ingredientName; }
     public void setIngredientName(String ingredientName) { this.ingredientName = ingredientName; }
 

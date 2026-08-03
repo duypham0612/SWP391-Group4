@@ -1,6 +1,6 @@
 package com.cafe.service.cashier;
 
-import com.cafe.service.shared.OrderService;
+import com.cafe.model.CartLine;
 
 import java.util.List;
 import com.cafe.service.shared.OrderQuantityValidator;
@@ -17,7 +17,7 @@ public final class CashierOrderValidator {
     private CashierOrderValidator() {
     }
 
-    public static void validate(List<OrderService.CartLine> lines) {
+    public static void validate(List<CartLine> lines) {
         OrderQuantityValidator.validate(lines);
     }
 }

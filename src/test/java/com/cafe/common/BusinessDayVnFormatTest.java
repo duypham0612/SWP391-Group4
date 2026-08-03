@@ -25,5 +25,15 @@ class BusinessDayVnFormatTest {
         assertEquals("—", BusinessDay.fmtStampVn(null));
         assertEquals("—", BusinessDay.fmtFullDateTimeVn(null));
         assertNull(BusinessDay.toVn(null));
+        assertNull(BusinessDay.toUtc(null));
+    }
+
+    @Test
+    void converts_vietnam_local_eta_to_utc_and_round_trips() {
+        LocalDateTime etaVn = LocalDateTime.of(2026, 8, 1, 9, 45);
+        LocalDateTime etaUtc = BusinessDay.toUtc(etaVn);
+
+        assertEquals(LocalDateTime.of(2026, 8, 1, 2, 45), etaUtc);
+        assertEquals(etaVn, BusinessDay.toVn(etaUtc));
     }
 }

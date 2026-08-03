@@ -1,5 +1,7 @@
 package com.cafe.model;
 
+import java.math.BigDecimal;
+
 /** catalog.Ingredient — RAW (mua về) hoặc PREPPED (pha sẵn tại quán). */
 public class Ingredient {
     private int ingredientId;
@@ -7,6 +9,9 @@ public class Ingredient {
     private String unit;            // g, ml, cái, kg, L...
     private String ingredientType;  // RAW | PREPPED
     private Integer shelfLifeMinutes;
+    private BigDecimal prepYieldQty;
+    private String purchaseUnitName;
+    private BigDecimal purchaseFactorToBase;
     private boolean active = true;
 
     public int getIngredientId() { return ingredientId; }
@@ -23,13 +28,14 @@ public class Ingredient {
 
     public Integer getShelfLifeMinutes() { return shelfLifeMinutes; }
     public void setShelfLifeMinutes(Integer shelfLifeMinutes) { this.shelfLifeMinutes = shelfLifeMinutes; }
-    public String getShelfLifeHoursDisplay() {
-        if (shelfLifeMinutes == null || shelfLifeMinutes < 0) return "";
-        return java.math.BigDecimal.valueOf(shelfLifeMinutes)
-                .divide(java.math.BigDecimal.valueOf(60), 2, java.math.RoundingMode.HALF_UP)
-                .stripTrailingZeros().toPlainString();
+    public BigDecimal getPrepYieldQty() { return prepYieldQty; }
+    public void setPrepYieldQty(BigDecimal prepYieldQty) { this.prepYieldQty = prepYieldQty; }
+    public String getPurchaseUnitName() { return purchaseUnitName; }
+    public void setPurchaseUnitName(String purchaseUnitName) { this.purchaseUnitName = purchaseUnitName; }
+    public BigDecimal getPurchaseFactorToBase() { return purchaseFactorToBase; }
+    public void setPurchaseFactorToBase(BigDecimal purchaseFactorToBase) {
+        this.purchaseFactorToBase = purchaseFactorToBase;
     }
-
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
 }

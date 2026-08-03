@@ -1,15 +1,14 @@
 package com.cafe.service.manager;
 
 import com.cafe.config.DBConnection;
+import com.cafe.config.Tx;
 import com.cafe.common.BusinessDay;
+import com.cafe.common.BusinessException;
 import com.cafe.common.ShiftHours;
 import com.cafe.common.ShiftWindow;
 import com.cafe.dao.manager.AttendanceDao;
-import com.cafe.dao.manager.PayrollDao;
-import com.cafe.model.Attendance;
 import com.cafe.model.MonthlyAttendanceRow;
 import com.cafe.model.MonthlyWorkSummary;
-import com.cafe.model.Payroll;
 import com.cafe.model.ShiftAssignment;
 import com.cafe.model.ShiftClockStatus;
 
@@ -29,19 +28,14 @@ import java.util.Set;
 /** M3 · AttendanceService — duyệt chấm công. */
 public class AttendanceService {
 
-    private final AttendanceDao dao = new AttendanceDao();
-    private final PayrollDao payrollDao = new PayrollDao();
-
-    public List<Attendance> getPendingAttendance(int branchId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) { return dao.findByStatus(c, branchId, "PENDING"); }
-    }
-
-    public List<Attendance> getAttendanceByStatus(int branchId, String status) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) { return dao.findByStatus(c, branchId, status); }
+    private final AttendanceDao dao;
+    public AttendanceService() { this(new AttendanceDao()); }
+    public AttendanceService(AttendanceDao dao) {
+        this.dao = java.util.Objects.requireNonNull(dao);
     }
 
     /** Tất cả chấm công của chi nhánh (1 màn gộp). */
-    public List<Attendance> getBranchAttendance(int branchId) throws SQLException {
+    public List<ShiftAssignment> getBranchAttendance(int branchId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) { return dao.findByBranch(c, branchId); }
     }
 
@@ -49,43 +43,54 @@ public class AttendanceService {
      * Chấm công bằng tickbox: với mỗi bản ghi hiển thị (shownIds, không tính REJECTED),
      * tick = APPROVED (ghi người duyệt), bỏ tick = PENDING (xoá người duyệt). Tất cả 1 transaction.
      */
-    public void setApprovalStates(List<Integer> shownIds, Set<Integer> checkedIds, int approverId) throws SQLException {
+    public void setApprovalStates(List<Integer> shownIds, Set<Integer> checkedIds,
+                                  int approverId, int branchId) throws SQLException {
         txVoid(c -> {
             for (Integer id : shownIds) {
-                if (checkedIds.contains(id)) dao.updateApproval(c, id, "APPROVED", approverId);
-                else dao.updateApproval(c, id, "PENDING", null);
+                int rows = checkedIds.contains(id)
+                        ? approve(c, id, approverId, branchId)
+                        : dao.updateApprovalByBranch(c, id, branchId, "PENDING", null);
+                requireScopedUpdate(rows);
             }
         });
     }
 
     /** Mở lại bản ghi đã từ chối → PENDING. */
-    public void reopenAttendance(int id) throws SQLException {
-        txVoid(c -> dao.updateApproval(c, id, "PENDING", null));
+    public void reopenAttendance(int id, int branchId) throws SQLException {
+        txVoid(c -> requireScopedUpdate(
+                dao.updateApprovalByBranch(c, id, branchId, "PENDING", null)));
     }
 
-    public Attendance getAttendance(int id) throws SQLException {
+    public ShiftAssignment getAttendance(int id) throws SQLException {
         try (Connection c = DBConnection.getConnection()) { return dao.findById(c, id); }
     }
 
-    public void approveAttendance(int id, int approverId) throws SQLException {
-        txVoid(c -> dao.updateStatus(c, id, "APPROVED", approverId));
-    }
-
-    public void rejectAttendance(int id, int approverId) throws SQLException {
-        txVoid(c -> dao.updateStatus(c, id, "REJECTED", approverId));
+    public void rejectAttendance(int id, int approverId, int branchId) throws SQLException {
+        txVoid(c -> requireScopedUpdate(
+                dao.updateApprovalByBranch(c, id, branchId, "REJECTED", approverId)));
     }
 
     /** Manager sửa giờ check-in/out tay. */
-    public void updateAttendance(int id, LocalDateTime checkIn, LocalDateTime checkOut) throws SQLException {
+    public void updateAttendance(int id, int branchId,
+                                 LocalDateTime checkIn, LocalDateTime checkOut) throws SQLException {
         Timestamp ci = checkIn == null ? null : Timestamp.valueOf(checkIn);
         Timestamp co = checkOut == null ? null : Timestamp.valueOf(checkOut);
-        txVoid(c -> dao.update(c, id, ci, co));
+        txVoid(c -> requireScopedUpdate(dao.updateByBranch(c, id, branchId, ci, co)));
     }
 
-    /** Số giờ làm của 1 bản ghi chấm công (đọc lại từ DB). */
-    public double computeWorkHours(int attendanceId) throws SQLException {
-        Attendance a = getAttendance(attendanceId);
-        return a == null ? 0d : a.getWorkHours();
+    private static void requireScopedUpdate(int rows) {
+        if (rows != 1) {
+            throw new BusinessException("Bản chấm công không thuộc chi nhánh hiện tại.");
+        }
+    }
+
+    private int approve(Connection c, int id, int approverId, int branchId)
+            throws SQLException {
+        if (!dao.canApproveWithSnapshot(c, id, branchId)) {
+            throw new BusinessException(
+                    "Chưa thiết lập lương theo giờ cho nhân viên nên không thể duyệt chấm công.");
+        }
+        return dao.updateApprovalByBranch(c, id, branchId, "APPROVED", approverId);
     }
 
     /** Trạng thái chấm công hôm nay của nhân viên đang đăng nhập. */
@@ -121,7 +126,7 @@ public class AttendanceService {
         try (Connection c = DBConnection.getConnection()) {
             LocalDateTime nowVn = LocalDateTime.now(BusinessDay.VN_ZONE);
             Set<Integer> out = new java.util.HashSet<>();
-            for (Attendance a : dao.findOpenByBranch(c, branchId, currentVnDate())) {
+            for (ShiftAssignment a : dao.findOpenByBranch(c, branchId, currentVnDate())) {
                 if (ShiftWindow.onDuty(a.getWorkDate(), a.getStartTime(), a.getEndTime(),
                         a.getCheckInAt() != null, a.getCheckOutAt() != null, nowVn)) {
                     out.add(a.getUserId());
@@ -211,15 +216,7 @@ public class AttendanceService {
     public MonthlyWorkSummary getMyMonthlySummary(int userId, int branchId, YearMonth ym,
                                                    List<MonthlyAttendanceRow> rows)
             throws SQLException {
-        MonthlyWorkSummary s = summarize(rows);
-        try (Connection c = DBConnection.getConnection()) {
-            Payroll p = payrollDao.findByMonth(c, branchId, ym.toString()).get(userId);
-            if (p != null) {
-                s.setLockedHours(p.getWorkedHours());
-                s.setHourlyRate(p.getHourlyRate());
-            }
-        }
-        return s;
+        return summarize(rows);
     }
 
     static MonthlyWorkSummary summarize(List<MonthlyAttendanceRow> rows) {
@@ -253,16 +250,9 @@ public class AttendanceService {
         return v.setScale(1, RoundingMode.HALF_UP).doubleValue();
     }
 
-    /** Vào ca: yêu cầu đã được xếp ca hôm nay, idempotent nếu đã có bản đang mở. */
+    /** Vào ca: yêu cầu đã được xếp ca hôm nay, idempotent nếu assignment đã mở. */
     public void clockIn(int userId, int branchId) throws SQLException {
-        try {
-            txVoid(c -> clockIn(c, userId, branchId));
-        } catch (SQLException e) {
-            // Nếu một request song song vừa tạo Attendance, đọc lại ở transaction mới.
-            // Khi bản ghi đó đang mở thì clockIn(Connection) trả về thành công như thao tác lặp.
-            if (!isDuplicateKey(e)) throw e;
-            txVoid(c -> clockIn(c, userId, branchId));
-        }
+        txVoid(c -> clockIn(c, userId, branchId));
     }
 
     /** Lõi vào ca chạy trong transaction của caller. */
@@ -272,18 +262,15 @@ public class AttendanceService {
         if (assignments.isEmpty()) throw new IllegalStateException("Hôm nay bạn chưa được xếp ca.");
 
         ShiftAssignment target = chooseForClockIn(c, assignments);
-        Attendance existing = dao.findByAssignmentForUpdate(c, target.getShiftAssignmentId());
-        if (existing == null) {
-            dao.insert(c, target.getShiftAssignmentId(), dao.currentUtc(c), null, "PENDING");
-            return;
-        }
+        ShiftAssignment existing = dao.findByAssignmentForUpdate(c, target.getShiftAssignmentId());
+        if (existing == null) throw new IllegalStateException("Không tìm thấy ca đã phân công.");
         if (existing.getCheckOutAt() != null) {
             throw new IllegalStateException("Ca này đã tan, không thể vào lại.");
         }
         if (existing.getCheckInAt() != null) return;
-
-        dao.update(c, existing.getAttendanceId(), dao.currentUtc(c), null);
-        dao.updateApproval(c, existing.getAttendanceId(), "PENDING", null);
+        if (dao.clockIn(c, existing.getShiftAssignmentId(), dao.currentUtc(c)) != 1) {
+            throw new IllegalStateException("Không thể ghi nhận giờ vào ca.");
+        }
     }
 
     /** Tan ca: chỉ cập nhật bản đang mở, giữ luồng duyệt Manager qua PENDING. */
@@ -324,34 +311,36 @@ public class AttendanceService {
      */
     public void clockOutAssignment(Connection c, int shiftAssignmentId) throws SQLException {
         // Khoá dòng như clockIn: hai tab bấm tan ca cùng lúc thì tab sau đọc được CheckOutAt đã ghi và bị chặn.
-        Attendance existing = dao.findByAssignmentForUpdate(c, shiftAssignmentId);
+        ShiftAssignment existing = dao.findByAssignmentForUpdate(c, shiftAssignmentId);
         if (existing == null || existing.getCheckInAt() == null || existing.getCheckOutAt() != null) {
             throw new IllegalStateException("Bạn chưa vào ca.");
         }
-        dao.update(c, existing.getAttendanceId(), Timestamp.valueOf(existing.getCheckInAt()), dao.currentUtc(c));
-        dao.updateApproval(c, existing.getAttendanceId(), "PENDING", null);
+        dao.update(c, existing.getShiftAssignmentId(), Timestamp.valueOf(existing.getCheckInAt()), dao.currentUtc(c));
+        dao.updateApproval(c, existing.getShiftAssignmentId(), "PENDING", null);
     }
 
     private ShiftClockStatus buildStatus(Connection c, List<ShiftAssignment> assignments, LocalDate date) throws SQLException {
         if (assignments.isEmpty()) {
             ShiftClockStatus status = new ShiftClockStatus();
             status.setWorkDate(date);
-            status.setStatusText("Hôm nay bạn chưa được xếp ca.");
             return status;
         }
 
         ShiftAssignment firstUnclocked = null;
         ShiftAssignment lastClosed = null;
-        Attendance lastClosedAttendance = null;
+        ShiftAssignment lastClosedAttendance = null;
         for (ShiftAssignment assignment : assignments) {
-            Attendance attendance = dao.findByAssignment(c, assignment.getShiftAssignmentId());
-            if (attendance != null && attendance.getCheckInAt() != null && attendance.getCheckOutAt() == null) {
+            ShiftAssignment attendance = dao.findByAssignment(c, assignment.getShiftAssignmentId());
+            if (attendance != null && attendance.getAttendanceStatus() != null
+                    && attendance.getCheckInAt() != null && attendance.getCheckOutAt() == null) {
                 return statusFor(c, assignment, attendance);
             }
-            if ((attendance == null || attendance.getCheckInAt() == null) && firstUnclocked == null) {
+            if ((attendance == null || attendance.getAttendanceStatus() == null
+                    || attendance.getCheckInAt() == null) && firstUnclocked == null) {
                 firstUnclocked = assignment;
             }
-            if (attendance != null && attendance.getCheckOutAt() != null) {
+            if (attendance != null && attendance.getAttendanceStatus() != null
+                    && attendance.getCheckOutAt() != null) {
                 lastClosed = assignment;
                 lastClosedAttendance = attendance;
             }
@@ -361,24 +350,23 @@ public class AttendanceService {
         return statusFor(c, lastClosed, lastClosedAttendance);
     }
 
-    private ShiftClockStatus statusFor(Connection c, ShiftAssignment assignment, Attendance attendance) throws SQLException {
+    private ShiftClockStatus statusFor(Connection c, ShiftAssignment assignment, ShiftAssignment attendance) throws SQLException {
         ShiftClockStatus status = new ShiftClockStatus();
         status.setHasAssignment(true);
-        status.setTemplateName(assignment.getTemplateName());
+        status.setTemplateName(assignment.getShiftName());
         status.setWorkDate(assignment.getWorkDate());
         status.setStartTime(assignment.getStartTime());
         status.setEndTime(assignment.getEndTime());
 
-        if (attendance == null || attendance.getCheckInAt() == null) {
+        if (attendance == null || attendance.getAttendanceStatus() == null
+                || attendance.getCheckInAt() == null) {
             status.setCanClockIn(true);
-            status.setStatusText("Chưa vào ca.");
             return status;
         }
 
         status.setCheckInAt(attendance.getCheckInAt());
         if (attendance.getCheckOutAt() == null) {
             status.setCanClockOut(true);
-            status.setStatusText("Đang trong ca từ " + BusinessDay.fmtTimeVn(attendance.getCheckInAt()) + ".");
             status.setWorkHours(hoursBetween(attendance.getCheckInAt(), dao.currentUtc(c).toLocalDateTime()));
             return status;
         }
@@ -386,16 +374,17 @@ public class AttendanceService {
         status.setClockedOut(true);
         status.setCheckOutAt(attendance.getCheckOutAt());
         status.setWorkHours(hoursBetween(attendance.getCheckInAt(), attendance.getCheckOutAt()));
-        status.setStatusText("Đã tan ca.");
         return status;
     }
 
     private ShiftAssignment chooseForClockIn(Connection c, List<ShiftAssignment> assignments) throws SQLException {
         ShiftAssignment lastClosed = assignments.get(assignments.size() - 1);
         for (ShiftAssignment assignment : assignments) {
-            Attendance attendance = dao.findByAssignment(c, assignment.getShiftAssignmentId());
-            if (attendance != null && attendance.getCheckInAt() != null && attendance.getCheckOutAt() == null) return assignment;
-            if (attendance == null || attendance.getCheckInAt() == null) return assignment;
+            ShiftAssignment attendance = dao.findByAssignment(c, assignment.getShiftAssignmentId());
+            if (attendance != null && attendance.getAttendanceStatus() != null
+                    && attendance.getCheckInAt() != null && attendance.getCheckOutAt() == null) return assignment;
+            if (attendance == null || attendance.getAttendanceStatus() == null
+                    || attendance.getCheckInAt() == null) return assignment;
             lastClosed = assignment;
         }
         return lastClosed;
@@ -403,8 +392,9 @@ public class AttendanceService {
 
     private ShiftAssignment chooseOpenAssignment(Connection c, List<ShiftAssignment> assignments) throws SQLException {
         for (ShiftAssignment assignment : assignments) {
-            Attendance attendance = dao.findByAssignment(c, assignment.getShiftAssignmentId());
-            if (attendance != null && attendance.getCheckInAt() != null && attendance.getCheckOutAt() == null) return assignment;
+            ShiftAssignment attendance = dao.findByAssignment(c, assignment.getShiftAssignmentId());
+            if (attendance != null && attendance.getAttendanceStatus() != null
+                    && attendance.getCheckInAt() != null && attendance.getCheckOutAt() == null) return assignment;
         }
         return null;
     }
@@ -418,30 +408,10 @@ public class AttendanceService {
         return BusinessDay.todayVn();
     }
 
-    private static boolean isDuplicateKey(SQLException error) {
-        for (SQLException current = error; current != null; current = current.getNextException()) {
-            // SQL Server: 2601 = duplicate unique index, 2627 = duplicate constraint/PK.
-            if (current.getErrorCode() == 2601 || current.getErrorCode() == 2627) return true;
-        }
-        return false;
-    }
-
     private interface V{ void run(Connection c) throws SQLException; }
     private void txVoid(V v) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                v.run(c);
-                c.commit();
-            } catch (SQLException e) {
-                c.rollback();
-                throw e;
-            } catch (RuntimeException e) {
-                c.rollback();
-                throw e;
-            } finally {
-                c.setAutoCommit(true);
-            }
-        }
+        Tx.run(c -> {
+            v.run(c);
+        });
     }
 }

@@ -10,7 +10,7 @@ public class OrderItemModifier {
     private BigDecimal priceDelta;
 
     // join
-    private String optionName;
+    private String modifierOptionNameAtOrder;
 
     public int getOrderItemModifierId() { return orderItemModifierId; }
     public void setOrderItemModifierId(int v) { this.orderItemModifierId = v; }
@@ -24,6 +24,6 @@ public class OrderItemModifier {
     public BigDecimal getPriceDelta() { return priceDelta; }
     public void setPriceDelta(BigDecimal v) { this.priceDelta = v; }
 
-    public String getOptionName() { return optionName; }
-    public void setOptionName(String v) { this.optionName = v; }
+    public String getOptionName() { return modifierOptionNameAtOrder; }
+    public void setOptionName(String v) { this.modifierOptionNameAtOrder = v; }
 }

@@ -1,6 +1,9 @@
 package com.cafe.controller.customer;
 
+import com.cafe.common.Constants;
+import com.cafe.model.User;
 import com.cafe.service.shared.CatalogReadService;
+import com.cafe.web.support.SessionUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -16,15 +19,38 @@ import java.io.IOException;
 @WebServlet("/home")
 public class HomeServlet extends HttpServlet {
 
-    private final CatalogReadService catalog = new CatalogReadService();
+    private final CatalogReadService catalog;
+
+    public HomeServlet() { this(new CatalogReadService()); }
+    HomeServlet(CatalogReadService catalog) {
+        this.catalog = java.util.Objects.requireNonNull(catalog);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         try {
             req.setAttribute("sections", catalog.getPublicMenu());
-            req.setAttribute("home", catalog.getHomeSetting());
+            req.setAttribute("home", catalog.getHomeBranch(resolveBranchId(req)));
             req.getRequestDispatcher("/WEB-INF/views/customer/home.jsp").forward(req, resp);
         } catch (Exception e) { throw new ServletException(e); }
+    }
+
+    /** Ngữ cảnh cụ thể ưu tiên request scope/session/query; không có thì DAO fallback active đầu tiên. */
+    private Integer resolveBranchId(HttpServletRequest req) {
+        Object scoped = req.getAttribute(Constants.ATTR_BRANCH_ID);
+        if (scoped instanceof Number number && number.intValue() > 0) return number.intValue();
+
+        User user = SessionUtil.currentUser(req);
+        if (user != null && user.getBranchId() != null && user.getBranchId() > 0) return user.getBranchId();
+
+        String requested = req.getParameter("branchId");
+        if (requested == null || requested.isBlank()) return null;
+        try {
+            int branchId = Integer.parseInt(requested.trim());
+            return branchId > 0 ? branchId : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 }

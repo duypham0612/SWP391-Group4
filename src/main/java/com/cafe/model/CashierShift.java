@@ -1,7 +1,5 @@
 package com.cafe.model;
 
-import com.cafe.common.BusinessDay;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -39,12 +37,8 @@ public class CashierShift {
 
     public LocalDateTime getOpenedAt() { return openedAt; }
     public void setOpenedAt(LocalDateTime v) { this.openedAt = v; }
-    public String getOpenedAtDisplay() { return BusinessDay.fmtFullDateTimeVn(openedAt); }
-
     public LocalDateTime getClosedAt() { return closedAt; }
     public void setClosedAt(LocalDateTime v) { this.closedAt = v; }
-    public String getClosedAtDisplay() { return BusinessDay.fmtFullDateTimeVn(closedAt); }
-
     public String getCashierName() { return cashierName; }
     public void setCashierName(String v) { this.cashierName = v; }
 

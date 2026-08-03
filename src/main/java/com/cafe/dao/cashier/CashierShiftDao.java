@@ -17,7 +17,7 @@ public class CashierShiftDao {
     private static final String SELECT =
         "SELECT cs.CashierShiftId, cs.BranchId, cs.CashierId, cs.OpeningCash, cs.ClosingCash, cs.OpenedAt, cs.ClosedAt, " +
         "       u.FullName AS CashierName " +
-        "FROM payment.CashierShift cs JOIN iam.[User] u ON u.UserId=cs.CashierId ";
+        "FROM payment.CashierShift cs JOIN iam.UserAccount u ON u.UserId=cs.CashierId ";
 
     public int insertOpen(Connection conn, int branchId, int cashierId, BigDecimal openingCash) throws SQLException {
         final String sql = "INSERT INTO payment.CashierShift(BranchId, CashierId, OpeningCash) VALUES (?,?,?)";
@@ -170,17 +170,16 @@ public class CashierShiftDao {
 
     private PendingHandover pendingHandover(Connection conn, int branchId, boolean lock)
             throws SQLException {
-        String orderTable = lock ? "sales.Orders o WITH (UPDLOCK, HOLDLOCK) " : "sales.Orders o ";
+        String orderTable = lock ? "sales.SalesOrder o WITH (UPDLOCK, HOLDLOCK) " : "sales.SalesOrder o ";
         final String sql = "SELECT " +
                 "ISNULL(SUM(CASE WHEN o.Status='COMPLETED' THEN 1 ELSE 0 END),0) AS ReadyCount, " +
                 "ISNULL(SUM(CASE WHEN o.Status='ACTIVE' THEN 1 ELSE 0 END),0) AS ActiveCount " +
                 "FROM " + orderTable +
                 "WHERE o.BranchId=? AND o.Status IN ('ACTIVE','COMPLETED') AND EXISTS (" +
                 " SELECT 1 FROM sales.OrderItem oi " +
-                " LEFT JOIN payment.BillItem bi ON bi.OrderItemId=oi.OrderItemId " +
-                " LEFT JOIN payment.Bill b ON b.BillId=bi.BillId " +
+                " LEFT JOIN payment.Bill b ON b.BillId=oi.BillId " +
                 " WHERE oi.OrderId=o.OrderId AND oi.Status<>'CANCELLED' " +
-                " AND (bi.BillItemId IS NULL OR b.Status NOT IN ('PAID','REFUND')))";
+                " AND (oi.BillId IS NULL OR b.Status<>'PAID'))";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, branchId);
             try (ResultSet rs = ps.executeQuery()) {

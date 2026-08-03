@@ -1,0 +1,35 @@
+package com.cafe.web.form;
+
+import jakarta.servlet.http.HttpServletRequest;
+
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+
+/** Request nhiều dòng của phiếu nhập; conversion và precision được Service xác minh lại. */
+public record StockReceiptForm(String receiptBatchId, List<Line> lines) {
+    public static StockReceiptForm from(HttpServletRequest request) {
+        String receiptBatchId = request.getParameter("receiptBatchId");
+        if (receiptBatchId == null || receiptBatchId.isBlank() || receiptBatchId.length() > 36) {
+            throw new com.cafe.common.BusinessException("Mã batch phiếu nhập không hợp lệ.");
+        }
+        String[] picks = request.getParameterValues("pick");
+        List<Line> lines = new ArrayList<>();
+        if (picks != null) {
+            for (String rawIngredientId : picks) {
+                int ingredientId = FormValues.optionalInt(rawIngredientId, "Mã nguyên liệu");
+                BigDecimal quantity = FormValues.decimal(
+                        request.getParameter("qty_" + ingredientId), "Số lượng");
+                BigDecimal unitCost = FormValues.decimal(
+                        request.getParameter("cost_" + ingredientId), "Đơn giá");
+                int conversionId = FormValues.optionalInt(
+                        request.getParameter("unitConversionId_" + ingredientId), "Đơn vị nhập");
+                lines.add(new Line(ingredientId, quantity, unitCost, conversionId));
+            }
+        }
+        return new StockReceiptForm(receiptBatchId, lines);
+    }
+
+    public record Line(int ingredientId, BigDecimal quantity, BigDecimal unitCost,
+                       int unitConversionId) { }
+}

@@ -1,9 +1,9 @@
 package com.cafe.controller.manager;
 
 import com.cafe.common.BusinessException;
-import com.cafe.common.CsrfUtil;
+import com.cafe.web.support.CsrfUtil;
 import com.cafe.common.LocalizedNumber;
-import com.cafe.common.SessionUtil;
+import com.cafe.web.support.SessionUtil;
 import com.cafe.model.StockAdjustment;
 import com.cafe.model.User;
 import com.cafe.service.admin.IngredientService;
@@ -23,20 +23,30 @@ import java.util.List;
 @WebServlet("/manager/reconciliation")
 public class ReconciliationServlet extends HttpServlet {
 
-    private final StockAdjustmentService service = new StockAdjustmentService();
-    private final IngredientService ingredientService = new IngredientService();
+    private final StockAdjustmentService service;
+    private final IngredientService ingredientService;
+
+    public ReconciliationServlet() { this(new StockAdjustmentService(), new IngredientService()); }
+    ReconciliationServlet(StockAdjustmentService service, IngredientService ingredientService) {
+        this.service = java.util.Objects.requireNonNull(service);
+        this.ingredientService = java.util.Objects.requireNonNull(ingredientService);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         try {
             if ("new".equals(req.getParameter("action"))) {
                 req.setAttribute("ingredients", ingredientService.getIngredientList());
+                req.setAttribute("unitChoicesByIngredient",
+                        ingredientService.getActiveUnitChoicesByIngredient());
                 req.setAttribute("pageTitle", "Ghi nhận kiểm kê");
                 req.getRequestDispatcher("/WEB-INF/views/manager/reconciliation-form.jsp").forward(req, resp);
             } else {
                 req.setAttribute("adjustments", service.getAdjustmentList(branchId));
+                // Số LẦN kiểm kê = số biên bản, không phải số dòng chênh lệch.
+                req.setAttribute("stockCounts", service.getStockCounts(branchId));
                 req.setAttribute("combinedInventoryView", Boolean.TRUE);
                 req.getRequestDispatcher("/manager/waste").forward(req, resp);
             }
@@ -47,7 +57,7 @@ public class ReconciliationServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         User u = SessionUtil.currentUser(req);
         try {
             // Tickbox kiểm kê nhiều nguyên liệu: mỗi nguyên liệu được tick + có nhập tồn thực tế → 1 dòng điều chỉnh.
@@ -63,9 +73,10 @@ public class ReconciliationServlet extends HttpServlet {
                     try { actual = LocalizedNumber.parse(aq); } catch (NumberFormatException e) { throw e; }
                     StockAdjustment a = new StockAdjustment();
                     a.setIngredientId(ingId);
-                    a.setActualQty(actual);
+                    a.setCountedQuantity(actual);
+                    a.setUnitChoice(Integer.parseInt(
+                            req.getParameter("unitConversionId_" + ingId)));
                     a.setReason(trim(req.getParameter("reason_" + ingId)));
-                    a.setUnit(trim(req.getParameter("unit_" + ingId)));
                     lines.add(a);
                 }
             }

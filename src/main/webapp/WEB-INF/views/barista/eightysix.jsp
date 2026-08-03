@@ -1,13 +1,14 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
+<c:set var="cssBundles" value="kds,list-controls,barista" scope="request" />
 <jsp:include page="/WEB-INF/views/layout/header.jsp" />
 
 <div class="page-header">
     <div><div class="eyebrow">Pha chế</div><h1>Báo hết món</h1><p>Chỉ dùng cho <strong>sự cố</strong> (máy hỏng, lỗi chất lượng…). Hết nguyên liệu thì kho tự ẩn/hiện món; đồ hỏng thì ghi ở Hao hụt.</p></div>
 </div>
 
-<jsp:include page="/WEB-INF/views/layout/_baristaShiftBanner.jsp" />
+<jsp:include page="/WEB-INF/fragments/barista/shift-banner.jsp" />
 
 <c:if test="${not empty sessionScope.flashOk}">
     <div class="alert alert-success">${sessionScope.flashOk}</div><c:remove var="flashOk" scope="session" />
@@ -69,20 +70,24 @@
                     <c:if test="${m.published}">
                         <c:set var="imgSrc" value="${empty m.imageUrl ? ctx.concat('/assets/img/products/_placeholder.svg') : (m.imageUrl.startsWith('http') ? m.imageUrl : ctx.concat(m.imageUrl))}" />
                         <c:set var="openReq" value="${openRequests[m.productId]}" />
-                        <tr data-name="${m.productName}" data-state="${m.is86 ? 'out' : 'available'}">
+                        <tr data-name="${m.productName}" data-state="${m.temporarilyUnavailable ? 'out' : 'available'}">
                             <td style="display:flex;align-items:center;gap:10px">
-                                <img class="prod-thumb" src="${imgSrc}" alt="${m.productName}" loading="lazy" onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
+                                <img class="prod-thumb"
+                                     src="${imgSrc}"
+                                     alt="${m.productName}"
+                                     loading="lazy"
+                                     onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
                                 ${m.productName}
                             </td>
                             <td>
                                 <c:choose>
-                                    <c:when test="${m.is86}">
+                                    <c:when test="${m.temporarilyUnavailable}">
                                         <span class="badge badge-cancelled">Tạm hết</span>
-                                        <c:if test="${not empty m.backInEtaText}">
-                                            <div class="muted" style="font-size:.82em;margin-top:4px">Có lại: ${m.backInEtaText}</div>
+                                        <c:if test="${not empty m.backInEta}">
+                                            <div class="muted" style="font-size:.82em;margin-top:4px">Có lại: ${view.shortUtc(m.backInEta)}</div>
                                         </c:if>
                                         <c:if test="${not empty openReq}">
-                                            <div class="muted" style="font-size:.82em;margin-top:4px">${openReq.statusLabel}</div>
+                                            <div class="muted" style="font-size:.82em;margin-top:4px">${view.menuStatus(openReq.status)}</div>
                                         </c:if>
                                     </c:when>
                                     <c:otherwise><span class="badge badge-ready">Còn bán</span></c:otherwise>
@@ -90,7 +95,7 @@
                             </td>
                             <td>
                                 <c:choose>
-                                    <c:when test="${m.is86}">
+                                    <c:when test="${m.temporarilyUnavailable}">
                                         <c:choose>
                                             <c:when test="${not empty openReq && not empty openReq.reopenRequestedAt}">
                                                 <div class="muted" style="font-size:.9em">Đã gửi yêu cầu mở bán — chờ quản lý</div>
@@ -105,7 +110,8 @@
                                                     <input type="hidden" name="state" value="${filterState}">
                                                     <input type="hidden" name="page" value="${menuPage.page}">
                                                     <input type="hidden" name="pageSize" value="${menuPage.pageSize}">
-                                                    <button type="submit" class="btn btn-sm btn-primary" ${onShift ? '' : 'disabled'}>Xin mở bán lại</button>
+                                                    <button type="submit" class="btn btn-sm btn-primary"
+                                                        ${onShift ? '' : 'disabled'}>Xin mở bán lại</button>
                                                 </form>
                                             </c:otherwise>
                                         </c:choose>
@@ -121,14 +127,21 @@
                                                 <input type="hidden" name="state" value="${filterState}">
                                                 <input type="hidden" name="page" value="${menuPage.page}">
                                                 <input type="hidden" name="pageSize" value="${menuPage.pageSize}">
-                                                <select name="reasonCode" class="form-control reason-select" required ${onShift ? '' : 'disabled'}>
+                                                <select name="reasonCode"
+                                                        class="form-control reason-select"
+                                                        required
+                                                        ${onShift ? '' : 'disabled'}>
                                                     <option value="">Chọn lý do</option>
                                                     <c:forEach var="r" items="${reasons}">
                                                         <option value="${r.code}" data-quick-notes='${r.quickNotesJson}'>${r.label}</option>
                                                     </c:forEach>
                                                 </select>
                                                 <div class="chips quick-note-chips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
-                                                <input name="note" class="form-control note-input" maxlength="255" placeholder="Ghi chú" ${onShift ? '' : 'disabled'}>
+                                                <input name="note"
+                                                       class="form-control note-input"
+                                                       maxlength="255"
+                                                       placeholder="Ghi chú"
+                                                       ${onShift ? '' : 'disabled'}>
                                                 <label class="muted" style="font-size:.82em">Dự kiến có lại (nếu ước lượng được — sự cố bất định có thể bỏ trống)</label>
                                                 <input type="datetime-local" name="backInEta" class="form-control"
                                                        min="${etaMin}" max="${etaMax}" ${onShift ? '' : 'disabled'}>
@@ -158,12 +171,19 @@
                         <c:param name="q" value="${filterQuery}" /><c:param name="state" value="${filterState}" />
                         <c:param name="pageSize" value="${menuPage.pageSize}" /><c:param name="page" value="${menuPage.page - 1}" />
                     </c:url>
-                    <a class="page" href="${firstE86PageUrl}" aria-disabled="${not menuPage.hasPrevious}" title="Trang đầu">«</a>
-                    <a class="page" href="${previousE86PageUrl}" aria-disabled="${not menuPage.hasPrevious}" title="Trang trước">‹</a>
+                    <a class="page"
+                       href="${firstE86PageUrl}"
+                       aria-disabled="${not menuPage.hasPrevious}"
+                       title="Trang đầu">«</a>
+                    <a class="page"
+                       href="${previousE86PageUrl}"
+                       aria-disabled="${not menuPage.hasPrevious}"
+                       title="Trang trước">‹</a>
                     <c:forEach var="pageNumber" items="${menuPage.visiblePages}">
                         <c:url var="e86PageUrl" value="/barista/eightysix">
                             <c:param name="q" value="${filterQuery}" /><c:param name="state" value="${filterState}" />
-                            <c:param name="pageSize" value="${menuPage.pageSize}" /><c:param name="page" value="${pageNumber}" />
+                            <c:param name="pageSize" value="${menuPage.pageSize}" /><c:param name="page"
+                                value="${pageNumber}" />
                         </c:url>
                         <a class="page ${pageNumber == menuPage.page ? 'is-active' : ''}" href="${e86PageUrl}"
                            aria-current="${pageNumber == menuPage.page ? 'page' : 'false'}">${pageNumber}</a>
@@ -176,8 +196,14 @@
                         <c:param name="q" value="${filterQuery}" /><c:param name="state" value="${filterState}" />
                         <c:param name="pageSize" value="${menuPage.pageSize}" /><c:param name="page" value="${menuPage.totalPages}" />
                     </c:url>
-                    <a class="page" href="${nextE86PageUrl}" aria-disabled="${not menuPage.hasNext}" title="Trang sau">›</a>
-                    <a class="page" href="${lastE86PageUrl}" aria-disabled="${not menuPage.hasNext}" title="Trang cuối">»</a>
+                    <a class="page"
+                       href="${nextE86PageUrl}"
+                       aria-disabled="${not menuPage.hasNext}"
+                       title="Trang sau">›</a>
+                    <a class="page"
+                       href="${lastE86PageUrl}"
+                       aria-disabled="${not menuPage.hasNext}"
+                       title="Trang cuối">»</a>
                 </div>
             </c:if>
         </div>

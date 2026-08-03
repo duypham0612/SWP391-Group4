@@ -5,7 +5,7 @@ import com.cafe.config.DBConnection;
 import com.cafe.dao.cashier.BillDao;
 import com.cafe.dao.manager.AttendanceDao;
 import com.cafe.dao.shared.BranchInventoryDao;
-import com.cafe.dao.shared.ShiftAssignmentDao;
+import com.cafe.dao.manager.ShiftAssignmentDao;
 import com.cafe.model.BranchInventory;
 import com.cafe.model.MenuBlockRequest;
 import com.cafe.model.ShiftAssignment;
@@ -24,12 +24,27 @@ import java.util.List;
 /** M1 · ManagerDashboardService — tổng hợp chỉ số chi nhánh. */
 public class ManagerDashboardService {
 
-    private final BranchInventoryDao biDao = new BranchInventoryDao();
-    private final AttendanceDao attendanceDao = new AttendanceDao();
-    private final ShiftAssignmentDao assignmentDao = new ShiftAssignmentDao();
-    private final BillDao billDao = new BillDao();
-    private final BranchMenuService branchMenuService = new BranchMenuService();
-    private final InventoryService inventoryService = new InventoryService();
+    private final BranchInventoryDao biDao;
+    private final AttendanceDao attendanceDao;
+    private final ShiftAssignmentDao assignmentDao;
+    private final BillDao billDao;
+    private final BranchMenuService branchMenuService;
+    private final InventoryService inventoryService;
+
+    public ManagerDashboardService() {
+        this(new BranchInventoryDao(), new AttendanceDao(), new ShiftAssignmentDao(), new BillDao(),
+                new BranchMenuService(), new InventoryService());
+    }
+    public ManagerDashboardService(BranchInventoryDao biDao, AttendanceDao attendanceDao,
+                                   ShiftAssignmentDao assignmentDao, BillDao billDao,
+                                   BranchMenuService branchMenuService, InventoryService inventoryService) {
+        this.biDao = java.util.Objects.requireNonNull(biDao);
+        this.attendanceDao = java.util.Objects.requireNonNull(attendanceDao);
+        this.assignmentDao = java.util.Objects.requireNonNull(assignmentDao);
+        this.billDao = java.util.Objects.requireNonNull(billDao);
+        this.branchMenuService = java.util.Objects.requireNonNull(branchMenuService);
+        this.inventoryService = java.util.Objects.requireNonNull(inventoryService);
+    }
 
     /** Cảnh báo tồn thấp (QuantityOnHand <= MinThreshold). */
     public List<BranchInventory> getLowStockAlerts(int branchId) throws SQLException {
@@ -62,7 +77,11 @@ public class ManagerDashboardService {
 
     /** Doanh thu PAID hôm nay của chi nhánh. */
     public BigDecimal getTodayRevenue(int branchId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) { return billDao.sumPaidToday(c, branchId); }
+        LocalDate today = BusinessDay.todayVn();
+        try (Connection c = DBConnection.getConnection()) {
+            return billDao.sumPaidToday(c, branchId, BusinessDay.vnDayStartUtc(today),
+                    BusinessDay.vnDayEndExclusiveUtc(today));
+        }
     }
 
     /** Yêu cầu tạm hết đang chờ manager xử lý. DAO đã xếp món quá hạn lên đầu. */
@@ -70,7 +89,7 @@ public class ManagerDashboardService {
         return branchMenuService.getOpenRequests(branchId);
     }
 
-    /** Hao hụt + làm lại của ngày VN hôm nay (WasteLog.LoggedAt lưu UTC nên phải quy đổi). */
+    /** Hao hụt + làm lại của ngày VN hôm nay (WasteEventItem.LoggedAt lưu UTC nên phải quy đổi). */
     public WasteSummary getTodayWasteSummary(int branchId, LocalDate todayVn) throws SQLException {
         LocalDateTime fromUtc = BusinessDay.vnDayStartUtc(todayVn);
         LocalDateTime toUtc = BusinessDay.vnDayEndExclusiveUtc(todayVn);

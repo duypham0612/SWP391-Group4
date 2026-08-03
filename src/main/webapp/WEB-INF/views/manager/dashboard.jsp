@@ -74,7 +74,7 @@
             <c:forEach var="o" items="${oversoldAlerts}">
                 <tr>
                     <td><strong>${o.ingredientName}</strong></td>
-                    <td><span class="badge badge-cancelled">${o.quantityOnHandDisplay} ${o.ingredientUnit}</span></td>
+                    <td><span class="badge badge-cancelled">${view.grouped(o.quantityOnHand)} ${o.ingredientUnit}</span></td>
                     <td><c:choose><c:when test="${o.ingredientType == 'RAW'}">Thô</c:when><c:otherwise>Pha sẵn</c:otherwise></c:choose></td>
                     <td><a class="btn btn-ghost btn-sm" href="${ctx}/manager/reconciliation?action=new">Kiểm kê</a></td>
                 </tr>
@@ -99,13 +99,13 @@
                         <strong>${r.productName}</strong>
                         <c:if test="${r.overdue}"><span class="badge badge-cancelled" style="margin-left:6px">Quá hạn</span></c:if>
                     </td>
-                    <td>${r.reasonLabel}</td>
+                    <td>${view.menuReason(r.reason)}</td>
                     <td>${r.requesterName}</td>
-                    <td>${r.requestedAtText}</td>
+                    <td>${view.shortUtc(r.requestedAt)}</td>
                     <td>
                         <c:choose>
-                            <c:when test="${empty r.backInEtaText}">Chưa rõ</c:when>
-                            <c:otherwise>${r.backInEtaText}</c:otherwise>
+                            <c:when test="${empty r.backInEta}">Chưa rõ</c:when>
+                            <c:otherwise>${view.shortUtc(r.backInEta)}</c:otherwise>
                         </c:choose>
                     </td>
                     <td><a class="btn btn-ghost btn-sm" href="${ctx}/manager/menu-block">Xử lý</a></td>
@@ -128,7 +128,7 @@
                     <thead><tr><th>Nhân viên</th><th>Ca</th><th>Giờ</th></tr></thead>
                     <tbody>
                         <c:forEach var="a" items="${staffOnShift}">
-                            <tr><td>${a.userName}</td><td>${a.templateName}</td><td>${a.startTime}–${a.endTime}</td></tr>
+                            <tr><td>${a.userName}</td><td>${a.shiftName}</td><td>${a.startTime}–${a.endTime}</td></tr>
                         </c:forEach>
                     </tbody>
                 </table>
@@ -148,8 +148,8 @@
                         <c:forEach var="l" items="${lowStockAlerts}">
                             <tr>
                                 <td>${l.ingredientName} <span class="badge badge-waiting" style="margin-left:6px">Thấp</span></td>
-                                <td>${l.quantityOnHandDisplay} ${l.ingredientUnit}</td>
-                                <td>${l.minThresholdDisplay}</td>
+                                <td>${view.grouped(l.quantityOnHand)} ${l.ingredientUnit}</td>
+                                <td>${view.grouped(l.minThreshold)}</td>
                             </tr>
                         </c:forEach>
                     </tbody>

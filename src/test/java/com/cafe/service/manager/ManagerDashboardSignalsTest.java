@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -29,8 +30,8 @@ class ManagerDashboardSignalsTest {
     void counts_open_and_overdue_menu_blocks() {
         ManagerDashboardService.Summary s = new ManagerDashboardService.Summary();
         s.openMenuBlocks = List.of(
-                request(LocalDateTime.now().minusMinutes(10), null),
-                request(LocalDateTime.now().plusHours(1), null),
+                request(LocalDateTime.now(ZoneOffset.UTC).minusMinutes(10), null),
+                request(LocalDateTime.now(ZoneOffset.UTC).plusHours(1), null),
                 request(null, null));
 
         assertEquals(3, s.getOpenMenuBlockCount());

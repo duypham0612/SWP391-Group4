@@ -3,6 +3,7 @@
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <c:set var="editing" value="${staff.userId > 0}" />
 <c:set var="assigning" value="${assignmentMode}" />
+<c:set var="cssBundles" value="list-controls" scope="request" />
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
@@ -47,17 +48,17 @@
                    value="${staff.phone}" required>
         </div>
         <div class="form-group">
-            <label for="roleId">Vai trò *</label>
+            <label for="roleCode">Vai trò *</label>
             <c:choose>
                 <c:when test="${assigning}">
                     <div class="form-control form-control-readonly">${assignmentRole.name}</div>
-                    <input id="roleId" type="hidden" name="roleId" value="${assignmentRole.roleId}">
+                    <input id="roleCode" type="hidden" name="roleCode" value="${assignmentRole.code}">
                 </c:when>
                 <c:otherwise>
-                    <select id="roleId" name="roleId" class="form-control" required>
+                    <select id="roleCode" name="roleCode" class="form-control" required>
                         <option value="">-- Chọn vai trò --</option>
                         <c:forEach var="r" items="${roles}">
-                            <option value="${r.roleId}" <c:if test="${r.roleId == staff.roleId}">selected</c:if>>${r.name}</option>
+                            <option value="${r.code}" <c:if test="${r.code == staff.roleCode}">selected</c:if>>${r.name}</option>
                         </c:forEach>
                     </select>
                 </c:otherwise>
@@ -80,6 +81,12 @@
                     </select>
                 </c:otherwise>
             </c:choose>
+        </div>
+        <div class="form-group">
+            <label for="hourlyRate">Lương theo giờ (₫)</label>
+            <input id="hourlyRate" type="number" name="hourlyRate" class="form-control"
+                   min="0" max="9999999999.99" step="0.01" value="${staff.hourlyRate}">
+            <small class="muted">Có thể để trống. Đơn giá được chụp vào ca khi quản lý duyệt chấm công.</small>
         </div>
         <div class="form-group">
             <label for="status">Trạng thái</label>

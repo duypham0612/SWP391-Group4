@@ -1,8 +1,7 @@
 package com.cafe.controller.cashier;
-import com.cafe.controller.manager.InventoryDashboardServlet;
 
-import com.cafe.common.CsrfUtil;
-import com.cafe.common.SessionUtil;
+import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.SessionUtil;
 import com.cafe.model.User;
 import com.cafe.service.cashier.PickupService;
 import jakarta.servlet.ServletException;
@@ -12,13 +11,21 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
-import java.sql.SQLException;
+import java.util.Objects;
 
 /** Màn bàn giao thuộc role Thu ngân; Barista chỉ xem READY tại Quầy pha chế. */
 @WebServlet("/cashier/handoff")
 public class PickupServlet extends HttpServlet {
 
-    private final PickupService service = new PickupService();
+    private final PickupService service;
+
+    public PickupServlet() {
+        this(new PickupService());
+    }
+
+    PickupServlet(PickupService service) {
+        this.service = Objects.requireNonNull(service, "service");
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -33,7 +40,7 @@ public class PickupServlet extends HttpServlet {
         User u = SessionUtil.currentUser(req);
         Integer userId = u != null ? u.getUserId() : null;
         String action = req.getParameter("action");
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         try {
             if ("pickUp".equals(action)) {
                 if (!service.pickUpItem(intParam(req, "orderItemId"), userId, branchId))
@@ -53,25 +60,25 @@ public class PickupServlet extends HttpServlet {
                         "Đã giao tất cả " + done + " dòng món của bàn.");
             }
             renderResult(req, resp, branchId);
-        } catch (SQLException e) {
+        } catch (Exception e) {
             req.getSession().setAttribute("flashError", "Không thể cập nhật bàn giao lúc này. Vui lòng tải lại và thử lại.");
             try { renderResult(req, resp, branchId); }
-            catch (SQLException ex) { throw new ServletException(ex); }
+            catch (Exception ex) { throw new ServletException(ex); }
         }
     }
 
     private void renderResult(HttpServletRequest req, HttpServletResponse resp, int branchId)
-            throws SQLException, ServletException, IOException {
+            throws Exception {
         if ("1".equals(req.getParameter("ajax"))) {
             loadBoard(req, branchId);
-            req.getRequestDispatcher("/WEB-INF/views/cashier/handoff/cards.jsp").forward(req, resp);
+            req.getRequestDispatcher("/WEB-INF/fragments/cashier/handoff-cards.jsp").forward(req, resp);
         } else {
             resp.sendRedirect(req.getContextPath() + "/cashier/inbox#handoff");
         }
     }
 
     /** Nạp ticket sẵn lấy + món vừa giao (để hoàn tác) cho cả trang đầy đủ lẫn fragment AJAX. */
-    private void loadBoard(HttpServletRequest req, int branchId) throws SQLException {
+    private void loadBoard(HttpServletRequest req, int branchId) throws Exception {
         req.setAttribute("tickets", service.getReadyTickets(branchId));
         req.setAttribute("pickedUpGroups", service.getPickedUpGroups(branchId));
     }

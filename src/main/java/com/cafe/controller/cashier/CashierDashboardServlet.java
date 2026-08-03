@@ -1,5 +1,4 @@
 package com.cafe.controller.cashier;
-import com.cafe.controller.manager.InventoryDashboardServlet;
 
 import com.cafe.service.cashier.CashierShiftService;
 import jakarta.servlet.ServletException;
@@ -17,12 +16,17 @@ import java.io.IOException;
 @WebServlet("/cashier/dashboard")
 public class CashierDashboardServlet extends HttpServlet {
 
-    private final CashierShiftService service = new CashierShiftService();
+    private final CashierShiftService service;
+
+    public CashierDashboardServlet() { this(new CashierShiftService()); }
+    CashierDashboardServlet(CashierShiftService service) {
+        this.service = java.util.Objects.requireNonNull(service);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         try {
             req.setAttribute("todayRevenue", service.getTodayRevenue(branchId));
             req.setAttribute("todayBillCount", service.getTodayBillCount(branchId));

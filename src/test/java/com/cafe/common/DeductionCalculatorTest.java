@@ -1,7 +1,6 @@
 package com.cafe.common;
 
-import com.cafe.model.ModifierIngredientImpact;
-import com.cafe.model.ProductRecipe;
+import com.cafe.model.Recipe;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -15,13 +14,13 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 /** ★ Test TRƯỚC cho Modifier-Aware Auto-Deduction (logic rủi ro — CLAUDE.md mục 5). */
 class DeductionCalculatorTest {
 
-    private static ProductRecipe pr(int ing, String qty) {
-        ProductRecipe r = new ProductRecipe();
+    private static Recipe pr(int ing, String qty) {
+        Recipe r = new Recipe();
         r.setIngredientId(ing); r.setQuantity(new BigDecimal(qty)); return r;
     }
-    private static ModifierIngredientImpact mi(int ing, String delta) {
-        ModifierIngredientImpact m = new ModifierIngredientImpact();
-        m.setIngredientId(ing); m.setQtyDelta(new BigDecimal(delta)); return m;
+    private static Recipe mi(int ing, String delta) {
+        Recipe m = new Recipe();
+        m.setIngredientId(ing); m.setQuantity(new BigDecimal(delta)); return m;
     }
     private static void assertQty(Map<Integer, BigDecimal> req, int ing, String expected) {
         assertEquals(0, req.get(ing).compareTo(new BigDecimal(expected)),

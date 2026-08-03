@@ -1,12 +1,14 @@
 package com.cafe.model;
 
 import org.junit.jupiter.api.Test;
+import com.cafe.web.viewmodel.ViewFormatter;
 
 import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class PrepChecklistRowTest {
+    private final ViewFormatter view = new ViewFormatter();
 
     @Test
     void suggests_target_minus_stock_only_when_stock_hits_threshold() {
@@ -30,7 +32,7 @@ class PrepChecklistRowTest {
 
         assertFalse(above.isNeedPrep());
         assertFalse(noTarget.isNeedPrep());
-        assertEquals("Manager chưa đặt mức tồn mục tiêu.", noTarget.getBlockedReason());
+        assertEquals("Manager chưa đặt mức tồn mục tiêu.", view.checklistBlockedReason(noTarget));
     }
 
     @Test
@@ -42,7 +44,7 @@ class PrepChecklistRowTest {
         assertTrue(row.isOversold());
         assertFalse(row.isNeedPrep());
         assertFalse(row.isReadyToPrep());
-        assertEquals("Tồn đang âm — cần Manager kiểm kê.", row.getBlockedReason());
+        assertEquals("Tồn đang âm — cần Manager kiểm kê.", view.checklistBlockedReason(row));
     }
 
     @Test
@@ -55,8 +57,8 @@ class PrepChecklistRowTest {
                 true, null);
 
         assertFalse(noRecipe.isReadyToPrep());
-        assertEquals("Admin chưa khai báo công thức.", noRecipe.getBlockedReason());
+        assertEquals("Admin chưa khai báo công thức.", view.checklistBlockedReason(noRecipe));
         assertFalse(noShelf.isReadyToPrep());
-        assertEquals("Admin chưa đặt hạn bảo quản.", noShelf.getBlockedReason());
+        assertEquals("Admin chưa đặt hạn bảo quản.", view.checklistBlockedReason(noShelf));
     }
 }

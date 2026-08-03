@@ -1,8 +1,7 @@
 package com.cafe.controller.cashier;
 
-import com.cafe.common.QrLink;
-import com.cafe.controller.manager.InventoryDashboardServlet;
-import com.cafe.service.cashier.TableSessionService;
+import com.cafe.web.support.QrLink;
+import com.cafe.service.cashier.DiningTableService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -19,12 +18,17 @@ import com.cafe.model.DiningTable;
 @WebServlet("/cashier/table-qr")
 public class TableQrServlet extends HttpServlet {
 
-    private final TableSessionService service = new TableSessionService();
+    private final DiningTableService service;
+
+    public TableQrServlet() { this(new DiningTableService()); }
+    TableQrServlet(DiningTableService service) {
+        this.service = java.util.Objects.requireNonNull(service);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         try {
             List<DiningTable> tables = service.getFloorMap(branchId);
             req.setAttribute("tables", tables);

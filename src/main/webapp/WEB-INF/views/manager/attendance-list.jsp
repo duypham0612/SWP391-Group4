@@ -50,10 +50,10 @@
                     <tr>
                         <td>
                             <c:choose>
-                                <c:when test="${a.status != 'REJECTED'}">
-                                    <input type="checkbox" form="bulkAtt" name="approve" value="${a.attendanceId}"
-                                           class="att-check rowcheck" <c:if test="${a.status == 'APPROVED'}">checked</c:if>>
-                                    <input type="hidden" form="bulkAtt" name="shown" value="${a.attendanceId}">
+                                <c:when test="${a.attendanceStatus != 'REJECTED'}">
+                                    <input type="checkbox" form="bulkAtt" name="approve" value="${a.shiftAssignmentId}"
+                                           class="att-check rowcheck" <c:if test="${a.attendanceStatus == 'APPROVED'}">checked</c:if>>
+                                    <input type="hidden" form="bulkAtt" name="shown" value="${a.shiftAssignmentId}">
                                 </c:when>
                                 <c:otherwise><span class="muted">—</span></c:otherwise>
                             </c:choose>
@@ -65,13 +65,13 @@
                         <td>${a.branchName}</td>
                         <td>
                             ${a.workDate}<br>
-                            <span class="muted">${a.templateName} (${a.startTime}–${a.endTime})</span>
+                                <span class="muted">${a.shiftName} (${a.startTime}–${a.endTime})</span>
                         </td>
                         <td>
                             <form action="${ctx}/manager/attendance" method="post" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0">
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                 <input type="hidden" name="action" value="edit">
-                                <input type="hidden" name="attendanceId" value="${a.attendanceId}">
+                                <input type="hidden" name="assignmentId" value="${a.shiftAssignmentId}">
                                 <input type="datetime-local" name="checkInAt"  class="form-control" style="width:185px" value="${a.checkInAt}">
                                 <input type="datetime-local" name="checkOutAt" class="form-control" style="width:185px" value="${a.checkOutAt}">
                                 <button type="submit" class="btn btn-ghost btn-sm">Lưu giờ</button>
@@ -84,21 +84,21 @@
                         </td>
                         <td>
                             <c:choose>
-                                <c:when test="${a.status == 'APPROVED'}">
+                                <c:when test="${a.attendanceStatus == 'APPROVED'}">
                                     <span class="badge badge-ready">✓ Đã duyệt</span>
                                     <form action="${ctx}/manager/attendance" method="post" style="display:inline" onsubmit="return confirm('Từ chối chấm công này?');">
                                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                         <input type="hidden" name="action" value="reject">
-                                        <input type="hidden" name="attendanceId" value="${a.attendanceId}">
+                                        <input type="hidden" name="assignmentId" value="${a.shiftAssignmentId}">
                                         <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--st-cancelled)">Từ chối</button>
                                     </form>
                                 </c:when>
-                                <c:when test="${a.status == 'REJECTED'}">
+                                <c:when test="${a.attendanceStatus == 'REJECTED'}">
                                     <span class="badge badge-cancelled">Từ chối</span>
                                     <form action="${ctx}/manager/attendance" method="post" style="display:inline">
                                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                         <input type="hidden" name="action" value="reopen">
-                                        <input type="hidden" name="attendanceId" value="${a.attendanceId}">
+                                        <input type="hidden" name="assignmentId" value="${a.shiftAssignmentId}">
                                         <button type="submit" class="btn btn-ghost btn-sm">Mở lại</button>
                                     </form>
                                 </c:when>
@@ -107,7 +107,7 @@
                                     <form action="${ctx}/manager/attendance" method="post" style="display:inline" onsubmit="return confirm('Từ chối chấm công này?');">
                                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                         <input type="hidden" name="action" value="reject">
-                                        <input type="hidden" name="attendanceId" value="${a.attendanceId}">
+                                        <input type="hidden" name="assignmentId" value="${a.shiftAssignmentId}">
                                         <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--st-cancelled)">Từ chối</button>
                                     </form>
                                 </c:otherwise>

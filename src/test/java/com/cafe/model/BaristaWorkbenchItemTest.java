@@ -1,6 +1,7 @@
 package com.cafe.model;
 
 import com.cafe.common.Constants;
+import com.cafe.web.viewmodel.ViewFormatter;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -10,14 +11,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BaristaWorkbenchItemTest {
+    private final ViewFormatter view = new ViewFormatter();
+
     /** Nhãn trễ phải nêu con số cụ thể và dùng chữ barista nói được — không dùng thuật ngữ "SLA". */
     @Test
     void late_label_is_explicit_and_free_of_jargon() {
         OrderItem item = new OrderItem();
         item.setOrderCreatedAt(LocalDateTime.now());
         item.setWaitedSeconds(Constants.KDS_SLA_SECONDS + 3 * 60);
-        assertEquals("Trễ 3 phút", item.getSlaLabel());
-        assertEquals("late", item.getSlaTier());
+        assertEquals("Trễ 3 phút", view.slaLabel(item));
+        assertEquals("late", view.slaTier(item));
     }
 
     /** Chưa tới hạn thì nói còn bao lâu — một con số duy nhất để quyết định. */
@@ -26,8 +29,8 @@ class BaristaWorkbenchItemTest {
         OrderItem item = new OrderItem();
         item.setOrderCreatedAt(LocalDateTime.now());
         item.setWaitedSeconds(5 * 60);
-        assertEquals("Còn 7 phút", item.getSlaLabel());
-        assertEquals("Đã chờ 5/12 phút", item.getWaitProgressLabel());
+        assertEquals("Còn 7 phút", view.slaLabel(item));
+        assertEquals("Đã chờ 5/12 phút", view.waitProgress(item));
     }
 
     /**
@@ -39,8 +42,8 @@ class BaristaWorkbenchItemTest {
         OrderItem item = new OrderItem();
         item.setOrderCreatedAt(LocalDateTime.now(ZoneOffset.UTC).minusDays(1));
         item.setWaitedSeconds(27 * 60 * 60);
-        assertEquals("Trễ từ hôm qua", item.getSlaLabel());
-        assertEquals("late", item.getSlaTier());
+        assertEquals("Trễ từ hôm qua", view.slaLabel(item));
+        assertEquals("late", view.slaTier(item));
     }
 
     /** Sắp tới hạn = hổ phách, chưa phải đỏ. */
@@ -49,7 +52,7 @@ class BaristaWorkbenchItemTest {
         OrderItem item = new OrderItem();
         item.setOrderCreatedAt(LocalDateTime.now());
         item.setWaitedSeconds(Constants.KDS_WARN_SECONDS);
-        assertEquals("warn", item.getSlaTier());
+        assertEquals("warn", view.slaTier(item));
     }
 
     /**
@@ -61,26 +64,26 @@ class BaristaWorkbenchItemTest {
         OrderItem justOver = new OrderItem();
         justOver.setOrderCreatedAt(LocalDateTime.now());
         justOver.setWaitedSeconds(Constants.KDS_SLA_SECONDS + 30);
-        assertEquals("Vừa quá hạn", justOver.getSlaLabel());
+        assertEquals("Vừa quá hạn", view.slaLabel(justOver));
 
         OrderItem exactly = new OrderItem();
         exactly.setOrderCreatedAt(LocalDateTime.now());
         exactly.setWaitedSeconds(Constants.KDS_SLA_SECONDS);
-        assertEquals("Vừa quá hạn", exactly.getSlaLabel());
+        assertEquals("Vừa quá hạn", view.slaLabel(exactly));
 
         OrderItem almost = new OrderItem();
         almost.setOrderCreatedAt(LocalDateTime.now());
         almost.setWaitedSeconds(Constants.KDS_SLA_SECONDS - 30);
-        assertEquals("Sắp hết giờ", almost.getSlaLabel());
+        assertEquals("Sắp hết giờ", view.slaLabel(almost));
     }
 
     /** Dưới 2 tiếng dùng phút để nhẩm nhanh; quá đó đổi sang giờ vì "1770 phút" không ai đọc được. */
     @Test
     void long_durations_switch_from_minutes_to_hours() {
-        assertEquals("45 phút", OrderItem.formatMinutesLabel(45 * 60));
-        assertEquals("119 phút", OrderItem.formatMinutesLabel(119 * 60));
-        assertEquals("2 tiếng", OrderItem.formatMinutesLabel(120 * 60));
-        assertEquals("29 tiếng 30 phút", OrderItem.formatMinutesLabel(1770 * 60));
+        assertEquals("45 phút", view.durationMinutes(45 * 60));
+        assertEquals("119 phút", view.durationMinutes(119 * 60));
+        assertEquals("2 tiếng", view.durationMinutes(120 * 60));
+        assertEquals("29 tiếng 30 phút", view.durationMinutes(1770 * 60));
     }
 
     /**
@@ -94,14 +97,14 @@ class BaristaWorkbenchItemTest {
         fast.setOrderCreatedAt(LocalDateTime.now());
         fast.setPrepSeconds(60);          // món pha nhanh: chuẩn 1 phút
         fast.setWaitedSeconds(90);
-        assertEquals("late", fast.getSlaTier());
+        assertEquals("late", view.slaTier(fast));
 
         OrderItem slow = new OrderItem();
         slow.setOrderCreatedAt(LocalDateTime.now());
         slow.setPrepSeconds(15 * 60);     // món pha lâu: chuẩn 15 phút
         slow.setWaitedSeconds(90);
-        assertEquals("ok", slow.getSlaTier());
-        assertEquals("Đã chờ 1/15 phút", slow.getWaitProgressLabel());
+        assertEquals("ok", view.slaTier(slow));
+        assertEquals("Đã chờ 1/15 phút", view.waitProgress(slow));
     }
 
     /** Ngưỡng hổ phách = 2/3 chặng của mốc pha chuẩn từng món, không phải hằng số. */
@@ -111,9 +114,9 @@ class BaristaWorkbenchItemTest {
         item.setOrderCreatedAt(LocalDateTime.now());
         item.setPrepSeconds(15 * 60);     // 2/3 của 15' = 10'
         item.setWaitedSeconds(10 * 60);
-        assertEquals("warn", item.getSlaTier());
+        assertEquals("warn", view.slaTier(item));
         item.setWaitedSeconds(10 * 60 - 1);
-        assertEquals("ok", item.getSlaTier());
+        assertEquals("ok", view.slaTier(item));
     }
 
     /** Món chưa khai mốc (0 hoặc bất thường) lùi về mặc định 12 phút, không vỡ. */
@@ -123,8 +126,8 @@ class BaristaWorkbenchItemTest {
         item.setOrderCreatedAt(LocalDateTime.now());
         item.setPrepSeconds(0);
         item.setWaitedSeconds(Constants.KDS_SLA_SECONDS);
-        assertEquals("late", item.getSlaTier());
-        assertEquals("Đã chờ 12/12 phút", item.getWaitProgressLabel());
+        assertEquals("late", view.slaTier(item));
+        assertEquals("Đã chờ 12/12 phút", view.waitProgress(item));
     }
 
     @Test
@@ -136,7 +139,7 @@ class BaristaWorkbenchItemTest {
         item.setProductName("Trà đào");
         item.setRemakeCount(1);
         assertEquals(3, item.getCupCount());
-        assertEquals("Mang đi", item.getOrderTypeLabel());
+        assertEquals("Mang đi", view.orderType(item.getOrderType()));
         assertEquals("TEA", item.getStation());
         assertTrue(item.isPriority());
     }

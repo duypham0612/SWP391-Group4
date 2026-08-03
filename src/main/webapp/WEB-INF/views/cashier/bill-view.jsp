@@ -11,7 +11,7 @@
 
 <div class="page-header">
     <div><div class="eyebrow">Hoá đơn #${bill.billId}</div><h1>Chi tiết hoá đơn</h1>
-        <p><c:if test="${not empty bill.tableNumber}">${bill.tableNumber} · </c:if>${bill.transactionAtDisplay}</p></div>
+        <p><c:if test="${not empty bill.tableNumber}">${bill.tableNumber} · </c:if>${view.fullUtc(not empty bill.paidAt ? bill.paidAt : bill.createdAt)}</p></div>
     <span>
         <button type="button" class="btn btn-ghost no-print" onclick="window.print()">In / Tái in</button>
         <a class="btn btn-ghost" href="${ctx}/cashier/history">← Lịch sử</a>
@@ -29,7 +29,7 @@
     </table>
     <div style="max-width:300px;margin-left:auto;font-size:.95rem;margin-top:10px">
         <div style="display:flex;justify-content:space-between"><span>Tạm tính</span><span><fmt:formatNumber value="${bill.subtotal}" maxFractionDigits="0"/> ₫</span></div>
-        <c:if test="${bill.discountAmount > 0}"><div style="display:flex;justify-content:space-between;color:var(--st-ready)"><span>Giảm ${bill.voucherCode}</span><span>−<fmt:formatNumber value="${bill.discountAmount}" maxFractionDigits="0"/> ₫</span></div></c:if>
+<c:if test="${bill.discountAmount > 0}"><div style="display:flex;justify-content:space-between;color:var(--st-ready)"><span>Giảm giá</span><span>−<fmt:formatNumber value="${bill.discountAmount}" maxFractionDigits="0"/> ₫</span></div></c:if>
         <div style="display:flex;justify-content:space-between"><span>VAT 8%</span><span><fmt:formatNumber value="${bill.vatAmount}" maxFractionDigits="0"/> ₫</span></div>
         <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px solid var(--line);padding-top:6px;margin-top:6px"><span>Tổng hóa đơn</span><span><fmt:formatNumber value="${bill.totalAmount}" maxFractionDigits="0"/> ₫</span></div>
         <c:if test="${bill.paymentMethod == 'CASH' and not empty bill.paidAmount}">
@@ -51,7 +51,6 @@
         <c:choose>
             <c:when test="${bill.status == 'PAID'}"><span class="badge badge-ready">Đã thu (${bill.paymentMethod})</span></c:when>
             <c:when test="${bill.status == 'VOID'}"><span class="badge badge-cancelled">Huỷ</span></c:when>
-            <c:when test="${bill.status == 'REFUND'}"><span class="badge badge-cancelled">Đã hoàn</span></c:when>
             <c:otherwise><span class="badge badge-waiting">Chưa thu</span></c:otherwise>
         </c:choose>
     </p>

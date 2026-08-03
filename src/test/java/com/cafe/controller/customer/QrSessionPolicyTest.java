@@ -1,5 +1,7 @@
 package com.cafe.controller.customer;
 
+import com.cafe.web.support.QrSessionPolicy;
+
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

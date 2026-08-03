@@ -1,5 +1,7 @@
 package com.cafe.service.shared;
 
+import com.cafe.model.CartLine;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,13 +12,13 @@ public final class OrderQuantityValidator {
 
     private OrderQuantityValidator() { }
 
-    public static void validate(List<OrderService.CartLine> lines) {
+    public static void validate(List<CartLine> lines) {
         if (lines == null || lines.isEmpty()) {
             throw new IllegalArgumentException("Đơn hàng không được để trống.");
         }
 
         Map<Integer, Integer> quantityByProduct = new HashMap<>();
-        for (OrderService.CartLine line : lines) {
+        for (CartLine line : lines) {
             if (line == null || line.productId <= 0) {
                 throw new IllegalArgumentException("Món trong đơn không hợp lệ.");
             }

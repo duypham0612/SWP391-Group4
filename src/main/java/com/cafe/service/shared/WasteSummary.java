@@ -1,6 +1,6 @@
 package com.cafe.service.shared;
 
-import com.cafe.model.WasteLog;
+import com.cafe.model.WasteEventItem;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
@@ -10,7 +10,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Tổng hợp hao hụt/làm lại từ một danh sách WasteLog — hàm thuần, không đụng DB.
+ * Tổng hợp hao hụt/làm lại từ một danh sách WasteEventItem — hàm thuần, không đụng DB.
  * Đặt ở service.shared vì cả Pha chế lẫn Quản lý chi nhánh đều dùng.
  */
 public final class WasteSummary {
@@ -29,18 +29,18 @@ public final class WasteSummary {
 
     private WasteSummary() { }
 
-    public static WasteSummary from(List<WasteLog> logs) {
+    public static WasteSummary from(List<WasteEventItem> logs) {
         WasteSummary s = new WasteSummary();
         Map<String, BigDecimal> byIngredient = new LinkedHashMap<>();
-        Set<Long> remakeEvents = new HashSet<>();
+        Set<String> remakeEvents = new HashSet<>();
         if (logs == null) return s;
-        for (WasteLog log : logs) {
+        for (WasteEventItem log : logs) {
             if (log == null || !log.isActive()) continue;
             s.activeCount++;
             if (log.isRemake()) {
                 // Event mới đại diện cho một lần/ly remake; dữ liệu legacy không có event giữ cách đếm cũ.
-                Long eventId = log.getWasteEventId();
-                if (eventId == null || remakeEvents.add(eventId)) s.remakeCount++;
+                String eventGroupId = log.getEventGroupId();
+                if (eventGroupId == null || remakeEvents.add(eventGroupId)) s.remakeCount++;
             } else {
                 s.ingredientWasteCount++;
                 // Ba loại của hao hụt nguyên liệu; loại lạ (dữ liệu cũ) gom vào "Khác" để tổng luôn khớp.

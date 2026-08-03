@@ -2,13 +2,13 @@ package com.cafe.controller.admin;
 
 import com.cafe.common.BusinessException;
 import com.cafe.common.Constants;
-import com.cafe.common.CsrfUtil;
+import com.cafe.web.support.CsrfUtil;
 import com.cafe.model.Branch;
-import com.cafe.model.Role;
 import com.cafe.model.User;
 import com.cafe.service.admin.BranchService;
-import com.cafe.service.admin.RoleService;
 import com.cafe.service.admin.UserService;
+import com.cafe.web.form.FormBindingException;
+import com.cafe.web.form.UserForm;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -17,21 +17,23 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
-import java.util.regex.Pattern;
+import java.util.Objects;
 
 /** Admin staff accounts. */
 @WebServlet("/admin/user")
 public class UserServlet extends HttpServlet {
 
-    private static final Pattern USERNAME_PATTERN =
-            Pattern.compile("[a-z][a-z0-9._-]{3,59}");
-    private static final Pattern EMAIL_PATTERN =
-            Pattern.compile("[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+");
+    private final UserService service;
+    private final BranchService branchService;
 
-    private final UserService service = new UserService();
-    private final RoleService roleService = new RoleService();
-    private final BranchService branchService = new BranchService();
+    public UserServlet() {
+        this(new UserService(), new BranchService());
+    }
+
+    UserServlet(UserService service, BranchService branchService) {
+        this.service = Objects.requireNonNull(service, "service");
+        this.branchService = Objects.requireNonNull(branchService, "branchService");
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -53,8 +55,8 @@ public class UserServlet extends HttpServlet {
                         resp.sendRedirect(req.getContextPath() + "/admin/branch");
                         return;
                     }
-                    Role managerRole = roleByCode(Constants.ROLE_MANAGER);
-                    u.setRoleId(managerRole.getRoleId());
+                    RoleOption managerRole = roleByCode(Constants.ROLE_MANAGER);
+                    u.setRoleCode(managerRole.getCode());
                     u.setBranchId(assignmentBranchId);
                     u.setBranchName(assignmentBranch.getName());
                     setAssignmentAttributes(req, assignmentBranch, managerRole);
@@ -72,20 +74,20 @@ public class UserServlet extends HttpServlet {
                 req.setAttribute("staff", u);
                 forwardForm(req, resp, "Sửa nhân sự");
             } else {
-                Integer roleId = parseFilter(req.getParameter("roleId"));
+                String roleCode = parseRoleFilter(req.getParameter("roleCode"));
                 Integer branchId = parseFilter(req.getParameter("branchId"));
                 String q = trim(req.getParameter("q"));
                 int page = parsePage(req.getParameter("page"));
                 int pageSize = 6;
-                int total = service.countUsers(roleId, branchId, q);
+                int total = service.countUsers(roleCode, branchId, q);
                 int totalPages = Math.max(1, (int) Math.ceil(total / (double) pageSize));
                 if (page > totalPages) page = totalPages;
                 int offset = (page - 1) * pageSize;
 
-                req.setAttribute("staffList", service.getUserList(roleId, branchId, q, offset, pageSize));
-                req.setAttribute("roles", roleService.getRoleList());
+                req.setAttribute("staffList", service.getUserList(roleCode, branchId, q, offset, pageSize));
+                req.setAttribute("roles", roleOptions(true));
                 req.setAttribute("branches", branchService.getBranchList());
-                req.setAttribute("fRoleId", roleId);
+                req.setAttribute("fRoleCode", roleCode);
                 req.setAttribute("fBranchId", branchId);
                 req.setAttribute("q", q);
                 req.setAttribute("page", page);
@@ -107,28 +109,16 @@ public class UserServlet extends HttpServlet {
         try {
             if ("toggleStatus".equals(action)) {
                 int id = Integer.parseInt(req.getParameter("id"));
-                User target = service.getUser(id);
-                if (target != null && Constants.ROLE_ADMIN.equals(target.getRoleCode())) {
-                    req.getSession().setAttribute("flashError", "Tài khoản Admin luôn hoạt động, không thể khoá.");
-                    resp.sendRedirect(ctx + "/admin/user");
-                    return;
-                }
-                String to = target != null && "LOCKED".equals(target.getStatus()) ? "ACTIVE" : "LOCKED";
-                if ("LOCKED".equals(to) && service.isAssignedBranchManager(id)) {
-                    req.getSession().setAttribute("flashError",
-                            "Không thể khoá quản lý đang phụ trách chi nhánh.");
-                    resp.sendRedirect(ctx + "/admin/user");
-                    return;
-                }
-                service.setUserStatus(id, to);
+                service.toggleUserStatus(id);
                 req.getSession().setAttribute("flashOk", "Đã cập nhật trạng thái nhân sự.");
                 resp.sendRedirect(ctx + "/admin/user");
                 return;
             }
-            User u = bind(req);
-            String password = req.getParameter("password");
+            UserForm form = UserForm.from(req);
+            User u = form.user();
+            String password = form.password();
             boolean creating = u.getUserId() == 0;
-            int assignmentBranchId = parsePositiveInt(req.getParameter("assignmentBranchId"));
+            int assignmentBranchId = form.assignmentBranchId();
             boolean assignmentMode = creating && assignmentBranchId > 0;
             if (assignmentMode) {
                 Branch assignmentBranch = branchService.getBranch(assignmentBranchId);
@@ -136,42 +126,21 @@ public class UserServlet extends HttpServlet {
                     resp.sendError(HttpServletResponse.SC_NOT_FOUND);
                     return;
                 }
-                if (assignmentBranch.getManagerUserId() != null) {
-                    req.getSession().setAttribute("flashError", "Chi nhánh đã có quản lý phụ trách.");
-                    resp.sendRedirect(ctx + "/admin/branch");
-                    return;
-                }
-                Role managerRole = roleByCode(Constants.ROLE_MANAGER);
-                u.setRoleId(managerRole.getRoleId());
+                RoleOption managerRole = roleByCode(Constants.ROLE_MANAGER);
+                u.setRoleCode(managerRole.getCode());
                 u.setBranchId(assignmentBranchId);
                 u.setBranchName(assignmentBranch.getName());
                 setAssignmentAttributes(req, assignmentBranch, managerRole);
             }
 
-            if (creating && u.getRoleId() == adminRoleId()) {
-                req.setAttribute("staff", u);
-                req.setAttribute("errorMsg", "Hệ thống chỉ có 1 Admin toàn chuỗi, không thể tạo thêm tài khoản Admin.");
-                forwardForm(req, resp, "Thêm nhân sự");
-                return;
-            }
-            User existing = null;
             if (!creating) {
-                existing = service.getUser(u.getUserId());
+                User existing = service.getUser(u.getUserId());
                 if (existing == null) { resp.sendError(HttpServletResponse.SC_NOT_FOUND); return; }
                 if (Constants.ROLE_ADMIN.equals(existing.getRoleCode())) {
                     req.getSession().setAttribute("flashError", "Tài khoản Admin hệ thống không thể chỉnh sửa.");
                     resp.sendRedirect(ctx + "/admin/user");
                     return;
                 }
-                applyLockedFields(u, existing);
-            }
-
-            String error = validate(u, password, creating, existing);
-            if (error != null) {
-                req.setAttribute("staff", u);
-                req.setAttribute("errorMsg", error);
-                forwardForm(req, resp, creating ? "Thêm nhân sự" : "Sửa nhân sự");
-                return;
             }
             if (creating) {
                 try {
@@ -193,106 +162,36 @@ public class UserServlet extends HttpServlet {
                 }
             }
             resp.sendRedirect(ctx + (assignmentMode ? "/admin/branch" : "/admin/user"));
+        } catch (BusinessException | FormBindingException e) {
+            req.getSession().setAttribute("flashError", e.getMessage());
+            resp.sendRedirect(ctx + "/admin/user");
         } catch (Exception e) { throw new ServletException(e); }
-    }
-
-    private User bind(HttpServletRequest req) {
-        User u = new User();
-        String id = req.getParameter("userId");
-        if (id != null && !id.isBlank()) u.setUserId(Integer.parseInt(id));
-        u.setUsername(normalizeUsername(req.getParameter("username")));
-        u.setFullName(trim(req.getParameter("fullName")));
-        u.setEmail(normalizeEmail(req.getParameter("email")));
-        u.setPhone(trim(req.getParameter("phone")));
-        u.setRoleId(parsePositiveInt(req.getParameter("roleId")));
-        int branchId = parsePositiveInt(req.getParameter("branchId"));
-        u.setBranchId(branchId <= 0 ? null : branchId);
-        String status = req.getParameter("status");
-        u.setStatus(status == null || status.isBlank() ? "ACTIVE" : status);
-        return u;
-    }
-
-    private String validate(User u, String password, boolean creating, User existing) throws Exception {
-        if (u.getUsername() == null || u.getUsername().isBlank()) return "Tên đăng nhập không được để trống.";
-        if (u.getUsername().length() < 4 || u.getUsername().length() > 60)
-            return "Tên đăng nhập phải có từ 4 đến 60 ký tự.";
-        if (!USERNAME_PATTERN.matcher(u.getUsername()).matches())
-            return "Tên đăng nhập phải bắt đầu bằng chữ cái và chỉ gồm chữ không dấu, số, dấu chấm, gạch dưới hoặc gạch ngang.";
-        if (u.getFullName() == null || u.getFullName().isBlank()) return "Họ tên không được để trống.";
-        if (u.getEmail() == null || u.getEmail().isBlank()) return "Email không được để trống.";
-        if (u.getEmail().length() > 120 || !EMAIL_PATTERN.matcher(u.getEmail()).matches())
-            return "Email không đúng định dạng, ví dụ: ten@congty.vn.";
-        if (u.getPhone() == null || u.getPhone().isBlank()) return "Số điện thoại không được để trống.";
-        if (!u.getPhone().matches("^0\\d{9}$")) return "Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.";
-        if (u.getRoleId() <= 0) return "Vui lòng chọn vai trò.";
-        if (u.getBranchId() == null) return "Vui lòng chọn chi nhánh.";
-        if (creating && (password == null || password.length() < 6)) return "Mật khẩu tối thiểu 6 ký tự.";
-        if (service.usernameTaken(u.getUsername(), u.getUserId())) return "Tên đăng nhập đã tồn tại.";
-        if (isChanged(u.getEmail(), existing == null ? null : existing.getEmail())
-                && service.emailTaken(u.getEmail(), u.getUserId()))
-            return "Email đã được sử dụng bởi nhân sự khác.";
-        if (isChanged(u.getPhone(), existing == null ? null : existing.getPhone())
-                && service.phoneTaken(u.getPhone(), u.getUserId()))
-            return "Số điện thoại đã được sử dụng bởi nhân sự khác.";
-        if (service.isBranchManagerRole(u.getRoleId())
-                && service.branchHasOtherManager(u.getBranchId(), u.getUserId()))
-            return "Chi nhánh đã có quản lý phụ trách.";
-        if (!"ACTIVE".equals(u.getStatus()) && !"LOCKED".equals(u.getStatus())) return "Trạng thái không hợp lệ.";
-        return null;
     }
 
     private void forwardForm(HttpServletRequest req, HttpServletResponse resp, String title)
             throws ServletException, IOException {
         try {
-            List<Role> roles = roleService.getRoleList();
-            roles.removeIf(r -> Constants.ROLE_ADMIN.equals(r.getCode()));
-            req.setAttribute("roles", roles);
+            req.setAttribute("roles", roleOptions(false));
             req.setAttribute("branches", branchService.getBranchListActive());
         } catch (Exception e) { throw new ServletException(e); }
         req.setAttribute("pageTitle", title);
         req.getRequestDispatcher("/WEB-INF/views/admin/user-form.jsp").forward(req, resp);
     }
 
-    private int adminRoleId() throws Exception {
-        Role role = roleByCode(Constants.ROLE_ADMIN);
-        return role == null ? -1 : role.getRoleId();
-    }
-
-    private Role roleByCode(String code) throws Exception {
-        for (Role r : roleService.getRoleList()) {
+    private RoleOption roleByCode(String code) {
+        for (RoleOption r : roleOptions(true)) {
             if (code.equals(r.getCode())) return r;
         }
         throw new IllegalStateException("Không tìm thấy vai trò " + code + ".");
     }
 
-    private void setAssignmentAttributes(HttpServletRequest req, Branch branch, Role role) {
+    private void setAssignmentAttributes(HttpServletRequest req, Branch branch, RoleOption role) {
         req.setAttribute("assignmentMode", true);
         req.setAttribute("assignmentBranch", branch);
         req.setAttribute("assignmentRole", role);
     }
 
     private String trim(String s) { return s == null ? null : s.trim(); }
-
-    private String normalizeUsername(String value) {
-        String username = trim(value);
-        return username == null ? null : username.toLowerCase(Locale.ROOT);
-    }
-
-    private String normalizeEmail(String value) {
-        String email = trim(value);
-        return email == null ? null : email.toLowerCase(Locale.ROOT);
-    }
-
-    private boolean isChanged(String value, String existingValue) {
-        return existingValue == null || !existingValue.equalsIgnoreCase(value);
-    }
-
-    private void applyLockedFields(User target, User source) {
-        target.setUsername(source.getUsername());
-        target.setStatus(source.getStatus());
-        target.setBranchId(source.getBranchId());
-        target.setBranchName(source.getBranchName());
-    }
 
     private void showSaveError(HttpServletRequest req, HttpServletResponse resp, User user,
                                String message, boolean creating)
@@ -306,6 +205,37 @@ public class UserServlet extends HttpServlet {
         if (s == null || s.isBlank()) return null;
         try { int v = Integer.parseInt(s.trim()); return v <= 0 ? null : v; }
         catch (NumberFormatException e) { return null; }
+    }
+
+    private String parseRoleFilter(String value) {
+        String code = trim(value);
+        if (code == null) return null;
+        for (RoleOption role : roleOptions(true)) {
+            if (role.getCode().equals(code)) return code;
+        }
+        return null;
+    }
+
+    private List<RoleOption> roleOptions(boolean includeAdmin) {
+        List<RoleOption> roles = new java.util.ArrayList<>();
+        if (includeAdmin) roles.add(new RoleOption(Constants.ROLE_ADMIN, "Quản trị hệ thống"));
+        roles.add(new RoleOption(Constants.ROLE_MANAGER, "Quản lý chi nhánh"));
+        roles.add(new RoleOption(Constants.ROLE_CASHIER, "Thu ngân"));
+        roles.add(new RoleOption(Constants.ROLE_BARISTA, "Pha chế"));
+        return roles;
+    }
+
+    public static final class RoleOption {
+        private final String code;
+        private final String name;
+
+        RoleOption(String code, String name) {
+            this.code = code;
+            this.name = name;
+        }
+
+        public String getCode() { return code; }
+        public String getName() { return name; }
     }
 
     private int parsePage(String s) {

@@ -1,7 +1,7 @@
 package com.cafe.controller.manager;
 
 import com.cafe.common.BusinessException;
-import com.cafe.common.CsrfUtil;
+import com.cafe.web.support.CsrfUtil;
 import com.cafe.model.Supplier;
 import com.cafe.service.manager.SupplierService;
 import jakarta.servlet.ServletException;
@@ -16,7 +16,12 @@ import java.io.IOException;
 @WebServlet("/manager/supplier")
 public class SupplierServlet extends HttpServlet {
 
-    private final SupplierService service = new SupplierService();
+    private final SupplierService service;
+
+    public SupplierServlet() { this(new SupplierService()); }
+    SupplierServlet(SupplierService service) {
+        this.service = java.util.Objects.requireNonNull(service);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -48,29 +53,27 @@ public class SupplierServlet extends HttpServlet {
         if (!CsrfUtil.isValid(req)) { resp.sendError(403, "CSRF"); return; }
         String ctx = req.getContextPath();
         String action = req.getParameter("action");
+        Supplier submitted = null;
         try {
             if ("toggleActive".equals(action)) {
                 service.toggleActive(Integer.parseInt(req.getParameter("id")));
                 resp.sendRedirect(ctx + "/manager/supplier");
                 return;
             }
-            Supplier s = bind(req);
-            String err = null;
-            if (s.getName() == null || s.getName().isBlank()) err = "Tên nhà cung cấp không được để trống.";
-            else if (s.getPhone() == null || s.getPhone().isBlank()) err = "Số điện thoại không được để trống.";
-            else if (!s.getPhone().matches("0\\d{9}")) err = "Số điện thoại không hợp lệ. Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng 0.";
-            else if (s.getAddress() == null || s.getAddress().isBlank()) err = "Địa chỉ không được để trống.";
-            if (err != null) {
-                req.setAttribute("supplier", s);
-                req.setAttribute("errorMsg", err);
-                forwardForm(req, resp, s.getSupplierId() == 0 ? "Thêm nhà cung cấp" : "Sửa nhà cung cấp");
-                return;
-            }
-            if (s.getSupplierId() == 0) service.createSupplier(s); else service.updateSupplier(s);
+            submitted = bind(req);
+            if (submitted.getSupplierId() == 0) service.createSupplier(submitted);
+            else service.updateSupplier(submitted);
             resp.sendRedirect(ctx + "/manager/supplier");
         } catch (BusinessException e) {
-            req.getSession().setAttribute("flashError", e.getMessage());
-            resp.sendRedirect(ctx + "/manager/supplier");
+            if (submitted == null) {
+                req.getSession().setAttribute("flashError", e.getMessage());
+                resp.sendRedirect(ctx + "/manager/supplier");
+                return;
+            }
+            req.setAttribute("supplier", submitted);
+            req.setAttribute("errorMsg", e.getMessage());
+            forwardForm(req, resp,
+                    submitted.getSupplierId() == 0 ? "Thêm nhà cung cấp" : "Sửa nhà cung cấp");
         } catch (NumberFormatException e) {
             req.getSession().setAttribute("flashError", "Mã nhà cung cấp không hợp lệ.");
             resp.sendRedirect(ctx + "/manager/supplier");

@@ -3,9 +3,10 @@ package com.cafe.controller.manager;
 import com.cafe.common.BusinessDay;
 import com.cafe.service.manager.WasteReportService;
 import com.cafe.service.shared.InventoryService;
-import com.cafe.common.CsrfUtil;
-import com.cafe.common.SessionUtil;
+import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.SessionUtil;
 import com.cafe.model.User;
+import com.cafe.web.support.RequestParams;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -20,7 +21,12 @@ import java.time.LocalDate;
 /** M · WasteReportServlet → /manager/waste. Manager chỉ xem nhật ký hao hụt/làm lại. */
 @WebServlet("/manager/waste")
 public class WasteReportServlet extends HttpServlet {
-    private final WasteReportService service = new WasteReportService();
+    private final WasteReportService service;
+
+    public WasteReportServlet() { this(new WasteReportService()); }
+    WasteReportServlet(WasteReportService service) {
+        this.service = java.util.Objects.requireNonNull(service);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -31,14 +37,14 @@ public class WasteReportServlet extends HttpServlet {
                     + (query == null || query.isBlank() ? "" : "?" + query));
             return;
         }
-        int branchId = InventoryDashboardServlet.branchId(req);
+        int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         LocalDate todayVn = LocalDate.now(BusinessDay.VN_ZONE);
         WasteReportService.Range range = WasteReportService.resolveRange(
                 req.getParameter("from"), req.getParameter("to"), todayVn);
-        String logQuery = textParam(req, "q", 100);
-        String logWasteType = allowedParam(req, "wasteType", "SPILL", "EXPIRED", "REMAKE", "OTHER");
-        String logStatus = allowedParam(req, "status", "ACTIVE", "VOIDED");
-        int requestedLogPage = positiveIntParam(req, "page", 1);
+        String logQuery = RequestParams.text(req, "q", 100);
+        String logWasteType = RequestParams.allowed(req, "wasteType", "SPILL", "EXPIRED", "REMAKE", "OTHER");
+        String logStatus = RequestParams.allowed(req, "status", "ACTIVE", "VOIDED");
+        int requestedLogPage = RequestParams.positiveInt(req, "page", 1);
 
         try {
             InventoryService.WasteLogPage p = service.page(branchId, range,
@@ -69,8 +75,8 @@ public class WasteReportServlet extends HttpServlet {
         if (!"resolveReview".equals(req.getParameter("action"))) { resp.sendError(400); return; }
         User user = SessionUtil.currentUser(req);
         try {
-            long id = Long.parseLong(req.getParameter("reviewId"));
-            boolean ok = service.resolveReview(InventoryDashboardServlet.branchId(req), id,
+            long id = Long.parseLong(req.getParameter("wasteEntryId"));
+            boolean ok = service.resolveReview(com.cafe.web.support.BranchContext.requireBranchId(req), id,
                     user == null ? 0 : user.getUserId(), req.getParameter("note"));
             req.getSession().setAttribute(ok ? "flashOk" : "flashError", ok ? "Đã xác nhận ngoại lệ." : "Ngoại lệ đã được xử lý.");
             resp.sendRedirect(selfUrlKeepingFilters(req));
@@ -78,35 +84,13 @@ public class WasteReportServlet extends HttpServlet {
         catch (Exception e) { throw new ServletException(e); }
     }
 
-    private static String textParam(HttpServletRequest req, String name, int maxLength) {
-        String value = req.getParameter(name);
-        if (blank(value)) return "";
-        value = value.trim();
-        return value.length() <= maxLength ? value : value.substring(0, maxLength);
-    }
-
-    private static String allowedParam(HttpServletRequest req, String name, String... allowed) {
-        String value = textParam(req, name, 20).toUpperCase();
-        for (String item : allowed) if (item.equals(value)) return value;
-        return "";
-    }
-
-    private static int positiveIntParam(HttpServletRequest req, String name, int fallback) {
-        try {
-            int value = Integer.parseInt(req.getParameter(name));
-            return value > 0 ? value : fallback;
-        } catch (NumberFormatException e) {
-            return fallback;
-        }
-    }
-
     private static boolean blank(String value) {
-        return value == null || value.trim().isEmpty();
+        return RequestParams.isBlank(value);
     }
 
     /** Màn manager ưu tiên nhìn được nhiều dòng hơn quầy pha chế; đối soát dài thì chọn tới 100. */
     private static int pageSizeParam(HttpServletRequest req) {
-        return normalizePageSize(positiveIntParam(req, "pageSize", 10));
+        return normalizePageSize(RequestParams.positiveInt(req, "pageSize", 10));
     }
 
     /** Chỉ nhận đúng các mức có trên giao diện; giá trị lạ (kể cả rất lớn) rơi về mặc định. */
@@ -119,9 +103,9 @@ public class WasteReportServlet extends HttpServlet {
      * Không có nó thì xử lý xong một ngoại lệ là khoảng ngày và trang nhật ký bị reset về mặc định.
      */
     private static String selfUrlKeepingFilters(HttpServletRequest req) {
-        return buildSelfUrl(req.getContextPath(), textParam(req, "from", 10), textParam(req, "to", 10),
-                textParam(req, "q", 100), allowedParam(req, "wasteType", "SPILL", "EXPIRED", "REMAKE", "OTHER"),
-                allowedParam(req, "status", "ACTIVE", "VOIDED"), pageSizeParam(req), positiveIntParam(req, "page", 1));
+        return buildSelfUrl(req.getContextPath(), RequestParams.text(req, "from", 10), RequestParams.text(req, "to", 10),
+                RequestParams.text(req, "q", 100), RequestParams.allowed(req, "wasteType", "SPILL", "EXPIRED", "REMAKE", "OTHER"),
+                RequestParams.allowed(req, "status", "ACTIVE", "VOIDED"), pageSizeParam(req), RequestParams.positiveInt(req, "page", 1));
     }
 
     /** Phần thuần của {@link #selfUrlKeepingFilters} — tách ra để test được mà không cần dựng request. */

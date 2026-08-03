@@ -1,17 +1,18 @@
 package com.cafe.model;
 
+import com.cafe.common.InventoryReferenceType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /** inventory.InventoryTransaction — sổ cái tồn kho (1 dòng = 1 thay đổi). */
 public class InventoryTransaction {
-    private long inventoryTxnId;
+    private long inventoryTransactionId;
     private int branchId;
     private int ingredientId;
     private BigDecimal changeQty;
     private String txnType;
-    private String refTable;
-    private Long refId;
+    private InventoryReferenceType referenceType;
+    private Long referenceId;
     private Integer createdBy;
     private LocalDateTime createdAt;
 
@@ -20,8 +21,8 @@ public class InventoryTransaction {
     private String ingredientUnit;
     private String createdByName;
 
-    public long getInventoryTxnId() { return inventoryTxnId; }
-    public void setInventoryTxnId(long inventoryTxnId) { this.inventoryTxnId = inventoryTxnId; }
+    public long getInventoryTransactionId() { return inventoryTransactionId; }
+    public void setInventoryTransactionId(long inventoryTransactionId) { this.inventoryTransactionId = inventoryTransactionId; }
 
     public int getBranchId() { return branchId; }
     public void setBranchId(int branchId) { this.branchId = branchId; }
@@ -31,18 +32,14 @@ public class InventoryTransaction {
 
     public BigDecimal getChangeQty() { return changeQty; }
     public void setChangeQty(BigDecimal changeQty) { this.changeQty = changeQty; }
-    public String getChangeQtyDisplay() {
-        return com.cafe.common.QuantityFormat.groupedVi(changeQty);
-    }
-
     public String getTxnType() { return txnType; }
     public void setTxnType(String txnType) { this.txnType = txnType; }
 
-    public String getRefTable() { return refTable; }
-    public void setRefTable(String refTable) { this.refTable = refTable; }
+    public InventoryReferenceType getReferenceType() { return referenceType; }
+    public void setReferenceType(InventoryReferenceType value) { referenceType = value; }
 
-    public Long getRefId() { return refId; }
-    public void setRefId(Long refId) { this.refId = refId; }
+    public Long getReferenceId() { return referenceId; }
+    public void setReferenceId(Long value) { referenceId = value; }
 
     public Integer getCreatedBy() { return createdBy; }
     public void setCreatedBy(Integer createdBy) { this.createdBy = createdBy; }

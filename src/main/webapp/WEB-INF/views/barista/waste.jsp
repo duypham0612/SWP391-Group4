@@ -2,6 +2,7 @@
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%@ taglib prefix="fn" uri="jakarta.tags.functions" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
+<c:set var="cssBundles" value="kds,list-controls,barista" scope="request" />
 <jsp:include page="/WEB-INF/views/layout/header.jsp" />
 
 <div class="page-header">
@@ -11,8 +12,8 @@
         <p>Ghi nguyên liệu bị đổ, rơi, hỏng hoặc hết hạn để trừ khỏi sổ kho — theo dõi & cắt giảm thất thoát.</p>
     </div>
     <div class="waste-scope">
-        <strong>${scope.label}</strong>
-        <span>${scope.windowDisplay}</span>
+        <strong>${view.scopeLabel(scope.kind)}</strong>
+        <span>${view.scopeWindow(scope.kind, scope.fromUtc, scope.toUtc)}</span>
     </div>
 </div>
 
@@ -28,13 +29,13 @@
     <c:remove var="flashOk" scope="session" />
 </c:if>
 
-<jsp:include page="/WEB-INF/views/layout/_baristaShiftBanner.jsp" />
+<jsp:include page="/WEB-INF/fragments/barista/shift-banner.jsp" />
 
 <div class="${onShift ? '' : 'is-viewonly'}">
 <%-- Bốn ô dưới đây tính cho trọn phạm vi đang xem, không đổi theo bộ lọc/phân trang của nhật ký. --%>
 <section class="waste-summary">
     <div class="card stat">
-        <span class="label">${scope.label}</span>
+        <span class="label">${view.scopeLabel(scope.kind)}</span>
         <span class="value">${summary.ingredientWasteCount}</span>
         <small>dòng hao hụt hiệu lực</small>
     </div>
@@ -62,11 +63,15 @@
             <p>Ghi nhanh nhiều nguyên liệu trong một lần. Món pha lỗi phải làm lại thì bấm ngay trên màn KDS — kho tự trừ, không ghi tay ở đây.</p>
         </div>
     </div>
-    <form id="ingredientWasteForm" action="${ctx}/barista/waste" method="post" onsubmit="return confirm('Xác nhận ghi hao hụt? Nếu vượt tồn hệ thống, Quản lý sẽ nhận ngoại lệ để đối soát.');">
+    <form id="ingredientWasteForm"
+          action="${ctx}/barista/waste"
+          method="post"
+          onsubmit="return confirm('Xác nhận ghi hao hụt? Nếu vượt tồn hệ thống, Quản lý sẽ nhận ngoại lệ để đối soát.');">
         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
         <input type="hidden" name="clientRequestId" class="js-waste-request-id" value="${wasteClientRequestId}">
         <input type="hidden" name="action" value="createIngredientWaste">
-        <%-- Bộ lọc + trang nhật ký đang xem: ghi xong redirect (PRG) quay lại đúng chỗ, lỗi validate cũng giữ nguyên. --%>
+        <%-- Bộ lọc + trang nhật ký đang xem: ghi xong redirect (PRG) quay lại đúng chỗ, lỗi validate cũng giữ nguyên.
+        --%>
         <input type="hidden" name="q" value="${fn:escapeXml(wasteLogQuery)}">
         <input type="hidden" name="logType" value="${wasteLogWasteType}">
         <input type="hidden" name="status" value="${wasteLogStatus}">
@@ -86,7 +91,13 @@
                     </div>
                     <div class="form-group waste-row__qty">
                         <label>Số lượng</label>
-                        <input type="number" name="quantity" class="form-control" min="0.001" max="999999999.999" step="0.001" value="${fn:escapeXml(row.quantity)}">
+                        <input type="number"
+                               name="quantity"
+                               class="form-control"
+                               min="0.001"
+                               max="999999999.999"
+                               step="0.001"
+                               value="${fn:escapeXml(row.quantity)}">
                     </div>
                     <div class="form-group waste-row__type">
                         <label>Loại</label>
@@ -100,20 +111,40 @@
                         <label>Lý do</label>
                         <select name="reasonPreset" class="form-control waste-reason-preset" required>
                             <option value="">-- Gợi ý --</option>
-                            <option data-type="SPILL" value="Đổ khi pha" ${row.reasonPreset == 'Đổ khi pha' ? 'selected' : ''}>Đổ khi pha</option>
-                            <option data-type="SPILL" value="Rơi khi thao tác" ${row.reasonPreset == 'Rơi khi thao tác' ? 'selected' : ''}>Rơi khi thao tác</option>
-                            <option data-type="SPILL" value="Sai định lượng" ${row.reasonPreset == 'Sai định lượng' ? 'selected' : ''}>Sai định lượng</option>
-                            <option data-type="EXPIRED" value="Hết hạn" ${row.reasonPreset == 'Hết hạn' ? 'selected' : ''}>Hết hạn</option>
-                            <option data-type="EXPIRED" value="Nguyên liệu hỏng" ${row.reasonPreset == 'Nguyên liệu hỏng' ? 'selected' : ''}>Nguyên liệu hỏng</option>
-                            <option data-type="EXPIRED" value="Bảo quản lỗi" ${row.reasonPreset == 'Bảo quản lỗi' ? 'selected' : ''}>Bảo quản lỗi</option>
-                            <option data-type="EXPIRED" value="Quá thời gian mở nắp" ${row.reasonPreset == 'Quá thời gian mở nắp' ? 'selected' : ''}>Quá thời gian mở nắp</option>
-                            <option data-type="OTHER" value="Mẫu thử/QC" ${row.reasonPreset == 'Mẫu thử/QC' ? 'selected' : ''}>Mẫu thử/QC</option>
+                            <option data-type="SPILL"
+                                    value="Đổ khi pha"
+                                    ${row.reasonPreset == 'Đổ khi pha' ? 'selected' : ''}>Đổ khi pha</option>
+                            <option data-type="SPILL"
+                                    value="Rơi khi thao tác"
+                                    ${row.reasonPreset == 'Rơi khi thao tác' ? 'selected' : ''}>Rơi khi thao tác</option>
+                            <option data-type="SPILL"
+                                    value="Sai định lượng"
+                                    ${row.reasonPreset == 'Sai định lượng' ? 'selected' : ''}>Sai định lượng</option>
+                            <option data-type="EXPIRED"
+                                    value="Hết hạn"
+                                    ${row.reasonPreset == 'Hết hạn' ? 'selected' : ''}>Hết hạn</option>
+                            <option data-type="EXPIRED"
+                                    value="Nguyên liệu hỏng"
+                                    ${row.reasonPreset == 'Nguyên liệu hỏng' ? 'selected' : ''}>Nguyên liệu hỏng</option>
+                            <option data-type="EXPIRED"
+                                    value="Bảo quản lỗi"
+                                    ${row.reasonPreset == 'Bảo quản lỗi' ? 'selected' : ''}>Bảo quản lỗi</option>
+                            <option data-type="EXPIRED"
+                                    value="Quá thời gian mở nắp"
+                                    ${row.reasonPreset == 'Quá thời gian mở nắp' ? 'selected' : ''}>Quá thời gian mở nắp</option>
+                            <option data-type="OTHER"
+                                    value="Mẫu thử/QC"
+                                    ${row.reasonPreset == 'Mẫu thử/QC' ? 'selected' : ''}>Mẫu thử/QC</option>
                             <option data-type="OTHER" value="Khác" ${row.reasonPreset == 'Khác' ? 'selected' : ''}>Khác</option>
                         </select>
                     </div>
                     <div class="form-group waste-row__note">
                         <label>Nhập thêm</label>
-                        <input type="text" name="reasonDetail" class="form-control waste-reason-detail" maxlength="255" value="${fn:escapeXml(row.reasonDetail)}">
+                        <input type="text"
+                               name="reasonDetail"
+                               class="form-control waste-reason-detail"
+                               maxlength="255"
+                               value="${fn:escapeXml(row.reasonDetail)}">
                     </div>
                     <button type="button" class="waste-row__remove" title="Xoá dòng">×</button>
                 </div>
@@ -130,23 +161,30 @@
     <div id="editWaste" class="card waste-edit-card">
         <div>
             <h3>Sửa bản ghi hao hụt</h3>
-            <p>${editLog.ingredientName} · ${editLog.loggedAtDisplay}</p>
+            <p>${editLog.ingredientName} · ${view.timeDateUtc(editLog.loggedAt)}</p>
         </div>
         <form action="${ctx}/barista/waste" method="post" class="waste-edit-form">
             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
             <input type="hidden" name="action" value="update">
-            <input type="hidden" name="wasteLogId" value="${editLog.wasteLogId}">
+            <input type="hidden" name="wasteEntryId" value="${editLog.wasteEntryId}">
             <input type="hidden" name="q" value="${fn:escapeXml(wasteLogQuery)}">
             <input type="hidden" name="logType" value="${wasteLogWasteType}">
             <input type="hidden" name="status" value="${wasteLogStatus}">
             <input type="hidden" name="pageSize" value="${wasteLogPage.pageSize}">
             <input type="hidden" name="page" value="${wasteLogPage.page}">
-            <c:set var="editQty" value="${empty requestScope.editQuantity ? editLog.quantityInput : requestScope.editQuantity}" />
+            <c:set var="editQty" value="${empty requestScope.editQuantity ? view.plain(editLog.quantity) : requestScope.editQuantity}" />
             <c:set var="editType" value="${empty requestScope.editWasteType ? editLog.wasteType : requestScope.editWasteType}" />
             <c:set var="editReasonValue" value="${empty requestScope.editReason ? editLog.reason : requestScope.editReason}" />
             <div class="form-group">
                 <label>Số lượng</label>
-                <input type="number" name="quantity" class="form-control" min="0.001" max="999999999.999" step="0.001" value="${fn:escapeXml(editQty)}" required>
+                <input type="number"
+                       name="quantity"
+                       class="form-control"
+                       min="0.001"
+                       max="999999999.999"
+                       step="0.001"
+                       value="${fn:escapeXml(editQty)}"
+                       required>
             </div>
             <div class="form-group">
                 <label>Loại</label>
@@ -158,7 +196,12 @@
             </div>
             <div class="form-group waste-edit-form__reason">
                 <label>Lý do</label>
-                <input type="text" name="reason" class="form-control" maxlength="255" value="${fn:escapeXml(editReasonValue)}" required>
+                <input type="text"
+                       name="reason"
+                       class="form-control"
+                       maxlength="255"
+                       value="${fn:escapeXml(editReasonValue)}"
+                       required>
             </div>
             <div class="waste-edit-form__actions">
                 <button type="submit" class="btn btn-primary">Lưu sửa</button>
@@ -176,7 +219,7 @@
 
 <%-- Nhật ký chỉ để đọc/tra cứu nên vẫn tìm và lật trang được khi ngoài ca;
      riêng nút Sửa/Huỷ từng dòng vẫn bị khoá bên dưới. --%>
-<h3 class="section-title">Nhật ký hao hụt · ${scope.label}</h3>
+<h3 class="section-title">Nhật ký hao hụt · ${view.scopeLabel(scope.kind)}</h3>
 <div>
             <form id="wasteLogFilters" class="table-toolbar" action="${ctx}/barista/waste" method="get">
                 <input type="hidden" name="page" value="1">
@@ -236,13 +279,13 @@
                             <c:otherwise>
                                 <c:forEach var="w" items="${logs}">
                                     <tr class="${w.status == 'VOIDED' ? 'row-muted' : ''}">
-                                        <td>${w.loggedAtDisplay}</td>
+                                        <td>${view.timeDateUtc(w.loggedAt)}</td>
                                         <td>
                                             <strong>${w.ingredientName}</strong>
                                             <c:if test="${w.ingredientType == 'PREPPED'}"><span class="badge badge-making">Pha sẵn</span></c:if>
                                         </td>
-                                        <td><strong>${w.quantityDisplay}</strong> ${w.ingredientUnit}</td>
-                                        <td>${w.wasteTypeLabel}</td>
+                                        <td><strong>${view.plain(w.quantity)}</strong> ${w.ingredientUnit}</td>
+                                        <td>${view.wasteType(w.wasteType)}</td>
                                         <td>${fn:escapeXml(w.reason)}</td>
                                         <td>${w.loggedByName}</td>
                                         <td>
@@ -254,19 +297,25 @@
                                         <td>
                                             <div class="waste-actions ${onShift ? '' : 'is-viewonly'}">
                                                 <c:if test="${w.editable and w.loggedBy == currentUserId}">
-                                                    <%-- Mang theo bộ lọc + trang đang xem để sửa xong không bị văng về trang 1. --%>
+                                                    <%-- Mang theo bộ lọc + trang đang xem để sửa xong không bị văng
+                                                    về trang 1. --%>
                                                     <c:url var="editWasteUrl" value="/barista/waste">
-                                                        <c:param name="q" value="${wasteLogQuery}" /><c:param name="logType" value="${wasteLogWasteType}" />
-                                                        <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" />
-                                                        <c:param name="page" value="${wasteLogPage.page}" /><c:param name="edit" value="${w.wasteLogId}" />
+                                                        <c:param name="q" value="${wasteLogQuery}" /><c:param
+                                                            name="logType" value="${wasteLogWasteType}" />
+                                                        <c:param name="status" value="${wasteLogStatus}" /><c:param
+                                                            name="pageSize" value="${wasteLogPage.pageSize}" />
+                                <c:param name="page" value="${wasteLogPage.page}" /><c:param name="edit"
+                                    value="${w.wasteEntryId}" />
                                                     </c:url>
                                                     <a class="btn btn-ghost btn-sm" href="${editWasteUrl}#editWaste">Sửa</a>
                                                 </c:if>
                                                 <c:if test="${w.voidable and w.loggedBy == currentUserId}">
-                                                    <form action="${ctx}/barista/waste" method="post" onsubmit="return confirm('Huỷ bản ghi này? Tồn kho sẽ được hoàn lại qua sổ cái.');">
+                                                    <form action="${ctx}/barista/waste"
+                                                          method="post"
+                                                          onsubmit="return confirm('Huỷ bản ghi này? Tồn kho sẽ được hoàn lại qua sổ cái.');">
                                                         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                                         <input type="hidden" name="action" value="void">
-                                                        <input type="hidden" name="wasteLogId" value="${w.wasteLogId}">
+                                <input type="hidden" name="wasteEntryId" value="${w.wasteEntryId}">
                                                         <input type="hidden" name="q" value="${fn:escapeXml(wasteLogQuery)}">
                                                         <input type="hidden" name="logType" value="${wasteLogWasteType}">
                                                         <input type="hidden" name="status" value="${wasteLogStatus}">
@@ -295,36 +344,55 @@
                     <div class="pagination" aria-label="Phân trang nhật ký hao hụt">
                         <c:url var="firstWasteLogPageUrl" value="/barista/waste">
                             <c:param name="q" value="${wasteLogQuery}" /><c:param name="logType" value="${wasteLogWasteType}" />
-                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" />
+                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize"
+                                value="${wasteLogPage.pageSize}" />
                             <c:param name="page" value="1" />
                         </c:url>
                         <c:url var="previousWasteLogPageUrl" value="/barista/waste">
                             <c:param name="q" value="${wasteLogQuery}" /><c:param name="logType" value="${wasteLogWasteType}" />
-                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" />
+                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize"
+                                value="${wasteLogPage.pageSize}" />
                             <c:param name="page" value="${wasteLogPage.page - 1}" />
                         </c:url>
-                        <a class="page" href="${firstWasteLogPageUrl}" aria-disabled="${not wasteLogPage.hasPrevious}" title="Trang đầu">«</a>
-                        <a class="page" href="${previousWasteLogPageUrl}" aria-disabled="${not wasteLogPage.hasPrevious}" title="Trang trước">‹</a>
+                        <a class="page"
+                           href="${firstWasteLogPageUrl}"
+                           aria-disabled="${not wasteLogPage.hasPrevious}"
+                           title="Trang đầu">«</a>
+                        <a class="page"
+                           href="${previousWasteLogPageUrl}"
+                           aria-disabled="${not wasteLogPage.hasPrevious}"
+                           title="Trang trước">‹</a>
                         <c:forEach var="pageNumber" items="${wasteLogPage.visiblePages}">
                             <c:url var="wasteLogPageUrl" value="/barista/waste">
                                 <c:param name="q" value="${wasteLogQuery}" /><c:param name="logType" value="${wasteLogWasteType}" />
-                                <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" />
+                                <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize"
+                                    value="${wasteLogPage.pageSize}" />
                                 <c:param name="page" value="${pageNumber}" />
                             </c:url>
-                            <a class="page ${pageNumber == wasteLogPage.page ? 'is-active' : ''}" href="${wasteLogPageUrl}" aria-current="${pageNumber == wasteLogPage.page ? 'page' : 'false'}">${pageNumber}</a>
+                            <a class="page ${pageNumber == wasteLogPage.page ? 'is-active' : ''}"
+                               href="${wasteLogPageUrl}"
+                               aria-current="${pageNumber == wasteLogPage.page ? 'page' : 'false'}">${pageNumber}</a>
                         </c:forEach>
                         <c:url var="nextWasteLogPageUrl" value="/barista/waste">
                             <c:param name="q" value="${wasteLogQuery}" /><c:param name="logType" value="${wasteLogWasteType}" />
-                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" />
+                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize"
+                                value="${wasteLogPage.pageSize}" />
                             <c:param name="page" value="${wasteLogPage.page + 1}" />
                         </c:url>
                         <c:url var="lastWasteLogPageUrl" value="/barista/waste">
                             <c:param name="q" value="${wasteLogQuery}" /><c:param name="logType" value="${wasteLogWasteType}" />
-                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" />
+                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize"
+                                value="${wasteLogPage.pageSize}" />
                             <c:param name="page" value="${wasteLogPage.totalPages}" />
                         </c:url>
-                        <a class="page" href="${nextWasteLogPageUrl}" aria-disabled="${not wasteLogPage.hasNext}" title="Trang sau">›</a>
-                        <a class="page" href="${lastWasteLogPageUrl}" aria-disabled="${not wasteLogPage.hasNext}" title="Trang cuối">»</a>
+                        <a class="page"
+                           href="${nextWasteLogPageUrl}"
+                           aria-disabled="${not wasteLogPage.hasNext}"
+                           title="Trang sau">›</a>
+                        <a class="page"
+                           href="${lastWasteLogPageUrl}"
+                           aria-disabled="${not wasteLogPage.hasNext}"
+                           title="Trang cuối">»</a>
                     </div>
                 </c:if>
             </div>
