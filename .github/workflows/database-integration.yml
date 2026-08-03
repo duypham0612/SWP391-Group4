@@ -12,6 +12,23 @@ jobs:
   sqlserver-2022:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      MSSQL_SA_PASSWORD: Caf3Chain!2026
+
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_SA_PASSWORD: ${{ env.MSSQL_SA_PASSWORD }}
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/bin/bash -c '/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -Q \"SELECT 1\" || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -Q \"SELECT 1\"'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 30
+          --health-start-period 20s
 
     steps:
       - name: Checkout
@@ -28,4 +45,9 @@ jobs:
         run: test "$(uname -m)" = "x86_64"
 
       - name: Unit and SQL Server integration tests
-        run: mvn --batch-mode --no-transfer-progress clean verify -Pintegration
+        run: >
+          mvn --batch-mode --no-transfer-progress clean verify -Pintegration
+          -Dit.db.url="jdbc:sqlserver://localhost:1433;encrypt=false;trustServerCertificate=true"
+          -Dit.db.username=sa
+          -Dit.db.password="$MSSQL_SA_PASSWORD"
+          -Dit.db.initSchema=true

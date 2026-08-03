@@ -11,6 +11,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.UUID;
 
 /** Khởi tạo SQL Server disposable bằng Flyway; chỉ dùng DB ngoài khi caller truyền -Dit.db.url. */
 public abstract class SqlServerIntegrationSupport {
@@ -20,6 +21,7 @@ public abstract class SqlServerIntegrationSupport {
     private static final String EXTERNAL_PASSWORD = System.getProperty("it.db.password");
     private static final boolean INIT_EXTERNAL_SCHEMA =
             Boolean.parseBoolean(System.getProperty("it.db.initSchema", "false"));
+    private static final String DATABASE_NAME = System.getProperty("it.db.name", defaultDatabaseName());
     protected static final MSSQLServerContainer<?> SQL = new MSSQLServerContainer<>(IMAGE).acceptLicense();
 
     @BeforeAll
@@ -94,20 +96,27 @@ public abstract class SqlServerIntegrationSupport {
         String masterUrl = withDatabaseName(jdbcUrl, "master");
         try (Connection connection = DriverManager.getConnection(masterUrl, username, password);
              Statement statement = connection.createStatement()) {
-            statement.execute("IF DB_ID(N'CafeChain') IS NULL CREATE DATABASE CafeChain");
+            statement.execute("IF DB_ID(N'" + DATABASE_NAME + "') IS NULL CREATE DATABASE " + DATABASE_NAME);
         }
     }
 
     protected static String cafeJdbcUrl() {
         if (usesExternalDatabase()) {
             if (!INIT_EXTERNAL_SCHEMA) return EXTERNAL_URL;
-            return withDatabaseName(EXTERNAL_URL, "CafeChain");
+            return withDatabaseName(EXTERNAL_URL, DATABASE_NAME);
         }
-        return withDatabaseName(SQL.getJdbcUrl(), "CafeChain");
+        return withDatabaseName(SQL.getJdbcUrl(), DATABASE_NAME);
     }
 
     private static boolean usesExternalDatabase() {
         return EXTERNAL_URL != null && !EXTERNAL_URL.isBlank();
+    }
+
+    private static String defaultDatabaseName() {
+        if (usesExternalDatabase() && INIT_EXTERNAL_SCHEMA) {
+            return "CafeChain_IT_" + UUID.randomUUID().toString().replace("-", "");
+        }
+        return "CafeChain";
     }
 
     protected static String databaseUsername() {
