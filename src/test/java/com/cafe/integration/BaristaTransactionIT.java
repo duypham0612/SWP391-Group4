@@ -1,6 +1,7 @@
 package com.cafe.integration;
 
-import com.cafe.service.shared.OrderService;
+import com.cafe.service.shared.KdsOrderWorkflowService;
+import com.cafe.service.shared.OrderIssueService;
 import com.cafe.service.shared.InventoryService;
 import com.cafe.common.BusinessException;
 import com.cafe.common.TxnType;
@@ -31,8 +32,8 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
     @Test
     void simultaneous_claim_allows_exactly_one_barista() throws Exception {
         Fixture f = fixture(false);
-        List<Boolean> results = concurrently(() -> new OrderService().startItem(f.orderItemId, f.baristaOneId, f.branchId),
-                () -> new OrderService().startItem(f.orderItemId, f.baristaTwoId, f.branchId));
+        List<Boolean> results = concurrently(() -> new KdsOrderWorkflowService().startItem(f.orderItemId, f.baristaOneId, f.branchId),
+                () -> new KdsOrderWorkflowService().startItem(f.orderItemId, f.baristaTwoId, f.branchId));
 
         assertEquals(1, results.stream().filter(Boolean::booleanValue).count());
         assertEquals("MAKING", scalarString("SELECT Status FROM sales.OrderItem WHERE OrderItemId=?", f.orderItemId));
@@ -42,11 +43,11 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
     @Test
     void simultaneous_ready_deducts_recipe_and_modifier_once() throws Exception {
         Fixture f = fixture(true);
-        OrderService service = new OrderService();
+        KdsOrderWorkflowService service = new KdsOrderWorkflowService();
         assertTrue(service.startItem(f.orderItemId, f.baristaOneId, f.branchId));
 
-        List<Boolean> results = concurrently(() -> new OrderService().markItemReady(f.orderItemId, f.baristaOneId, f.branchId),
-                () -> new OrderService().markItemReady(f.orderItemId, f.baristaOneId, f.branchId));
+        List<Boolean> results = concurrently(() -> new KdsOrderWorkflowService().markItemReady(f.orderItemId, f.baristaOneId, f.branchId),
+                () -> new KdsOrderWorkflowService().markItemReady(f.orderItemId, f.baristaOneId, f.branchId));
 
         assertEquals(1, results.stream().filter(Boolean::booleanValue).count());
         assertEquals("READY", scalarString("SELECT Status FROM sales.OrderItem WHERE OrderItemId=?", f.orderItemId));
@@ -59,12 +60,12 @@ public class BaristaTransactionIT extends SqlServerIntegrationSupport {
     @Test
     void simultaneous_remake_creates_one_reservation_and_one_waste_event() throws Exception {
         Fixture f = fixture(false);
-        OrderService service = new OrderService();
+        KdsOrderWorkflowService service = new KdsOrderWorkflowService();
         assertTrue(service.startItem(f.orderItemId, f.baristaOneId, f.branchId));
         assertTrue(service.markItemReady(f.orderItemId, f.baristaOneId, f.branchId));
 
-        List<Boolean> results = concurrently(() -> new OrderService().remakeItem(f.orderItemId, "Sai ly", f.baristaOneId, f.branchId),
-                () -> new OrderService().remakeItem(f.orderItemId, "Sai ly", f.baristaOneId, f.branchId));
+        List<Boolean> results = concurrently(() -> new OrderIssueService().remakeItem(f.orderItemId, "Sai ly", f.baristaOneId, f.branchId),
+                () -> new OrderIssueService().remakeItem(f.orderItemId, "Sai ly", f.baristaOneId, f.branchId));
 
         assertEquals(1, results.stream().filter(Boolean::booleanValue).count());
         assertEquals("WAITING", scalarString("SELECT Status FROM sales.OrderItem WHERE OrderItemId=?", f.orderItemId));

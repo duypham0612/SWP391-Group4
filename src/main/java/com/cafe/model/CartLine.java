@@ -14,8 +14,8 @@ import java.util.List;
  * <p>Lớp này nằm ở {@code model/} chứ không nằm trong service nào, vì cả ba tầng đều chạm tới nó:
  * {@code web/form} dựng ra, {@code service/cashier} + {@code service/customer} kiểm tra, và
  * {@code OrderPlacementService} tiêu thụ. Trước đây nó là lớp lồng trong facade
- * {@code OrderService}, khiến service chuyên trách phải phụ thuộc ngược vào facade cho DTO của
- * chính mình.
+ * {@code OrderService} — facade nay đã bị gỡ hẳn ở Đợt 3 — khiến service chuyên trách phải phụ
+ * thuộc ngược vào facade cho DTO của chính mình.
  *
  * <p>Vẫn để field public thay vì record: JSP/EL 4.0 chưa đọc được thuộc tính của record, và các
  * caller hiện gán từng field một sau khi khởi tạo.

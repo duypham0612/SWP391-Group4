@@ -6,7 +6,8 @@ import com.cafe.model.User;
 import com.cafe.model.PosMenuItem;
 import com.cafe.service.cashier.PickupService;
 import com.cafe.service.shared.CatalogReadService;
-import com.cafe.service.shared.OrderService;
+import com.cafe.service.shared.OrderIssueService;
+import com.cafe.service.shared.OrderQueryService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -17,20 +18,25 @@ import java.io.IOException;
 
 /**
  * C4 · OrderInboxServlet → /cashier/inbox.
- * GIÁM SÁT đơn đang xử lý (COUNTER + QR, cùng OrderService) + VOID đơn sai.
+ * GIÁM SÁT đơn đang xử lý (COUNTER + QR đi chung một luồng đơn) + VOID đơn sai.
  * KHÔNG chặn luồng: đơn vẫn auto vào KDS như cũ; inbox chỉ theo dõi & huỷ đơn sai.
  */
 @WebServlet("/cashier/inbox")
 public class OrderInboxServlet extends HttpServlet {
 
-    private final OrderService orderService;
+    private final OrderQueryService orderQuery;
+    private final OrderIssueService orderIssues;
     private final PickupService pickupService;
     private final CatalogReadService catalogReadService;
 
-    public OrderInboxServlet() { this(new OrderService(), new PickupService(), new CatalogReadService()); }
-    OrderInboxServlet(OrderService orderService, PickupService pickupService,
-                      CatalogReadService catalogReadService) {
-        this.orderService = java.util.Objects.requireNonNull(orderService);
+    public OrderInboxServlet() {
+        this(new OrderQueryService(), new OrderIssueService(), new PickupService(),
+                new CatalogReadService());
+    }
+    OrderInboxServlet(OrderQueryService orderQuery, OrderIssueService orderIssues,
+                      PickupService pickupService, CatalogReadService catalogReadService) {
+        this.orderQuery = java.util.Objects.requireNonNull(orderQuery);
+        this.orderIssues = java.util.Objects.requireNonNull(orderIssues);
         this.pickupService = java.util.Objects.requireNonNull(pickupService);
         this.catalogReadService = java.util.Objects.requireNonNull(catalogReadService);
     }
@@ -40,7 +46,7 @@ public class OrderInboxServlet extends HttpServlet {
             throws ServletException, IOException {
         int branchId = com.cafe.web.support.BranchContext.requireBranchId(req);
         try {
-            java.util.List<com.cafe.model.Order> orders = orderService.getIncomingOrders(branchId);
+            java.util.List<com.cafe.model.Order> orders = orderQuery.getIncomingOrders(branchId);
             // Đơn treo đã được service xếp lên đầu; đếm ở đây để có một dòng nhắc gọn trên cùng —
             // quầy pha chế không còn nhận những đơn này nên đây là chỗ duy nhất chốt được chúng.
             int staleCount = 0;
@@ -69,7 +75,7 @@ public class OrderInboxServlet extends HttpServlet {
         try {
             if ("void".equals(action)) {
                 int orderId = Integer.parseInt(req.getParameter("orderId"));
-                boolean ok = orderService.voidOrder(orderId, userId, branchId);
+                boolean ok = orderIssues.voidOrder(orderId, userId, branchId);
                 req.getSession().setAttribute(ok ? "flashOk" : "flashError",
                         ok ? "Đã huỷ đơn — các món chưa pha chuyển CANCELLED (không đụng tồn)."
                            : "Không thể huỷ — đơn đã được pha (hoặc đã xử lý).");
@@ -77,7 +83,7 @@ public class OrderInboxServlet extends HttpServlet {
                 // Huỷ một dòng món (đặc biệt món BLOCKED: hết nguyên liệu/hỏng máy → thoát bế tắc).
                 int orderItemId = Integer.parseInt(req.getParameter("orderItemId"));
                 String reason = req.getParameter("reason");
-                String code = orderService.cancelItem(orderItemId, reason, userId, branchId);
+                String code = orderIssues.cancelItem(orderItemId, reason, userId, branchId);
                 req.getSession().setAttribute("OK".equals(code) ? "flashOk" : "flashError",
                         cancelItemMessage(code));
             } else if ("pickUp".equals(action)) {

@@ -5,8 +5,8 @@
 >
 > Nối tiếp [`KE_HOACH_CLEAN_CODE_BARISTA.md`](KE_HOACH_CLEAN_CODE_BARISTA.md) — mục đầu tiên trong
 > sổ ghi nhận §6 của file đó (`OrderService.java:50`).
-> Trạng thái tổng: 🟢 **Đợt 1 + 2 + 2b xong** (2026-08-02) — tức toàn bộ phần khuyến nghị ở §8.
-> ⚪ Đợt 3 (bỏ facade) chưa làm, **có điều kiện tiên quyết** — xem §5.
+> Trạng thái tổng: 🟢 **XONG TOÀN BỘ** — Đợt 1 + 2 + 2b (2026-08-02), Đợt 3 bỏ hẳn facade
+> (2026-08-03). `service/shared/OrderService.java` đã bị xoá; xem §5.
 
 ---
 
@@ -269,20 +269,18 @@ chỉ ra điểm gọi" trong file này **bắt buộc dùng `clean compile`**.
 
 ---
 
-## 5. Đợt 3 — Bỏ hẳn facade ⚪ · CÓ ĐIỀU KIỆN TIÊN QUYẾT
+## 5. Đợt 3 — Bỏ hẳn facade 🟢 XONG (2026-08-03)
 
-> **Không bắt tay khi chưa thoả điều kiện dưới đây.** Đây không phải "để sau cho đỡ ngại" —
-> đây là việc sửa đúng 7 file thuộc 4 role mà **không có một unit test nào đỡ**.
+**Điều kiện tiên quyết — cả ba đã thoả trước khi bắt tay:**
+1. ~~Có test cho `KdsOrderWorkflowService` + `OrderIssueService`~~ → 🟢 `8fae5db` +
+   `CashierOrderCancellationIT` → **14/14 method**. Lưới IT cũng đã được chứng minh chạy thật:
+   trước đó nó tự vô hiệu hoá từ class thứ hai (xem §6).
+2. ~~`CartLine` phải chuyển ra khỏi facade TRƯỚC~~ → 🟢 nay là `model/CartLine.java`.
+3. ~~Người dùng xác nhận muốn đổi kiến trúc~~ → 🟢 đã xác nhận.
 
-**Điều kiện tiên quyết:**
-1. ~~Có test cho `KdsOrderWorkflowService` + `OrderIssueService`~~ → 🟢 **đã xong** `8fae5db`
-   (`BaristaIssueWorkflowIT`, 12/14 method). ⚠️ Nhưng vẫn cần **Docker cục bộ** thì lưới này mới
-   dùng được lúc refactor — chạy trên CI nghĩa là biết mình sai *sau khi đẩy code*, không phải lúc gõ.
-2. ~~`CartLine` phải chuyển ra khỏi facade TRƯỚC~~ → 🟢 **đã xong** — nay là `model/CartLine.java`,
-   `OrderPlacementService` hết phụ thuộc ngược vào facade.
-3. ⚪ Người dùng xác nhận muốn đổi kiến trúc, không chỉ muốn dễ đọc.
+⚠️ Docker cục bộ vẫn KHÔNG có. Bù bằng ba lớp kiểm chứng, xem "Cách kiểm chứng" bên dưới.
 
-**Nội dung nếu làm:** mỗi caller tự giữ đúng service nó cần, bỏ tầng trung gian.
+**Đã làm:** mỗi caller tự giữ đúng service nó cần, gỡ hẳn tầng trung gian.
 
 | File | Đổi thành |
 |---|---|
@@ -294,12 +292,30 @@ chỉ ra điểm gọi" trong file này **bắt buộc dùng `clean compile`**.
 | `controller/cashier/PosServlet.java` | `OrderPlacementService` + `OrderQueryService` |
 | `web/support/BaristaShiftSupport.java` | chỉ `KdsOrderWorkflowService` (1 method) |
 
-**Lợi ích:** đọc constructor là biết màn đó đụng vào phần nào của luồng đơn.
-**Giá phải trả:** 7 file, 4 role, không lưới an toàn; constructor test phải sửa theo.
+**Thứ tự đã làm:** `BaristaShiftSupport` → `PosServlet` → `QrOrderService` → `OrderInboxServlet`
+→ `PickupService` → `KdsService`. Dễ nhất trước để lộ vấn đề sớm khi giá còn rẻ.
 
-**Gợi ý thứ tự nếu làm:** `BaristaShiftSupport` (1 method) → `PosServlet` (2) → `QrOrderService` (4)
-→ `OrderInboxServlet` (5) → `PickupService` (8) → `KdsServlet` (9) → `KdsService` (14).
-Dễ nhất trước để lộ vấn đề sớm khi giá còn rẻ.
+`KdsServlet` **không phải sửa** — nó vốn chỉ đi qua `KdsService`, đúng như plan mong muốn. Ước
+lượng ban đầu "7 file" thừa một file.
+
+**Kết quả:** đọc constructor là biết màn đó đụng vào phần nào của luồng đơn. `OrderService.java`
+(210 dòng, 29 method uỷ thác) đã xoá hẳn.
+
+### Cách kiểm chứng (thay cho việc chạy thử cục bộ)
+
+1. **`clean compile` sau khi XOÁ facade** — mọi điểm gọi còn sót đều thành lỗi biên dịch, không thể
+   bỏ lọt. Bắt được 1 import mồ côi ở `QrMenuServlet`.
+2. **Đối chiếu định tuyến 96 lời gọi** bằng script đọc bản đồ uỷ thác THẲNG TỪ GIT
+   (`git show HEAD:...OrderService.java`) chứ không chép tay, và phân giải biến theo phạm vi method
+   chứ không theo file. Kết quả: 96/96 trỏ đúng service mà facade từng uỷ thác.
+   *Lần chạy đầu script báo 3 chỗ lệch — là nhiễu do gộp biến toàn file; nếu lệch thật thì đã không
+   biên dịch được, vì `KdsOrderWorkflowService` không hề có `blockItem`.*
+3. **`mvn clean test` 352/352** (gồm ArchUnit) + **CI integration 74/74**.
+
+**Khác biệt duy nhất về hành vi cần biết:** trước đây facade dựng MỘT `OrderRepository` dùng chung
+cho cả 5 service; nay mỗi caller dựng riêng. An toàn vì `OrderRepository` chỉ chứa field `final` trỏ
+DAO không trạng thái, và mỗi giao dịch tự lấy connection từ pool — đã kiểm trước khi sửa, không suy
+đoán.
 
 ---
 
@@ -324,7 +340,7 @@ Dễ nhất trước để lộ vấn đề sớm khi giá còn rẻ.
 | 1 | Trải phẳng `OrderService` + xoá 5 method chết | Rất thấp | 🟢 | `59792c9` — 56→240 dòng, 30 method, 0 dòng >120 ký tự, 352/352 |
 | 2 | Gỡ 2 kiểu kết quả nhân đôi | Thấp–TB | 🟢 | `e95c72a` — 4 điểm gọi, `KdsServlet` hết phụ thuộc `OrderService` |
 | 2b | 2 file model | ~0 | 🟢 | `e95c72a` — 26 cặp getter/setter, tên method giữ nguyên |
-| 3 | Bỏ facade | **Cao** | ⚪ | Chờ điều kiện tiên quyết §5 |
+| 3 | Bỏ facade | **Cao** | 🟢 | 6 file, 4 role · xoá `OrderService.java` 210 dòng · 96/96 lời gọi đối chiếu khớp · 352/352 + CI 74/74 |
 
 ⚪ chưa làm · 🟡 đang làm · 🟢 xong · 🔴 bị chặn
 
@@ -336,8 +352,14 @@ Dễ nhất trước để lộ vấn đề sớm khi giá còn rẻ.
 ("7 method nhồi trên 1 dòng, tên tham số 1 ký tự"), đều nằm trong vùng compiler bảo chứng, và
 không đụng file nào của Cashier/QR/Manager.
 
-**Hoãn Đợt 3.** Nó đổi kiến trúc chứ không phải dọn dẹp, và giá trị của nó (đọc constructor biết
-màn đụng gì) nhỏ hơn nhiều so với rủi ro sửa 7 file thuộc 4 role mà không có test.
+**~~Hoãn Đợt 3~~ → đã làm xong 2026-08-03.** Khuyến nghị gốc là hoãn, vì giá trị của nó (đọc
+constructor biết màn đụng gì) nhỏ hơn rủi ro sửa 7 file thuộc 4 role mà không có test — kèm gợi ý
+"việc đáng làm hơn là bổ sung test trước, vừa tự nó có giá trị vừa mở khoá Đợt 3".
 
-Nếu muốn đầu tư tiếp vào vùng này, **việc đáng làm hơn Đợt 3 là bổ sung unit test cho
-`KdsOrderWorkflowService` và `OrderIssueService`** — vừa tự nó có giá trị, vừa mở khoá Đợt 3.
+**Đã đi đúng thứ tự đó**: bổ sung test trước (14/14 method), sửa luôn ba lỗi khiến lưới IT chưa
+từng chạy thật, rồi mới bỏ facade. Nhờ vậy Đợt 3 được làm khi lưới đã có thật chứ không phải làm
+liều — và bước xoá facade rồi `clean compile` biến mọi điểm gọi còn sót thành lỗi biên dịch.
+
+**Điều vẫn đúng và không nên quên:** máy phát triển vẫn không có Docker. Toàn bộ IT chỉ chạy trên
+CI, nghĩa là biết mình sai *sau khi đẩy code*. Với refactor diện rộng tiếp theo, dựng được Docker
+cục bộ vẫn là khoản đầu tư đáng giá nhất.

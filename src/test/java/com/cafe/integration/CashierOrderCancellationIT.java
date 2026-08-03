@@ -1,6 +1,6 @@
 package com.cafe.integration;
 
-import com.cafe.service.shared.OrderService;
+import com.cafe.service.shared.OrderIssueService;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -38,7 +38,7 @@ public class CashierOrderCancellationIT extends SqlServerIntegrationSupport {
     @Test
     void cancel_item_moves_a_waiting_item_to_cancelled() throws Exception {
         Fixture f = fixture();
-        assertEquals("OK", new OrderService().cancelItem(f.itemOneId, "Khách đổi ý", f.cashierId, f.branchId));
+        assertEquals("OK", new OrderIssueService().cancelItem(f.itemOneId, "Khách đổi ý", f.cashierId, f.branchId));
         assertEquals("CANCELLED", itemStatus(f.itemOneId));
         assertEquals("WAITING", itemStatus(f.itemTwoId));   // món còn lại không bị đụng
     }
@@ -50,7 +50,7 @@ public class CashierOrderCancellationIT extends SqlServerIntegrationSupport {
 
         // Chốt quan trọng: BLOCKED phải huỷ được. Món bị chặn vì hết nguyên liệu thường kết thúc
         // bằng thu ngân huỷ + hoàn tiền; loại BLOCKED khỏi danh sách là món kẹt vĩnh viễn.
-        assertEquals("OK", new OrderService().cancelItem(f.itemOneId, "Hết nguyên liệu", f.cashierId, f.branchId));
+        assertEquals("OK", new OrderIssueService().cancelItem(f.itemOneId, "Hết nguyên liệu", f.cashierId, f.branchId));
         assertEquals("CANCELLED", itemStatus(f.itemOneId));
     }
 
@@ -58,7 +58,7 @@ public class CashierOrderCancellationIT extends SqlServerIntegrationSupport {
     void cancel_item_accepts_an_item_already_being_made() throws Exception {
         Fixture f = fixture();
         setItemStatus(f.itemOneId, "MAKING");
-        assertEquals("OK", new OrderService().cancelItem(f.itemOneId, "Khách huỷ", f.cashierId, f.branchId));
+        assertEquals("OK", new OrderIssueService().cancelItem(f.itemOneId, "Khách huỷ", f.cashierId, f.branchId));
         assertEquals("CANCELLED", itemStatus(f.itemOneId));
     }
 
@@ -66,14 +66,14 @@ public class CashierOrderCancellationIT extends SqlServerIntegrationSupport {
     void cancel_item_reports_not_found_for_an_unknown_id() throws Exception {
         Fixture f = fixture();
         assertEquals("NOT_FOUND",
-                new OrderService().cancelItem(f.itemTwoId + 1_000_000, "x", f.cashierId, f.branchId));
+                new OrderIssueService().cancelItem(f.itemTwoId + 1_000_000, "x", f.cashierId, f.branchId));
     }
 
     @Test
     void cancel_item_reports_conflict_once_the_item_is_ready() throws Exception {
         Fixture f = fixture();
         setItemStatus(f.itemOneId, "READY");
-        assertEquals("CONFLICT", new OrderService().cancelItem(f.itemOneId, "x", f.cashierId, f.branchId));
+        assertEquals("CONFLICT", new OrderIssueService().cancelItem(f.itemOneId, "x", f.cashierId, f.branchId));
         assertEquals("READY", itemStatus(f.itemOneId));
     }
 
@@ -81,7 +81,7 @@ public class CashierOrderCancellationIT extends SqlServerIntegrationSupport {
     void cancel_item_reports_conflict_for_an_item_already_served() throws Exception {
         Fixture f = fixture();
         setItemStatus(f.itemOneId, "SERVED");
-        assertEquals("CONFLICT", new OrderService().cancelItem(f.itemOneId, "x", f.cashierId, f.branchId));
+        assertEquals("CONFLICT", new OrderIssueService().cancelItem(f.itemOneId, "x", f.cashierId, f.branchId));
         assertEquals("SERVED", itemStatus(f.itemOneId));
     }
 
@@ -93,7 +93,7 @@ public class CashierOrderCancellationIT extends SqlServerIntegrationSupport {
         // Mã riêng, không gộp vào CONFLICT: tầng trên phải đẩy sang nghiệp vụ hoàn tiền chứ không
         // được coi như thao tác hỏng rồi im lặng.
         assertEquals("ALREADY_BILLED",
-                new OrderService().cancelItem(f.itemOneId, "x", f.cashierId, f.branchId));
+                new OrderIssueService().cancelItem(f.itemOneId, "x", f.cashierId, f.branchId));
         assertEquals("WAITING", itemStatus(f.itemOneId));
     }
 
@@ -104,7 +104,7 @@ public class CashierOrderCancellationIT extends SqlServerIntegrationSupport {
         // sessionBranchId (chi nhánh của phiên đăng nhập) khác branchId của món → guard chéo chi
         // nhánh phải chặn. Trả CONFLICT vì updateStatusIf không khớp dòng nào.
         assertEquals("CONFLICT",
-                new OrderService().cancelItem(f.itemOneId, "x", f.cashierId, f.otherBranchId));
+                new OrderIssueService().cancelItem(f.itemOneId, "x", f.cashierId, f.otherBranchId));
         assertEquals("WAITING", itemStatus(f.itemOneId));
     }
 
@@ -113,7 +113,7 @@ public class CashierOrderCancellationIT extends SqlServerIntegrationSupport {
     @Test
     void cancel_item_writes_an_audit_row_with_the_status_transition() throws Exception {
         Fixture f = fixture();
-        new OrderService().cancelItem(f.itemOneId, "Khách đổi ý", f.cashierId, f.branchId);
+        new OrderIssueService().cancelItem(f.itemOneId, "Khách đổi ý", f.cashierId, f.branchId);
 
         assertEquals(1, scalarInt("SELECT COUNT(*) FROM ops.ActivityLog WHERE EntityType='ORDER_ITEM' "
                 + "AND EntityId=? AND ActionType='CANCEL' AND FromValue='WAITING' AND ToValue='CANCELLED'",
@@ -128,7 +128,7 @@ public class CashierOrderCancellationIT extends SqlServerIntegrationSupport {
 
         // Lý do được nhét thẳng vào JSON của outbox bằng nối chuỗi, nên sanitizeReason là thứ duy
         // nhất giữ cho payload không vỡ cú pháp.
-        new OrderService().cancelItem(f.itemOneId, "Khách \"đổi\" ý\\ngay", f.cashierId, f.branchId);
+        new OrderIssueService().cancelItem(f.itemOneId, "Khách \"đổi\" ý\\ngay", f.cashierId, f.branchId);
 
         String logged = scalarString("SELECT Reason FROM ops.ActivityLog WHERE EntityType='ORDER_ITEM' "
                 + "AND EntityId=? AND ActionType='CANCEL'", f.itemOneId);
@@ -142,7 +142,7 @@ public class CashierOrderCancellationIT extends SqlServerIntegrationSupport {
         setItemStatus(f.itemTwoId, "SERVED");
         assertEquals("ACTIVE", orderStatus(f.orderId));
 
-        new OrderService().cancelItem(f.itemOneId, "Khách đổi ý", f.cashierId, f.branchId);
+        new OrderIssueService().cancelItem(f.itemOneId, "Khách đổi ý", f.cashierId, f.branchId);
 
         // Mọi món đã SERVED/CANCELLED → đơn tự đóng. Thiếu bước này thì đơn treo ở ACTIVE mãi.
         assertEquals("COMPLETED", orderStatus(f.orderId));
@@ -151,7 +151,7 @@ public class CashierOrderCancellationIT extends SqlServerIntegrationSupport {
     @Test
     void cancelling_one_of_two_unfinished_items_leaves_the_order_active() throws Exception {
         Fixture f = fixture();
-        new OrderService().cancelItem(f.itemOneId, "Khách đổi ý", f.cashierId, f.branchId);
+        new OrderIssueService().cancelItem(f.itemOneId, "Khách đổi ý", f.cashierId, f.branchId);
         assertEquals("ACTIVE", orderStatus(f.orderId));
     }
 
@@ -160,7 +160,7 @@ public class CashierOrderCancellationIT extends SqlServerIntegrationSupport {
     @Test
     void void_order_cancels_every_waiting_item_and_the_order_itself() throws Exception {
         Fixture f = fixture();
-        assertTrue(new OrderService().voidOrder(f.orderId, f.cashierId, f.branchId));
+        assertTrue(new OrderIssueService().voidOrder(f.orderId, f.cashierId, f.branchId));
 
         assertEquals("CANCELLED", itemStatus(f.itemOneId));
         assertEquals("CANCELLED", itemStatus(f.itemTwoId));
@@ -173,7 +173,7 @@ public class CashierOrderCancellationIT extends SqlServerIntegrationSupport {
         setItemStatus(f.itemOneId, "MAKING");
 
         // Guard R5: nguyên liệu đã tiêu cho món đang pha, huỷ cả đơn là mất hàng không có sổ.
-        assertFalse(new OrderService().voidOrder(f.orderId, f.cashierId, f.branchId));
+        assertFalse(new OrderIssueService().voidOrder(f.orderId, f.cashierId, f.branchId));
 
         // Và phải huỷ NGUYÊN VẸN: món WAITING còn lại cũng không được đụng tới.
         assertEquals("MAKING", itemStatus(f.itemOneId));
@@ -185,7 +185,7 @@ public class CashierOrderCancellationIT extends SqlServerIntegrationSupport {
     void void_order_is_refused_once_any_item_is_ready() throws Exception {
         Fixture f = fixture();
         setItemStatus(f.itemOneId, "READY");
-        assertFalse(new OrderService().voidOrder(f.orderId, f.cashierId, f.branchId));
+        assertFalse(new OrderIssueService().voidOrder(f.orderId, f.cashierId, f.branchId));
         assertEquals("ACTIVE", orderStatus(f.orderId));
     }
 
@@ -193,7 +193,7 @@ public class CashierOrderCancellationIT extends SqlServerIntegrationSupport {
     void void_order_is_refused_once_any_item_is_served() throws Exception {
         Fixture f = fixture();
         setItemStatus(f.itemOneId, "SERVED");
-        assertFalse(new OrderService().voidOrder(f.orderId, f.cashierId, f.branchId));
+        assertFalse(new OrderIssueService().voidOrder(f.orderId, f.cashierId, f.branchId));
         assertEquals("ACTIVE", orderStatus(f.orderId));
     }
 
@@ -205,7 +205,7 @@ public class CashierOrderCancellationIT extends SqlServerIntegrationSupport {
         // BLOCKED không nằm trong guard R5 (chưa tiêu nguyên liệu) nên đơn vẫn huỷ được, và món
         // BLOCKED phải bị huỷ theo. Bỏ sót nó thì đơn về CANCELLED mà món vẫn hiện trên bảng quầy
         // pha chế, không có đường nào thoát.
-        assertTrue(new OrderService().voidOrder(f.orderId, f.cashierId, f.branchId));
+        assertTrue(new OrderIssueService().voidOrder(f.orderId, f.cashierId, f.branchId));
         assertEquals("CANCELLED", itemStatus(f.itemOneId));
         assertEquals("CANCELLED", itemStatus(f.itemTwoId));
         assertEquals("CANCELLED", orderStatus(f.orderId));
@@ -214,7 +214,7 @@ public class CashierOrderCancellationIT extends SqlServerIntegrationSupport {
     @Test
     void void_order_refuses_an_order_from_another_branch() throws Exception {
         Fixture f = fixture();
-        assertFalse(new OrderService().voidOrder(f.orderId, f.cashierId, f.otherBranchId));
+        assertFalse(new OrderIssueService().voidOrder(f.orderId, f.cashierId, f.otherBranchId));
         assertEquals("ACTIVE", orderStatus(f.orderId));
         assertEquals("WAITING", itemStatus(f.itemOneId));
     }
@@ -222,17 +222,17 @@ public class CashierOrderCancellationIT extends SqlServerIntegrationSupport {
     @Test
     void void_order_refuses_an_unknown_order() throws Exception {
         Fixture f = fixture();
-        assertFalse(new OrderService().voidOrder(f.orderId + 1_000_000, f.cashierId, f.branchId));
+        assertFalse(new OrderIssueService().voidOrder(f.orderId + 1_000_000, f.cashierId, f.branchId));
     }
 
     @Test
     void void_order_is_not_repeatable() throws Exception {
         Fixture f = fixture();
-        assertTrue(new OrderService().voidOrder(f.orderId, f.cashierId, f.branchId));
+        assertTrue(new OrderIssueService().voidOrder(f.orderId, f.cashierId, f.branchId));
 
         // Lần hai phải trả false vì đơn không còn ACTIVE — nếu không, mỗi lần bấm lại sinh thêm
         // một sự kiện outbox cho cùng một lần huỷ.
-        assertFalse(new OrderService().voidOrder(f.orderId, f.cashierId, f.branchId));
+        assertFalse(new OrderIssueService().voidOrder(f.orderId, f.cashierId, f.branchId));
         // Sự kiện của MÓN cũng mang AggregateId là orderId, nên lọc theo hình dạng payload:
         // sự kiện cấp đơn bắt đầu bằng {"orderId": còn của món là {"orderItemId":.
         assertEquals(1, scalarInt("SELECT COUNT(*) FROM ops.OutboxEvent WHERE AggregateId=CAST(? AS varchar(50)) "

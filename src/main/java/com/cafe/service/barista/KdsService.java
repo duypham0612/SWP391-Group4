@@ -12,7 +12,7 @@ import com.cafe.service.admin.BranchService;
 import com.cafe.service.manager.AttendanceService;
 import com.cafe.service.shared.KdsOrderWorkflowService;
 import com.cafe.service.shared.OrderIssueService;
-import com.cafe.service.shared.OrderService;
+import com.cafe.service.shared.OrderQueryService;
 
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -25,7 +25,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** B1/B2 · KdsService — màn bếp (Barista). Uỷ thác OrderService; auto-deduct nằm ở markReady. */
+/**
+ * B1/B2 · KdsService — màn bếp (Barista). Uỷ thác ba phần của tầng đơn; auto-deduct nằm ở markReady.
+ *
+ * <p>Ba service phản ánh đúng ba việc màn này làm: {@link OrderQueryService} đọc hàng chờ và công
+ * thức, {@link KdsOrderWorkflowService} chuyển trạng thái pha chế, {@link OrderIssueService} xử lý
+ * sự cố và chặn món.
+ */
 public class KdsService {
 
     /**
@@ -37,16 +43,23 @@ public class KdsService {
     private static final Set<String> STATION_FILTERS = Set.of("all", "COFFEE", "TEA", "BLENDER");
     private static final Set<String> ORDER_TYPE_FILTERS = Set.of("all", "DINE_IN", "TAKEAWAY");
 
-    private final OrderService orderService;
+    private final OrderQueryService orderQuery;
+    private final KdsOrderWorkflowService kdsWorkflow;
+    private final OrderIssueService orderIssues;
     private final BranchService branchService;
     private final AttendanceService attendanceService;
 
     public KdsService() {
-        this(new OrderService(), new BranchService(), new AttendanceService());
+        this(new OrderQueryService(), new KdsOrderWorkflowService(), new OrderIssueService(),
+                new BranchService(), new AttendanceService());
     }
 
-    KdsService(OrderService orderService, BranchService branchService, AttendanceService attendanceService) {
-        this.orderService = Objects.requireNonNull(orderService, "orderService");
+    KdsService(OrderQueryService orderQuery, KdsOrderWorkflowService kdsWorkflow,
+               OrderIssueService orderIssues, BranchService branchService,
+               AttendanceService attendanceService) {
+        this.orderQuery = Objects.requireNonNull(orderQuery, "orderQuery");
+        this.kdsWorkflow = Objects.requireNonNull(kdsWorkflow, "kdsWorkflow");
+        this.orderIssues = Objects.requireNonNull(orderIssues, "orderIssues");
         this.branchService = Objects.requireNonNull(branchService, "branchService");
         this.attendanceService = Objects.requireNonNull(attendanceService, "attendanceService");
     }
@@ -58,7 +71,7 @@ public class KdsService {
      */
     public List<OrderItem> getWorkbenchQueue(int branchId, LocalDateTime businessDayStartUtc)
             throws SQLException {
-        return orderService.getBaristaWorkbench(branchId, businessDayStartUtc);
+        return orderQuery.getBaristaWorkbench(branchId, businessDayStartUtc);
     }
 
     /** Toàn bộ query/use case của board; Controller chỉ bind KdsBoardQuery và render kết quả. */
@@ -275,73 +288,73 @@ public class KdsService {
 
     /** Nhận pha một món — WAITING → MAKING. */
     public boolean startItem(int orderItemId, Integer userId, int branchId) throws SQLException {
-        return orderService.startItem(orderItemId, userId, branchId);
+        return kdsWorkflow.startItem(orderItemId, userId, branchId);
     }
 
     /** Pha xong một món — MAKING → READY, kèm trừ tồn tự động theo công thức. */
     public boolean markReady(int orderItemId, Integer userId, int branchId) throws SQLException {
-        return orderService.markItemReady(orderItemId, userId, branchId);
+        return kdsWorkflow.markItemReady(orderItemId, userId, branchId);
     }
 
     /** Nhận pha mọi món còn chờ của một đơn — đơn nhiều ly thường do một người pha trọn. */
     public int startOrder(int orderId, Integer userId, int branchId) throws SQLException {
-        return orderService.startAllInOrder(orderId, userId, branchId);
+        return kdsWorkflow.startAllInOrder(orderId, userId, branchId);
     }
 
     /** Hoàn thành mọi món CHÍNH barista này đang pha trong một đơn. */
     public KdsOrderWorkflowService.BulkReadyResult markOrderReady(int orderId, Integer userId, int branchId)
             throws SQLException {
-        return orderService.markOrderReady(orderId, userId, branchId);
+        return kdsWorkflow.markOrderReady(orderId, userId, branchId);
     }
 
     public boolean returnToQueue(int orderItemId, Integer userId, int branchId) throws SQLException {
-        return orderService.returnItemToQueue(orderItemId, userId, branchId);
+        return kdsWorkflow.returnItemToQueue(orderItemId, userId, branchId);
     }
 
     /** Thu hồi món đang pha của người đã rời ca — lối gỡ duy nhất ở quầy, nếu không phải nhờ Thu ngân huỷ. */
     public boolean reclaimItem(int orderItemId, Integer actorUserId, int branchId, String actorName,
                                Set<Integer> onDutyUserIds) throws SQLException {
-        return orderService.reclaimItem(orderItemId, actorUserId, branchId, actorName, onDutyUserIds);
+        return kdsWorkflow.reclaimItem(orderItemId, actorUserId, branchId, actorName, onDutyUserIds);
     }
 
     public boolean reportIssue(int orderItemId, String reason, Integer userId, int branchId) throws SQLException {
-        return orderService.reportItemIssue(orderItemId, reason, userId, branchId);
+        return orderIssues.reportItemIssue(orderItemId, reason, userId, branchId);
     }
 
     /** Món không pha được (hỏng máy, ngừng bán) → BLOCKED, rời hàng chờ. */
     public boolean blockItem(int orderItemId, String reason, Integer userId, int branchId) throws SQLException {
-        return orderService.blockItem(orderItemId, reason, userId, branchId);
+        return orderIssues.blockItem(orderItemId, reason, userId, branchId);
     }
 
     /** Hết nguyên liệu → kiểm kê nguyên liệu về 0 qua sổ cái + chặn món, trong cùng một transaction. */
     public boolean blockItemForDepletedIngredients(int orderItemId, List<Integer> ingredientIds,
                                                    String reason, Integer userId, int branchId) throws SQLException {
-        return orderService.blockItemForDepletedIngredients(orderItemId, ingredientIds, reason, userId, branchId);
+        return orderIssues.blockItemForDepletedIngredients(orderItemId, ingredientIds, reason, userId, branchId);
     }
 
     /** BLOCKED → WAITING khi nguyên liệu/máy đã có lại. */
     public boolean unblockItem(int orderItemId, Integer userId, int branchId) throws SQLException {
-        return orderService.unblockItem(orderItemId, userId, branchId);
+        return orderIssues.unblockItem(orderItemId, userId, branchId);
     }
 
     /** BLOCKED → WAITING kèm kiểm kê nhanh tồn thật cho các nguyên liệu vừa có lại. */
     public OrderIssueService.UnblockResult unblockItem(int orderItemId, List<StockAdjustment> recounts,
                                                        Integer userId, int branchId) throws SQLException {
-        return orderService.unblockItem(orderItemId, recounts, userId, branchId);
+        return orderIssues.unblockItem(orderItemId, recounts, userId, branchId);
     }
 
     /** Nguyên liệu trong công thức của món — dựng danh sách chọn ở modal "Hết nguyên liệu". */
     public List<Recipe> getRecipeIngredients(int productId) throws SQLException {
-        return orderService.getRecipeIngredients(productId);
+        return orderQuery.getRecipeIngredients(productId);
     }
 
     /** Nguyên liệu trong công thức đang cạn tại chi nhánh — dựng modal kiểm kê khi bỏ chặn. */
     public List<Recipe> getDepletedRecipeIngredients(int branchId, int productId) throws SQLException {
-        return orderService.getDepletedRecipeIngredients(branchId, productId);
+        return orderQuery.getDepletedRecipeIngredients(branchId, productId);
     }
 
     /** Pha lại món (đổ, sai công thức...) — về hàng chờ với ưu tiên lên đầu. */
     public boolean remakeItem(int orderItemId, String reason, Integer userId, int branchId) throws SQLException {
-        return orderService.remakeItem(orderItemId, reason, userId, branchId);
+        return orderIssues.remakeItem(orderItemId, reason, userId, branchId);
     }
 }

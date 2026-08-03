@@ -16,7 +16,7 @@ import com.cafe.service.manager.PayrollService;
 import com.cafe.service.manager.StockReceiptService;
 import com.cafe.service.shared.InventoryService;
 import com.cafe.model.CartLine;
-import com.cafe.service.shared.OrderService;
+import com.cafe.service.shared.OrderPlacementService;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -192,7 +192,7 @@ public class DatabaseNormalizationIT extends SqlServerIntegrationSupport {
         line.productId = productId;
         line.quantity = 1;
         line.optionIds = List.of(optionId);
-        int orderId = new OrderService().placeOrder(
+        int orderId = new OrderPlacementService().placeOrder(
                 branchId, null, "COUNTER", "TAKEAWAY", cashierId, List.of(line));
         int itemId = scalarInt("SELECT OrderItemId FROM sales.OrderItem WHERE OrderId=?", orderId);
         execute("UPDATE catalog.Product SET Name=? WHERE ProductId=?", unique("Renamed-product"), productId);

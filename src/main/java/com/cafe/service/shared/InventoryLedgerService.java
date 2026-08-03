@@ -46,7 +46,7 @@ public final class InventoryLedgerService {
 
     /**
      * ★ Modifier-Aware Auto-Deduction (Contract #1, #2) — trừ tồn khi Barista bấm READY.
-     * Chạy TRONG tx của caller (OrderService.markItemReady). Đọc công thức + modifier đã chọn,
+     * Chạy TRONG tx của caller (KdsOrderWorkflowService.markItemReady). Đọc công thức + modifier đã chọn,
      * tính required qua {@link DeductionCalculator}, trừ đúng ingredient công thức tham chiếu
      * (PREPPED trừ tồn PREPPED — KHÔNG trừ RAW lần 2). Publish inventory.deducted.
      */

@@ -4,7 +4,6 @@ import com.cafe.common.BusinessException;
 import com.cafe.model.StockAdjustment;
 import com.cafe.service.shared.KdsOrderWorkflowService;
 import com.cafe.service.shared.OrderIssueService;
-import com.cafe.service.shared.OrderService;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -45,7 +44,7 @@ public class BaristaIssueWorkflowIT extends SqlServerIntegrationSupport {
     @Test
     void report_issue_flags_the_item_but_keeps_it_in_the_queue() throws Exception {
         Fixture f = fixture();
-        assertTrue(new OrderService().reportItemIssue(f.itemOneId, "Không đáp ứng được ghi chú",
+        assertTrue(new OrderIssueService().reportItemIssue(f.itemOneId, "Không đáp ứng được ghi chú",
                 f.baristaOneId, f.branchId));
 
         // Đây là điểm phân biệt với blockItem: món vẫn nằm trong hàng chờ để người khác pha tiếp.
@@ -59,7 +58,7 @@ public class BaristaIssueWorkflowIT extends SqlServerIntegrationSupport {
     void report_issue_rejects_an_empty_reason() throws Exception {
         Fixture f = fixture();
         assertThrows(IllegalArgumentException.class,
-                () -> new OrderService().reportItemIssue(f.itemOneId, "   ", f.baristaOneId, f.branchId));
+                () -> new OrderIssueService().reportItemIssue(f.itemOneId, "   ", f.baristaOneId, f.branchId));
         assertEquals(0, scalarInt("SELECT CAST(HasIssue AS int) FROM sales.OrderItem WHERE OrderItemId=?", f.itemOneId));
     }
 
@@ -68,15 +67,16 @@ public class BaristaIssueWorkflowIT extends SqlServerIntegrationSupport {
     @Test
     void block_takes_the_item_out_of_the_queue_and_unblock_puts_it_back() throws Exception {
         Fixture f = fixture();
-        OrderService service = new OrderService();
-        assertTrue(service.startItem(f.itemOneId, f.baristaOneId, f.branchId));
+        KdsOrderWorkflowService workflow = new KdsOrderWorkflowService();
+        OrderIssueService issues = new OrderIssueService();
+        assertTrue(workflow.startItem(f.itemOneId, f.baristaOneId, f.branchId));
 
-        assertTrue(service.blockItem(f.itemOneId, "Máy móc gặp sự cố", f.baristaOneId, f.branchId));
+        assertTrue(issues.blockItem(f.itemOneId, "Máy móc gặp sự cố", f.baristaOneId, f.branchId));
         assertEquals("BLOCKED", itemStatus(f.itemOneId));
         // Nhả người pha ra: món bị chặn không được khoá dưới tên ai cả.
         assertNull(scalarObject("SELECT BaristaId FROM sales.OrderItem WHERE OrderItemId=?", f.itemOneId));
 
-        assertTrue(service.unblockItem(f.itemOneId, f.baristaOneId, f.branchId));
+        assertTrue(issues.unblockItem(f.itemOneId, f.baristaOneId, f.branchId));
         assertEquals("WAITING", itemStatus(f.itemOneId));
         assertEquals(0, scalarInt("SELECT CAST(HasIssue AS int) FROM sales.OrderItem WHERE OrderItemId=?", f.itemOneId));
         assertNull(scalarObject("SELECT IssueReason FROM sales.OrderItem WHERE OrderItemId=?", f.itemOneId));
@@ -85,7 +85,7 @@ public class BaristaIssueWorkflowIT extends SqlServerIntegrationSupport {
     @Test
     void unblock_does_nothing_when_the_item_is_not_blocked() throws Exception {
         Fixture f = fixture();
-        assertFalse(new OrderService().unblockItem(f.itemOneId, f.baristaOneId, f.branchId));
+        assertFalse(new OrderIssueService().unblockItem(f.itemOneId, f.baristaOneId, f.branchId));
         assertEquals("WAITING", itemStatus(f.itemOneId));
     }
 
@@ -96,7 +96,7 @@ public class BaristaIssueWorkflowIT extends SqlServerIntegrationSupport {
         Fixture f = fixture();
         assertEquals(0, new BigDecimal("1000").compareTo(onHand(f.branchId, f.rawIngredientId)));
 
-        assertTrue(new OrderService().blockItemForDepletedIngredients(f.itemOneId,
+        assertTrue(new OrderIssueService().blockItemForDepletedIngredients(f.itemOneId,
                 List.of(f.rawIngredientId), "Hết nguyên liệu", f.baristaOneId, f.branchId));
 
         assertEquals("BLOCKED", itemStatus(f.itemOneId));
@@ -111,7 +111,7 @@ public class BaristaIssueWorkflowIT extends SqlServerIntegrationSupport {
     void depleted_ingredient_rejects_an_ingredient_outside_the_product_recipe() throws Exception {
         Fixture f = fixture();
 
-        assertThrows(BusinessException.class, () -> new OrderService().blockItemForDepletedIngredients(
+        assertThrows(BusinessException.class, () -> new OrderIssueService().blockItemForDepletedIngredients(
                 f.itemOneId, List.of(f.foreignIngredientId), "Hết nguyên liệu", f.baristaOneId, f.branchId));
 
         // Cả hai vế phải nguyên vẹn: món không bị chặn VÀ tồn của nguyên liệu lạ không bị đụng.
@@ -122,7 +122,7 @@ public class BaristaIssueWorkflowIT extends SqlServerIntegrationSupport {
     @Test
     void depleted_ingredient_requires_at_least_one_ingredient() throws Exception {
         Fixture f = fixture();
-        assertThrows(IllegalArgumentException.class, () -> new OrderService().blockItemForDepletedIngredients(
+        assertThrows(IllegalArgumentException.class, () -> new OrderIssueService().blockItemForDepletedIngredients(
                 f.itemOneId, List.of(), "Hết nguyên liệu", f.baristaOneId, f.branchId));
         assertEquals("WAITING", itemStatus(f.itemOneId));
     }
@@ -132,7 +132,7 @@ public class BaristaIssueWorkflowIT extends SqlServerIntegrationSupport {
     @Test
     void unblock_with_recount_writes_actual_stock_and_counts_remaining_blocked() throws Exception {
         Fixture f = fixture();
-        OrderService service = new OrderService();
+        OrderIssueService service = new OrderIssueService();
         assertTrue(service.blockItem(f.itemOneId, "Máy móc gặp sự cố", f.baristaOneId, f.branchId));
         assertTrue(service.blockItem(f.itemTwoId, "Máy móc gặp sự cố", f.baristaOneId, f.branchId));
 
@@ -150,9 +150,9 @@ public class BaristaIssueWorkflowIT extends SqlServerIntegrationSupport {
     @Test
     void unblock_with_recount_rejects_an_ingredient_outside_the_product_recipe() throws Exception {
         Fixture f = fixture();
-        assertTrue(new OrderService().blockItem(f.itemOneId, "Máy móc gặp sự cố", f.baristaOneId, f.branchId));
+        assertTrue(new OrderIssueService().blockItem(f.itemOneId, "Máy móc gặp sự cố", f.baristaOneId, f.branchId));
 
-        assertThrows(BusinessException.class, () -> new OrderService().unblockItem(f.itemOneId,
+        assertThrows(BusinessException.class, () -> new OrderIssueService().unblockItem(f.itemOneId,
                 List.of(recount(f.foreignIngredientId, "77")), f.baristaOneId, f.branchId));
 
         assertEquals("BLOCKED", itemStatus(f.itemOneId));
@@ -164,7 +164,7 @@ public class BaristaIssueWorkflowIT extends SqlServerIntegrationSupport {
     @Test
     void start_all_in_order_claims_every_waiting_item() throws Exception {
         Fixture f = fixture();
-        assertEquals(2, new OrderService().startAllInOrder(f.orderId, f.baristaOneId, f.branchId));
+        assertEquals(2, new KdsOrderWorkflowService().startAllInOrder(f.orderId, f.baristaOneId, f.branchId));
 
         assertEquals("MAKING", itemStatus(f.itemOneId));
         assertEquals("MAKING", itemStatus(f.itemTwoId));
@@ -175,7 +175,7 @@ public class BaristaIssueWorkflowIT extends SqlServerIntegrationSupport {
     @Test
     void mark_order_ready_completes_only_the_items_claimed_by_this_barista() throws Exception {
         Fixture f = fixture();
-        OrderService service = new OrderService();
+        KdsOrderWorkflowService service = new KdsOrderWorkflowService();
         assertTrue(service.startItem(f.itemOneId, f.baristaOneId, f.branchId));
         assertTrue(service.startItem(f.itemTwoId, f.baristaTwoId, f.branchId));
 
@@ -191,7 +191,7 @@ public class BaristaIssueWorkflowIT extends SqlServerIntegrationSupport {
     @Test
     void count_my_making_items_counts_only_this_barista() throws Exception {
         Fixture f = fixture();
-        OrderService service = new OrderService();
+        KdsOrderWorkflowService service = new KdsOrderWorkflowService();
         assertTrue(service.startItem(f.itemOneId, f.baristaOneId, f.branchId));
         assertTrue(service.startItem(f.itemTwoId, f.baristaTwoId, f.branchId));
 
@@ -204,7 +204,7 @@ public class BaristaIssueWorkflowIT extends SqlServerIntegrationSupport {
     @Test
     void return_to_queue_works_only_for_the_barista_holding_the_item() throws Exception {
         Fixture f = fixture();
-        OrderService service = new OrderService();
+        KdsOrderWorkflowService service = new KdsOrderWorkflowService();
         assertTrue(service.startItem(f.itemOneId, f.baristaOneId, f.branchId));
 
         assertFalse(service.returnItemToQueue(f.itemOneId, f.baristaTwoId, f.branchId));
@@ -218,10 +218,10 @@ public class BaristaIssueWorkflowIT extends SqlServerIntegrationSupport {
     @Test
     void reclaim_refuses_while_the_owner_is_still_on_duty() throws Exception {
         Fixture f = fixture();
-        OrderService service = new OrderService();
+        KdsOrderWorkflowService service = new KdsOrderWorkflowService();
         assertTrue(service.startItem(f.itemOneId, f.baristaOneId, f.branchId));
 
-        assertThrows(BusinessException.class, () -> new OrderService().reclaimItem(
+        assertThrows(BusinessException.class, () -> new KdsOrderWorkflowService().reclaimItem(
                 f.itemOneId, f.baristaTwoId, f.branchId, "Barista Two", Set.of(f.baristaOneId)));
 
         assertEquals("MAKING", itemStatus(f.itemOneId));
@@ -230,7 +230,7 @@ public class BaristaIssueWorkflowIT extends SqlServerIntegrationSupport {
     @Test
     void reclaim_returns_the_item_when_the_owner_has_left_the_shift() throws Exception {
         Fixture f = fixture();
-        OrderService service = new OrderService();
+        KdsOrderWorkflowService service = new KdsOrderWorkflowService();
         assertTrue(service.startItem(f.itemOneId, f.baristaOneId, f.branchId));
 
         assertTrue(service.reclaimItem(f.itemOneId, f.baristaTwoId, f.branchId, "Barista Two", Set.of()));
@@ -243,7 +243,7 @@ public class BaristaIssueWorkflowIT extends SqlServerIntegrationSupport {
     @Test
     void reclaim_refuses_an_item_the_actor_holds_themselves() throws Exception {
         Fixture f = fixture();
-        OrderService service = new OrderService();
+        KdsOrderWorkflowService service = new KdsOrderWorkflowService();
         assertTrue(service.startItem(f.itemOneId, f.baristaOneId, f.branchId));
 
         assertFalse(service.reclaimItem(f.itemOneId, f.baristaOneId, f.branchId, "Barista One", Set.of()));

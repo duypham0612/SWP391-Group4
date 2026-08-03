@@ -55,7 +55,7 @@ public class CriticalIntegrityIT extends SqlServerIntegrationSupport {
                     CartLine line = new CartLine();
                     line.productId = productId;
                     line.quantity = 1;
-                    return new com.cafe.service.shared.OrderService().placeOrder(
+                    return new com.cafe.service.shared.OrderPlacementService().placeOrder(
                             branchId, null, "COUNTER", "TAKEAWAY", cashierId, List.of(line));
                 }));
             }

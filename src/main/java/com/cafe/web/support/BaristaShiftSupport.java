@@ -4,7 +4,7 @@ import com.cafe.common.BusinessDay;
 import com.cafe.model.ShiftClockStatus;
 import com.cafe.model.User;
 import com.cafe.service.manager.AttendanceService;
-import com.cafe.service.shared.OrderService;
+import com.cafe.service.shared.KdsOrderWorkflowService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -18,15 +18,15 @@ public final class BaristaShiftSupport {
     public static final String MY_QUEUE_PATH = "/barista/kds?owner=mine";
 
     private final AttendanceService attendanceService;
-    private final OrderService orderService;
+    private final KdsOrderWorkflowService kdsWorkflow;
 
     public BaristaShiftSupport() {
-        this(new AttendanceService(), new OrderService());
+        this(new AttendanceService(), new KdsOrderWorkflowService());
     }
 
-    public BaristaShiftSupport(AttendanceService attendanceService, OrderService orderService) {
+    public BaristaShiftSupport(AttendanceService attendanceService, KdsOrderWorkflowService kdsWorkflow) {
         this.attendanceService = Objects.requireNonNull(attendanceService);
-        this.orderService = Objects.requireNonNull(orderService);
+        this.kdsWorkflow = Objects.requireNonNull(kdsWorkflow);
     }
 
     public void expose(HttpServletRequest request, String selfPath) throws Exception {
@@ -83,7 +83,7 @@ public final class BaristaShiftSupport {
     }
 
     private boolean hasPendingBrew(HttpServletRequest request, int branchId, int userId) throws Exception {
-        int pending = orderService.countMyMakingItems(branchId, userId);
+        int pending = kdsWorkflow.countMyMakingItems(branchId, userId);
         if (pending <= 0) return false;
         request.getSession().setAttribute("flashError", "Bạn còn " + pending
                 + " ly đang pha — bấm “Xong” hoặc “Trả lại chờ” cho từng ly rồi mới tan ca được.");

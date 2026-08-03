@@ -9,7 +9,8 @@ import com.cafe.model.DiningTable;
 import com.cafe.model.User;
 import com.cafe.service.shared.CatalogReadService;
 import com.cafe.model.CartLine;
-import com.cafe.service.shared.OrderService;
+import com.cafe.service.shared.OrderPlacementService;
+import com.cafe.service.shared.OrderQueryService;
 import com.cafe.service.cashier.DiningTableService;
 import com.cafe.web.form.FormBindingException;
 import com.cafe.web.form.OrderCartForm;
@@ -33,15 +34,20 @@ public class PosServlet extends HttpServlet {
 
     private final CatalogReadService catalogReadService;
     private final DiningTableService tableService;
-    private final OrderService orderService;
+    private final OrderQueryService orderQuery;
+    private final OrderPlacementService orderPlacement;
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public PosServlet() { this(new CatalogReadService(), new DiningTableService(), new OrderService()); }
+    public PosServlet() {
+        this(new CatalogReadService(), new DiningTableService(),
+                new OrderQueryService(), new OrderPlacementService());
+    }
     PosServlet(CatalogReadService catalogReadService, DiningTableService tableService,
-               OrderService orderService) {
+               OrderQueryService orderQuery, OrderPlacementService orderPlacement) {
         this.catalogReadService = java.util.Objects.requireNonNull(catalogReadService);
         this.tableService = java.util.Objects.requireNonNull(tableService);
-        this.orderService = java.util.Objects.requireNonNull(orderService);
+        this.orderQuery = java.util.Objects.requireNonNull(orderQuery);
+        this.orderPlacement = java.util.Objects.requireNonNull(orderPlacement);
     }
 
     @Override
@@ -66,7 +72,7 @@ public class PosServlet extends HttpServlet {
                 }
                 req.setAttribute("tableId", tableId);
                 req.setAttribute("draftCartJson", getDraftCart(req, tableId));
-                req.setAttribute("tableItems", orderService.getTableItemStatuses(tableId));
+                req.setAttribute("tableItems", orderQuery.getTableItemStatuses(tableId));
             }
             req.setAttribute("pageTitle", "POS — Đặt món");
             req.getRequestDispatcher("/WEB-INF/views/cashier/pos.jsp").forward(req, resp);
@@ -110,7 +116,7 @@ public class PosServlet extends HttpServlet {
             String orderType = tableId == null ? "TAKEAWAY" : "DINE_IN";
             List<CartLine> lines = form.toCartLines();
 
-            int orderId = orderService.placeOrder(branchId, tableId, "COUNTER", orderType, userId, lines);
+            int orderId = orderPlacement.placeOrder(branchId, tableId, "COUNTER", orderType, userId, lines);
             if (tableId != null) removeDraftCart(req.getSession(), tableId);
             resp.getWriter().write("{\"orderId\":" + orderId + "}");
         } catch (ItemUnavailableException e) {

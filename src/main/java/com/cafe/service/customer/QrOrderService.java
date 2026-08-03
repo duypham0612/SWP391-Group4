@@ -10,7 +10,9 @@ import com.cafe.model.OrderItem;
 import com.cafe.model.PosMenuItem;
 import com.cafe.service.shared.CatalogReadService;
 import com.cafe.model.CartLine;
-import com.cafe.service.shared.OrderService;
+import com.cafe.service.shared.OrderIssueService;
+import com.cafe.service.shared.OrderPlacementService;
+import com.cafe.service.shared.OrderQueryService;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -22,18 +24,24 @@ public class QrOrderService {
     private final DiningTableDao tableDao;
     private final OutboxEventDao outboxDao;
     private final CatalogReadService catalogReadService;
-    private final OrderService orderService;
+    private final OrderPlacementService orderPlacement;
+    private final OrderQueryService orderQuery;
+    private final OrderIssueService orderIssues;
 
     public QrOrderService() {
-        this(new DiningTableDao(), new OutboxEventDao(), new CatalogReadService(), new OrderService());
+        this(new DiningTableDao(), new OutboxEventDao(), new CatalogReadService(),
+                new OrderPlacementService(), new OrderQueryService(), new OrderIssueService());
     }
 
     public QrOrderService(DiningTableDao tableDao, OutboxEventDao outboxDao,
-                          CatalogReadService catalogReadService, OrderService orderService) {
+                          CatalogReadService catalogReadService, OrderPlacementService orderPlacement,
+                          OrderQueryService orderQuery, OrderIssueService orderIssues) {
         this.tableDao = java.util.Objects.requireNonNull(tableDao);
         this.outboxDao = java.util.Objects.requireNonNull(outboxDao);
         this.catalogReadService = java.util.Objects.requireNonNull(catalogReadService);
-        this.orderService = java.util.Objects.requireNonNull(orderService);
+        this.orderPlacement = java.util.Objects.requireNonNull(orderPlacement);
+        this.orderQuery = java.util.Objects.requireNonNull(orderQuery);
+        this.orderIssues = java.util.Objects.requireNonNull(orderIssues);
     }
 
     public static class ScanResult {
@@ -101,16 +109,16 @@ public class QrOrderService {
 
     public int placeCustomerOrder(int branchId, int tableId, List<CartLine> lines)
             throws SQLException {
-        return orderService.placeOrder(branchId, tableId, "QR", "DINE_IN", null, lines);
+        return orderPlacement.placeOrder(branchId, tableId, "QR", "DINE_IN", null, lines);
     }
 
     public List<OrderItem> getTableStatuses(int tableId) throws SQLException {
-        return orderService.getTableItemStatuses(tableId);
+        return orderQuery.getTableItemStatuses(tableId);
     }
 
     public List<Order> getCancellableOrders(int tableId) throws SQLException {
         List<Order> out = new ArrayList<>();
-        for (Order order : orderService.getTableOrders(tableId)) {
+        for (Order order : orderQuery.getTableOrders(tableId)) {
             if ("ACTIVE".equals(order.getStatus()) && order.isCancellable()) out.add(order);
         }
         return out;
@@ -118,13 +126,13 @@ public class QrOrderService {
 
     public boolean cancelOrder(int tableId, int orderId) throws SQLException {
         Integer branchId = null;
-        for (Order order : orderService.getTableOrders(tableId)) {
+        for (Order order : orderQuery.getTableOrders(tableId)) {
             if (order.getOrderId() == orderId) {
                 branchId = order.getBranchId();
                 break;
             }
         }
-        return branchId != null && orderService.voidOrder(orderId, null, branchId);
+        return branchId != null && orderIssues.voidOrder(orderId, null, branchId);
     }
 
     public void callStaff(int tableId, int branchId) throws SQLException {

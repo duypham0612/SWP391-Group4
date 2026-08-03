@@ -20,7 +20,7 @@ public class PickupTicket {
     private final String tableStatus;            // EMPTY/OCCUPIED của bàn
 
     /**
-     * Dựng ticket từ danh sách món đã nạp sẵn (1 connection ở OrderService.getPickupTickets).
+     * Dựng ticket từ danh sách món đã nạp sẵn (1 connection ở OrderQueryService.getPickupTickets).
      * {@code allOpenItems} là TOÀN BỘ món của đơn (mọi trạng thái) để render checklist đối chiếu.
      */
     public PickupTicket(int orderId, String tableNumber, List<OrderItem> readyItems, List<OrderItem> allOpenItems) {
