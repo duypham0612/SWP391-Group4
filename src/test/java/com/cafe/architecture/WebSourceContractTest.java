@@ -102,7 +102,7 @@ class WebSourceContractTest {
         String authService = Files.readString(
                 MAIN_JAVA.resolve("com/cafe/service/auth/AuthService.java"));
         String userDao = Files.readString(
-                MAIN_JAVA.resolve("com/cafe/dao/admin/UserDao.java"));
+                MAIN_JAVA.resolve("com/cafe/dao/shared/UserDao.java"));
         String userService = Files.readString(
                 MAIN_JAVA.resolve("com/cafe/service/admin/UserService.java"));
         String userList = Files.readString(
