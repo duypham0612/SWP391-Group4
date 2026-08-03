@@ -195,6 +195,21 @@
                         <version>3.5.4</version>
                         <configuration>
                             <includes><include>**/*IT.java</include></includes>
+                            <!--
+                              Mỗi class IT một JVM riêng. Bắt buộc, không phải để chạy nhanh hơn:
+                              SqlServerIntegrationSupport dừng container ở @AfterAll rồi khởi động
+                              lại ở @BeforeAll của class sau, nên MỖI CLASS NHẬN MỘT CỔNG KHÁC.
+                              Trong khi đó DBConnection.DS là pool static final, chỉ khởi tạo một
+                              lần cho cả JVM và giữ mãi cổng của class chạy đầu tiên. Dùng chung
+                              JVM thì từ class thứ hai trở đi, mọi test đi qua service đều timeout
+                              30s với "Connection refused" tới cổng của container đã chết.
+
+                              Không sửa bằng cách dùng chung một container cho mọi class:
+                              DatabaseMigrationIT khẳng định catalog.Product đúng 3 dòng, dữ liệu
+                              các class khác chèn vào sẽ phá nó.
+                            -->
+                            <reuseForks>false</reuseForks>
+                            <forkCount>1</forkCount>
                         </configuration>
                         <executions>
                             <execution>
