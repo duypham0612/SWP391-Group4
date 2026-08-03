@@ -123,6 +123,28 @@ class WebSourceContractTest {
     }
 
     @Test
+    void public_home_is_branch_scoped_and_admin_supports_bulk_product_selection() throws IOException {
+        String productDao = Files.readString(
+                MAIN_JAVA.resolve("com/cafe/dao/admin/ProductDao.java"));
+        String homeServlet = Files.readString(
+                MAIN_JAVA.resolve("com/cafe/controller/customer/HomeServlet.java"));
+        String publicHome = Files.readString(
+                WEBAPP.resolve("WEB-INF/views/customer/home.jsp"));
+        String adminHome = Files.readString(
+                WEBAPP.resolve("WEB-INF/views/admin/home-editor.jsp"));
+
+        assertTrue(productDao.contains("bm.BranchId = ?"));
+        assertTrue(productDao.contains("bm.IsListed = 1"));
+        assertTrue(homeServlet.contains("catalog.getPublicHomeBranches()"));
+        assertTrue(homeServlet.contains("catalog.getPublicMenu(home.getBranchId())"));
+        assertTrue(publicHome.contains("id=\"publicBranch\""));
+        assertTrue(adminHome.contains("id=\"showFiltered\""));
+        assertTrue(adminHome.contains("id=\"hideFiltered\""));
+        assertTrue(adminHome.contains("name=\"branchId\" value=\"${setting.branchId}\""),
+                "Lưu danh sách món phải giữ nguyên chi nhánh Admin đang chỉnh sửa");
+    }
+
+    @Test
     void business_views_are_reachable_from_java_or_another_jsp() throws IOException {
         List<Path> sources = new ArrayList<>();
         sources.addAll(files(MAIN_JAVA, ".java"));

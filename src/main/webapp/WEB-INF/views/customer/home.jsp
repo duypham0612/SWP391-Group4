@@ -54,6 +54,18 @@
                         <strong><c:out value="${home.name}"/></strong>
                         <c:if test="${not empty home.address}"><em><c:out value="${home.address}"/></em></c:if>
                     </span>
+                    <c:if test="${fn:length(branches) > 1}">
+                        <form action="${ctx}/home" method="get" class="home-branch-switcher">
+                            <label for="publicBranch">Xem Home chi nhánh khác</label>
+                            <select id="publicBranch" name="branchId" onchange="this.form.submit()"
+                                    aria-label="Chọn chi nhánh muốn xem">
+                                <c:forEach var="b" items="${branches}">
+                                    <option value="${b.branchId}" <c:if test="${b.branchId == home.branchId}">selected</c:if>><c:out value="${b.name}"/></option>
+                                </c:forEach>
+                            </select>
+                            <noscript><button type="submit" class="btn btn-gold btn-sm">Xem</button></noscript>
+                        </form>
+                    </c:if>
                 </div>
             </c:if>
             <div class="eyebrow"><c:out value="${heroEyebrow}"/></div>

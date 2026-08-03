@@ -1,6 +1,7 @@
 package com.cafe.controller.customer;
 
 import com.cafe.common.Constants;
+import com.cafe.model.Branch;
 import com.cafe.model.User;
 import com.cafe.service.shared.CatalogReadService;
 import com.cafe.web.support.SessionUtil;
@@ -30,8 +31,11 @@ public class HomeServlet extends HttpServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         try {
-            req.setAttribute("sections", catalog.getPublicMenu());
-            req.setAttribute("home", catalog.getHomeBranch(resolveBranchId(req)));
+            Branch home = catalog.getHomeBranch(resolveBranchId(req));
+            req.setAttribute("home", home);
+            req.setAttribute("branches", catalog.getPublicHomeBranches());
+            req.setAttribute("sections", home == null
+                    ? java.util.List.of() : catalog.getPublicMenu(home.getBranchId()));
             req.getRequestDispatcher("/WEB-INF/views/customer/home.jsp").forward(req, resp);
         } catch (Exception e) { throw new ServletException(e); }
     }

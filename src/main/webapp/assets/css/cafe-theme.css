@@ -405,7 +405,7 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
   display:grid; grid-template-columns:minmax(0,620px) minmax(320px,470px);
   justify-content:space-between; gap:clamp(36px,6vw,92px); align-items:center}
 .home-hero__text{position:relative; z-index:1; max-width:600px}
-.home-branch-context{display:inline-flex; align-items:flex-start; gap:10px; max-width:100%; margin-bottom:18px;
+.home-branch-context{display:inline-flex; align-items:flex-start; flex-wrap:wrap; gap:10px; max-width:100%; margin-bottom:18px;
   padding:9px 13px; border:1px solid rgba(231,210,166,.38); border-radius:var(--radius-sm);
   background:rgba(255,255,255,.08); color:#fff; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px)}
 .home-branch-context__icon{width:20px; height:20px; margin-top:2px; flex:0 0 auto; color:var(--gold-soft)}
@@ -413,6 +413,11 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
 .home-branch-context small{color:rgba(246,231,220,.72); font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase}
 .home-branch-context strong{overflow:hidden; color:#fff; font-size:14px; line-height:1.35; text-overflow:ellipsis}
 .home-branch-context em{overflow:hidden; color:rgba(246,231,220,.78); font-size:11px; font-style:normal; line-height:1.35; text-overflow:ellipsis; white-space:nowrap}
+.home-branch-switcher{display:flex; align-items:center; gap:8px; flex:1 0 100%; padding-top:8px; border-top:1px solid rgba(231,210,166,.22)}
+.home-branch-switcher label{color:rgba(246,231,220,.78); font-size:11px; white-space:nowrap}
+.home-branch-switcher select{min-width:180px; max-width:100%; padding:6px 30px 6px 9px; border:1px solid rgba(231,210,166,.38);
+  border-radius:8px; background:#fff; color:#3b2416; font:600 12px 'Be Vietnam Pro',sans-serif; cursor:pointer}
+.home-branch-switcher select:focus{outline:2px solid var(--gold-soft); outline-offset:2px}
 .home-branch-context--preview{margin-bottom:12px; border-color:var(--line); background:var(--wine-800)}
 .home-hero .eyebrow{font-size:12px; letter-spacing:.22em; text-transform:uppercase; color:var(--gold-soft); font-weight:700; margin-bottom:10px}
 .home-hero h1{font-size:clamp(32px,3.2vw,44px); color:#fff; line-height:1.12; margin:0 0 12px}
@@ -452,6 +457,8 @@ select.form-control{appearance:none; background-image:url("data:image/svg+xml;ut
   .cat-strip{top:63px}
   .home-branch-context{width:100%}
   .home-branch-context em{white-space:normal}
+  .home-branch-switcher{align-items:stretch; flex-direction:column}
+  .home-branch-switcher select{width:100%}
 }
 
 /* ============================ Charts (bar) ============================== */
