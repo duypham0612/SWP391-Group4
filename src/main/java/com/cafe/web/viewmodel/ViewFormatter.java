@@ -26,8 +26,6 @@ public final class ViewFormatter {
     private static final Locale VI = Locale.forLanguageTag("vi-VN");
     private static final DateTimeFormatter SHORT_UTC = DateTimeFormatter.ofPattern("dd/MM HH:mm");
     private static final DateTimeFormatter TIME_DATE_UTC = DateTimeFormatter.ofPattern("HH:mm dd/MM");
-    private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
-    private static final DateTimeFormatter INPUT_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm");
     private static final DateTimeFormatter DAY_MONTH = DateTimeFormatter.ofPattern("dd/MM");
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
 
@@ -47,29 +45,7 @@ public final class ViewFormatter {
     public String timeRange(LocalTime start, LocalTime end) {
         return start == null || end == null ? "" : start.format(TIME) + " - " + end.format(TIME);
     }
-    public String branchHours(LocalTime start, LocalTime end) {
-        return start == null || end == null ? "" : start.format(TIME) + "–" + end.format(TIME);
-    }
     public String oneDecimal(double value) { return String.format(Locale.US, "%.1f", value); }
-
-    public String voucherInput(LocalDateTime utc) {
-        LocalDateTime vn = BusinessDay.toVn(utc);
-        return vn == null ? "" : vn.format(INPUT_DATE_TIME);
-    }
-    public String voucherDate(LocalDateTime utc) {
-        LocalDateTime vn = BusinessDay.toVn(utc);
-        return vn == null ? "Không giới hạn" : vn.format(DATE_TIME);
-    }
-    public String voucherStatusLabel(String code) {
-        if ("EXPIRED".equals(code)) return "Hết hạn";
-        if ("UPCOMING".equals(code)) return "Sắp diễn ra";
-        return "Đang diễn ra";
-    }
-    public String voucherBadge(String code) {
-        if ("EXPIRED".equals(code)) return "badge-cancelled";
-        if ("UPCOMING".equals(code)) return "badge-waiting";
-        return "badge-ready";
-    }
 
     public String menuReason(String reason) {
         Reason86 value = Reason86.fromCode(reason);
@@ -210,13 +186,6 @@ public final class ViewFormatter {
         if (item == null) return "";
         return "Đã chờ " + Math.max(0, item.getWaitedSeconds()) / 60
                 + "/" + effectivePrepSeconds(item) / 60 + " phút";
-    }
-    public String compactDuration(Integer seconds) {
-        if (seconds == null) return "";
-        int minutes = Math.max(0, seconds) / 60;
-        int hours = minutes / 60;
-        int rest = minutes % 60;
-        return hours > 0 ? hours + "h" + rest + "′" : rest + "′";
     }
 
     private int effectivePrepSeconds(OrderItem item) {

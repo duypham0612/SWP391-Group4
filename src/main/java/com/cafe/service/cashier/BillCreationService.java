@@ -8,7 +8,6 @@ import com.cafe.model.Order;
 import com.cafe.model.OrderItem;
 
 import java.math.BigDecimal;
-import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.LinkedHashSet;
 import java.util.List;

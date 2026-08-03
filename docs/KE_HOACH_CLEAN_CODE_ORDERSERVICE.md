@@ -606,6 +606,54 @@ nên **đường dẫn sai vẫn dịch 0 lỗi** và chỉ vỡ khi người d�
 
 ---
 
+## 5i. Đợt 12 — Quét code thừa toàn dự án 🟢 XONG (2026-08-03)
+
+### Đã xoá
+
+| Loại | Số lượng |
+|---|---|
+| Method `public`/`protected` không ai gọi | **53** |
+| Field `private` không ai dùng | 5 |
+| `import` thừa | 4 |
+| Selector CSS chết (106 class) | **174** |
+
+CSS: 1669 → **1433 dòng**. `kds.css` giảm mạnh nhất (705 → 521) — hơn một phần tư khối lớn nhất là
+rác của markup đã bị gỡ từ trước.
+
+### Bốn bẫy dương-tính-giả đã chặn được (nếu tin theo là hỏng app)
+
+| Thứ bị báo "chết" | Vì sao thật ra vẫn sống |
+|---|---|
+| **42 servlet + 3 listener** | Đăng ký qua `@WebServlet` / `web.xml`, không ai "gọi" trong code. Regex đầu còn loại nhầm tham chiếu **đầy đủ tên gói** trong `web.xml`. |
+| **~120 getter model** | JSP gọi qua EL bằng **tên thuộc tính** (`${item.doneAt}`), không phải tên method (`getDoneAt`). |
+| **4 hàm JS** | Truyền làm callback không dấu ngoặc: `addEventListener('click', resetFilters)`, `.forEach(enhanceTable)`. |
+| **27 ảnh sản phẩm (~1,4 MB)** | Tham chiếu nằm trong **DB** (`Product.ImageUrl`), không nằm trong source. `product-form.jsp` còn hướng dẫn admin dùng đúng thư mục này. Xoá là vỡ ảnh trên mọi máy đã có dữ liệu. |
+
+Cũng phải loại trừ **Jackson**: dự án có `jackson-databind`, mà Jackson gọi mọi getter bằng reflection
+khi tuần tự hoá. Đã kiểm: chỉ `Map` chuỗi/số và `JsonNode` được serialize, **không** model nào — nên
+xoá getter không đổi payload JSON.
+
+### Ghi nhận, KHÔNG xoá: 34 getter chết nhưng setter vẫn được DAO gọi
+
+Đây là **dữ liệu đọc từ DB lên rồi vứt đi** — câu SELECT lấy cột về, DAO `set` vào model, rồi không ai
+đọc. Ví dụ `OrderItem.startedAt/doneAt/servedAt/pickedUpAt`, `PrepBatch.reviewedAt/reviewedBy`,
+`StockAdjustment.adjustedAt/adjustedBy`.
+
+Xoá riêng getter chỉ tạo field chỉ-ghi, không giải quyết gốc; sửa đúng là **bỏ cột khỏi câu SELECT**,
+mà việc đó cần phán đoán nghiệp vụ (nhiều cột là dữ liệu truy vết có chủ đích, chờ màn hình sẽ dùng).
+Đây là task riêng, không gộp vào đợt dọn.
+
+### Kiểm chứng
+
+- Xoá method theo lối **để compiler làm trọng tài**: xoá trước, `clean test` sau — mọi caller còn sót
+  sẽ thành lỗi biên dịch. Lần chạy đầu script regex đa dòng làm **hỏng cấu trúc 5 file** (nuốt cả khai
+  báo lớp); đã khôi phục bằng `git checkout` và viết lại theo lối quét dòng + khớp ngoặc.
+- Xoá CSS: script đối chiếu **0 selector bị bỏ nhầm, 0 selector lạ** — mọi selector bị bỏ đều chứa
+  class chết, mọi selector chứa class sống còn nguyên từng ký tự.
+- `mvn clean verify` **352/352** · ArchUnit 8/8 · Jasper **69 trang, 0 lỗi** · WAR OK.
+
+---
+
 ## 6. Sổ ghi nhận phát sinh
 
 | Ngày | File | Vấn đề | Trạng thái |

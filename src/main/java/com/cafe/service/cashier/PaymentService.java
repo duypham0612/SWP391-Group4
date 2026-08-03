@@ -5,7 +5,6 @@ import com.cafe.config.Tx;
 import com.cafe.model.*;
 
 import java.math.BigDecimal;
-import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Set;

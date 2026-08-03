@@ -19,8 +19,4 @@ public final class SessionUtil {
         return currentUser(req) != null;
     }
 
-    public static boolean hasRole(HttpServletRequest req, String roleCode) {
-        User u = currentUser(req);
-        return u != null && roleCode.equals(u.getRoleCode());
-    }
 }

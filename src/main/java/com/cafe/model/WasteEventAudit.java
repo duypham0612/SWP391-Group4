@@ -5,8 +5,6 @@ import java.time.LocalDateTime;
 /** Projection tương thích của ops.ActivityLog cho màn hình truy vết sửa/huỷ hao hụt. */
 public class WasteEventAudit {
     private long wasteEventAuditId;
-    private Integer wasteEventItemId;
-    private Long wasteEventId;
     private String actionType;      // CREATE | UPDATE | VOID | REVIEW
     private String beforeValue;
     private String afterValue;
@@ -22,12 +20,6 @@ public class WasteEventAudit {
 
     public long getWasteEventAuditId() { return wasteEventAuditId; }
     public void setWasteEventAuditId(long v) { wasteEventAuditId = v; }
-
-    public Integer getWasteEventItemId() { return wasteEventItemId; }
-    public void setWasteEventItemId(Integer v) { wasteEventItemId = v; }
-
-    public Long getWasteEventId() { return wasteEventId; }
-    public void setWasteEventId(Long v) { wasteEventId = v; }
 
     public String getActionType() { return actionType; }
     public void setActionType(String v) { actionType = v; }

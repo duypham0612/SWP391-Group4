@@ -86,12 +86,6 @@ public class BranchService {
         });
     }
 
-    public void assignManager(int branchId, Integer userId) throws SQLException {
-        Tx.run(conn -> {
-            dao.updateManager(conn, branchId, userId);
-        });
-    }
-
     private static void normalizeAndValidate(Branch branch) {
         if (branch == null) throw new BusinessException("Thông tin chi nhánh là bắt buộc.");
         String name = clean(branch.getName());

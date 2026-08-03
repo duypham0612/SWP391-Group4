@@ -58,7 +58,6 @@ public enum Reason86 {
 
     /** Chip bấm nhanh của lý do này (rỗng với OTHER). */
     public List<String> quickNotes() { return quickNotes; }
-    public List<String> getQuickNotes() { return quickNotes; }
 
     public String getCode() { return name(); }
 

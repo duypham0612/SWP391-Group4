@@ -26,6 +26,4 @@ public class OrderItemModifier {
 
     public String getOptionName() { return modifierOptionNameAtOrder; }
     public void setOptionName(String v) { this.modifierOptionNameAtOrder = v; }
-    public String getModifierOptionNameAtOrder() { return modifierOptionNameAtOrder; }
-    public void setModifierOptionNameAtOrder(String v) { this.modifierOptionNameAtOrder = v; }
 }

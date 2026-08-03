@@ -71,7 +71,6 @@ public class PrepBatch {
     public void setClientRequestId(String v) { this.clientRequestId = v; }
 
     public boolean isPending() { return "PENDING".equals(status); }
-    public boolean isRejected() { return "REJECTED".equals(status); }
 
     public boolean isRequiresApproval() { return requiresApproval; }
     public void setRequiresApproval(boolean v) { this.requiresApproval = v; }

@@ -35,7 +35,6 @@ public class SupplierService {
         validate(s);
         txVoid(c -> dao.update(c, s));
     }
-    public void setSupplierActive(int id, boolean active) throws SQLException { txVoid(c -> dao.updateActive(c, id, active)); }
 
     /** Đảo trạng thái active (đọc + flip trong 1 tx) — bật/tắt 2 chiều. */
     public void toggleActive(int id) throws SQLException {

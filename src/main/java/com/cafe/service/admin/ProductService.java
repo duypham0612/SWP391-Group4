@@ -41,10 +41,6 @@ public class ProductService {
         try (Connection conn = DBConnection.getConnection()) { return dao.findAll(conn); }
     }
 
-    public List<Product> getProductListByCategory(int categoryId) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) { return dao.findByCategory(conn, categoryId); }
-    }
-
     public Product getProduct(int id) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) { return dao.findById(conn, id); }
     }
@@ -83,12 +79,6 @@ public class ProductService {
                 saveDrinkChoices(conn, p.getProductId(), sizeConfig);
             });
         } catch (SQLException e) { throw translateUnique(e); }
-    }
-
-    public void setProductActive(int id, boolean active) throws SQLException {
-        Tx.run(conn -> {
-            dao.updateActive(conn, id, active);
-        });
     }
 
     /** Đảo trạng thái active (đọc + flip trong 1 tx) — bật/tắt 2 chiều. */

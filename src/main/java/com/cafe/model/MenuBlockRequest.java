@@ -80,9 +80,6 @@ public class MenuBlockRequest {
     public String getReviewerName() { return reviewerName; }
     public void setReviewerName(String reviewerName) { this.reviewerName = reviewerName; }
 
-    public Reason86 getReasonEnum() { return reasonEnum; }
-    public void setReasonEnum(Reason86 reasonEnum) { this.reasonEnum = reasonEnum; }
-
     /** Quá hạn dự kiến có lại mà chưa mở bán -> manager cần xử lý gấp. */
     public boolean isOverdue() {
         return closedAt == null && backInEta != null

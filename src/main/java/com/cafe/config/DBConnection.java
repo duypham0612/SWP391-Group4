@@ -4,7 +4,6 @@ import com.microsoft.sqlserver.jdbc.SQLServerDriver;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
-import javax.sql.DataSource;
 import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -41,10 +40,6 @@ public final class DBConnection {
     }
 
     private DBConnection() { }
-
-    public static DataSource getDataSource() {
-        return DS;
-    }
 
     public static Connection getConnection() throws SQLException {
         return DS.getConnection();

@@ -160,12 +160,6 @@ public class CatalogReadService {
         }
     }
 
-    public Product getRecipeProduct(int productId) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            return productDao.findById(conn, productId);
-        }
-    }
-
     /** Chi tiết món trong đúng phạm vi tìm kiếm công thức của Barista. */
     public Product getRecipeProductForLookup(int productId, String q, Integer categoryId,
                                              String recipeState, Integer branchId) throws SQLException {

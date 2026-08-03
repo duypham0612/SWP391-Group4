@@ -30,7 +30,6 @@ public class PickedUpGroup {
     public List<Integer> getOrderIds() { return new ArrayList<>(orderIds); }
     public Set<String> getPickupCodes() { return new LinkedHashSet<>(pickupCodes); }
     public int getOrderCount() { return orderIds.size(); }
-    public int getItemCount() { return items.size(); }
     public int getCupCount() {
         int total = 0;
         for (OrderItem item : items) total += item.getQuantity();

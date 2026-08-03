@@ -204,21 +204,7 @@ public class OrderItem {
         return createdVn.isBefore(java.time.LocalDate.now(BusinessDay.VN_ZONE));
     }
 
-    /**
-     * Món pha xong đã nằm chờ quá lâu → cảnh báo chất lượng (đồ nguội, đá tan).
-     * Tách khỏi bậc SLA hàng chờ vì đây là vấn đề của khâu bàn giao, không phải khâu pha.
-     */
-    public boolean isStaleReady() {
-        return serveWaitSeconds != null && serveWaitSeconds >= Constants.PICKUP_CRIT_SECONDS;
-    }
-
     public boolean isPriority() { return remakeCount > 0; }
-
-    public int getWaitedMinutes() { return waitedSeconds / 60; }
-
-    public Integer getMakingMinutes() {
-        return makingSeconds == null ? null : makingSeconds / 60;
-    }
 
     public BigDecimal getLineTotal() {
         if (billedAmount != null) return billedAmount;

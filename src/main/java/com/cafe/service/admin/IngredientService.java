@@ -88,10 +88,6 @@ public class IngredientService {
         }
     }
 
-    public List<InventoryUnitChoice> getUnitChoices(int ingredientId)throws SQLException{
-        try(Connection conn=DBConnection.getConnection()){return unitDao.findByIngredient(conn,ingredientId);}
-    }
-
     public java.util.Map<Integer,List<InventoryUnitChoice>> getActiveUnitChoicesByIngredient()throws SQLException{
         try(Connection conn=DBConnection.getConnection()){
             java.util.Map<Integer,List<InventoryUnitChoice>> out=new java.util.LinkedHashMap<>();

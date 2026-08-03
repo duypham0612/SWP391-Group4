@@ -16,7 +16,6 @@
 .kds-stat__num{font-size:26px; font-weight:800; line-height:1.1; color:var(--ink); font-variant-numeric:tabular-nums}
 .kds-stat__num--making{color:var(--st-making)}
 .kds-stat__num--ready{color:var(--st-ready)}
-.kds-stat__hint{font-size:11px; color:var(--muted)}
 .kds-board{min-height:120px}
 .kds-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:var(--s4); align-items:start}
 .kds-card{
@@ -27,12 +26,9 @@
    trễ thật = đỏ. Đỏ phải hiếm thì mới còn tác dụng; trước đây mọi card đều đỏ vì dữ liệu cũ,
    nay đơn qua đêm đã tách sang khu Đơn treo nên bậc đỏ trở lại đúng nghĩa. */
 .kds-card.kds-ok{border-left-color:var(--line)}
-.kds-card.kds-warn{border-left-color:var(--st-waiting)}
 .kds-card.kds-late{border-left-color:var(--st-cancelled); background:var(--kds-late-bg)}
-.kds-card.kds-blocked{border-left-color:var(--st-cancelled); background:var(--kds-danger-bg)}
 .kds-card:focus-visible{outline:none; box-shadow:var(--ring)}
 .kds-card__top{display:flex; justify-content:space-between; align-items:flex-start; gap:var(--s3)}
-.kds-card__id{min-width:0}
 /* Bàn/mã đơn là thông tin PHỤ — chỉ cần lúc bưng ra, không phải lúc pha. */
 .kds-table{font-size:13px; font-weight:700; line-height:1.2; color:var(--muted)}
 .kds-ticket-items{display:flex; flex-direction:column; gap:var(--s3)}
@@ -44,13 +40,7 @@
 .kds-ticket-item__head{display:flex; justify-content:space-between; align-items:flex-start; gap:var(--s2)}
 .kds-ticket-item__head strong{font-size:var(--fs-lg); line-height:1.3; min-width:0}
 .kds-clock{font-variant-numeric:tabular-nums; font-weight:700; color:var(--muted); font-size:var(--fs-sm)}
-.kds-clock--making{color:var(--st-making)}
 .kds-card.kds-late .kds-clock{color:var(--st-cancelled)}
-.kds-overdue{
-  width:max-content; font-size:12px; font-weight:800; color:#fff; background:var(--st-cancelled);
-  padding:4px 11px; border-radius:var(--radius-pill); letter-spacing:.04em; font-variant-numeric:tabular-nums;
-}
-.kds-mods{display:flex; flex-wrap:wrap; gap:var(--s2)}
 .chip{
   background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-pill);
   padding:3px 10px; font-size:12.5px; font-weight:600; color:var(--ink-soft);
@@ -62,27 +52,15 @@
   background:var(--kds-warn-bg); border-left:4px solid var(--st-waiting); border-radius:var(--radius-xs);
   padding:9px 12px; color:var(--kds-warn-ink); font-size:16px; font-weight:700; line-height:1.35;
 }
-.kds-note__tag{
-  font-weight:800; text-transform:uppercase; font-size:11px; letter-spacing:.06em;
-  margin-right:7px; opacity:.8;
-}
-.kds-mods .chip{font-size:14px; font-weight:700; padding:5px 12px}
 /* Nút thao tác từng món: "Xong" là hành động chính (to), phần còn lại phụ */
-.kds-item-actions{display:flex; flex-direction:column; gap:var(--s2); margin-top:2px}
-.kds-done{min-height:50px; font-size:15px; font-weight:700}
 .kds-subactions{display:flex; flex-wrap:wrap; gap:var(--s2)}
 .kds-subactions form{min-width:0}
-.kds-cant{color:var(--st-cancelled)}
-.kds-cant:hover{color:var(--st-cancelled); border-color:var(--st-cancelled); background:var(--kds-late-bg)}
 .kds-card__foot{
   display:flex; flex-wrap:wrap; gap:var(--s2); justify-content:space-between; align-items:center;
   padding-top:var(--s3); border-top:1px dashed var(--line);
 }
 .kds-card__foot form{min-width:0}
 /* Giữ cho Pickup (Món chờ giao) tái dùng */
-.kds-actions{display:flex; flex-wrap:wrap; gap:var(--s2); margin-top:var(--s1)}
-.kds-actions form{min-width:0}
-.kds-action-form{flex:1 1 0; min-width:0}
 /* Cảm ứng: nút chính đủ lớn để bấm bằng khớp ngón tay khi tay ướt/bận. */
 .kds-card .btn{min-height:48px}
 .kds-card .btn-primary.btn-full{min-height:56px; font-size:17px; font-weight:800}
@@ -92,18 +70,10 @@
   .kds-card .btn-sm{min-height:44px}
   .chip-filter{padding:11px 16px; font-size:13px}
 }
-.kds-refresh{
-  display:flex; justify-content:flex-end; align-items:center; gap:var(--s2);
-  font-size:12px; margin-top:var(--s4);
-}
 .kds-refresh__dot{width:7px; height:7px; border-radius:50%; background:var(--st-ready)}
 .kds-new{animation:kdsNew 1.1s ease-out both}
 
 /* ----- Board 2 cột (Chờ pha | Đang pha) + số thứ tự + Tiếp theo ----- */
-/* Header một dòng — mỗi pixel ở đầu màn đẩy danh sách món xuống dưới tầm mắt. */
-.kds-head{display:flex; align-items:center; gap:var(--s3); margin-bottom:var(--s3)}
-.kds-head h1{margin:0; font-size:24px; line-height:1.2}
-.kds-head .kds-connection{margin-left:auto}
 .kds-toolbar{display:flex; flex-wrap:wrap; align-items:center; gap:var(--s2); margin-bottom:var(--s3)}
 .kds-filters{display:flex; flex-wrap:wrap; gap:7px}
 /* Dropdown "Bộ lọc": quầy + loại đơn là cấu hình đầu ca, không cần chiếm chỗ thường trực. */
@@ -118,21 +88,12 @@
   padding:var(--s3); background:var(--surface); border:1px solid var(--line);
   border-radius:var(--radius); box-shadow:var(--shadow);
 }
-.kds-more__label{font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
 .chip-filter{border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);border-radius:var(--radius-pill);padding:7px 12px;font:600 12px/1 inherit;cursor:pointer}
 .chip-filter:hover{border-color:var(--brand);color:var(--brand)}
 .chip-filter.is-active{background:var(--brand);border-color:var(--brand);color:#fff}
 /* Khu "Cần xử lý" (món BLOCKED) — nằm trên board, tách hẳn khỏi luồng pha */
-.kds-blocked-zone{
-  background:var(--kds-late-bg); border:1px solid color-mix(in srgb,var(--st-cancelled) 28%,var(--line)); border-left:4px solid var(--st-cancelled);
-  border-radius:var(--radius); padding:var(--s3); margin-bottom:var(--s4);
-}
-.kds-blocked-zone__body{
-  display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:var(--s3); margin-top:var(--s2);
-}
 /* Khu "Đơn treo cần xử lý" — đơn của ngày kinh doanh trước, việc của quản lý chứ không phải
    của người đang đứng pha. Nằm trong drawer cảnh báo — xem .kds-alert-drawer bên dưới. */
-.kds-stale__hint{margin:0 var(--s4) var(--s3); font-size:12px; color:var(--muted)}
 
 /* Dòng chọn nguyên liệu trong modal "Hết nguyên liệu" */
 .kds-ing{
@@ -154,58 +115,19 @@
   .kds-recount{grid-template-columns:1fr}
   .kds-recount input[type="number"]{grid-row:auto; grid-column:auto; width:100%}
 }
-
-.kds-columns{display:grid; grid-template-columns:1fr 1fr; gap:var(--s4); align-items:start}
 /* 40/35/25: Chờ pha là nơi mọi quyết định xảy ra nên rộng nhất; Đã pha xong chỉ để theo dõi
    bàn giao (thao tác thuộc về thu ngân) nên hẹp nhất. */
-.kds-columns--three{grid-template-columns:40fr 35fr 25fr}
-.kds-col{background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius); padding:var(--s3); min-width:0}
-.kds-col--making{background:var(--kds-making-bg)}
-.kds-col--ready{background:var(--kds-ready-bg)}
-.kds-col__head{display:flex; align-items:center; gap:var(--s2); margin:2px 4px var(--s3)}
-.kds-col__head h2{margin:0; font-size:var(--fs-md); font-weight:800; color:var(--ink)}
-.kds-col__count{
-  margin-left:auto; min-width:26px; height:26px; padding:0 8px; display:inline-flex; align-items:center; justify-content:center;
-  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-pill);
-  font-weight:800; font-size:13px; color:var(--ink-soft); font-variant-numeric:tabular-nums;
-}
-.kds-col__body{display:flex; flex-direction:column; gap:var(--s3)}
 /* Cột rỗng không đáng chiếm chỗ của cột đang có việc — thu về một dòng. */
-.kds-col__empty{
-  padding:var(--s3); text-align:center; color:var(--muted); font-size:12.5px;
-  display:flex; align-items:center; justify-content:center; gap:7px;
-}
-.kds-card__idrow{display:flex; align-items:center; gap:var(--s2); flex-wrap:wrap}
-.kds-pos{
-  flex:none; min-width:28px; height:28px; padding:0 6px; display:inline-flex; align-items:center; justify-content:center;
-  background:var(--ink); color:#fff; border-radius:var(--radius-pill);
-  font-weight:800; font-size:14px; font-variant-numeric:tabular-nums;
-}
-.kds-next{
-  font-size:10px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
-  color:#fff; background:var(--sage); padding:3px 8px; border-radius:var(--radius-pill);
-}
-.kds-card--next{box-shadow:0 0 0 2px var(--sage), var(--shadow-sm)}
-.kds-card--next .kds-pos{background:var(--sage)}
-.kds-card__foot--end{justify-content:flex-end; border-top:none; padding-top:0}
-@media (max-width:1180px){.kds-columns--three{grid-template-columns:1fr 1fr}.kds-col--ready{grid-column:1/-1}}
-@media (max-width:900px){ .kds-columns,.kds-columns--three{grid-template-columns:1fr}.kds-col--ready{grid-column:auto} }
 
 /* Thứ tự ưu tiên thị giác: tên món > ghi chú > thời gian > bàn/mã đơn.
    Đọc ở khoảng cách ~1.2m, liếc 1 giây, tay đang bận. */
-.kds-product{font-size:25px; font-weight:800; line-height:1.2}
-.kds-qty{font-variant-numeric:tabular-nums}
 /* Nhãn thời gian chính: một con số duy nhất để quyết "món này gấp chưa". */
 .kds-sla{
   display:inline-flex; flex:none; align-items:center; padding:6px 12px;
   border-radius:var(--radius-pill); font-size:15px; font-weight:800;
   font-variant-numeric:tabular-nums; white-space:nowrap;
 }
-.kds-sla--ok{background:var(--surface-2);color:var(--ink-soft)}
-.kds-sla--warn{background:var(--kds-warn-bg);color:var(--kds-warn-ink)}
-.kds-sla--late,.kds-sla--blocked{background:var(--st-cancelled);color:#fff}
 /* Cao điểm: số thứ tự pha thay cho nhãn trễ — trung tính, không báo động. */
-.kds-seq{background:var(--st-making);color:#fff}
 /* Mã gọi món — khớp ly với đơn khi bar đông. */
 .kds-code{display:inline-block;padding:1px 7px;border-radius:6px;background:var(--espresso);color:#fff;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:.5px}
 .kds-code--lg{font-size:20px;padding:3px 11px}
@@ -222,14 +144,8 @@
   color:var(--muted); font-size:12px; border-top:1px solid var(--line); padding-top:8px;
   font-variant-numeric:tabular-nums;
 }
-.kds-priority{background:var(--kds-warn-bg);border:1px solid color-mix(in srgb,var(--st-waiting) 45%,var(--line));border-radius:var(--radius-xs);padding:6px 9px;color:var(--kds-warn-ink);font-size:11px;font-weight:900;letter-spacing:.03em}
 .kds-issue{background:var(--kds-danger-bg);border-left:4px solid var(--st-cancelled);border-radius:var(--radius-xs);padding:8px 10px;color:color-mix(in srgb,var(--st-cancelled) 68%,var(--ink));font-size:12px}
-.kds-assignee{display:flex;flex-wrap:wrap;gap:4px 7px;font-size:12px;color:var(--ink-soft)}
-.kds-assignee span{color:var(--muted)}
-.kds-owned-note{padding:8px 10px;background:var(--surface-2);border-radius:var(--radius-xs);font-size:12px;color:var(--muted);text-align:center}
-.kds-ready-card{border-left-color:var(--st-ready)}
 /* READY quá lâu = cảnh báo chất lượng (đồ nguội, đá tan) — vấn đề của khâu bàn giao. */
-.kds-ready-card.is-stale{border-left-color:var(--st-waiting); background:var(--kds-warn-bg)}
 /* Xếp dọc thay vì 3 cột hẹp: mốc thời gian và tên người pha KHÔNG được cắt chữ. */
 .kds-ready-facts{display:flex;flex-direction:column;gap:5px}
 .kds-ready-facts div{
@@ -267,8 +183,6 @@
   font-family:inherit; font-size:14px; background:var(--surface); color:var(--ink);
 }
 .kds-field input:focus-visible,.kds-field select:focus-visible{outline:none; box-shadow:var(--ring); border-color:var(--brand)}
-.kds-check{display:flex; align-items:flex-start; gap:var(--s2); font-size:var(--fs-sm); color:var(--ink-soft); cursor:pointer; font-weight:600}
-.kds-check input{margin-top:3px; flex:none}
 .btn-danger{background:var(--st-cancelled); color:#fff; border-color:transparent; box-shadow:0 4px 14px rgba(178,58,46,.26)}
 .btn-danger:hover{filter:brightness(.94); color:#fff; transform:translateY(-1px)}
 .btn-danger:active{transform:translateY(0)}
@@ -335,7 +249,7 @@
   width:100%; min-height:44px; padding:8px 10px; border:1px solid var(--line);
   border-radius:var(--radius-xs); background:var(--surface); color:var(--ink); font:600 13px/1.3 inherit;
 }
-.kds-filter-field select:focus-visible,.chip-filter:focus-visible,.kds-lane-tab:focus-visible,.kds-card-menu > summary:focus-visible{
+.kds-filter-field select:focus-visible,.chip-filter:focus-visible,.kds-card-menu > summary:focus-visible{
   outline:none; box-shadow:var(--ring); border-color:var(--brand);
 }
 .kds-filter-badge{
@@ -368,75 +282,10 @@
 /* Mở ra thì ĐẨY board xuống (in-flow), không nổi đè lên board như popover: đơn treo bị giới hạn
    vài dòng (phần dư trỏ về màn Quản lý) nên chiếm chỗ dọc là chấp nhận được, và tránh cảm giác
    "panel lỗi" khi lớp phủ che mất hàng chờ đang thao tác. */
-.kds-alert-drawer{flex:none}
-.kds-alert-drawer > summary{
-  display:flex; align-items:center; gap:var(--s2); min-height:42px; padding:6px 10px;
-  list-style:none; cursor:pointer; border:1px solid color-mix(in srgb,var(--st-cancelled) 32%,var(--line));
-  border-radius:var(--radius-sm); background:var(--kds-late-bg); color:var(--ink-soft); font-size:12px;
-}
-.kds-alert-drawer > summary::-webkit-details-marker{display:none}
-.kds-alert-drawer > summary:focus-visible{outline:none; box-shadow:var(--ring)}
-.kds-alert-drawer__icon{
-  display:grid; place-items:center; width:24px; height:24px; flex:none; border-radius:50%;
-  background:var(--st-cancelled); color:#fff; font-weight:900;
-}
-.kds-alert-count{padding:3px 8px; border:1px solid var(--line); border-radius:var(--radius-pill); background:var(--surface); font-weight:700}
-.kds-alert-drawer__action{margin-left:auto; color:var(--st-cancelled); font-weight:700}
 /* auto-fit chứ KHÔNG phải repeat(2,...): drawer thường chỉ có một section (chặn HOẶC treo),
    cột thứ hai cố định sẽ bỏ trống nửa panel và ép section còn lại vào nửa trái. */
-.kds-alert-drawer__body{
-  margin-top:6px; max-height:min(46vh,440px); overflow:auto;
-  display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:var(--s3); padding:var(--s3);
-  border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); box-shadow:var(--shadow-sm);
-}
-.kds-blocked-zone,.kds-stale{min-width:0; margin:0; padding:var(--s3); border-radius:var(--radius-sm)}
-.kds-stale{border:1px solid var(--line); background:var(--surface-2)}
-.kds-alert-section__head{display:flex; align-items:center; justify-content:space-between; gap:var(--s2); margin-bottom:var(--s2)}
-.kds-alert-section__head h2{margin:0; font:800 15px/1.2 'Be Vietnam Pro',sans-serif}
-.kds-alert-section__head span{font-size:12px; font-weight:800; color:var(--muted)}
-.kds-blocked-zone__body{grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); padding:0; margin-top:var(--s3)}
-.kds-stale__hint{margin:0 0 var(--s3)}
 
 /* Đơn treo = dữ liệu chỉ-đọc → một dòng mỗi đơn, không phải card. */
-.kds-stale-list{display:flex; flex-direction:column; gap:4px; margin:0; padding:0; list-style:none}
-.kds-stale-row{
-  display:grid; grid-template-columns:auto auto 1fr auto auto; align-items:center; gap:var(--s2);
-  min-height:38px; padding:6px 10px; border:1px solid var(--line); border-radius:var(--radius-xs);
-  background:var(--surface); font-size:12.5px; color:var(--ink-soft);
-}
-.kds-stale-row__order{font-weight:800; color:var(--ink); font-variant-numeric:tabular-nums}
-.kds-stale-row__where{padding:2px 7px; border-radius:var(--radius-pill); background:var(--surface-2); font-weight:700}
-.kds-stale-row__items{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted)}
-.kds-stale-row__cups{font-weight:800; color:var(--ink); font-variant-numeric:tabular-nums}
-.kds-stale-row__time{color:var(--muted); font-variant-numeric:tabular-nums}
-.kds-stale__more{margin:var(--s3) 0 0; font-style:italic}
-
-.kds-lane-tabs{
-  display:none; flex:none; align-items:center; gap:4px; padding:4px;
-  border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface-2);
-}
-.kds-lane-tab{
-  flex:1; min-height:44px; border:1px solid transparent; border-radius:var(--radius-xs);
-  background:transparent; color:var(--ink-soft); font:700 13px/1.2 inherit; cursor:pointer;
-}
-.kds-lane-tab span{display:inline-grid; place-items:center; min-width:23px; height:23px; margin-left:5px; padding:0 6px; border-radius:var(--radius-pill); background:var(--surface); color:var(--ink)}
-.kds-lane-tab.is-active{background:var(--ink); color:var(--surface); box-shadow:var(--shadow-sm)}
-.kds-lane-tab.is-active span{background:color-mix(in srgb,var(--surface) 18%,transparent); color:inherit}
-
-.kds-columns,.kds-columns--three{
-  flex:1; min-height:0; display:grid; grid-template-columns:38fr 34fr 28fr; gap:10px; align-items:stretch;
-}
-.kds-col{
-  min-height:0; display:flex; flex-direction:column; overflow:hidden; padding:10px;
-  border-radius:var(--radius-sm);
-}
-.kds-col__head{flex:none; min-height:32px; margin:0 2px 8px}
-.kds-col__head h2{font-family:'Be Vietnam Pro',sans-serif; font-size:14px}
-.kds-col__count{height:25px; min-width:25px; font-size:11px}
-.kds-col__body{
-  flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;
-  display:flex; flex-direction:column; gap:10px; padding-right:3px;
-}
 .kds-filter-empty{
   min-height:90px; display:grid; place-items:center; padding:var(--s4); text-align:center;
   border:1px dashed var(--line-strong); border-radius:var(--radius-sm); color:var(--muted); font-size:13px;
@@ -534,17 +383,12 @@
 .kds-qrow:hover{border-color:var(--brand)}
 .kds-qrow:focus-visible{outline:none; box-shadow:var(--ring)}
 /* Viền theo TRẠNG THÁI, không theo đồng hồ: chỉ món cần xử lý mới nổi lên, món đã xong làm mờ. */
-.kds-qrow--blocked{--sec:var(--st-cancelled)}
-.kds-qrow--ready{--sec:var(--st-ready); opacity:.72}
-.kds-qrow--ready:hover{opacity:1}
 
 .kds-qrow__seq{
   grid-column:1; grid-row:1; display:inline-grid; place-items:center; min-width:26px; height:26px;
   border-radius:var(--radius-pill); background:var(--surface-2); color:var(--ink-soft);
   font-size:12.5px; font-weight:800; font-variant-numeric:tabular-nums;
 }
-.kds-qrow--blocked .kds-qrow__seq{background:var(--st-cancelled); color:#fff}
-.kds-qrow--ready .kds-qrow__seq{background:transparent; color:var(--st-ready)}
 
 .kds-qrow__qty{grid-column:2; grid-row:1; font-weight:800; font-size:15px; font-variant-numeric:tabular-nums; color:var(--ink)}
 .kds-qrow__name{grid-column:3; grid-row:1; min-width:0; font-weight:800; font-size:15px; color:var(--ink); overflow-wrap:anywhere}
@@ -564,9 +408,6 @@
   background:var(--surface-2); color:var(--ink-soft);
   font-size:11.5px; font-weight:800; white-space:nowrap; text-align:center;
 }
-.kds-qrow__state--MAKING{background:var(--kds-info-bg); color:color-mix(in srgb,var(--st-making) 72%,var(--ink))}
-.kds-qrow__state--READY{background:color-mix(in srgb,var(--st-ready) 16%,var(--surface)); color:var(--st-ready)}
-.kds-qrow__state--BLOCKED{background:var(--kds-danger-bg); color:var(--st-cancelled)}
 
 /* Nhãn phụ (modifier · ghi chú · sự cố) xuống dòng thứ hai, thụt vào ngang cột Món. */
 .kds-qrow__tags{grid-column:3 / -1; grid-row:2; display:flex; flex-wrap:wrap; gap:4px; margin-top:4px}
@@ -601,24 +442,12 @@
 .kds-board .kds-card{gap:10px; padding:14px; border-radius:var(--radius-sm); box-shadow:var(--shadow-xs)}
 .kds-board .kds-card:hover{box-shadow:var(--shadow-sm)}
 .kds-board .kds-card__top{flex-wrap:wrap; gap:8px}
-.kds-board .kds-product{flex:1 1 190px; min-width:0; overflow-wrap:anywhere; font-size:20px; line-height:1.23}
 .kds-board .kds-sla{padding:5px 9px; font-size:12px}
-.kds-board .kds-mods{gap:5px}
-.kds-board .kds-mods .chip{padding:3px 8px; font-size:12px}
 .kds-board .kds-note{padding:7px 9px; font-size:14px}
-.kds-board .kds-card__identity{border:1px solid var(--line); border-radius:var(--radius-xs); overflow:hidden; background:var(--surface-2)}
-.kds-board .kds-card__destination{display:flex; align-items:baseline; justify-content:space-between; gap:8px; padding:7px 9px}
-.kds-board .kds-card__destination > span{font-size:10px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--muted)}
-.kds-board .kds-card__destination > strong{text-align:right; font-size:14px; color:var(--ink)}
-.kds-board .kds-card__identity .kds-meta-row{border-top:1px solid var(--line); padding:6px 9px; font-size:10.5px}
-.kds-board .kds-assignee{padding:6px 9px; border-radius:var(--radius-xs); background:var(--kds-making-bg)}
 .kds-board .kds-ready-facts{display:grid; grid-template-columns:1fr; gap:4px}
 .kds-board .kds-ready-facts div{padding:5px 8px}
 .kds-board .kds-ready-facts span{min-width:72px; font-size:10px}
 .kds-board .kds-ready-facts strong{font-size:12px}
-.kds-board .kds-handoff{margin:0 0 6px; font-size:12px; font-weight:700}
-.kds-board .kds-handoff__sel{min-height:44px; background:var(--surface); color:var(--ink)}
-.kds-board .kds-item-actions{gap:6px; margin-top:0}
 .kds-board .kds-card .btn{min-height:44px}
 .kds-board .kds-card .btn-primary.btn-full{min-height:50px; font-size:15px}
 .kds-more__panel .btn,.kds-modal .btn{min-height:44px}
@@ -642,14 +471,6 @@
 @media (pointer:coarse){
   .page-kds .icon-btn{width:44px; height:44px}
   .page-kds .topbar-user > .btn{min-height:44px}
-}
-
-@media (max-width:1180px){
-  .kds-lane-tabs{display:flex; position:sticky; top:0; z-index:4}
-  .kds-columns,.kds-columns--three{grid-template-columns:1fr}
-  .kds-columns .kds-col{display:none; grid-column:auto}
-  .kds-columns .kds-col.is-active{display:flex}
-  .kds-alert-drawer__body{grid-template-columns:1fr}
 }
 
 @media (max-width:820px){
@@ -691,11 +512,6 @@
   .kds-stat{min-height:52px}
   .kds-stat:nth-child(2),.kds-stat:nth-child(4){border-right:0}
   .kds-stat--wide{grid-column:1/-1; border-top:1px solid var(--line); border-right:0}
-  .kds-alert-drawer__body{position:static; max-height:none; margin-top:6px; box-shadow:var(--shadow)}
-  .kds-lane-tabs{display:none}
-  .kds-columns,.kds-columns--three{display:grid; grid-template-columns:1fr; height:auto}
-  .kds-columns .kds-col{display:flex; max-height:none; overflow:visible}
-  .kds-col__body{overflow:visible}
   /* Màn hẹp cuộn cả trang → danh sách không được là vùng cuộn lồng, và tiêu đề vốn đã ẩn
      nên không cần dính đầu. */
   .kds-queue{overflow:visible; padding-right:0}

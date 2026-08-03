@@ -28,5 +28,4 @@ public class DiningTable {
     public Integer getActiveItemCount() { return activeItemCount; }
     public void setActiveItemCount(Integer v) { this.activeItemCount = v; }
 
-    public boolean isOccupied() { return "OCCUPIED".equals(status); }
 }

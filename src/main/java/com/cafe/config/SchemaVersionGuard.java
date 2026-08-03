@@ -43,11 +43,6 @@ public final class SchemaVersionGuard {
         }
     }
 
-    public static void requireCurrent() {
-        Status status = check();
-        if (!status.up()) throw new IllegalStateException(status.message());
-    }
-
     private static String loadExpectedVersion() {
         try (InputStream input = SchemaVersionGuard.class.getClassLoader()
                 .getResourceAsStream(RESOURCE)) {

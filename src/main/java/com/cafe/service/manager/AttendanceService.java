@@ -34,14 +34,6 @@ public class AttendanceService {
         this.dao = java.util.Objects.requireNonNull(dao);
     }
 
-    public List<ShiftAssignment> getPendingAttendance(int branchId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) { return dao.findByStatus(c, branchId, "PENDING"); }
-    }
-
-    public List<ShiftAssignment> getAttendanceByStatus(int branchId, String status) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) { return dao.findByStatus(c, branchId, status); }
-    }
-
     /** Tất cả chấm công của chi nhánh (1 màn gộp). */
     public List<ShiftAssignment> getBranchAttendance(int branchId) throws SQLException {
         try (Connection c = DBConnection.getConnection()) { return dao.findByBranch(c, branchId); }
@@ -73,10 +65,6 @@ public class AttendanceService {
         try (Connection c = DBConnection.getConnection()) { return dao.findById(c, id); }
     }
 
-    public void approveAttendance(int id, int approverId, int branchId) throws SQLException {
-        txVoid(c -> requireScopedUpdate(approve(c, id, approverId, branchId)));
-    }
-
     public void rejectAttendance(int id, int approverId, int branchId) throws SQLException {
         txVoid(c -> requireScopedUpdate(
                 dao.updateApprovalByBranch(c, id, branchId, "REJECTED", approverId)));
@@ -103,12 +91,6 @@ public class AttendanceService {
                     "Chưa thiết lập lương theo giờ cho nhân viên nên không thể duyệt chấm công.");
         }
         return dao.updateApprovalByBranch(c, id, branchId, "APPROVED", approverId);
-    }
-
-    /** Số giờ làm của 1 bản ghi chấm công (đọc lại từ DB). */
-    public double computeWorkHours(int assignmentId) throws SQLException {
-        ShiftAssignment a = getAttendance(assignmentId);
-        return a == null ? 0d : a.getWorkHours();
     }
 
     /** Trạng thái chấm công hôm nay của nhân viên đang đăng nhập. */

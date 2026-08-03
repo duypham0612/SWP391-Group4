@@ -190,11 +190,6 @@ public class BranchMenuService {
         }
     }
 
-    /** Danh sách món của chi nhánh (cho 86 board). */
-    public List<BranchMenuItem> getMenuAvailability(int branchId) throws SQLException {
-        return listForBranch(branchId);
-    }
-
     /** Barista 86 board: filtering, counting and slicing all happen in the database. */
     public MenuAvailabilityPage getMenuAvailabilityPage(int branchId, String query, String state,
                                                         int requestedPage, int pageSize) throws SQLException {

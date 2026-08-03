@@ -66,8 +66,5 @@ public class PickupTicket {
     /** Số món chưa pha xong (chờ + đang pha) — để hiển thị cảnh báo giao thiếu. */
     public int getPendingCount() { return makingCount + waitingCount; }
     public int getPendingCupCount() { int n=0; for (OrderItem it : items) if ("WAITING".equals(it.getStatus()) || "MAKING".equals(it.getStatus())) n+=it.getQuantity(); return n; }
-    public boolean isAllReady() { return allReady; }
     public String getTableStatus() { return tableStatus; }
-    /** Bàn đã được trả EMPTY sau khi không còn đơn chưa thanh toán. */
-    public boolean isPaid() { return "EMPTY".equals(tableStatus); }
 }

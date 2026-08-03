@@ -8,7 +8,6 @@ public class WasteEventReview {
     private long wasteEntryId; private String eventGroupId; private int ingredientId;
     private String ingredientName; private String reviewType; private BigDecimal qtyBefore; private BigDecimal qtyAfter;
     private String status; private String note; private LocalDateTime createdAt; private Integer resolvedBy;
-    private LocalDateTime resolvedAt; private String resolutionNote;
     public long getWasteEntryId() { return wasteEntryId; }
     public void setWasteEntryId(long wasteEntryId) { this.wasteEntryId = wasteEntryId; }
     public String getEventGroupId() { return eventGroupId; }
@@ -29,12 +28,6 @@ public class WasteEventReview {
     public void setNote(String note) { this.note = note; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
-    public Integer getResolvedBy() { return resolvedBy; }
-    public void setResolvedBy(Integer resolvedBy) { this.resolvedBy = resolvedBy; }
-    public LocalDateTime getResolvedAt() { return resolvedAt; }
-    public void setResolvedAt(LocalDateTime resolvedAt) { this.resolvedAt = resolvedAt; }
-    public String getResolutionNote() { return resolutionNote; }
-    public void setResolutionNote(String resolutionNote) { this.resolutionNote = resolutionNote; }
     public boolean isOpen(){return "OPEN".equals(status);}
     /** Tồn âm vượt ngưỡng cần xử lý trước — dùng để tô đậm dòng trên màn đối soát. */
     public boolean isUrgent(){return "HARD_NEGATIVE".equals(reviewType);}
