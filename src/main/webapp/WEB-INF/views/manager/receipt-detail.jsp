@@ -7,7 +7,7 @@
 
 <div class="page-header">
     <div>
-        <div class="eyebrow">Phiếu nhập #${receipt.receiptBatchId}</div>
+        <div class="eyebrow">Phiếu nhập <code class="compact-code" title="Mã đầy đủ: ${receipt.receiptBatchId}">${view.shortCode('PN', receipt.receiptBatchId)}</code></div>
         <h1>
             <c:choose>
                 <c:when test="${receipt.status == 'DRAFT'}"><span class="badge badge-waiting">Nháp</span></c:when>
