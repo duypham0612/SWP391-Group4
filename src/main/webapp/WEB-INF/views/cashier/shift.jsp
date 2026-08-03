@@ -91,6 +91,16 @@
                 <a class="btn btn-ghost" href="${ctx}/cashier/checkout">Tới thanh toán</a>
             </form>
         </c:when>
+        <c:when test="${dutyState != 'CLOCKED_NO_TILL' and (empty clockStatus or not clockStatus.canClockIn)}">
+            <div class="alert alert-info" style="margin-top:18px;margin-bottom:0">
+                ${view.shiftStatus(clockStatus)}
+            </div>
+            <div style="margin-top:18px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+                <div class="form-group" style="margin:0;width:220px"><label>Quỹ đầu ca (tiền mặt)</label>
+                    <input type="number" class="form-control" value="0" disabled></div>
+                <button type="button" class="btn btn-ghost" disabled>Chưa thể bắt đầu ca</button>
+            </div>
+        </c:when>
         <c:otherwise>
             <form action="${ctx}/cashier/shift" method="post" style="margin-top:18px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">

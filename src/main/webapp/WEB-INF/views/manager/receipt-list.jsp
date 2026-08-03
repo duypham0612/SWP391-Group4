@@ -29,7 +29,7 @@
             <table class="table">
                 <thead><tr>
                     <th style="width:40px"><input type="checkbox" onclick="document.querySelectorAll('.rbox').forEach(c=>c.checked=this.checked)"></th>
-                    <th style="width:60px">#</th><th>Nhà cung cấp</th><th style="width:130px">Trạng thái</th><th style="width:150px">Tổng tiền</th><th>Người nhập</th><th style="width:100px"></th>
+                    <th style="width:140px">Mã phiếu</th><th>Nhà cung cấp</th><th style="width:130px">Trạng thái</th><th style="width:150px">Tổng tiền</th><th>Người nhập</th><th style="width:100px"></th>
                 </tr></thead>
                 <tbody>
                     <c:forEach var="r" items="${receipts}">
@@ -39,7 +39,7 @@
                                     <input class="rbox" type="checkbox" name="rid" value="${r.receiptBatchId}">
                                 </c:if>
                             </td>
-                            <td>${r.receiptBatchId}</td>
+                            <td><code class="compact-code" title="Mã đầy đủ: ${r.receiptBatchId}">${view.shortCode('PN', r.receiptBatchId)}</code></td>
                             <td><c:choose><c:when test="${not empty r.supplierName}">${r.supplierName}</c:when><c:otherwise><span class="muted">—</span></c:otherwise></c:choose></td>
                             <td>
                                 <c:choose>

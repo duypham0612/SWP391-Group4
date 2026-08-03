@@ -34,4 +34,13 @@ class ViewFormatterStockTest {
         item.setAvailabilityState("EIGHTY_SIX");
         assertEquals("Tạm ngừng bán", formatter.stockMessage(item));
     }
+
+    @Test
+    void shortensTechnicalIdsForDisplay() {
+        assertEquals("KK-5320F57A",
+                formatter.shortCode("KK", "5320f57a-6508-4bf7-b594-9712bc5c2139"));
+        assertEquals("PN-FBA613E3",
+                formatter.shortCode("pn", "fba613e3-f459-4ac5-9c5a-c423ccd4a1cc"));
+        assertEquals("", formatter.shortCode("PN", null));
+    }
 }

@@ -63,7 +63,7 @@
                                 <input type="hidden" name="action" value="setLocalPrice">
                                 <input type="hidden" name="productId" value="${m.productId}">
                                 <input type="text" name="localPrice" class="form-control" style="width:130px"
-                                       value="${view.grouped(m.localPrice)}" placeholder="Dùng giá gốc" data-vi-number>
+                                       value="${view.grouped(m.localPrice)}" placeholder="Dùng giá gốc" data-vi-money>
                                 <button type="submit" class="btn btn-ghost btn-sm">Lưu</button>
                             </form>
                         </td>

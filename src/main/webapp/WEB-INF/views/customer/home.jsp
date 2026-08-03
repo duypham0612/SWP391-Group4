@@ -111,7 +111,7 @@
                                     <img src="${fn:escapeXml(imgSrc)}" alt="${fn:escapeXml(p.name)}" loading="lazy" onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
                                     <div class="body">
                                         <div class="name"><c:out value="${p.name}"/></div>
-                                        <div class="price"><fmt:formatNumber value="${p.basePrice}" maxFractionDigits="0"/> ₫</div>
+                                        <div class="price">${view.grouped(p.price)} ₫</div>
                                     </div>
                                 </article>
                             </c:forEach>

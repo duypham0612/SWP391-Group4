@@ -31,7 +31,8 @@ public class HomeServlet extends HttpServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         try {
-            Branch home = catalog.getHomeBranch(resolveBranchId(req));
+            Integer requestedBranchId = resolveBranchId(req);
+            Branch home = catalog.getHomeBranch(requestedBranchId);
             req.setAttribute("home", home);
             req.setAttribute("branches", catalog.getPublicHomeBranches());
             req.setAttribute("sections", home == null
