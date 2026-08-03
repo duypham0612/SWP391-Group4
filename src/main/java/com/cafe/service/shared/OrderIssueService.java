@@ -33,7 +33,7 @@ public final class OrderIssueService {
         if (clean.isEmpty()) throw new IllegalArgumentException("Vui lòng chọn lý do sự cố.");
         return repository.tx(conn -> {
             OrderItem it = repository.itemDao.findById(conn, orderItemId);
-            if (it == null || repository.itemDao.reportIssue(conn, orderItemId, branchId, userId, clean) == 0) return false;
+            if (it == null || repository.itemIssueDao.reportIssue(conn, orderItemId, branchId, userId, clean) == 0) return false;
             repository.activityLogDao.insertOrderItem(conn, orderItemId, branchId, "ISSUE", it.getStatus(), it.getStatus(), clean, userId);
             repository.outboxEventDao.insert(conn, EventType.ITEM_ISSUE_REPORTED, String.valueOf(orderItemId), branchId,
                     "{\"orderId\":" + it.getOrderId() + ",\"orderItemId\":" + orderItemId
@@ -101,7 +101,7 @@ public final class OrderIssueService {
         OrderItem it = repository.itemDao.findById(conn, orderItemId);
         if (it == null) return false;
         String from = it.getStatus();
-        if (repository.itemDao.blockItem(conn, orderItemId, branchId, userId, reason) == 0) return false;
+        if (repository.itemIssueDao.blockItem(conn, orderItemId, branchId, userId, reason) == 0) return false;
             repository.activityLogDao.insertOrderItem(conn, orderItemId, branchId, "BLOCK", from, "BLOCKED", reason, userId);
         repository.publishStatus(conn, it, "BLOCKED");
         repository.outboxEventDao.insert(conn, EventType.ITEM_ISSUE_REPORTED, String.valueOf(orderItemId), branchId,
@@ -115,7 +115,7 @@ public final class OrderIssueService {
         if (userId == null) return false;
         return repository.tx(conn -> {
             OrderItem it = repository.itemDao.findById(conn, orderItemId);
-            if (it == null || repository.itemDao.unblockItem(conn, orderItemId, branchId) == 0) return false;
+            if (it == null || repository.itemIssueDao.unblockItem(conn, orderItemId, branchId) == 0) return false;
             repository.activityLogDao.insertOrderItem(conn, orderItemId, branchId, "UNBLOCK", "BLOCKED", "WAITING", null, userId);
             repository.publishStatus(conn, it, "WAITING");
             return true;
@@ -132,7 +132,7 @@ public final class OrderIssueService {
         List<StockAdjustment> cleanRecounts = recounts == null ? List.of() : recounts;
         return repository.tx(conn -> {
             OrderItem it = repository.itemDao.findById(conn, orderItemId);
-            if (it == null || repository.itemDao.unblockItem(conn, orderItemId, branchId) == 0) {
+            if (it == null || repository.itemIssueDao.unblockItem(conn, orderItemId, branchId) == 0) {
                 return new OrderIssueService.UnblockResult(false, 0);
             }
 
@@ -155,7 +155,7 @@ public final class OrderIssueService {
 
             repository.activityLogDao.insertOrderItem(conn, orderItemId, branchId, "UNBLOCK", "BLOCKED", "WAITING", null, userId);
             repository.publishStatus(conn, it, "WAITING");
-            int remaining = repository.itemDao.countBlockedUsingIngredients(conn, branchId, recountedIds);
+            int remaining = repository.itemIssueDao.countBlockedUsingIngredients(conn, branchId, recountedIds);
             return new OrderIssueService.UnblockResult(true, remaining);
         });
     }
@@ -170,13 +170,13 @@ public final class OrderIssueService {
             if (it == null) return false;
             boolean fromReady = "READY".equals(it.getStatus());
             boolean accepted = fromReady
-                    ? repository.itemDao.beginRemake(conn, orderItemId, branchId) == 1
-                    : repository.itemDao.beginRemakeClaimed(conn, orderItemId, branchId, userId) == 1;
+                    ? repository.itemIssueDao.beginRemake(conn, orderItemId, branchId) == 1
+                    : repository.itemIssueDao.beginRemakeClaimed(conn, orderItemId, branchId, userId) == 1;
             if (!accepted) return false;
             repository.inventoryService.reserveRemakeForOrderItem(conn, branchId, orderItemId, it.getProductId(), it.getQuantity(), clean, userId);
             // Bỏ từ MAKING khi chưa hề trừ kho → dòng WASTE vừa ghi là sổ của chính lượt vừa bỏ,
             // nên lượt pha lại vẫn phải trừ. Giữ chỗ vô điều kiện như trước làm trừ THIẾU một lượt.
-            repository.itemDao.finishRemake(conn, orderItemId, branchId,
+            repository.itemIssueDao.finishRemake(conn, orderItemId, branchId,
                     com.cafe.common.RemakeReservation.reservesNextPour(fromReady, it.isRemakeInventoryReserved()));
             repository.activityLogDao.insertOrderItem(conn, orderItemId, branchId, "REMAKE", it.getStatus(), "WAITING", clean, userId);
             repository.outboxEventDao.insert(conn, EventType.ITEM_REMAKE_REQUESTED, String.valueOf(orderItemId), branchId,

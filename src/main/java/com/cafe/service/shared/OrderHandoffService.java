@@ -82,7 +82,7 @@ public final class OrderHandoffService {
         return repository.tx(conn -> {
             int done = 0;
             java.util.Set<Integer> affectedOrders = new java.util.LinkedHashSet<>();
-            for (OrderItem it : repository.itemDao.findByOrders(conn, safeOrderIds)) {
+            for (OrderItem it : repository.itemQueryDao.findByOrders(conn, safeOrderIds)) {
                 if (!"PICKED_UP".equals(it.getStatus())) continue;
                 if (it.getTableNumber() == null
                         || !expectedTable.equalsIgnoreCase(it.getTableNumber().trim())) continue;

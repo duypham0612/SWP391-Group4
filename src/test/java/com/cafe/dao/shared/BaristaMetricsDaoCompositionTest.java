@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class BaristaMetricsDaoCompositionTest {
 
     @Test
-    void order_item_dao_maps_preparation_metrics() throws Exception {
+    void order_item_query_dao_maps_preparation_metrics() throws Exception {
         List<String> sqlSeen = new ArrayList<>();
         Connection conn = connection(sqlSeen, Map.of(
                 "MyMakingCups", 2,
@@ -28,7 +28,7 @@ class BaristaMetricsDaoCompositionTest {
                 "ReadyCups", 5,
                 "BlockedCups", 1));
 
-        OrderItemDao.PreparationMetrics metrics = new OrderItemDao().loadPreparationMetrics(
+        OrderItemQueryDao.PreparationMetrics metrics = new OrderItemQueryDao().loadPreparationMetrics(
                 conn, 8, 21, LocalDateTime.of(2026, 7, 26, 0, 0));
 
         assertEquals(2, metrics.myMakingCups());

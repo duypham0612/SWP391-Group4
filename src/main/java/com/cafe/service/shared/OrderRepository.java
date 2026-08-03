@@ -19,6 +19,9 @@ final class OrderRepository {
 
     final OrderDao orderDao;
     final OrderItemDao itemDao;
+    final OrderItemQueryDao itemQueryDao;
+    final OrderItemWorkflowDao itemWorkflowDao;
+    final OrderItemIssueDao itemIssueDao;
     final ActivityLogDao activityLogDao;
     final OrderItemModifierDao oimDao;
     final BranchMenuDao branchMenuDao;
@@ -33,19 +36,25 @@ final class OrderRepository {
     final InventoryService inventoryService;
 
     OrderRepository() {
-        this(new OrderDao(), new OrderItemDao(), new ActivityLogDao(), new OrderItemModifierDao(),
+        this(new OrderDao(), new OrderItemDao(), new OrderItemQueryDao(), new OrderItemWorkflowDao(),
+                new OrderItemIssueDao(), new ActivityLogDao(), new OrderItemModifierDao(),
                 new BranchMenuDao(), new ModifierOptionDao(), new ModifierGroupDao(),
                 new ProductModifierGroupDao(), new BillDao(), new BillLineDao(), new RecipeDao(),
                 new OutboxEventDao(), new BranchDao(), new InventoryService());
     }
 
-    OrderRepository(OrderDao orderDao, OrderItemDao itemDao, ActivityLogDao activityLogDao,
+    OrderRepository(OrderDao orderDao, OrderItemDao itemDao, OrderItemQueryDao itemQueryDao,
+                    OrderItemWorkflowDao itemWorkflowDao, OrderItemIssueDao itemIssueDao,
+                    ActivityLogDao activityLogDao,
                     OrderItemModifierDao oimDao, BranchMenuDao branchMenuDao, ModifierOptionDao optionDao,
                     ModifierGroupDao groupDao, ProductModifierGroupDao pmgDao, BillDao billDao,
                     BillLineDao billLineDao, RecipeDao productRecipeDao,
                     OutboxEventDao outboxEventDao, BranchDao branchDao, InventoryService inventoryService) {
         this.orderDao = Objects.requireNonNull(orderDao);
         this.itemDao = Objects.requireNonNull(itemDao);
+        this.itemQueryDao = Objects.requireNonNull(itemQueryDao);
+        this.itemWorkflowDao = Objects.requireNonNull(itemWorkflowDao);
+        this.itemIssueDao = Objects.requireNonNull(itemIssueDao);
         this.activityLogDao = Objects.requireNonNull(activityLogDao);
         this.oimDao = Objects.requireNonNull(oimDao);
         this.branchMenuDao = Objects.requireNonNull(branchMenuDao);

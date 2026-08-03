@@ -37,7 +37,7 @@ public final class OrderQueryService {
     public List<OrderItem> getBaristaWorkbench(int branchId, java.time.LocalDateTime businessDayStartUtc)
             throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            List<OrderItem> items = repository.itemDao.findBaristaWorkbench(conn, branchId, businessDayStartUtc);
+            List<OrderItem> items = repository.itemQueryDao.findBaristaWorkbench(conn, branchId, businessDayStartUtc);
             java.util.Set<Integer> productIds = new java.util.HashSet<>();
             for (OrderItem it : items) productIds.add(it.getProductId());
             java.util.Set<Integer> withRecipe = repository.productRecipeDao.findProductIdsWithRecipe(conn, productIds);
@@ -52,7 +52,7 @@ public final class OrderQueryService {
     /** B2 · Món vừa giao gần đây (SERVED trong {@code minutes} phút) để hoàn tác giao nhầm. */
     public List<OrderItem> getRecentlyServed(int branchId, int minutes) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            List<OrderItem> items = repository.itemDao.findRecentlyServed(conn, branchId, minutes);
+            List<OrderItem> items = repository.itemQueryDao.findRecentlyServed(conn, branchId, minutes);
             attachModifiers(conn, items);
             return items;
         }
@@ -60,7 +60,7 @@ public final class OrderQueryService {
 
     public List<OrderItem> getPickedUpItems(int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            List<OrderItem> items = repository.itemDao.findPickedUp(conn, branchId);
+            List<OrderItem> items = repository.itemQueryDao.findPickedUp(conn, branchId);
             attachModifiers(conn, items);
             return items;
         }
@@ -68,7 +68,7 @@ public final class OrderQueryService {
 
     public List<OrderItem> getTableItemStatuses(int tableId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            return repository.itemDao.findByTable(conn, tableId);
+            return repository.itemQueryDao.findByTable(conn, tableId);
         }
     }
 
@@ -93,7 +93,7 @@ public final class OrderQueryService {
      */
     public List<PickupTicket> getPickupTickets(int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            List<OrderItem> ready = repository.itemDao.findReady(conn, branchId);
+            List<OrderItem> ready = repository.itemQueryDao.findReady(conn, branchId);
             if (ready.isEmpty()) return new ArrayList<>();
 
             Map<Integer, List<OrderItem>> readyByOrder = new LinkedHashMap<>();
@@ -103,7 +103,7 @@ public final class OrderQueryService {
             List<Integer> orderIds = new ArrayList<>(readyByOrder.keySet());
 
             // Toàn bộ món của các đơn liên quan (1 query) + modifier (1 query cho cả lô).
-            List<OrderItem> allItems = repository.itemDao.findByOrders(conn, orderIds);
+            List<OrderItem> allItems = repository.itemQueryDao.findByOrders(conn, orderIds);
             attachModifiers(conn, allItems);
             Map<Integer, List<OrderItem>> allByOrder = new LinkedHashMap<>();
             Map<Integer, OrderItem> byItemId = new HashMap<>();

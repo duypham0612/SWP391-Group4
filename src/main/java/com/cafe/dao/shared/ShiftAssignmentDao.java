@@ -109,21 +109,6 @@ public class ShiftAssignmentDao {
         }
     }
 
-    public ShiftAssignment findOpenByUserAndBranch(Connection conn, int userId, int branchId)
-            throws SQLException {
-        final String sql = SELECT +
-                "WHERE sa.UserId=? AND sa.BranchId=? AND sa.AttendanceStatus IS NOT NULL " +
-                "AND sa.CheckInAt IS NOT NULL AND sa.CheckOutAt IS NULL " +
-                "ORDER BY sa.CheckInAt DESC, sa.ShiftAssignmentId DESC";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, userId);
-            ps.setInt(2, branchId);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() ? map(rs) : null;
-            }
-        }
-    }
-
     public int insert(Connection conn, String shiftName, LocalTime startTime, LocalTime endTime,
                       int userId, LocalDate workDate, int branchId) throws SQLException {
         final String sql =

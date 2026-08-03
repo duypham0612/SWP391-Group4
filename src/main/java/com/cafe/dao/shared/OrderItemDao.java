@@ -11,20 +11,30 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * LÕI của bảng {@code sales.OrderItem}: hình dạng một dòng món và các thao tác mà MỌI luồng đều cần.
+ *
+ * <p>Ba nhóm truy vấn chuyên biệt đã tách ra file riêng, đặt tên soi gương tầng service để nhìn
+ * constructor là biết màn đó đụng gì:
+ * <ul>
+ *   <li>{@link OrderItemQueryDao} — đọc danh sách cho từng màn (hàng chờ, sẵn lấy, đã nhận…)</li>
+ *   <li>{@link OrderItemWorkflowDao} — nhận pha / pha xong / trả lại hàng chờ / thu hồi</li>
+ *   <li>{@link OrderItemIssueDao} — báo sự cố, chặn, bỏ chặn, làm lại</li>
+ * </ul>
+ *
+ * <p>Ở lại đây là những thứ không thuộc riêng nhóm nào: {@link #SELECT} + {@link #map} (hình dạng
+ * dòng, ba file kia đều dùng), {@code insert}, hai truy vấn tra cứu lẻ, và các hàm đổi trạng thái
+ * dùng chung. {@code pickUp} cũng ở lại vì luồng giao nhận ngoài nó ra chỉ xài
+ * {@link #updateStatusIf} — tách riêng một file cho đúng một method thì rời rạc hơn chứ không rõ hơn.
+ */
 public class OrderItemDao {
 
-    /** Aggregate read model derived from sales.OrderItem for the Barista dashboard. */
-    public record PreparationMetrics(
-            int myMakingCups,
-            int myCompletedCups,
-            long myAveragePreparationSeconds,
-            int branchWaitingCups,
-            int branchMakingCups,
-            int branchReadyCups,
-            int branchBlockedCups) {
-    }
-
-    private static final String SELECT =
+    /**
+     * Danh sách cột dùng chung cho mọi truy vấn đọc món, kể cả ở ba DAO chuyên biệt cùng package.
+     * Để một bản duy nhất ở đây vì {@link #map} đọc đúng bộ cột này — tách đôi là kiểu gì cũng có
+     * lúc thêm cột một bên mà quên bên kia.
+     */
+    static final String SELECT =
         "SELECT oi.OrderItemId, oi.OrderId, oi.BranchId, oi.ProductId, oi.Quantity, oi.UnitPrice,oi.BillId,oi.BilledAmount,oi.Note,oi.Status, " +
         "       oi.StartedAt, oi.DoneAt, oi.ServedAt, oi.BaristaId, oi.PreparedBy, " +
         "       oi.HasIssue, oi.IssueReason, oi.IssueReportedBy, oi.IssueReportedAt, " +
@@ -44,48 +54,6 @@ public class OrderItemDao {
         "LEFT JOIN sales.DiningTable dt ON dt.DiningTableId=o.DiningTableId " +
         "LEFT JOIN iam.UserAccount bu ON bu.UserId=oi.BaristaId " +
         "LEFT JOIN iam.UserAccount cu ON cu.UserId=oi.PreparedBy ";
-
-    /**
-     * Dashboard preparation metrics. Keeping this query here preserves one DAO owner for
-     * sales.OrderItem instead of introducing a role-specific metrics DAO over the same table.
-     */
-    public PreparationMetrics loadPreparationMetrics(Connection conn, int branchId, int userId,
-                                                      java.time.LocalDateTime businessDayStartUtc)
-            throws SQLException {
-        final String sql = "SELECT "
-            + "COALESCE(SUM(CASE WHEN oi.Status='MAKING' AND oi.BaristaId=? THEN oi.Quantity ELSE 0 END),0) AS MyMakingCups, "
-            + "COALESCE(SUM(CASE WHEN oi.PreparedBy=? AND oi.DoneAt>=? THEN oi.Quantity ELSE 0 END),0) AS MyCompletedCups, "
-            + "COALESCE(AVG(CASE WHEN oi.PreparedBy=? AND oi.DoneAt>=? AND oi.StartedAt IS NOT NULL "
-            + "THEN CONVERT(BIGINT,DATEDIFF(SECOND, oi.StartedAt, oi.DoneAt)) END),0) AS MyAvgPrepSeconds, "
-            + "COALESCE(SUM(CASE WHEN o.Status='ACTIVE' AND oi.Status='WAITING' THEN oi.Quantity ELSE 0 END),0) AS WaitingCups, "
-            + "COALESCE(SUM(CASE WHEN o.Status='ACTIVE' AND oi.Status='MAKING' THEN oi.Quantity ELSE 0 END),0) AS MakingCups, "
-            + "COALESCE(SUM(CASE WHEN o.Status='ACTIVE' AND oi.Status='READY' THEN oi.Quantity ELSE 0 END),0) AS ReadyCups, "
-            + "COALESCE(SUM(CASE WHEN o.Status='ACTIVE' AND oi.Status='BLOCKED' THEN oi.Quantity ELSE 0 END),0) AS BlockedCups "
-            + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
-            + "WHERE o.BranchId=? AND o.CreatedAt>=? "
-            + "AND oi.Status IN ('WAITING','MAKING','READY','PICKED_UP','SERVED','BLOCKED')";
-        Timestamp from = Timestamp.valueOf(businessDayStartUtc);
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, userId);
-            ps.setInt(2, userId);
-            ps.setTimestamp(3, from);
-            ps.setInt(4, userId);
-            ps.setTimestamp(5, from);
-            ps.setInt(6, branchId);
-            ps.setTimestamp(7, from);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) return new PreparationMetrics(0, 0, 0, 0, 0, 0, 0);
-                return new PreparationMetrics(
-                    rs.getInt("MyMakingCups"),
-                    rs.getInt("MyCompletedCups"),
-                    rs.getLong("MyAvgPrepSeconds"),
-                    rs.getInt("WaitingCups"),
-                    rs.getInt("MakingCups"),
-                    rs.getInt("ReadyCups"),
-                    rs.getInt("BlockedCups"));
-            }
-        }
-    }
 
     public int insert(Connection conn, OrderItem it) throws SQLException {
         final String sql = "INSERT INTO sales.OrderItem(OrderId,BranchId,ProductId,Quantity,UnitPrice,Note,Status,ProductNameAtOrder) " +
@@ -111,304 +79,13 @@ public class OrderItemDao {
     }
 
     public List<OrderItem> findByOrder(Connection conn, int orderId) throws SQLException {
-        List<OrderItem> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(SELECT + "WHERE oi.OrderId=? ORDER BY oi.OrderItemId")) {
             ps.setInt(1, orderId);
-            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
-        }
-        return out;
-    }
-
-    /**
-     * Quầy pha chế. Mỗi phần tử là đúng một dòng món, không gom theo đơn.
-     * BLOCKED nằm trong danh sách để món bị chặn vẫn hiện ở khu "Cần xử lý" —
-     * bỏ ra thì món biến mất khỏi mọi màn barista và khách chờ mãi không ai biết.
-     */
-    public List<OrderItem> findBaristaWorkbench(Connection conn, int branchId) throws SQLException {
-        return findBaristaWorkbench(conn, branchId, null);
-    }
-
-    /**
-     * @param businessDayStartUtc mốc đầu ngày kinh doanh; món tạo TRƯỚC mốc này bị loại khỏi
-     *        hàng chờ hiện tại (xem {@link #findStaleItems}). Truyền null để lấy tất cả.
-     *
-     * <p>Thứ tự pha: món phải làm lại lên đầu (khách đã đợi trọn một lượt rồi mới phải đợi lại),
-     * phần còn lại thuần FIFO theo giờ vào đơn — đặt trước thì pha trước. Cột {@code Priority}
-     * CỐ Ý không tham gia sắp xếp: nó chỉ do {@link #bump} và {@link #finishRemake} ghi, mà bump
-     * không còn lối vào trên giao diện, còn món làm lại đã được tầng RemakeCount lo.
-     */
-    public List<OrderItem> findBaristaWorkbench(Connection conn, int branchId,
-                                                java.time.LocalDateTime businessDayStartUtc) throws SQLException {
-        List<OrderItem> out = new ArrayList<>();
-        final String sql = SELECT +
-            "WHERE o.BranchId=? AND o.Status='ACTIVE' AND oi.Status IN ('WAITING','MAKING','READY','BLOCKED') " +
-            (businessDayStartUtc == null ? "" : "AND o.CreatedAt >= ? ") +
-            "ORDER BY CASE WHEN oi.RemakeCount>0 THEN 0 ELSE 1 END, o.CreatedAt, oi.OrderItemId";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, branchId);
-            if (businessDayStartUtc != null) ps.setTimestamp(2, Timestamp.valueOf(businessDayStartUtc));
-            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
-        }
-        return out;
-    }
-
-    /**
-     * Lịch sử các món đã pha xong trong một khoảng thời gian theo giờ UTC.
-     * Chỉ lấy các món đã pha xong thuộc đúng chi nhánh; {@code DoneAt} là mốc hoàn tất
-     * để món đã giao vẫn xuất hiện trong bàn giao ca.
-     */
-    public List<OrderItem> findBrewedToday(Connection conn, int branchId,
-                                            java.time.LocalDateTime fromUtc,
-                                            java.time.LocalDateTime toUtc) throws SQLException {
-        List<OrderItem> out = new ArrayList<>();
-        final String sql = SELECT +
-            "WHERE o.BranchId=? AND oi.Status IN ('READY','PICKED_UP','SERVED') " +
-            "AND oi.DoneAt >= ? AND oi.DoneAt < ? " +
-            "ORDER BY oi.DoneAt DESC, oi.OrderItemId DESC";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, branchId);
-            ps.setTimestamp(2, Timestamp.valueOf(fromUtc));
-            ps.setTimestamp(3, Timestamp.valueOf(toUtc));
-            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
-        }
-        return out;
-    }
-
-    /** Bảng lấy món: READY của chi nhánh, đơn còn ACTIVE. Cũ nhất trước (tie-break theo Id cho ổn định). */
-    public List<OrderItem> findReady(Connection conn, int branchId) throws SQLException {
-        List<OrderItem> out = new ArrayList<>();
-        final String sql = SELECT +
-            "WHERE o.BranchId=? AND o.Status='ACTIVE' AND oi.Status='READY' " +
-            "ORDER BY oi.DoneAt, oi.OrderItemId";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, branchId);
-            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
-        }
-        return out;
-    }
-
-    /** B2 · Món vừa giao gần đây (SERVED, ServedAt trong {@code minutes} phút) để hoàn tác giao nhầm. Mới giao trước. */
-    public List<OrderItem> findRecentlyServed(Connection conn, int branchId, int minutes) throws SQLException {
-        List<OrderItem> out = new ArrayList<>();
-        final String sql = SELECT +
-            "WHERE o.BranchId=? AND oi.Status='SERVED' AND oi.ServedAt IS NOT NULL " +
-            "  AND oi.ServedAt >= DATEADD(MINUTE, ?, SYSUTCDATETIME()) " +
-            "ORDER BY oi.ServedAt DESC, oi.OrderItemId DESC";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, branchId);
-            ps.setInt(2, -Math.abs(minutes));
-            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
-        }
-        return out;
-    }
-
-    /** Món nhân viên đã nhận khỏi quầy, đang mang giao khách. */
-    public List<OrderItem> findPickedUp(Connection conn, int branchId) throws SQLException {
-        List<OrderItem> out = new ArrayList<>();
-        final String sql = SELECT + "WHERE o.BranchId=? AND o.Status='ACTIVE' AND oi.Status='PICKED_UP' "
-                + "ORDER BY oi.PickedUpAt,oi.OrderItemId";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, branchId);
-            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
-        }
-        return out;
-    }
-
-    /** Các món đang mở (chưa SERVED/CANCELLED) của một danh sách đơn — gom 1 query cho màn Pickup (tránh N+1). */
-    public List<OrderItem> findByOrders(Connection conn, List<Integer> orderIds) throws SQLException {
-        List<OrderItem> out = new ArrayList<>();
-        if (orderIds == null || orderIds.isEmpty()) return out;
-        StringBuilder in = new StringBuilder();
-        for (int i = 0; i < orderIds.size(); i++) in.append(i == 0 ? "?" : ",?");
-        final String sql = SELECT + "WHERE oi.OrderId IN (" + in + ") ORDER BY oi.OrderId, oi.OrderItemId";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            int idx = 1;
-            for (Integer id : orderIds) ps.setInt(idx++, id);
-            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
-        }
-        return out;
-    }
-
-    /** Các món của các đơn tại một bàn (cho khách theo dõi). */
-    public List<OrderItem> findByTable(Connection conn, int tableId) throws SQLException {
-        List<OrderItem> out = new ArrayList<>();
-        final String sql = SELECT + "WHERE o.DiningTableId=? AND EXISTS (" +
-                "SELECT 1 FROM sales.OrderItem currentItem " +
-                "LEFT JOIN payment.Bill currentBill ON currentBill.BillId=currentItem.BillId " +
-                "WHERE currentItem.OrderId=o.OrderId AND currentItem.Status<>'CANCELLED' " +
-                "AND (currentItem.BillId IS NULL OR currentBill.Status='UNPAID')) " +
-                "ORDER BY oi.OrderItemId";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, tableId);
-            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
-        }
-        return out;
-    }
-
-    /** WAITING → MAKING, lưu chủ sở hữu trong cùng câu UPDATE để khóa claim. */
-    public int claim(Connection conn, int orderItemId, int branchId, int baristaId) throws SQLException {
-        final String sql = "UPDATE oi SET oi.Status='MAKING',oi.BaristaId=?,oi.StartedAt=SYSUTCDATETIME() "
-                + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
-                + "WHERE oi.OrderItemId=? AND o.BranchId=? AND o.Status='ACTIVE' AND oi.Status='WAITING'";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, baristaId); ps.setInt(2, orderItemId); ps.setInt(3, branchId);
-            return ps.executeUpdate();
+            return mapAll(ps);
         }
     }
 
-    /** Chỉ người đã nhận món mới được hoàn thành. */
-    public int completeClaimed(Connection conn, int orderItemId, int branchId, int baristaId) throws SQLException {
-        final String sql = "UPDATE oi SET oi.Status='READY',oi.DoneAt=SYSUTCDATETIME(),oi.PreparedBy=?,"
-                + "oi.HasIssue=0,oi.IssueReason=NULL,oi.RemakeInventoryReserved=0 "
-                + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
-                + "WHERE oi.OrderItemId=? AND o.BranchId=? AND oi.Status='MAKING' AND oi.BaristaId=?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, baristaId);
-            ps.setInt(2, orderItemId); ps.setInt(3, branchId); ps.setInt(4, baristaId);
-            return ps.executeUpdate();
-        }
-    }
-
-    /**
-     * Số dòng món barista này đang giữ ở trạng thái đang pha — cổng tan ca đọc con số này.
-     * Chỉ đếm MAKING: món BLOCKED đã rời hàng chờ và không còn mang tên ai, tính vào sẽ khoá
-     * barista bằng thứ chính họ không gỡ được (phải chờ nhập nguyên liệu hoặc Thu ngân huỷ).
-     */
-    public int countMakingByBarista(Connection conn, int branchId, int baristaId) throws SQLException {
-        final String sql = "SELECT COUNT(*) FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
-                + "WHERE o.BranchId=? AND o.Status='ACTIVE' AND oi.Status='MAKING' AND oi.BaristaId=?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, branchId); ps.setInt(2, baristaId);
-            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getInt(1) : 0; }
-        }
-    }
-
-    /**
-     * Thu hồi món của barista ĐÃ RỜI CA về hàng chờ. Khác {@link #returnToQueue} ở chỗ người bấm
-     * không phải chủ món; vẫn guard theo chủ món ĐANG kỳ vọng để không thắng cuộc đua với chính
-     * họ vừa bấm Xong (khi đó BaristaId/Status đã đổi, affected=0 → caller báo conflict).
-     */
-    public int reclaim(Connection conn, int orderItemId, int branchId, int expectedBaristaId) throws SQLException {
-        final String sql = "UPDATE oi SET oi.Status='WAITING',oi.BaristaId=NULL,oi.StartedAt=NULL "
-                + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
-                + "WHERE oi.OrderItemId=? AND o.BranchId=? AND o.Status='ACTIVE' "
-                + "  AND oi.Status='MAKING' AND oi.BaristaId=?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, orderItemId); ps.setInt(2, branchId); ps.setInt(3, expectedBaristaId);
-            return ps.executeUpdate();
-        }
-    }
-
-    public int returnToQueue(Connection conn, int orderItemId, int branchId, int baristaId) throws SQLException {
-        final String sql = "UPDATE oi SET oi.Status='WAITING',oi.BaristaId=NULL,oi.StartedAt=NULL "
-                + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
-                + "WHERE oi.OrderItemId=? AND o.BranchId=? AND oi.Status='MAKING' AND oi.BaristaId=?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, orderItemId); ps.setInt(2, branchId); ps.setInt(3, baristaId);
-            return ps.executeUpdate();
-        }
-    }
-
-    /** Gắn cờ sự cố nhưng giữ trạng thái để card không biến mất khỏi người đang xử lý. */
-    public int reportIssue(Connection conn, int orderItemId, int branchId, int userId, String reason) throws SQLException {
-        final String sql = "UPDATE oi SET oi.HasIssue=1,oi.IssueReason=?,oi.IssueReportedBy=?,oi.IssueReportedAt=SYSUTCDATETIME() "
-                + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
-                + "WHERE oi.OrderItemId=? AND o.BranchId=? AND oi.Status IN ('WAITING','MAKING') "
-                + "AND (oi.Status='WAITING' OR oi.BaristaId=?)";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, reason); ps.setInt(2, userId); ps.setInt(3, orderItemId);
-            ps.setInt(4, branchId); ps.setInt(5, userId);
-            return ps.executeUpdate();
-        }
-    }
-
-    /**
-     * WAITING/MAKING → BLOCKED: món không pha được (hết nguyên liệu, hỏng máy, ngừng bán).
-     * Nhả luôn người nhận + mốc bắt đầu vì món đã rời khỏi luồng pha; giữ lý do để hiện ở khu "Cần xử lý".
-     * Guard giống reportIssue: món đang pha thì chỉ chính chủ được chặn.
-     */
-    public int blockItem(Connection conn, int orderItemId, int branchId, int userId, String reason) throws SQLException {
-        final String sql = "UPDATE oi SET oi.Status='BLOCKED',oi.HasIssue=1,oi.IssueReason=?,"
-                + "oi.IssueReportedBy=?,oi.IssueReportedAt=SYSUTCDATETIME(),oi.BaristaId=NULL,oi.StartedAt=NULL "
-                + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
-                + "WHERE oi.OrderItemId=? AND o.BranchId=? AND o.Status='ACTIVE' "
-                + "AND oi.Status IN ('WAITING','MAKING') AND (oi.Status='WAITING' OR oi.BaristaId=?)";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, reason); ps.setInt(2, userId); ps.setInt(3, orderItemId);
-            ps.setInt(4, branchId); ps.setInt(5, userId);
-            return ps.executeUpdate();
-        }
-    }
-
-    /** BLOCKED → WAITING: nguyên liệu/máy đã có lại, trả món về hàng chờ và xoá sạch cờ sự cố. */
-    public int unblockItem(Connection conn, int orderItemId, int branchId) throws SQLException {
-        final String sql = "UPDATE oi SET oi.Status='WAITING',oi.HasIssue=0,oi.IssueReason=NULL,"
-                + "oi.IssueReportedBy=NULL,oi.IssueReportedAt=NULL "
-                + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
-                + "WHERE oi.OrderItemId=? AND o.BranchId=? AND o.Status='ACTIVE' AND oi.Status='BLOCKED'";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, orderItemId); ps.setInt(2, branchId);
-            return ps.executeUpdate();
-        }
-    }
-
-    /** Đếm các dòng món BLOCKED còn lại trong chi nhánh có dùng một trong các nguyên liệu vừa kiểm kê. */
-    public int countBlockedUsingIngredients(Connection conn, int branchId,
-                                            java.util.Collection<Integer> ingredientIds) throws SQLException {
-        if (ingredientIds == null || ingredientIds.isEmpty()) return 0;
-        StringBuilder in = new StringBuilder();
-        for (int i = 0; i < ingredientIds.size(); i++) in.append(i == 0 ? "?" : ",?");
-        final String sql =
-            "SELECT COUNT(DISTINCT oi.OrderItemId) " +
-            "FROM sales.OrderItem oi " +
-            "JOIN sales.SalesOrder o ON o.OrderId = oi.OrderId " +
-            "JOIN catalog.Recipe pr ON pr.OwnerType='PRODUCT' AND pr.OwnerId=oi.ProductId " +
-            "WHERE o.BranchId = ? AND o.Status = 'ACTIVE' AND oi.Status = 'BLOCKED' " +
-            "AND pr.IngredientId IN (" + in + ")";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            int idx = 1;
-            ps.setInt(idx++, branchId);
-            for (Integer ingredientId : ingredientIds) ps.setInt(idx++, ingredientId);
-            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getInt(1) : 0; }
-        }
-    }
-
-    /** READY → REMAKE là claim chuyển tiếp, chống hai người tạo remake trùng. */
-    public int beginRemake(Connection conn, int orderItemId, int branchId) throws SQLException {
-        final String sql = "UPDATE oi SET oi.Status='REMAKE' FROM sales.OrderItem oi "
-                + "JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId WHERE oi.OrderItemId=? AND o.BranchId=? AND oi.Status='READY'";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, orderItemId); ps.setInt(2, branchId); return ps.executeUpdate();
-        }
-    }
-
-    /** MAKING → REMAKE chỉ barista đang giữ món được báo pha lỗi/làm lại. */
-    public int beginRemakeClaimed(Connection conn, int orderItemId, int branchId, int baristaId) throws SQLException {
-        final String sql = "UPDATE oi SET oi.Status='REMAKE' FROM sales.OrderItem oi "
-                + "JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId WHERE oi.OrderItemId=? AND o.BranchId=? AND oi.Status='MAKING' AND oi.BaristaId=?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, orderItemId); ps.setInt(2, branchId); ps.setInt(3, baristaId); return ps.executeUpdate();
-        }
-    }
-
-    /**
-     * REMAKE → WAITING với ưu tiên làm lại. {@code inventoryReserved} quyết định lần bấm Xong kế
-     * tiếp có trừ kho nữa hay không — quy tắc ở {@link com.cafe.common.RemakeReservation}.
-     */
-    public void finishRemake(Connection conn, int orderItemId, int branchId, boolean inventoryReserved)
-            throws SQLException {
-        final String sql = "UPDATE oi SET oi.Status='WAITING',oi.Priority=(SELECT ISNULL(MAX(x.Priority),0)+1 "
-                + "FROM sales.OrderItem x JOIN sales.SalesOrder xo ON xo.OrderId=x.OrderId WHERE xo.BranchId=?),"
-                + "oi.RemakeCount=oi.RemakeCount+1,oi.RemakeInventoryReserved=?,oi.BaristaId=NULL,oi.PreparedBy=NULL,"
-                + "oi.StartedAt=NULL,oi.DoneAt=NULL,oi.HasIssue=0,oi.IssueReason=NULL "
-                + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
-                + "WHERE oi.OrderItemId=? AND o.BranchId=? AND oi.Status='REMAKE'";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, branchId); ps.setBoolean(2, inventoryReserved);
-            ps.setInt(3, orderItemId); ps.setInt(4, branchId); ps.executeUpdate();
-        }
-    }
-
+    /** READY → PICKED_UP: nhân viên nhận món khỏi quầy để mang ra cho khách. */
     public int pickUp(Connection conn, int orderItemId, int branchId, int userId) throws SQLException {
         final String sql = "UPDATE oi SET oi.Status='PICKED_UP',oi.PickedUpBy=?,oi.PickedUpAt=SYSUTCDATETIME() "
                 + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
@@ -488,7 +165,14 @@ public class OrderItemDao {
         }
     }
 
-    private OrderItem map(ResultSet rs) throws SQLException {
+    /** Chạy truy vấn đã nạp đủ tham số rồi ánh xạ toàn bộ dòng. Dùng chung với ba DAO cùng package. */
+    static List<OrderItem> mapAll(PreparedStatement ps) throws SQLException {
+        List<OrderItem> out = new ArrayList<>();
+        try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
+        return out;
+    }
+
+    static OrderItem map(ResultSet rs) throws SQLException {
         OrderItem it = new OrderItem();
         it.setOrderItemId(rs.getInt("OrderItemId"));
         it.setOrderId(rs.getInt("OrderId"));

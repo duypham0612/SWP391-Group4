@@ -27,7 +27,7 @@ public final class KdsOrderWorkflowService {
         return repository.tx(conn -> {
             OrderItem it = repository.itemDao.findById(conn, orderItemId);
             if (it == null) return false;
-            int rows = repository.itemDao.claim(conn, orderItemId, sessionBranchId, userId);
+            int rows = repository.itemWorkflowDao.claim(conn, orderItemId, sessionBranchId, userId);
             if (rows == 0) return false;   // sai trạng thái / khác chi nhánh / đã bị đổi
         repository.activityLogDao.insertOrderItem(conn, orderItemId, sessionBranchId, "CLAIM", "WAITING", "MAKING", null, userId);
             repository.publishStatus(conn, it, "MAKING");
@@ -57,7 +57,7 @@ public final class KdsOrderWorkflowService {
      */
     private boolean completeInTx(Connection conn, OrderItem it, int userId, int sessionBranchId) throws SQLException {
         int orderItemId = it.getOrderItemId();
-        int rows = repository.itemDao.completeClaimed(conn, orderItemId, sessionBranchId, userId);
+        int rows = repository.itemWorkflowDao.completeClaimed(conn, orderItemId, sessionBranchId, userId);
         if (rows == 0) return false;   // đã READY/SERVED/CANCELLED / khác chi nhánh → không trừ kho
         int branchId = repository.branchOf(it);
         if (!it.isRemakeInventoryReserved()) {
@@ -83,7 +83,7 @@ public final class KdsOrderWorkflowService {
             int count = 0;
             for (OrderItem it : repository.itemDao.findByOrder(conn, orderId)) {
                 if (!"WAITING".equals(it.getStatus())) continue;
-                if (repository.itemDao.claim(conn, it.getOrderItemId(), sessionBranchId, userId) == 0) continue;
+                if (repository.itemWorkflowDao.claim(conn, it.getOrderItemId(), sessionBranchId, userId) == 0) continue;
             repository.activityLogDao.insertOrderItem(conn, it.getOrderItemId(), sessionBranchId, "CLAIM", "WAITING", "MAKING", null, userId);
                 repository.publishStatus(conn, it, "MAKING");
                 count++;
@@ -141,7 +141,7 @@ public final class KdsOrderWorkflowService {
      */
     public int countMyMakingItems(int branchId, int userId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            return repository.itemDao.countMakingByBarista(conn, branchId, userId);
+            return repository.itemWorkflowDao.countMakingByBarista(conn, branchId, userId);
         }
     }
 
@@ -166,7 +166,7 @@ public final class KdsOrderWorkflowService {
             if (onDuty.contains(it.getBaristaId())) {
                 throw new BusinessException("Người này vẫn đang trong ca — nhờ họ bấm “Trả lại chờ” cho món này.");
             }
-            if (repository.itemDao.reclaim(conn, orderItemId, branchId, it.getBaristaId()) == 0) return false;
+            if (repository.itemWorkflowDao.reclaim(conn, orderItemId, branchId, it.getBaristaId()) == 0) return false;
             String reason = "Thu hồi từ " + (it.getBaristaName() == null ? "barista đã rời ca" : it.getBaristaName())
                     + (actorName == null || actorName.isBlank() ? "" : " bởi " + actorName);
             repository.activityLogDao.insertOrderItem(conn, orderItemId, branchId, "RETURN_QUEUE", "MAKING", "WAITING",
@@ -181,7 +181,7 @@ public final class KdsOrderWorkflowService {
         if (userId == null) return false;
         return repository.tx(conn -> {
             OrderItem it = repository.itemDao.findById(conn, orderItemId);
-            if (it == null || repository.itemDao.returnToQueue(conn, orderItemId, branchId, userId) == 0) return false;
+            if (it == null || repository.itemWorkflowDao.returnToQueue(conn, orderItemId, branchId, userId) == 0) return false;
         repository.activityLogDao.insertOrderItem(conn, orderItemId, branchId, "RETURN_QUEUE", "MAKING", "WAITING", null, userId);
             repository.publishStatus(conn, it, "WAITING");
             return true;

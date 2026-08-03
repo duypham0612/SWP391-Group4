@@ -118,19 +118,6 @@ public class BillDao {
         }
     }
 
-    /** Số hoá đơn đã thu (PAID) hôm nay của chi nhánh — "số đơn đã thực hiện" (R1/R2). */
-    public int countPaidToday(Connection conn, int branchId,
-                              LocalDateTime fromUtc, LocalDateTime toUtc) throws SQLException {
-        final String sql = "SELECT COUNT(*) FROM payment.Bill " +
-                "WHERE BranchId=? AND Status='PAID' AND PaidAt>=? AND PaidAt<?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, branchId);
-            ps.setTimestamp(2, Timestamp.valueOf(fromUtc));
-            ps.setTimestamp(3, Timestamp.valueOf(toUtc));
-            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getInt(1) : 0; }
-        }
-    }
-
     /** Doanh thu hóa đơn trong khoảng UTC nửa mở [from, to), dùng cho ngày lịch Việt Nam. */
     public BigDecimal sumPaidBetween(Connection conn, int branchId,
                                      LocalDateTime fromUtc, LocalDateTime toUtc) throws SQLException {
@@ -159,19 +146,6 @@ public class BillDao {
                 return rs.next() ? rs.getInt(1) : 0;
             }
         }
-    }
-
-    /** Status mọi bill có dòng thuộc các đơn tại bàn. */
-    public List<String> findStatusesByTable(Connection conn, int tableId) throws SQLException {
-        List<String> out = new ArrayList<>();
-        final String sql = "SELECT DISTINCT b.Status FROM payment.Bill b " +
-                "JOIN sales.OrderItem oi ON oi.BillId=b.BillId " +
-                "JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId WHERE o.DiningTableId=?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, tableId);
-            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(rs.getString(1)); }
-        }
-        return out;
     }
 
     /** Status bill gắn trực tiếp với các món của đơn mang đi. */

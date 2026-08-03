@@ -79,33 +79,6 @@ public class RecipeDao {
         return out;
     }
 
-    /** Nạp impact của mọi option thuộc một group, vẫn map về cùng model Recipe. */
-    public List<Recipe> findModifierLinesByGroup(Connection conn, int groupId) throws SQLException {
-        String sql = SELECT_LINES
-                + "JOIN catalog.ModifierOption o ON o.ModifierOptionId=r.OwnerId "
-                + "WHERE r.OwnerType=? AND o.ModifierGroupId=? ORDER BY r.OwnerId,i.Name";
-        List<Recipe> out = new ArrayList<>();
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, Recipe.OWNER_MODIFIER);
-            ps.setInt(2, groupId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) out.add(map(rs));
-            }
-        }
-        return out;
-    }
-
-    public boolean exists(Connection conn, String ownerType, int ownerId, int ingredientId)
-            throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "SELECT 1 FROM catalog.Recipe WHERE OwnerType=? AND OwnerId=? AND IngredientId=?")) {
-            ps.setString(1, ownerType);
-            ps.setInt(2, ownerId);
-            ps.setInt(3, ingredientId);
-            try (ResultSet rs = ps.executeQuery()) { return rs.next(); }
-        }
-    }
-
     public void insert(Connection conn, Recipe line) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
                 "INSERT INTO catalog.Recipe(OwnerType,OwnerId,IngredientId,Quantity) VALUES (?,?,?,?)")) {
@@ -136,15 +109,6 @@ public class RecipeDao {
             ps.setInt(1, recipeId);
             ps.setString(2, ownerType);
             ps.setInt(3, ownerId);
-            return ps.executeUpdate();
-        }
-    }
-
-    public int deleteByOwner(Connection conn, String ownerType, int ownerId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "DELETE FROM catalog.Recipe WHERE OwnerType=? AND OwnerId=?")) {
-            ps.setString(1, ownerType);
-            ps.setInt(2, ownerId);
             return ps.executeUpdate();
         }
     }
@@ -197,14 +161,6 @@ public class RecipeDao {
                             .include(rs.getString("StockState"), rs.getString("IngredientName"));
                 }
             }
-        }
-        return out;
-    }
-
-    public Set<Integer> findDepletedProductIds(Connection conn, int branchId) throws SQLException {
-        Set<Integer> out = new HashSet<>();
-        for (ProductStockStatus status : findProductStockStatuses(conn, branchId).values()) {
-            if (status.isOut()) out.add(status.getProductId());
         }
         return out;
     }

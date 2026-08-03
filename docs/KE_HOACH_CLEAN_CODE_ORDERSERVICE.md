@@ -325,6 +325,38 @@ DAO không trạng thái, và mỗi giao dịch tự lấy connection từ pool 
 
 ---
 
+## 5b. Đợt 4 — Tách tầng DAO 🟢 XONG (2026-08-03)
+
+**Yêu cầu gốc:** "tách phần DAO của role barista ra cho dễ đọc, dễ review".
+
+**Khảo sát trước đã, và kết quả làm đổi cách làm:** `dao/` vốn đã tách theo thực thể (37 file), và
+**không DAO nào chỉ barista dùng** — tất cả chia chung với cashier/QR. Nên tạo `dao/barista/` sẽ đặt
+code dùng chung dưới tên một role: khó review hơn chứ không dễ hơn, vì người sửa cashier sẽ phải mở
+thư mục barista. Đã tách **theo mối quan tâm**, soi gương tầng service vừa dựng ở Đợt 3.
+
+`OrderItemDao` 541 dòng / 27 method → 4 file:
+
+| File | Dòng | Nội dung | Soi gương service |
+|---|---|---|---|
+| `OrderItemDao` | 224 | `SELECT` + `map` + `insert` + tra cứu lẻ + đổi trạng thái dùng chung + `pickUp` | (lõi) |
+| `OrderItemQueryDao` | 170 | 7 truy vấn danh sách theo màn + số liệu bảng điều khiển | `OrderQueryService` |
+| `OrderItemWorkflowDao` | 84 | nhận pha / pha xong / trả lại / thu hồi | `KdsOrderWorkflowService` |
+| `OrderItemIssueDao` | 124 | báo sự cố, chặn, bỏ chặn, làm lại | `OrderIssueService` |
+
+**Hai quyết định đáng ghi lại:**
+- `SELECT` và `map` ở LẠI lõi (package-private) chứ không nhân bản: chúng phải khớp nhau từng cột,
+  tách đôi là kiểu gì cũng có lúc thêm cột một bên mà quên bên kia.
+- `pickUp` ở lại lõi thay vì mở file thứ 5: luồng giao nhận ngoài nó ra chỉ xài `updateStatusIf`,
+  một file cho đúng một method thì rời rạc hơn chứ không rõ hơn.
+
+**Kiểm chứng:** script đối chiếu thân 26 method trước/sau, đọc bản cũ **thẳng từ git** — toàn bộ
+chuỗi SQL giữ nguyên từng ký tự. Thêm `mvn clean verify` 352/352 và CI 74/74.
+
+**Dọn kèm:** 10 method chết thật trong `dao/**` (xem §6). `loadPreparationMetrics` giữ lại dù không
+có caller production — nó có test riêng và là read model có chủ đích, xoá là quyết định của chủ dự án.
+
+---
+
 ## 6. Sổ ghi nhận phát sinh
 
 | Ngày | File | Vấn đề | Trạng thái |

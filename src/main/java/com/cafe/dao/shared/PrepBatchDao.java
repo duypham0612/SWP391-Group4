@@ -251,16 +251,6 @@ public class PrepBatchDao {
         }
     }
 
-    public int updateQuantity(Connection conn, int prepBatchId, BigDecimal qtyProduced, BigDecimal expectedQtyProduced) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE inventory.PrepBatch SET QuantityProduced=? WHERE PrepBatchId=? AND Status='ACTIVE' AND QuantityProduced=?")) {
-            ps.setBigDecimal(1, qtyProduced);
-            ps.setInt(2, prepBatchId);
-            ps.setBigDecimal(3, expectedQtyProduced);
-            return ps.executeUpdate();
-        }
-    }
-
     /** Optimistic update scoped to the current branch. */
     public int updateQuantityForBranch(Connection conn, int prepBatchId, int branchId,
                                        BigDecimal qtyProduced, BigDecimal expectedQtyProduced) throws SQLException {

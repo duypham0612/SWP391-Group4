@@ -43,7 +43,7 @@ public final class BillCreationService {
                 Integer defaultBillId = bills.isEmpty() ? null : bills.get(0).getBillId();
                 if (defaultBillId != null) repository.billDao.findByIdForUpdate(conn, defaultBillId);
                 boolean changed = false;
-                for (OrderItem item : repository.orderItemDao.findByTable(conn, tableId)) {
+                for (OrderItem item : repository.itemQueryDao.findByTable(conn, tableId)) {
                     if ("CANCELLED".equals(item.getStatus()) || item.getBillId() != null) continue;
                     if (defaultBillId == null) defaultBillId = repository.billDao.insert(conn, branchId, shiftId);
                     repository.billLineDao.insert(conn, defaultBillId, item.getOrderItemId());
