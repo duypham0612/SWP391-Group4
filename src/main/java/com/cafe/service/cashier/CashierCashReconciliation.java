@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 public final class CashierCashReconciliation {
 
     private static final BigDecimal MAX_MONEY = new BigDecimal("999999999999.99");
+    static final BigDecimal MIN_OPENING_CASH_EXCLUSIVE = new BigDecimal("500000");
 
     private CashierCashReconciliation() {
     }
@@ -35,6 +36,14 @@ public final class CashierCashReconciliation {
         }
         if (value.compareTo(MAX_MONEY) > 0 || value.stripTrailingZeros().scale() > 2) {
             throw new IllegalArgumentException(fieldName + " không hợp lệ.");
+        }
+    }
+
+    /** Quỹ đầu ca phải đủ tiền lẻ để vận hành; không áp dụng cho số tiền kết ca. */
+    public static void requireValidOpeningCash(BigDecimal openingCash) {
+        requireValidMoney(openingCash, "Quỹ đầu ca");
+        if (openingCash.compareTo(MIN_OPENING_CASH_EXCLUSIVE) <= 0) {
+            throw new IllegalArgumentException("Quỹ đầu ca phải lớn hơn 500.000đ.");
         }
     }
 

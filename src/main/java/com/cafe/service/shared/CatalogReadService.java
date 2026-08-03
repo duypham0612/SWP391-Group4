@@ -261,6 +261,8 @@ public class CatalogReadService {
     }
 
     private static boolean isChoiceGroup(String name) {
-        return ModifierGroupNames.isStandardChoice(name);
+        // Schema cho phép nhóm tuỳ chọn bất kỳ (topping, sữa hạt, extra shot...);
+        // POS đã có UI checkbox/radio theo MinSelect/MaxSelect nên không được âm thầm lọc chúng.
+        return name != null && !name.isBlank();
     }
 }

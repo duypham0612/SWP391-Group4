@@ -27,6 +27,7 @@ public final class BillVoidService {
             List<BillLine> released = repository.billLineDao.findByBill(c, billId);
             int r = repository.billDao.markVoid(c, billId);
             if (r > 0) {
+                repository.voucherRedemptionDao.releaseForBill(c, billId);
                 // Nhả cặp BillId/BilledAmount trong CÙNG transaction để dòng có thể lên bill mới.
                 repository.billLineDao.deleteByBill(c, billId);
 

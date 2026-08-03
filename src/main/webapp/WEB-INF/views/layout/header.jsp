@@ -33,6 +33,7 @@
     <c:if test="${_b.contains(',kds,')}"><link rel="stylesheet" href="${ctx}/assets/css/kds.css?v=${applicationScope.assetVersion}"></c:if>
     <c:if test="${_b.contains(',list-controls,')}"><link rel="stylesheet" href="${ctx}/assets/css/list-controls.css?v=${applicationScope.assetVersion}"></c:if>
     <c:if test="${_b.contains(',barista,')}"><link rel="stylesheet" href="${ctx}/assets/css/barista.css?v=${applicationScope.assetVersion}"></c:if>
+    <c:if test="${_b.contains(',checkout,')}"><link rel="stylesheet" href="${ctx}/assets/css/checkout.css?v=${applicationScope.assetVersion}"></c:if>
     <link rel="stylesheet" href="${ctx}/assets/css/responsive.css?v=${applicationScope.assetVersion}">
 </head>
 <body class="${bodyClass}">

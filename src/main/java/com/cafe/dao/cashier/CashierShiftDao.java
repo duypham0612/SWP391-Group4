@@ -20,12 +20,19 @@ public class CashierShiftDao {
         "FROM payment.CashierShift cs JOIN iam.UserAccount u ON u.UserId=cs.CashierId ";
 
     public int insertOpen(Connection conn, int branchId, int cashierId, BigDecimal openingCash) throws SQLException {
-        final String sql = "INSERT INTO payment.CashierShift(BranchId, CashierId, OpeningCash) VALUES (?,?,?)";
+        // Ràng buộc nghiệp vụ nằm ngay tại DAO để mọi caller đều bị chặn,
+        // kể cả khi bỏ qua service: quỹ đầu ca phải lớn hơn 500.000đ.
+        final String sql = "INSERT INTO payment.CashierShift(BranchId, CashierId, OpeningCash) "
+                + "SELECT ?, ?, ? WHERE ? > 500000";
+        BigDecimal amount = openingCash == null ? BigDecimal.ZERO : openingCash;
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setInt(1, branchId);
             ps.setInt(2, cashierId);
-            ps.setBigDecimal(3, openingCash == null ? BigDecimal.ZERO : openingCash);
-            ps.executeUpdate();
+            ps.setBigDecimal(3, amount);
+            ps.setBigDecimal(4, amount);
+            if (ps.executeUpdate() != 1) {
+                throw new IllegalArgumentException("Quỹ đầu ca phải lớn hơn 500.000đ.");
+            }
             try (ResultSet k = ps.getGeneratedKeys()) { return k.next() ? k.getInt(1) : 0; }
         }
     }

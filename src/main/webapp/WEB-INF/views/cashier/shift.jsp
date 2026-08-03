@@ -96,7 +96,7 @@
                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                 <input type="hidden" name="action" value="startDuty">
                 <div class="form-group" style="margin:0;width:220px"><label>Quỹ đầu ca (tiền mặt)</label>
-                    <input type="number" name="openingCash" class="form-control" min="0" step="1000" value="${not empty current ? current.openingCash : 0}"></div>
+                    <input type="number" name="openingCash" class="form-control" min="501000" step="1000" required placeholder="Nhập lớn hơn 500.000"></div>
                 <button type="submit" class="btn btn-primary">Bắt đầu ca</button>
             </form>
         </c:otherwise>

@@ -128,7 +128,7 @@
                                 <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--st-cancelled)">Huỷ đơn</button>
                             </form>
                         </c:when>
-                        <c:otherwise><small class="muted">Đang/đã pha — không thể huỷ đơn</small></c:otherwise>
+                        <c:otherwise><small class="muted">Đang pha, đã nhận hoặc đã giao món — không thể huỷ đơn</small></c:otherwise>
                     </c:choose>
                 </div>
             </article>

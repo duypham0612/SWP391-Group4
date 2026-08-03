@@ -37,8 +37,6 @@ public final class BillingService {
     public List<Bill> buildTakeawayBill(int orderId, int branchId, Integer shiftId) throws SQLException { return creationService.buildTakeawayBill(orderId, branchId, shiftId); }
     public void splitItems(int tableId, int branchId, Integer shiftId, List<Integer> ids) throws SQLException { creationService.splitItems(tableId, branchId, shiftId, ids); }
     public void mergeBills(List<Integer> ids, int branchId) throws SQLException { creationService.mergeBills(ids, branchId); }
-    public void setDiscount(int billId, BigDecimal discount, int branchId) throws SQLException { creationService.setDiscount(billId, discount, branchId); }
-
     public PaymentResult payBill(int billId, String method, Integer shiftId, BigDecimal cashTendered) throws SQLException {
         PaymentService.PaymentResult result = paymentService.payBill(billId, method, shiftId, cashTendered);
         return new PaymentResult(result.paid(), result.paidAmount(), result.cashTendered(),

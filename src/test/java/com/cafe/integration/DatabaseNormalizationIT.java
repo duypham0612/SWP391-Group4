@@ -221,15 +221,15 @@ public class DatabaseNormalizationIT extends SqlServerIntegrationSupport {
         try (Connection current = connection()) {
             SchemaVersionGuard.Status status = SchemaVersionGuard.check(current);
             assertTrue(status.up());
-            assertEquals("1", status.expectedVersion());
-            assertEquals("1", status.actualVersion());
+            assertEquals("2", status.expectedVersion());
+            assertEquals("2", status.actualVersion());
         }
         String masterUrl = cafeJdbcUrl().replaceFirst("(?i)databaseName=[^;]+", "databaseName=master");
         try (Connection master = DriverManager.getConnection(
                 masterUrl, databaseUsername(), databasePassword())) {
             SchemaVersionGuard.Status status = SchemaVersionGuard.check(master);
             assertFalse(status.up());
-            assertEquals("1", status.expectedVersion());
+            assertEquals("2", status.expectedVersion());
             assertNull(status.actualVersion());
         }
     }
