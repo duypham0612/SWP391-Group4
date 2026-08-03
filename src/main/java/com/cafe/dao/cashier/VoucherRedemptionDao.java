@@ -21,6 +21,7 @@ public final class VoucherRedemptionDao {
     }
 
     public String findCodeByBill(Connection conn, int billId) throws SQLException {
+        if (!redemptionTableExists(conn)) return null;
         try (PreparedStatement ps = conn.prepareStatement(
                 "SELECT CodeAtRedemption FROM promotion.VoucherRedemption WHERE BillId=?")) {
             ps.setInt(1, billId);
@@ -75,5 +76,14 @@ public final class VoucherRedemptionDao {
         v.setStartsAt(starts == null ? null : starts.toLocalDateTime()); v.setEndsAt(ends == null ? null : ends.toLocalDateTime());
         v.setActive(rs.getBoolean("IsActive"));
         return v;
+    }
+
+    private boolean redemptionTableExists(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT CASE WHEN OBJECT_ID(N'promotion.VoucherRedemption', N'U') IS NULL THEN 0 ELSE 1 END")) {
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() && rs.getInt(1) == 1;
+            }
+        }
     }
 }
