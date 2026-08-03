@@ -52,8 +52,8 @@
                     <c:forEach var="i" items="${ingredients}" varStatus="status">
                         <tr>
                             <td data-tt-index>${status.index + 1}</td>
-                            <td>${i.name}</td>
-                            <td>${i.unit}</td>
+                            <td><c:out value="${i.name}"/></td>
+                            <td><c:out value="${i.unit}"/></td>
                             <td data-tt-val="${i.ingredientType}">
                                 <c:choose>
                                     <c:when test="${i.ingredientType == 'RAW'}"><span class="badge badge-making">Thô</span></c:when>

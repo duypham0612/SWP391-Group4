@@ -1,0 +1,4 @@
+root = true
+
+[*.{java,jsp,jspf,xml,properties,js,css,md,sql,txt,json,yml,yaml,ps1,cmd,bat,html}]
+charset = utf-8

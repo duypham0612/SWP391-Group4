@@ -28,6 +28,7 @@
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
         Xuất Excel
     </a>
+    <p class="muted" style="flex-basis:100%;margin:0">Kỳ báo cáo: ${fromDate} đến ${toDate} · Múi giờ Việt Nam (UTC+7).</p>
 </form>
 
 <%-- Thẻ số liệu --%>
@@ -36,11 +37,6 @@
     <div class="card stat"><span class="label">Hoá đơn hôm nay</span><span class="value">${summary.todayBills}</span></div>
     <div class="card stat"><span class="label">Doanh thu trong kỳ</span><span class="value"><fmt:formatNumber value="${summary.revenue}" maxFractionDigits="0"/></span></div>
     <div class="card stat"><span class="label">Hoá đơn trong kỳ</span><span class="value">${summary.paidBills}</span></div>
-</div>
-
-<div style="display:flex;gap:16px;flex-wrap:wrap;margin:16px 0 0">
-    <div class="card" style="flex:1;min-width:220px"><span class="muted">Tổng giảm giá thủ công</span><div style="font-size:1.3rem;font-weight:700"><fmt:formatNumber value="${summary.discount}" maxFractionDigits="0"/> ₫</div></div>
-    <div class="card" style="flex:1;min-width:220px"><span class="muted">Tổng VAT đã thu</span><div style="font-size:1.3rem;font-weight:700"><fmt:formatNumber value="${summary.vat}" maxFractionDigits="0"/> ₫</div></div>
 </div>
 
 <%-- Biểu đồ doanh thu theo ngày --%>
@@ -134,7 +130,10 @@
   function preset(days){
     var to = new Date(), from = new Date();
     from.setDate(to.getDate() - (days - 1));
-    var f = function(d){ return d.toISOString().slice(0,10); };
+    var f = function(d){
+      var pad = function(n){ return String(n).padStart(2, '0'); };
+      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    };
     document.getElementById('from').value = f(from);
     document.getElementById('to').value = f(to);
     document.getElementById('from').form.submit();

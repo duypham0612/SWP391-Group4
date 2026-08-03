@@ -78,10 +78,16 @@
         <listener-class>com.cafe.listener.SchemaVersionListener</listener-class>
     </listener>
     <listener>
+        <listener-class>com.cafe.listener.StandardModifierListener</listener-class>
+    </listener>
+    <listener>
         <listener-class>com.cafe.listener.SeedPasswordListener</listener-class>
     </listener>
     <listener>
         <listener-class>com.cafe.listener.AssetVersionListener</listener-class>
+    </listener>
+    <listener>
+        <listener-class>com.cafe.web.support.ActiveSessionRegistry</listener-class>
     </listener>
 
     <session-config>

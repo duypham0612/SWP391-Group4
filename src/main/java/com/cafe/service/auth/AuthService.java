@@ -30,7 +30,7 @@ public class AuthService {
             if (!PasswordHasher.verifyPassword(rawPwd, u.getPasswordHash())) return null;
             if (u.getBranchId() != null) {
                 String blockedMessage = BranchAccessPolicy.blockedMessage(
-                        u.getBranchActive(), u.getBranchManaged());
+                        u.getBranchActive(), u.getBranchHasManager());
                 if (blockedMessage != null) throw new BusinessException(blockedMessage);
             }
             u.setPasswordHash(null); // không giữ hash trong session

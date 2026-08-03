@@ -2,8 +2,10 @@ package com.cafe.service.admin;
 
 import com.cafe.common.BusinessException;
 import com.cafe.config.DBConnection;
+import com.cafe.dao.admin.UserDao;
 import com.cafe.dao.shared.BranchDao;
 import com.cafe.model.Branch;
+import com.cafe.model.User;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -16,13 +18,19 @@ import java.util.Objects;
 public class BranchService {
 
     private final BranchDao dao;
+    private final UserDao userDao;
 
     public BranchService() {
-        this(new BranchDao());
+        this(new BranchDao(), new UserDao());
     }
 
     BranchService(BranchDao dao) {
+        this(dao, new UserDao());
+    }
+
+    BranchService(BranchDao dao, UserDao userDao) {
         this.dao = Objects.requireNonNull(dao, "dao");
+        this.userDao = Objects.requireNonNull(userDao, "userDao");
     }
 
     public List<Branch> getBranchList() throws SQLException {
@@ -100,8 +108,6 @@ public class BranchService {
             try {
                 Branch b = dao.findById(conn, id);
                 if (b == null) throw new BusinessException("Không tìm thấy chi nhánh.");
-                if (b.getManagerUserId() == null)
-                    throw new BusinessException("Vui lòng phân công quản lý trước khi thay đổi trạng thái chi nhánh.");
                 dao.updateActive(conn, id, !b.isActive());
                 conn.commit();
             } catch (SQLException e) { conn.rollback(); throw e; }
@@ -110,14 +116,77 @@ public class BranchService {
         }
     }
 
-    public void assignManager(int branchId, Integer userId) throws SQLException {
+    public List<User> getManagerReplacementCandidates(int branchId) throws SQLException {
+        if (branchId <= 0) throw new BusinessException("Mã chi nhánh không hợp lệ.");
+        try (Connection conn = DBConnection.getConnection()) {
+            Branch branch = dao.findById(conn, branchId);
+            if (branch == null) throw new BusinessException("Không tìm thấy chi nhánh.");
+            if (branch.getManagerUserId() == null) {
+                throw new BusinessException("Chi nhánh chưa có quản lý; hãy dùng thao tác Phân công.");
+            }
+            return userDao.findManagerReplacementCandidates(
+                    conn, branchId, branch.getManagerUserId());
+        }
+    }
+
+    /** Thay người phụ trách nhưng không thay đổi BranchId của bất kỳ nhân sự nào. */
+    public ManagerReplacement replaceManager(int branchId, int replacementUserId) throws SQLException {
+        if (branchId <= 0 || replacementUserId <= 0) {
+            throw new BusinessException("Chi nhánh hoặc nhân sự thay thế không hợp lệ.");
+        }
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
-            try { dao.updateManager(conn, branchId, userId); conn.commit(); }
+            try {
+                Branch branch = dao.findByIdForUpdate(conn, branchId);
+                if (branch == null) throw new BusinessException("Không tìm thấy chi nhánh.");
+                Integer currentManagerId = branch.getManagerUserId();
+                if (currentManagerId == null) {
+                    throw new BusinessException("Chi nhánh chưa có quản lý; hãy dùng thao tác Phân công.");
+                }
+                if (currentManagerId == replacementUserId) {
+                    throw new BusinessException("Nhân sự được chọn đang là quản lý của chi nhánh này.");
+                }
+
+                User replacement = userDao.findByIdForUpdate(conn, replacementUserId);
+                if (replacement == null) throw new BusinessException("Không tìm thấy nhân sự thay thế.");
+                if (!"ACTIVE".equals(replacement.getStatus())
+                        || !Objects.equals(replacement.getBranchId(), branchId)
+                        || "ADMIN".equals(replacement.getRoleCode())) {
+                    throw new BusinessException(
+                            "Người thay thế phải đang hoạt động và thuộc đúng chi nhánh.");
+                }
+
+                User currentManager = userDao.findByIdForUpdate(conn, currentManagerId);
+                if (currentManager == null) {
+                    throw new BusinessException("Không tìm thấy quản lý hiện tại của chi nhánh.");
+                }
+
+                requireNoOpenDuty(conn, replacementUserId, "Người thay thế");
+                requireNoOpenDuty(conn, currentManagerId, "Quản lý hiện tại");
+
+                userDao.updateRole(conn, replacementUserId, "BRANCH_MANAGER");
+                dao.updateManager(conn, branchId, replacementUserId);
+                userDao.updateStatus(conn, currentManagerId, "LOCKED");
+                conn.commit();
+                return new ManagerReplacement(currentManagerId, replacementUserId);
+            }
             catch (SQLException e) { conn.rollback(); throw e; }
+            catch (RuntimeException e) { conn.rollback(); throw e; }
             finally { conn.setAutoCommit(true); }
         }
     }
+
+    private void requireNoOpenDuty(Connection conn, int userId, String subject) throws SQLException {
+        String block = userDao.findManagerReplacementBlock(conn, userId);
+        if ("CASHIER_SHIFT".equals(block)) {
+            throw new BusinessException(subject + " còn ca thu ngân đang mở; hãy đóng ca trước.");
+        }
+        if ("ATTENDANCE".equals(block)) {
+            throw new BusinessException(subject + " đang chấm công; hãy kết thúc ca trước.");
+        }
+    }
+
+    public record ManagerReplacement(int previousManagerId, int newManagerId) { }
 
     private static void normalizeAndValidate(Branch branch) {
         if (branch == null) throw new BusinessException("Thông tin chi nhánh là bắt buộc.");

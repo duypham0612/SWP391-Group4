@@ -1,13 +1,10 @@
 package com.cafe.web.form;
 
 import com.cafe.model.Product;
-import com.cafe.service.admin.ProductService.ProductSizeConfig;
 import jakarta.servlet.http.HttpServletRequest;
 
-import java.math.BigDecimal;
-
 /** Mapper cú pháp của form sản phẩm; không quyết định giá/category hợp lệ. */
-public record ProductForm(Product product, ProductSizeConfig sizeConfig) {
+public record ProductForm(Product product) {
     public static ProductForm from(HttpServletRequest request) {
         Product product = new Product();
         product.setProductId(FormValues.optionalInt(request.getParameter("productId"), "Mã sản phẩm"));
@@ -22,13 +19,6 @@ public record ProductForm(Product product, ProductSizeConfig sizeConfig) {
         try { product.setPrepSeconds(Math.multiplyExact(prepMinutes, 60)); }
         catch (ArithmeticException e) { throw new FormBindingException("Thời gian pha quá lớn."); }
 
-        ProductSizeConfig sizes = ProductSizeConfig.defaults();
-        sizes.setSizeMDelta(money(request, "sizeMDelta", "Giá tăng size M"));
-        sizes.setSizeLDelta(money(request, "sizeLDelta", "Giá tăng size L"));
-        return new ProductForm(product, sizes);
-    }
-
-    private static BigDecimal money(HttpServletRequest request, String name, String label) {
-        return FormValues.decimal(request.getParameter(name), label);
+        return new ProductForm(product);
     }
 }

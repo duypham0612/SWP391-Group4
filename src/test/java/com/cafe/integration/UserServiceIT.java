@@ -2,6 +2,7 @@ package com.cafe.integration;
 
 import com.cafe.common.BusinessException;
 import com.cafe.model.User;
+import com.cafe.service.admin.BranchService;
 import com.cafe.service.admin.UserService;
 import com.cafe.service.auth.AuthService;
 import org.junit.jupiter.api.Test;
@@ -98,6 +99,35 @@ class UserServiceIT extends SqlServerIntegrationSupport {
 
         assertThrows(BusinessException.class, () -> service.updateUser(update));
         assertEquals("BARISTA", service.getUser(userId).getRoleCode());
+    }
+
+    @Test
+    void replaced_manager_must_change_role_before_account_can_be_unlocked() throws Exception {
+        int branchId = createBranch();
+        UserService userService = new UserService();
+        int previousManagerId = userService.createUser(
+                user(unique("oldmanager"), "BRANCH_MANAGER", branchId), "MvcTest!123");
+        int replacementId = userService.createUser(
+                user(unique("replacement"), "CASHIER", branchId), "MvcTest!123");
+
+        new BranchService().replaceManager(branchId, replacementId);
+
+        User previousManager = userService.getUser(previousManagerId);
+        assertEquals(branchId, previousManager.getBranchId());
+        assertEquals("BRANCH_MANAGER", previousManager.getRoleCode());
+        assertEquals("LOCKED", previousManager.getStatus());
+
+        BusinessException blocked = assertThrows(BusinessException.class,
+                () -> userService.toggleUserStatus(previousManagerId));
+        assertEquals(
+                "Nhân sự không còn là quản lý chi nhánh. Hãy đổi vai trò trước khi mở khóa tài khoản.",
+                blocked.getMessage());
+        assertEquals("LOCKED", userService.getUser(previousManagerId).getStatus());
+
+        previousManager.setRoleCode("BARISTA");
+        userService.updateUser(previousManager);
+        assertEquals("ACTIVE", userService.toggleUserStatus(previousManagerId));
+        assertEquals(branchId, userService.getUser(previousManagerId).getBranchId());
     }
 
     private boolean createManager(User user, CountDownLatch ready, CountDownLatch start) throws Exception {

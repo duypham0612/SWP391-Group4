@@ -1,6 +1,7 @@
 package com.cafe.dao.shared;
 
 import com.cafe.common.ModifierGroupNames;
+import com.cafe.common.StandardModifierPolicy;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -8,8 +9,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Persistence adapter for the product choices shown by POS: size, sugar and ice.
@@ -17,44 +18,29 @@ import java.util.Map;
  */
 public class ProductChoiceDao {
 
-    public Map<String, BigDecimal> findSizePriceDeltas(Connection conn, int productId)
-            throws SQLException {
-        int groupId = findProductSizeGroup(conn, productId);
-        Map<String, BigDecimal> deltas = new HashMap<>();
-        if (groupId == 0) return deltas;
-
-        try (PreparedStatement ps = conn.prepareStatement(
-                "SELECT Name, PriceDelta FROM catalog.ModifierOption WHERE ModifierGroupId=?")) {
-            ps.setInt(1, groupId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    deltas.put(rs.getString("Name"), rs.getBigDecimal("PriceDelta"));
-                }
-            }
-        }
-        return deltas;
-    }
-
-    public void saveStandardChoices(Connection conn, int productId,
-                                    BigDecimal sizeMDelta, BigDecimal sizeLDelta)
-            throws SQLException {
+    public void saveStandardChoices(Connection conn, int productId) throws SQLException {
         int sizeGroupId = ensureProductSizeGroup(conn, productId);
-        upsertOption(conn, sizeGroupId, "Size S", BigDecimal.ZERO);
-        upsertOption(conn, sizeGroupId, "Size M", nonNegative(sizeMDelta));
-        upsertOption(conn, sizeGroupId, "Size L", nonNegative(sizeLDelta));
+        normalizeGroup(conn, sizeGroupId, ModifierGroupNames.SIZE);
+        syncOptions(conn, sizeGroupId, ModifierGroupNames.SIZE, StandardModifierPolicy.SIZE_OPTIONS);
 
         int sugarGroupId = ensureChoiceGroup(conn, productId, ModifierGroupNames.SUGAR);
-        upsertOption(conn, sugarGroupId, "Kh\u00f4ng \u0111\u01b0\u1eddng", BigDecimal.ZERO);
-        upsertOption(conn, sugarGroupId, "\u00cdt \u0111\u01b0\u1eddng", BigDecimal.ZERO);
-        upsertOption(conn, sugarGroupId, "B\u00ecnh th\u01b0\u1eddng", BigDecimal.ZERO);
-        upsertOption(conn, sugarGroupId, "Nhi\u1ec1u \u0111\u01b0\u1eddng", BigDecimal.ZERO);
+        normalizeGroup(conn, sugarGroupId, ModifierGroupNames.SUGAR);
+        syncOptions(conn, sugarGroupId, ModifierGroupNames.SUGAR, StandardModifierPolicy.SUGAR_OPTIONS);
 
         int iceGroupId = ensureChoiceGroup(conn, productId, ModifierGroupNames.ICE);
-        upsertOption(conn, iceGroupId, "Kh\u00f4ng \u0111\u00e1", BigDecimal.ZERO);
-        upsertOption(conn, iceGroupId, "\u00cdt \u0111\u00e1", BigDecimal.ZERO);
-        upsertOption(conn, iceGroupId, "B\u00ecnh th\u01b0\u1eddng", BigDecimal.ZERO);
-        upsertOption(conn, iceGroupId, "Nhi\u1ec1u \u0111\u00e1", BigDecimal.ZERO);
+        normalizeGroup(conn, iceGroupId, ModifierGroupNames.ICE);
+        syncOptions(conn, iceGroupId, ModifierGroupNames.ICE, StandardModifierPolicy.ICE_OPTIONS);
+    }
 
+    /** Repairs fixed choices for products inserted outside ProductService, including demo data. */
+    public int saveStandardChoicesForAllProducts(Connection conn) throws SQLException {
+        List<Integer> productIds = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement("SELECT ProductId FROM catalog.Product ORDER BY ProductId");
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) productIds.add(rs.getInt(1));
+        }
+        for (int productId : productIds) saveStandardChoices(conn, productId);
+        return productIds.size();
     }
 
     private int ensureProductSizeGroup(Connection conn, int productId) throws SQLException {
@@ -63,6 +49,33 @@ public class ProductChoiceDao {
             groupId = insertGroup(conn, productId, ModifierGroupNames.SIZE);
         }
         return groupId;
+    }
+
+    private void normalizeGroup(Connection conn, int groupId, String name) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE catalog.ModifierGroup SET IsRequired=1,MinSelect=1,MaxSelect=1,SortOrder=? "
+                        + "WHERE ModifierGroupId=?")) {
+            ps.setInt(1, sortOrder(name));
+            ps.setInt(2, groupId);
+            ps.executeUpdate();
+        }
+    }
+
+    private void syncOptions(Connection conn, int groupId, String groupName, List<String> optionNames)
+            throws SQLException {
+        for (String optionName : optionNames) {
+            upsertOption(conn, groupId, optionName,
+                    StandardModifierPolicy.priceDelta(groupName, optionName));
+        }
+        String placeholders = String.join(",", java.util.Collections.nCopies(optionNames.size(), "?"));
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE catalog.ModifierOption SET IsActive=0 WHERE ModifierGroupId=? AND Name NOT IN ("
+                        + placeholders + ")")) {
+            int index = 1;
+            ps.setInt(index++, groupId);
+            for (String optionName : optionNames) ps.setString(index++, optionName);
+            ps.executeUpdate();
+        }
     }
 
     private int findProductSizeGroup(Connection conn, int productId) throws SQLException {
@@ -124,13 +137,13 @@ public class ProductChoiceDao {
                     "INSERT INTO catalog.ModifierOption(ModifierGroupId, Name, PriceDelta, IsActive) VALUES (?,?,?,1)")) {
                 ps.setInt(1, groupId);
                 ps.setString(2, name);
-                ps.setBigDecimal(3, nonNegative(priceDelta));
+                ps.setBigDecimal(3, priceDelta);
                 ps.executeUpdate();
             }
         } else {
             try (PreparedStatement ps = conn.prepareStatement(
                     "UPDATE catalog.ModifierOption SET PriceDelta=?, IsActive=1 WHERE ModifierOptionId=?")) {
-                ps.setBigDecimal(1, nonNegative(priceDelta));
+                ps.setBigDecimal(1, priceDelta);
                 ps.setInt(2, optionId);
                 ps.executeUpdate();
             }
@@ -143,9 +156,5 @@ public class ProductChoiceDao {
         if (ModifierGroupNames.ICE.equals(name)) return 3;
         if ("Topping".equalsIgnoreCase(name)) return 4;
         return 5;
-    }
-
-    private static BigDecimal nonNegative(BigDecimal value) {
-        return value == null || value.signum() < 0 ? BigDecimal.ZERO : value;
     }
 }

@@ -31,7 +31,7 @@ public class IngredientServlet extends HttpServlet {
                 req.setAttribute("ingredient", new Ingredient());
                 forwardForm(req, resp, "Thêm nguyên liệu");
             } else if ("edit".equals(action)) {
-                Ingredient i = service.getIngredient(Integer.parseInt(req.getParameter("id")));
+                Ingredient i = service.getIngredient(requiredPositiveInt(req.getParameter("id")));
                 if (i == null) { resp.sendError(HttpServletResponse.SC_NOT_FOUND); return; }
                 req.setAttribute("ingredient", i);
                 forwardForm(req, resp, "Sửa nguyên liệu");
@@ -40,6 +40,8 @@ public class IngredientServlet extends HttpServlet {
                 req.setAttribute("pageTitle", "Nguyên liệu");
                 req.getRequestDispatcher("/WEB-INF/views/admin/ingredient-list.jsp").forward(req, resp);
             }
+        } catch (BusinessException e) {
+            resp.sendError(HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
         } catch (Exception e) { throw new ServletException(e); }
     }
 
@@ -51,13 +53,18 @@ public class IngredientServlet extends HttpServlet {
         String action = req.getParameter("action");
         try {
             if ("delete".equals(action)) {
-                service.deleteIngredient(Integer.parseInt(req.getParameter("id")));
-                req.getSession().setAttribute("flashOk", "Đã xoá nguyên liệu thành công.");
+                try {
+                    service.deleteIngredient(requiredPositiveInt(req.getParameter("id")));
+                    req.getSession().setAttribute("flashOk", "Đã ẩn nguyên liệu thành công.");
+                } catch (BusinessException e) {
+                    req.getSession().setAttribute("flashError", e.getMessage());
+                }
                 resp.sendRedirect(ctx + "/admin/ingredient");
                 return;
             }
-            Ingredient i = bind(req);
+            Ingredient i = new Ingredient();
             try {
+                bind(req, i);
                 if (i.getIngredientId() == 0) {
                     service.createIngredient(i);
                     req.getSession().setAttribute("flashOk", "Đã thêm nguyên liệu thành công.");
@@ -75,10 +82,17 @@ public class IngredientServlet extends HttpServlet {
         } catch (Exception e) { throw new ServletException(e); }
     }
 
-    private Ingredient bind(HttpServletRequest req) {
-        Ingredient i = new Ingredient();
+    private void bind(HttpServletRequest req, Ingredient i) {
         String id = req.getParameter("ingredientId");
-        if (id != null && !id.isBlank()) i.setIngredientId(Integer.parseInt(id));
+        if (id != null && !id.isBlank()) {
+            try {
+                int parsed = Integer.parseInt(id);
+                if (parsed < 0) throw new NumberFormatException();
+                i.setIngredientId(parsed);
+            } catch (NumberFormatException e) {
+                throw new BusinessException("Mã nguyên liệu không hợp lệ.");
+            }
+        }
         i.setName(trim(req.getParameter("name")));
         i.setUnit(trim(req.getParameter("unit")));
         i.setIngredientType(trim(req.getParameter("ingredientType")));
@@ -101,7 +115,6 @@ public class IngredientServlet extends HttpServlet {
             }
         }
         i.setActive(req.getParameter("active") != null);
-        return i;
     }
 
     private void forwardForm(HttpServletRequest req, HttpServletResponse resp, String title)
@@ -115,5 +128,15 @@ public class IngredientServlet extends HttpServlet {
     private java.math.BigDecimal decimal(String value) {
         try { return value == null ? null : new java.math.BigDecimal(value.trim()); }
         catch (RuntimeException e) { throw new BusinessException("Hệ số quy đổi không hợp lệ."); }
+    }
+
+    private int requiredPositiveInt(String value) {
+        try {
+            int parsed = Integer.parseInt(value);
+            if (parsed <= 0) throw new NumberFormatException();
+            return parsed;
+        } catch (RuntimeException e) {
+            throw new BusinessException("Mã nguyên liệu không hợp lệ.");
+        }
     }
 }

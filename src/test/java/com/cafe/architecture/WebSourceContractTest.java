@@ -98,6 +98,31 @@ class WebSourceContractTest {
     }
 
     @Test
+    void branch_manager_presence_and_current_manager_identity_are_not_conflated() throws IOException {
+        String authService = Files.readString(
+                MAIN_JAVA.resolve("com/cafe/service/auth/AuthService.java"));
+        String userDao = Files.readString(
+                MAIN_JAVA.resolve("com/cafe/dao/admin/UserDao.java"));
+        String userService = Files.readString(
+                MAIN_JAVA.resolve("com/cafe/service/admin/UserService.java"));
+        String userList = Files.readString(
+                WEBAPP.resolve("WEB-INF/views/admin/user-list.jsp"));
+
+        assertTrue(authService.contains("u.getBranchHasManager()"),
+                "Đăng nhập phải kiểm tra chi nhánh có Manager, không kiểm tra user hiện tại có phải Manager");
+        assertFalse(authService.contains("u.getAssignedBranchManager()"),
+                "Cờ xác định Manager hiện tại chỉ phục vụ nghiệp vụ quản trị nhân sự");
+        assertTrue(userDao.contains("setBranchHasManager"));
+        assertTrue(userDao.contains("setAssignedBranchManager"));
+        assertTrue(userList.contains("s.assignedBranchManager"));
+        assertFalse(userList.contains("s.branchHasManager"));
+        assertTrue(userService.contains(
+                "Nhân sự không còn là quản lý chi nhánh. Hãy đổi vai trò trước khi mở khóa tài khoản."));
+        assertTrue(userService.contains("u.setStatus(current.getStatus())"),
+                "Form sửa nhân sự không được dùng để lách thao tác Khóa/Mở khóa chuyên biệt");
+    }
+
+    @Test
     void business_views_are_reachable_from_java_or_another_jsp() throws IOException {
         List<Path> sources = new ArrayList<>();
         sources.addAll(files(MAIN_JAVA, ".java"));

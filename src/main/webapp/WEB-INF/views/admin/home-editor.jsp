@@ -31,6 +31,15 @@
             </c:forEach>
         </select>
     </div>
+    <c:if test="${not empty setting}">
+        <div class="home-editor-branch" aria-live="polite">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/>
+                <circle cx="12" cy="10" r="2.5"/>
+            </svg>
+            <span><small>Đang chỉnh sửa</small><strong><c:out value="${setting.code}"/> · <c:out value="${setting.name}"/></strong></span>
+        </div>
+    </c:if>
 </form>
 <c:set var="heroImg" value="${empty setting.heroImageUrl ? ctx.concat('/assets/img/login-hero.svg') : (fn:startsWith(fn:toLowerCase(setting.heroImageUrl), 'http') ? setting.heroImageUrl : ctx.concat(setting.heroImageUrl))}" />
 <div class="card form-card">
@@ -69,6 +78,13 @@
                     <img id="pvImg" src="${heroImg}" alt="Xem trước hero" data-ctx="${ctx}"
                          data-default="${ctx}/assets/img/login-hero.svg"
                          onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
+                </div>
+                <div class="home-branch-context home-branch-context--preview">
+                    <svg class="home-branch-context__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/>
+                        <circle cx="12" cy="10" r="2.5"/>
+                    </svg>
+                    <span><small>Đang xem chi nhánh</small><strong><c:out value="${setting.name}"/></strong></span>
                 </div>
                 <div class="eyebrow" id="pvEyebrow">${fn:escapeXml(setting.heroEyebrow)}</div>
                 <h3 id="pvTitle" style="margin:2px 0">${fn:escapeXml(setting.heroTitle)}</h3>
@@ -151,6 +167,9 @@
 
 <style>
 .hero-preview{border:1px solid var(--line);border-radius:var(--radius);padding:14px;background:var(--surface-2)}
+.home-editor-branch{display:flex;align-items:center;gap:10px;margin-left:auto;padding:8px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface)}
+.home-editor-branch svg{width:20px;height:20px;color:var(--brand);flex:0 0 auto}
+.home-editor-branch span{display:grid;gap:1px}.home-editor-branch small{color:var(--muted);font-size:11px}.home-editor-branch strong{font-size:13px;color:var(--ink)}
 .save-bar{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;
     position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--line);padding:12px 4px;margin-top:8px}
 </style>

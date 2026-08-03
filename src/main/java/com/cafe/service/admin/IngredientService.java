@@ -25,6 +25,10 @@ public class IngredientService {
     private static final Set<String> TYPES = Set.of("RAW", "PREPPED");
     private static final Pattern NAME_PATTERN =
             Pattern.compile("^[\\p{L}\\p{M}\\p{N}][\\p{L}\\p{M}\\p{N}\\s.,&'()/%+\\-]*$");
+    private static final Pattern PURCHASE_UNIT_PATTERN =
+            Pattern.compile("^[\\p{L}\\p{M}\\p{N}][\\p{L}\\p{M}\\p{N}\\s./()\\-]*$");
+    private static final java.math.BigDecimal MAX_PURCHASE_FACTOR =
+            new java.math.BigDecimal("1000000");
     private final IngredientDao dao;
     private final IngredientUnitDao unitDao;
 
@@ -47,6 +51,7 @@ public class IngredientService {
     }
 
     public Ingredient getIngredient(int id) throws SQLException {
+        if (id <= 0) throw new BusinessException("Mã nguyên liệu không hợp lệ.");
         try (Connection conn = DBConnection.getConnection()) { return dao.findById(conn, id); }
     }
 
@@ -85,6 +90,11 @@ public class IngredientService {
                     throw new BusinessException(
                             "Không thể đổi đơn vị gốc khi nguyên liệu đã có tồn kho/giao dịch; hãy tạo nguyên liệu mới.");
                 }
+                if (!existing.getIngredientType().equals(i.getIngredientType())
+                        && dao.hasTypeSensitiveUsage(conn, i.getIngredientId())) {
+                    throw new BusinessException(
+                            "Không thể đổi loại nguyên liệu khi đã có công thức hoặc dữ liệu pha sẵn; hãy tạo nguyên liệu mới.");
+                }
                 dao.update(conn, i);
                 conn.commit();
             }
@@ -113,15 +123,29 @@ public class IngredientService {
     }
 
     public void deleteIngredient(int id) throws SQLException {
+        if (id <= 0) throw new BusinessException("Mã nguyên liệu không hợp lệ.");
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
-            try { dao.delete(conn, id); conn.commit(); }
+            try {
+                if (dao.delete(conn, id) != 1) {
+                    throw new BusinessException("Không tìm thấy nguyên liệu cần ẩn.");
+                }
+                conn.commit();
+            }
             catch (SQLException e) { conn.rollback(); throw e; }
+            catch (RuntimeException e) { conn.rollback(); throw e; }
             finally { conn.setAutoCommit(true); }
         }
     }
 
     private void validateAndNormalize(Connection conn, Ingredient ingredient) throws SQLException {
+        validateAndNormalizeFields(ingredient);
+        if (dao.existsByNameAndUnit(conn, ingredient.getName(), ingredient.getUnit(), ingredient.getIngredientId())) {
+            throw new BusinessException("Tên và đơn vị nguyên liệu đã tồn tại.");
+        }
+    }
+
+    static void validateAndNormalizeFields(Ingredient ingredient) {
         String name = normalizeSpaces(ingredient.getName());
         if (name == null || name.length() < 2 || name.length() > 120) {
             throw new BusinessException("Tên nguyên liệu phải có từ 2 đến 120 ký tự.");
@@ -161,34 +185,34 @@ public class IngredientService {
             if (purchaseUnit.equalsIgnoreCase(unit))
                 throw new BusinessException("Đơn vị mua phải khác đơn vị gốc.");
             ingredient.setPurchaseUnitName(purchaseUnit);
-            ingredient.setPurchaseFactorToBase(purchaseFactor);
-        }
-        if (dao.existsByNameAndUnit(conn, name, unit, ingredient.getIngredientId())) {
-            throw new BusinessException("Tên và đơn vị nguyên liệu đã tồn tại.");
+            ingredient.setPurchaseFactorToBase(purchaseFactor.stripTrailingZeros());
         }
 
         ingredient.setName(name);
         ingredient.setUnit(unit);
     }
 
-    private String normalizeConversionUnit(String value){
+    private static String normalizeConversionUnit(String value){
         String normalized=normalizeSpaces(value);
         if(normalized==null||normalized.isBlank()||normalized.length()>20)
-            throw new BusinessException("Tên đơn vị quy đổi phải có từ 1 đến 20 ký tự.");
+            throw new BusinessException("Đơn vị nhập hàng phải có từ 1 đến 20 ký tự.");
+        if (!PURCHASE_UNIT_PATTERN.matcher(normalized).matches())
+            throw new BusinessException("Đơn vị nhập hàng chỉ được chứa chữ, số, khoảng trắng, dấu chấm, gạch nối hoặc dấu gạch chéo.");
         return normalized;
     }
 
-    private void validateConversionFactor(java.math.BigDecimal factor){
-        if(factor==null||factor.signum()<=0||factor.scale()>6)
-            throw new BusinessException("Hệ số quy đổi phải lớn hơn 0 và có tối đa 6 chữ số thập phân.");
+    private static void validateConversionFactor(java.math.BigDecimal factor){
+        if(factor==null||factor.compareTo(java.math.BigDecimal.ONE)<=0
+                ||factor.stripTrailingZeros().scale()>0||factor.compareTo(MAX_PURCHASE_FACTOR)>0)
+            throw new BusinessException("Số lượng quy đổi phải là số nguyên lớn hơn 1 và không vượt quá 1.000.000.");
     }
 
-    private String normalizeSpaces(String value) {
+    private static String normalizeSpaces(String value) {
         if (value == null) return null;
         return value.trim().replaceAll("\\s+", " ");
     }
 
-    private String normalizeUnit(String value) {
+    private static String normalizeUnit(String value) {
         if (value == null) return "";
         String normalized = value.trim();
         if ("l".equalsIgnoreCase(normalized)) return "L";

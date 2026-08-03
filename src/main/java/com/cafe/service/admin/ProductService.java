@@ -8,11 +8,9 @@ import com.cafe.dao.shared.ProductChoiceDao;
 import com.cafe.dao.admin.ProductDao;
 import com.cafe.model.Product;
 
-import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -48,23 +46,13 @@ public class ProductService {
         try (Connection conn = DBConnection.getConnection()) { return dao.findById(conn, id); }
     }
 
-    public ProductSizeConfig getSizeConfig(int productId) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            return loadSizeConfig(conn, productId);
-        }
-    }
-
     public int createProduct(Product p) throws SQLException {
-        return createProduct(p, ProductSizeConfig.defaults());
-    }
-
-    public int createProduct(Product p, ProductSizeConfig sizeConfig) throws SQLException {
-        normalizeAndValidate(p, sizeConfig);
+        normalizeAndValidate(p);
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
             try {
                 int id = dao.insert(conn, p);
-                saveDrinkChoices(conn, id, sizeConfig);
+                productChoiceDao.saveStandardChoices(conn, id);
                 conn.commit();
                 return id;
             }
@@ -74,17 +62,13 @@ public class ProductService {
     }
 
     public void updateProduct(Product p) throws SQLException {
-        updateProduct(p, ProductSizeConfig.defaults());
-    }
-
-    public void updateProduct(Product p, ProductSizeConfig sizeConfig) throws SQLException {
-        normalizeAndValidate(p, sizeConfig);
+        normalizeAndValidate(p);
         if (p.getProductId() <= 0) throw new BusinessException("Mã sản phẩm không hợp lệ.");
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
             try {
                 dao.update(conn, p);
-                saveDrinkChoices(conn, p.getProductId(), sizeConfig);
+                productChoiceDao.saveStandardChoices(conn, p.getProductId());
                 conn.commit();
             }
             catch (SQLException e) { conn.rollback(); throw translateUnique(e); }
@@ -152,25 +136,7 @@ public class ProductService {
         }
     }
 
-    private void saveDrinkChoices(Connection conn, int productId, ProductSizeConfig sizeConfig) throws SQLException {
-        ProductSizeConfig cfg = sizeConfig == null ? ProductSizeConfig.defaults() : sizeConfig;
-        productChoiceDao.saveStandardChoices(
-                conn, productId, nonNegative(cfg.getSizeMDelta()), nonNegative(cfg.getSizeLDelta()));
-    }
-
-    private ProductSizeConfig loadSizeConfig(Connection conn, int productId) throws SQLException {
-        ProductSizeConfig cfg = ProductSizeConfig.defaults();
-        Map<String, BigDecimal> deltas = productChoiceDao.findSizePriceDeltas(conn, productId);
-        cfg.setSizeMDelta(deltas.get("Size M"));
-        cfg.setSizeLDelta(deltas.get("Size L"));
-        return cfg;
-    }
-
-    private static BigDecimal nonNegative(BigDecimal value) {
-        return value == null || value.signum() < 0 ? BigDecimal.ZERO : value;
-    }
-
-    private static void normalizeAndValidate(Product product, ProductSizeConfig sizeConfig) {
+    private static void normalizeAndValidate(Product product) {
         if (product == null) throw new BusinessException("Thông tin sản phẩm là bắt buộc.");
         String name = product.getName() == null ? null
                 : product.getName().trim().replaceAll("\\s+", " ");
@@ -181,9 +147,6 @@ public class ProductService {
             throw new BusinessException("Giá phải là số lớn hơn hoặc bằng 0.");
         if (product.getPrepSeconds() < 60)
             throw new BusinessException("Thời gian pha chuẩn phải lớn hơn hoặc bằng 1 phút.");
-        ProductSizeConfig sizes = sizeConfig == null ? ProductSizeConfig.defaults() : sizeConfig;
-        if (sizes.getSizeMDelta().signum() < 0 || sizes.getSizeLDelta().signum() < 0)
-            throw new BusinessException("Giá tăng size phải lớn hơn hoặc bằng 0.");
         product.setName(name);
     }
 
@@ -202,18 +165,5 @@ public class ProductService {
             throw new BusinessException("Tên sản phẩm đã tồn tại trong danh mục này.");
         }
         return error;
-    }
-
-    public static class ProductSizeConfig {
-        private BigDecimal sizeMDelta = BigDecimal.ZERO;
-        private BigDecimal sizeLDelta = BigDecimal.ZERO;
-
-        public static ProductSizeConfig defaults() { return new ProductSizeConfig(); }
-
-        public BigDecimal getSizeMDelta() { return sizeMDelta; }
-        public void setSizeMDelta(BigDecimal sizeMDelta) { this.sizeMDelta = sizeMDelta == null ? BigDecimal.ZERO : sizeMDelta; }
-
-        public BigDecimal getSizeLDelta() { return sizeLDelta; }
-        public void setSizeLDelta(BigDecimal sizeLDelta) { this.sizeLDelta = sizeLDelta == null ? BigDecimal.ZERO : sizeLDelta; }
     }
 }

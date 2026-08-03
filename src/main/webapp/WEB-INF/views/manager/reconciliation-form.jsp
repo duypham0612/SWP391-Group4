@@ -29,10 +29,10 @@
                 <c:forEach var="i" items="${ingredients}">
                     <tr>
                         <td><input class="pickbox" type="checkbox" name="pick" value="${i.ingredientId}"></td>
-                        <td>${i.name} <span class="muted">· ${i.ingredientType == 'PREPPED' ? 'Đã sơ chế' : 'Nguyên liệu thô'}</span></td>
+                        <td><c:out value="${i.name}"/> <span class="muted">· ${i.ingredientType == 'PREPPED' ? 'Đã sơ chế' : 'Nguyên liệu thô'}</span></td>
                         <td><select name="unitConversionId_${i.ingredientId}" class="form-control" required>
                                 <c:forEach var="u" items="${unitChoicesByIngredient[i.ingredientId]}">
-                                    <option value="${u.choiceCode}">${u.unitName}</option>
+                                    <option value="${u.choiceCode}"><c:out value="${u.unitName}"/></option>
                             </c:forEach>
                         </select></td>
                         <td><input type="text" name="actual_${i.ingredientId}" class="form-control" placeholder="0" data-vi-number></td>

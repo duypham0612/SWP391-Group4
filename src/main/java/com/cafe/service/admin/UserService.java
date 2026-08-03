@@ -92,17 +92,6 @@ public class UserService {
         }
     }
 
-    public boolean isBranchManagerRole(String roleCode) {
-        return "BRANCH_MANAGER".equals(roleCode);
-    }
-
-    public boolean branchHasOtherManager(int branchId, int userId) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            Integer managerId = branchDao.findManagerUserIdForUpdate(conn, branchId);
-            return managerId != null && managerId != userId;
-        }
-    }
-
     public boolean isAssignedBranchManager(int userId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             return branchDao.isManagerAssigned(conn, userId);
@@ -117,6 +106,9 @@ public class UserService {
                 if ("ADMIN".equals(u.getRoleCode())) {
                     throw new BusinessException(
                             "Hệ thống chỉ có 1 Admin toàn chuỗi, không thể tạo thêm tài khoản Admin.");
+                }
+                if (branchDao.findActiveById(conn, u.getBranchId()) == null) {
+                    throw new BusinessException("Chỉ có thể tạo nhân sự tại chi nhánh đang hoạt động.");
                 }
                 boolean manager = "BRANCH_MANAGER".equals(u.getRoleCode());
                 ensureManagerSlot(conn, manager, u.getBranchId(), 0);
@@ -136,7 +128,7 @@ public class UserService {
         }
     }
 
-    public void updateUser(User u) throws SQLException {
+    public boolean updateUser(User u) throws SQLException {
         normalizeAndValidate(u, null, false);
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
@@ -150,17 +142,25 @@ public class UserService {
                 }
                 u.setUsername(current.getUsername());
                 if (!Objects.equals(current.getBranchId(), u.getBranchId())) {
-                    requireBranchTransferAllowed(conn, u.getUserId());
+                    throw new BusinessException("Chi nhánh làm việc được cố định sau khi tạo nhân sự.");
+                }
+                // Trạng thái chỉ được thay đổi qua thao tác Khóa/Mở khóa chuyên biệt.
+                // Không tin hidden input của form sửa vì có thể bị thay đổi bằng DevTools.
+                u.setStatus(current.getStatus());
+                boolean assignedManager = branchDao.isManagerAssigned(conn, u.getUserId());
+                boolean roleChanged = !Objects.equals(current.getRoleCode(), u.getRoleCode());
+                if (assignedManager && roleChanged) {
+                    throw new BusinessException(
+                            "Hãy thay quản lý tại màn hình Chi nhánh trước khi đổi vai trò tài khoản này.");
                 }
                 boolean manager = "BRANCH_MANAGER".equals(u.getRoleCode());
                 ensureManagerSlot(conn, manager, u.getBranchId(), u.getUserId());
-                if (manager && "LOCKED".equals(u.getStatus())) {
-                    throw new BusinessException("Không thể khoá quản lý đang phụ trách chi nhánh.");
-                }
                 dao.update(conn, u);
-                branchDao.clearManagerByUser(conn, u.getUserId());
-                if (manager) branchDao.updateManager(conn, u.getBranchId(), u.getUserId());
+                if (manager && !assignedManager) {
+                    branchDao.updateManager(conn, u.getBranchId(), u.getUserId());
+                }
                 conn.commit();
+                return roleChanged;
             }
             catch (SQLException e) {
                 conn.rollback();
@@ -277,18 +277,6 @@ public class UserService {
         }
     }
 
-    private void requireBranchTransferAllowed(Connection conn, int userId) throws SQLException {
-        String block = dao.findBranchTransferBlock(conn, userId);
-        if (block == null) return;
-        if ("MANAGER".equals(block))
-            throw new BusinessException("Hãy gỡ nhân viên khỏi vị trí quản lý chi nhánh trước khi chuyển.");
-        if ("CASHIER_SHIFT".equals(block))
-            throw new BusinessException("Nhân viên còn ca thu ngân đang mở; phải đóng ca trước khi chuyển.");
-        if ("ATTENDANCE".equals(block))
-            throw new BusinessException("Nhân viên đang chấm công và chưa tan ca; phải kết thúc ca trước khi chuyển.");
-        throw new BusinessException("Nhân viên còn lịch làm từ hôm nay trở đi; hãy xử lý lịch trước khi chuyển.");
-    }
-
     public void updateProfile(int userId, String fullName, String email, String phone) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
@@ -312,8 +300,7 @@ public class UserService {
                 if (current == null) throw new BusinessException("Không tìm thấy nhân viên.");
                 if ("ADMIN".equals(current.getRoleCode()))
                     throw new BusinessException("Tài khoản Admin luôn hoạt động, không thể khoá.");
-                if ("LOCKED".equals(targetStatus) && branchDao.isManagerAssigned(conn, userId))
-                    throw new BusinessException("Không thể khoá quản lý đang phụ trách chi nhánh.");
+                requireStatusChangeAllowed(conn, current, targetStatus);
                 dao.updateStatus(conn, userId, targetStatus);
                 conn.commit();
             }
@@ -323,7 +310,7 @@ public class UserService {
         }
     }
 
-    public void toggleUserStatus(int userId) throws SQLException {
+    public String toggleUserStatus(int userId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             conn.setAutoCommit(false);
             try {
@@ -332,13 +319,28 @@ public class UserService {
                 if ("ADMIN".equals(current.getRoleCode()))
                     throw new BusinessException("Tài khoản Admin luôn hoạt động, không thể khoá.");
                 String target = "LOCKED".equals(current.getStatus()) ? "ACTIVE" : "LOCKED";
-                if ("LOCKED".equals(target) && branchDao.isManagerAssigned(conn, userId))
-                    throw new BusinessException("Không thể khoá quản lý đang phụ trách chi nhánh.");
+                requireStatusChangeAllowed(conn, current, target);
                 dao.updateStatus(conn, userId, target);
                 conn.commit();
+                return target;
             } catch (SQLException e) { conn.rollback(); throw e; }
             catch (RuntimeException e) { conn.rollback(); throw e; }
             finally { conn.setAutoCommit(true); }
+        }
+    }
+
+    private void requireStatusChangeAllowed(Connection conn, User current, String targetStatus)
+            throws SQLException {
+        boolean assignedManager = branchDao.isManagerAssigned(conn, current.getUserId());
+        if ("LOCKED".equals(targetStatus) && assignedManager) {
+            throw new BusinessException(
+                    "Hãy thay quản lý tại màn hình Chi nhánh trước khi khóa tài khoản này.");
+        }
+        if ("ACTIVE".equals(targetStatus)
+                && "BRANCH_MANAGER".equals(current.getRoleCode())
+                && !assignedManager) {
+            throw new BusinessException(
+                    "Nhân sự không còn là quản lý chi nhánh. Hãy đổi vai trò trước khi mở khóa tài khoản.");
         }
     }
 
@@ -351,21 +353,4 @@ public class UserService {
         }
     }
 
-    public void assignBranch(int userId, Integer branchId) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                User u = dao.findById(conn, userId);
-                if (u != null) {
-                    if (!java.util.Objects.equals(u.getBranchId(), branchId)) {
-                        requireBranchTransferAllowed(conn, userId);
-                    }
-                    u.setBranchId(branchId);
-                    dao.update(conn, u);
-                }
-                conn.commit();
-            } catch (SQLException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
-    }
 }

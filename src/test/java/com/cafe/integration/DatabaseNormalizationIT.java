@@ -91,29 +91,31 @@ public class DatabaseNormalizationIT extends SqlServerIntegrationSupport {
     }
 
     @Test
-    void product_specific_size_groups_keep_independent_prices() throws Exception {
+    void products_receive_fixed_size_sugar_and_ice_choices() throws Exception {
         String categoryName = unique("size-category");
         execute("INSERT catalog.Category(Name) VALUES (?)", categoryName);
         int categoryId = scalarInt("SELECT CategoryId FROM catalog.Category WHERE Name=?", categoryName);
         ProductService service = new ProductService();
 
-        Product first = product(categoryId, unique("size-product-a"), "25000");
-        ProductService.ProductSizeConfig firstConfig = ProductService.ProductSizeConfig.defaults();
-        firstConfig.setSizeMDelta(new BigDecimal("3000"));
-        firstConfig.setSizeLDelta(new BigDecimal("7000"));
-        int firstId = service.createProduct(first, firstConfig);
+        int firstId = service.createProduct(product(categoryId, unique("size-product-a"), "25000"));
+        int secondId = service.createProduct(product(categoryId, unique("size-product-b"), "30000"));
 
-        Product second = product(categoryId, unique("size-product-b"), "30000");
-        ProductService.ProductSizeConfig secondConfig = ProductService.ProductSizeConfig.defaults();
-        secondConfig.setSizeMDelta(new BigDecimal("5000"));
-        secondConfig.setSizeLDelta(new BigDecimal("9000"));
-        int secondId = service.createProduct(second, secondConfig);
-
-        assertEquals(new BigDecimal("3000.00"), service.getSizeConfig(firstId).getSizeMDelta());
-        assertEquals(new BigDecimal("9000.00"), service.getSizeConfig(secondId).getSizeLDelta());
-        assertEquals(2, scalarInt(
+        assertEquals(6, scalarInt(
                 "SELECT COUNT(*) FROM catalog.ModifierGroup WHERE ProductId IN(?,?) "
-                        + "AND Name=N'Size' AND SortOrder=1", firstId, secondId));
+                        + "AND Name IN(N'Size',N'Đường',N'Đá') AND IsRequired=1 "
+                        + "AND MinSelect=1 AND MaxSelect=1", firstId, secondId));
+        assertEquals(6, scalarInt(
+                "SELECT COUNT(*) FROM catalog.ModifierOption o "
+                        + "JOIN catalog.ModifierGroup g ON g.ModifierGroupId=o.ModifierGroupId "
+                        + "WHERE g.ProductId IN(?,?) AND g.Name=N'Size' AND o.IsActive=1 "
+                        + "AND ((o.Name=N'Size S' AND o.PriceDelta=0) "
+                        + "OR (o.Name=N'Size M' AND o.PriceDelta=6000) "
+                        + "OR (o.Name=N'Size L' AND o.PriceDelta=10000))", firstId, secondId));
+        assertEquals(16, scalarInt(
+                "SELECT COUNT(*) FROM catalog.ModifierOption o "
+                        + "JOIN catalog.ModifierGroup g ON g.ModifierGroupId=o.ModifierGroupId "
+                        + "WHERE g.ProductId IN(?,?) AND g.Name IN(N'Đường',N'Đá') "
+                        + "AND o.IsActive=1 AND o.PriceDelta=0", firstId, secondId));
     }
 
     @Test

@@ -5,7 +5,6 @@ import com.cafe.model.Product;
 import com.cafe.service.admin.BranchService;
 import com.cafe.service.admin.CategoryService;
 import com.cafe.service.admin.ProductService;
-import com.cafe.service.admin.ProductService.ProductSizeConfig;
 import com.cafe.common.BusinessException;
 import com.cafe.web.form.FormBindingException;
 import com.cafe.web.form.ProductForm;
@@ -43,13 +42,11 @@ public class ProductServlet extends HttpServlet {
         try {
             if ("new".equals(action)) {
                 req.setAttribute("product", new Product());
-                req.setAttribute("sizeConfig", ProductSizeConfig.defaults());
                 forwardForm(req, resp, "Thêm sản phẩm");
             } else if ("edit".equals(action)) {
                 Product p = service.getProduct(Integer.parseInt(req.getParameter("id")));
                 if (p == null) { resp.sendError(HttpServletResponse.SC_NOT_FOUND); return; }
                 req.setAttribute("product", p);
-                req.setAttribute("sizeConfig", service.getSizeConfig(p.getProductId()));
                 forwardForm(req, resp, "Sửa sản phẩm");
             } else {
                 req.setAttribute("products", service.getProductList());
@@ -117,12 +114,11 @@ public class ProductServlet extends HttpServlet {
             }
             ProductForm form = ProductForm.from(req);
             Product p = form.product();
-            ProductSizeConfig sizeConfig = form.sizeConfig();
             if (p.getProductId() == 0) {
-                service.createProduct(p, sizeConfig);
+                service.createProduct(p);
                 req.getSession().setAttribute("flashOk", "Đã thêm sản phẩm thành công.");
             } else {
-                service.updateProduct(p, sizeConfig);
+                service.updateProduct(p);
                 req.getSession().setAttribute("flashOk", "Đã cập nhật sản phẩm thành công.");
             }
             resp.sendRedirect(ctx + "/admin/product");
