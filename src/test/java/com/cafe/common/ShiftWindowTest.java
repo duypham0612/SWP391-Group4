@@ -69,4 +69,41 @@ class ShiftWindowTest {
         assertFalse(ShiftWindow.isClockable(HOM_QUA.minusDays(1), DEM_START, DEM_END,
                 HOM_NAY, LocalDateTime.of(HOM_NAY, LocalTime.of(3, 0)), ShiftWindow.CLOCK_OUT_GRACE));
     }
+
+    @Test
+    void ca_bay_ruoi_khong_duoc_vao_tu_ba_gio_sang() {
+        assertFalse(ShiftWindow.canClockIn(
+                HOM_NAY, LocalTime.of(7, 30), LocalTime.of(11, 30),
+                LocalDateTime.of(HOM_NAY, LocalTime.of(3, 0))));
+    }
+
+    @Test
+    void duoc_vao_ca_som_toi_da_muoi_lam_phut() {
+        assertFalse(ShiftWindow.canClockIn(
+                HOM_NAY, LocalTime.of(7, 30), LocalTime.of(11, 30),
+                LocalDateTime.of(HOM_NAY, LocalTime.of(7, 14, 59))));
+        assertTrue(ShiftWindow.canClockIn(
+                HOM_NAY, LocalTime.of(7, 30), LocalTime.of(11, 30),
+                LocalDateTime.of(HOM_NAY, LocalTime.of(7, 15))));
+    }
+
+    @Test
+    void khong_duoc_vao_ca_sau_khi_ca_da_ket_thuc() {
+        assertFalse(ShiftWindow.canClockIn(
+                HOM_NAY, LocalTime.of(7, 30), LocalTime.of(11, 30),
+                LocalDateTime.of(HOM_NAY, LocalTime.of(11, 30))));
+    }
+
+    @Test
+    void ca_dem_dung_cua_so_vao_ca_qua_hai_ngay() {
+        assertTrue(ShiftWindow.canClockIn(
+                HOM_QUA, DEM_START, DEM_END,
+                LocalDateTime.of(HOM_QUA, LocalTime.of(21, 45))));
+        assertTrue(ShiftWindow.canClockIn(
+                HOM_QUA, DEM_START, DEM_END,
+                LocalDateTime.of(HOM_NAY, LocalTime.of(3, 0))));
+        assertFalse(ShiftWindow.canClockIn(
+                HOM_QUA, DEM_START, DEM_END,
+                LocalDateTime.of(HOM_NAY, LocalTime.of(6, 0))));
+    }
 }

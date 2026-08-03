@@ -19,6 +19,12 @@
                 <c:when test="${not clockStatus.hasAssignment}">
                     <span class="badge badge-cancelled">Chưa có ca</span>
                 </c:when>
+                <c:when test="${clockStatus.waitingForStart}">
+                    <span class="badge badge-waiting">Chưa đến giờ</span>
+                </c:when>
+                <c:when test="${clockStatus.clockInExpired}">
+                    <span class="badge badge-cancelled">Đã quá giờ</span>
+                </c:when>
                 <c:when test="${clockStatus.canClockIn}">
                     <span class="badge badge-waiting">Chưa vào</span>
                 </c:when>
@@ -61,6 +67,12 @@
                         <input type="hidden" name="action" value="clockOut">
                         <button type="submit" class="btn btn-primary">Tan ca</button>
                     </form>
+                </c:when>
+                <c:when test="${clockStatus.waitingForStart}">
+                    <button type="button" class="btn btn-ghost" disabled>Chưa đến giờ vào ca</button>
+                </c:when>
+                <c:when test="${clockStatus.clockInExpired}">
+                    <button type="button" class="btn btn-ghost" disabled>Đã quá giờ vào ca</button>
                 </c:when>
                 <c:when test="${not clockStatus.hasAssignment}">
                     <button type="button" class="btn btn-ghost" disabled>Vào ca</button>

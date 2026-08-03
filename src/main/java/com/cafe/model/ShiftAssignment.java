@@ -1,5 +1,8 @@
 package com.cafe.model;
 
+import com.cafe.common.BusinessDay;
+import com.cafe.common.ShiftWindow;
+
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -101,17 +104,30 @@ public class ShiftAssignment {
     }
 
     public long getLateMinutes() {
-        if (checkInAt == null || startTime == null) return 0L;
-        long minutes = Duration.between(startTime, checkInAt.toLocalTime()).toMinutes();
+        LocalDateTime scheduledStart = ShiftWindow.scheduledStart(workDate, startTime);
+        LocalDateTime actualCheckIn = BusinessDay.toVn(checkInAt);
+        if (scheduledStart == null || actualCheckIn == null) return 0L;
+        long minutes = Duration.between(scheduledStart, actualCheckIn).toMinutes();
+        return minutes > 0 ? minutes : 0L;
+    }
+
+    public long getEarlyArrivalMinutes() {
+        LocalDateTime scheduledStart = ShiftWindow.scheduledStart(workDate, startTime);
+        LocalDateTime actualCheckIn = BusinessDay.toVn(checkInAt);
+        if (scheduledStart == null || actualCheckIn == null) return 0L;
+        long minutes = Duration.between(actualCheckIn, scheduledStart).toMinutes();
         return minutes > 0 ? minutes : 0L;
     }
 
     public long getEarlyLeaveMinutes() {
-        if (checkOutAt == null || endTime == null) return 0L;
-        long minutes = Duration.between(checkOutAt.toLocalTime(), endTime).toMinutes();
+        LocalDateTime scheduledEnd = ShiftWindow.scheduledEnd(workDate, startTime, endTime);
+        LocalDateTime actualCheckOut = BusinessDay.toVn(checkOutAt);
+        if (scheduledEnd == null || actualCheckOut == null) return 0L;
+        long minutes = Duration.between(actualCheckOut, scheduledEnd).toMinutes();
         return minutes > 0 ? minutes : 0L;
     }
 
     public boolean isLate() { return getLateMinutes() > 0; }
+    public boolean isEarlyArrival() { return getEarlyArrivalMinutes() > 0; }
     public boolean isEarlyLeave() { return getEarlyLeaveMinutes() > 0; }
 }

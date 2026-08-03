@@ -4,6 +4,7 @@ import com.cafe.common.BusinessDay;
 import com.cafe.common.Constants;
 import com.cafe.common.QuantityFormat;
 import com.cafe.common.Reason86;
+import com.cafe.common.ShiftWindow;
 import com.cafe.model.*;
 
 import java.math.BigDecimal;
@@ -28,6 +29,7 @@ public final class ViewFormatter {
     private static final DateTimeFormatter TIME_DATE_UTC = DateTimeFormatter.ofPattern("HH:mm dd/MM");
     private static final DateTimeFormatter DAY_MONTH = DateTimeFormatter.ofPattern("dd/MM");
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
+    private static final DateTimeFormatter DATE_TIME_LOCAL = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm");
 
     public String plain(BigDecimal value) { return QuantityFormat.plain(value); }
     public String grouped(BigDecimal value) { return QuantityFormat.groupedVi(value); }
@@ -36,16 +38,36 @@ public final class ViewFormatter {
     }
     public String money(BigDecimal value) { return QuantityFormat.groupedVi(value); }
 
+    /** Mã ngắn chỉ dùng để hiển thị; thao tác và liên kết vẫn luôn dùng ID đầy đủ. */
+    public String shortCode(String prefix, String value) {
+        if (value == null || value.isBlank()) return "";
+        String compact = value.replaceAll("[^A-Za-z0-9]", "");
+        if (compact.isEmpty()) return prefix == null ? "" : prefix;
+        String head = compact.substring(0, Math.min(8, compact.length())).toUpperCase(Locale.ROOT);
+        String safePrefix = prefix == null ? "" : prefix.trim().toUpperCase(Locale.ROOT);
+        return safePrefix.isEmpty() ? head : safePrefix + "-" + head;
+    }
+
     public String shortUtc(LocalDateTime value) { return utc(value, SHORT_UTC); }
     public String timeDateUtc(LocalDateTime value) { return utc(value, TIME_DATE_UTC); }
     public String fullUtc(LocalDateTime value) { return BusinessDay.fmtFullDateTimeVn(value); }
     public String dateTimeUtc(LocalDateTime value) { return BusinessDay.fmtDateTimeVn(value); }
     public String timeUtc(LocalDateTime value) { return BusinessDay.fmtTimeVn(value); }
+    public String dateTimeLocalVn(LocalDateTime utc) {
+        return utc == null ? "" : BusinessDay.toVn(utc).format(DATE_TIME_LOCAL);
+    }
     public String localDate(LocalDate value) { return value == null ? "" : value.format(DAY_MONTH); }
     public String timeRange(LocalTime start, LocalTime end) {
         return start == null || end == null ? "" : start.format(TIME) + " - " + end.format(TIME);
     }
     public String oneDecimal(double value) { return String.format(Locale.US, "%.1f", value); }
+    public String attendanceDuration(long minutes) {
+        if (minutes <= 0) return "0 phút";
+        long hours = minutes / 60;
+        long rest = minutes % 60;
+        if (hours == 0) return rest + " phút";
+        return rest == 0 ? hours + " giờ" : hours + " giờ " + rest + " phút";
+    }
 
     public String menuReason(String reason) {
         Reason86 value = Reason86.fromCode(reason);
@@ -80,6 +102,11 @@ public final class ViewFormatter {
 
     public String shiftStatus(ShiftClockStatus status) {
         if (status == null || !status.isHasAssignment()) return "Hôm nay bạn chưa được xếp ca.";
+        if (status.isWaitingForStart()) {
+            LocalTime opensAt = status.getStartTime().minusMinutes(ShiftWindow.CLOCK_IN_EARLY_GRACE.toMinutes());
+            return "Chưa đến giờ vào ca. Có thể bắt đầu từ " + opensAt.format(TIME) + ".";
+        }
+        if (status.isClockInExpired()) return "Ca làm đã qua giờ, không thể vào ca.";
         if (status.isCanClockIn()) return "Chưa vào ca.";
         if (status.isCanClockOut()) return "Đang trong ca từ " + timeUtc(status.getCheckInAt()) + ".";
         if (status.isClockedOut()) return "Đã tan ca.";
