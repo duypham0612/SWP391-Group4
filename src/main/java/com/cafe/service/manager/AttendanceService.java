@@ -21,6 +21,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -73,8 +74,9 @@ public class AttendanceService {
     /** Manager sửa giờ check-in/out tay. */
     public void updateAttendance(int id, int branchId,
                                  LocalDateTime checkIn, LocalDateTime checkOut) throws SQLException {
-        Timestamp ci = checkIn == null ? null : Timestamp.valueOf(checkIn);
-        Timestamp co = checkOut == null ? null : Timestamp.valueOf(checkOut);
+        // datetime-local mang giờ tường Việt Nam; DB lưu DATETIME2 theo UTC.
+        Timestamp ci = checkIn == null ? null : Timestamp.valueOf(BusinessDay.toUtc(checkIn));
+        Timestamp co = checkOut == null ? null : Timestamp.valueOf(BusinessDay.toUtc(checkOut));
         txVoid(c -> requireScopedUpdate(dao.updateByBranch(c, id, branchId, ci, co)));
     }
 
@@ -97,7 +99,7 @@ public class AttendanceService {
     public ShiftClockStatus getMyShiftStatus(int userId, int branchId, LocalDate date) throws SQLException {
         try (Connection c = DBConnection.getConnection()) {
             List<ShiftAssignment> assignments = clockableAssignments(c, userId, branchId, date, ShiftWindow.CLOCK_OUT_GRACE);
-            return buildStatus(c, assignments, date);
+            return buildStatus(c, assignments, date, LocalDateTime.now(BusinessDay.VN_ZONE));
         }
     }
 
@@ -261,7 +263,9 @@ public class AttendanceService {
         List<ShiftAssignment> assignments = clockableAssignments(c, userId, branchId, currentVnDate(), Duration.ZERO);
         if (assignments.isEmpty()) throw new IllegalStateException("Hôm nay bạn chưa được xếp ca.");
 
-        ShiftAssignment target = chooseForClockIn(c, assignments);
+        LocalDateTime nowVn = LocalDateTime.now(BusinessDay.VN_ZONE);
+        ShiftAssignment target = chooseForClockIn(c, assignments, nowVn);
+        if (target == null) throw new IllegalStateException(clockInUnavailableMessage(assignments, nowVn));
         ShiftAssignment existing = dao.findByAssignmentForUpdate(c, target.getShiftAssignmentId());
         if (existing == null) throw new IllegalStateException("Không tìm thấy ca đã phân công.");
         if (existing.getCheckOutAt() != null) {
@@ -319,7 +323,8 @@ public class AttendanceService {
         dao.updateApproval(c, existing.getShiftAssignmentId(), "PENDING", null);
     }
 
-    private ShiftClockStatus buildStatus(Connection c, List<ShiftAssignment> assignments, LocalDate date) throws SQLException {
+    private ShiftClockStatus buildStatus(Connection c, List<ShiftAssignment> assignments, LocalDate date,
+                                         LocalDateTime nowVn) throws SQLException {
         if (assignments.isEmpty()) {
             ShiftClockStatus status = new ShiftClockStatus();
             status.setWorkDate(date);
@@ -333,7 +338,7 @@ public class AttendanceService {
             ShiftAssignment attendance = dao.findByAssignment(c, assignment.getShiftAssignmentId());
             if (attendance != null && attendance.getAttendanceStatus() != null
                     && attendance.getCheckInAt() != null && attendance.getCheckOutAt() == null) {
-                return statusFor(c, assignment, attendance);
+                return statusFor(c, assignment, attendance, nowVn);
             }
             if ((attendance == null || attendance.getAttendanceStatus() == null
                     || attendance.getCheckInAt() == null) && firstUnclocked == null) {
@@ -346,11 +351,12 @@ public class AttendanceService {
             }
         }
 
-        if (firstUnclocked != null) return statusFor(c, firstUnclocked, null);
-        return statusFor(c, lastClosed, lastClosedAttendance);
+        if (firstUnclocked != null) return statusFor(c, firstUnclocked, null, nowVn);
+        return statusFor(c, lastClosed, lastClosedAttendance, nowVn);
     }
 
-    private ShiftClockStatus statusFor(Connection c, ShiftAssignment assignment, ShiftAssignment attendance) throws SQLException {
+    private ShiftClockStatus statusFor(Connection c, ShiftAssignment assignment, ShiftAssignment attendance,
+                                       LocalDateTime nowVn) throws SQLException {
         ShiftClockStatus status = new ShiftClockStatus();
         status.setHasAssignment(true);
         status.setTemplateName(assignment.getShiftName());
@@ -360,7 +366,16 @@ public class AttendanceService {
 
         if (attendance == null || attendance.getAttendanceStatus() == null
                 || attendance.getCheckInAt() == null) {
-            status.setCanClockIn(true);
+            if (ShiftWindow.canClockIn(assignment.getWorkDate(), assignment.getStartTime(),
+                    assignment.getEndTime(), nowVn)) {
+                status.setCanClockIn(true);
+            } else {
+                LocalDateTime opensAt = ShiftWindow.scheduledStart(
+                        assignment.getWorkDate(), assignment.getStartTime())
+                        .minus(ShiftWindow.CLOCK_IN_EARLY_GRACE);
+                status.setWaitingForStart(nowVn != null && nowVn.isBefore(opensAt));
+                status.setClockInExpired(!status.isWaitingForStart());
+            }
             return status;
         }
 
@@ -377,17 +392,39 @@ public class AttendanceService {
         return status;
     }
 
-    private ShiftAssignment chooseForClockIn(Connection c, List<ShiftAssignment> assignments) throws SQLException {
-        ShiftAssignment lastClosed = assignments.get(assignments.size() - 1);
+    private ShiftAssignment chooseForClockIn(Connection c, List<ShiftAssignment> assignments,
+                                             LocalDateTime nowVn) throws SQLException {
+        ShiftAssignment lastClosed = null;
+        boolean hasUnclocked = false;
         for (ShiftAssignment assignment : assignments) {
             ShiftAssignment attendance = dao.findByAssignment(c, assignment.getShiftAssignmentId());
             if (attendance != null && attendance.getAttendanceStatus() != null
                     && attendance.getCheckInAt() != null && attendance.getCheckOutAt() == null) return assignment;
             if (attendance == null || attendance.getAttendanceStatus() == null
-                    || attendance.getCheckInAt() == null) return assignment;
-            lastClosed = assignment;
+                    || attendance.getCheckInAt() == null) {
+                hasUnclocked = true;
+                if (ShiftWindow.canClockIn(assignment.getWorkDate(), assignment.getStartTime(),
+                        assignment.getEndTime(), nowVn)) return assignment;
+            } else {
+                lastClosed = assignment;
+            }
         }
-        return lastClosed;
+        return hasUnclocked ? null : lastClosed;
+    }
+
+    private String clockInUnavailableMessage(List<ShiftAssignment> assignments, LocalDateTime nowVn) {
+        DateTimeFormatter time = DateTimeFormatter.ofPattern("HH:mm");
+        for (ShiftAssignment assignment : assignments) {
+            LocalDateTime start = ShiftWindow.scheduledStart(
+                    assignment.getWorkDate(), assignment.getStartTime());
+            if (start == null) continue;
+            LocalDateTime opensAt = start.minus(ShiftWindow.CLOCK_IN_EARLY_GRACE);
+            if (nowVn != null && nowVn.isBefore(opensAt)) {
+                return "Chưa đến giờ vào ca. Bạn có thể bắt đầu từ " + opensAt.format(time)
+                        + " (sớm tối đa " + ShiftWindow.CLOCK_IN_EARLY_GRACE.toMinutes() + " phút).";
+            }
+        }
+        return "Ca làm đã qua giờ, không thể bắt đầu ca mới.";
     }
 
     private ShiftAssignment chooseOpenAssignment(Connection c, List<ShiftAssignment> assignments) throws SQLException {

@@ -46,11 +46,7 @@ public class StockReceiptServlet extends HttpServlet {
         String action = req.getParameter("action");
         try {
             if ("new".equals(action)) {
-                req.setAttribute("suppliers", supplierService.getSupplierListActive());
-                req.setAttribute("ingredients", ingredientService.getIngredientList());
-                req.setAttribute("unitChoicesByIngredient", ingredientService.getActiveUnitChoicesByIngredient());
-                req.setAttribute("pageTitle", "Tạo phiếu nhập");
-                req.getRequestDispatcher("/WEB-INF/views/manager/receipt-form.jsp").forward(req, resp);
+                showCreateForm(req, resp, null);
             } else if ("view".equals(action)) {
                 showReceipt(req, resp, req.getParameter("id"), branchId);
             } else {
@@ -76,11 +72,16 @@ public class StockReceiptServlet extends HttpServlet {
         try {
             switch (action == null ? "" : action) {
                 case "create": {
+                    redirect = ctx + "/manager/receipt?action=new";
                     StockReceipt r = new StockReceipt();
                     r.setBranchId(branchId);
                     r.setReceivedBy(u.getUserId());
                     String sup = req.getParameter("supplierId");
-                    r.setSupplierId(sup == null || sup.isBlank() ? null : Integer.parseInt(sup));
+                    if (sup == null || sup.isBlank()) {
+                        throw new BusinessException(
+                                "Vui lòng chọn nhà cung cấp trước khi tạo hoặc xác nhận phiếu nhập kho.");
+                    }
+                    r.setSupplierId(Integer.parseInt(sup));
                     r.setNote(trim(req.getParameter("note")));
                     StockReceiptDetail firstLine = new StockReceiptDetail();
                     firstLine.setIngredientId(Integer.parseInt(req.getParameter("ingredientId")));
@@ -155,10 +156,27 @@ public class StockReceiptServlet extends HttpServlet {
                 default: resp.sendError(400);
             }
         } catch (BusinessException e) {
+            if ("create".equals(action)) {
+                try {
+                    showCreateForm(req, resp, e.getMessage());
+                } catch (Exception renderError) {
+                    throw new ServletException(renderError);
+                }
+                return;
+            }
             req.getSession().setAttribute("flashError", e.getMessage());
             resp.sendRedirect(redirect);
         } catch (NumberFormatException e) {
-            req.getSession().setAttribute("flashError", "Số lượng, đơn giá hoặc mã phiếu nhập không hợp lệ.");
+            String message = "Số lượng, đơn giá hoặc mã phiếu nhập không hợp lệ.";
+            if ("create".equals(action)) {
+                try {
+                    showCreateForm(req, resp, message);
+                } catch (Exception renderError) {
+                    throw new ServletException(renderError);
+                }
+                return;
+            }
+            req.getSession().setAttribute("flashError", message);
             resp.sendRedirect(redirect);
         } catch (Exception e) { throw new ServletException(e); }
     }
@@ -172,6 +190,16 @@ public class StockReceiptServlet extends HttpServlet {
         req.setAttribute("unitChoicesByIngredient",ingredientService.getActiveUnitChoicesByIngredient());
         req.setAttribute("pageTitle", "Phiếu nhập #" + batchId);
         req.getRequestDispatcher("/WEB-INF/views/manager/receipt-detail.jsp").forward(req, resp);
+    }
+
+    private void showCreateForm(HttpServletRequest req, HttpServletResponse resp, String errorMessage)
+            throws Exception {
+        req.setAttribute("suppliers", supplierService.getSupplierListActive());
+        req.setAttribute("ingredients", ingredientService.getIngredientList());
+        req.setAttribute("unitChoicesByIngredient", ingredientService.getActiveUnitChoicesByIngredient());
+        req.setAttribute("errorMsg", errorMessage);
+        req.setAttribute("pageTitle", "Tạo phiếu nhập");
+        req.getRequestDispatcher("/WEB-INF/views/manager/receipt-form.jsp").forward(req, resp);
     }
 
     private BigDecimal dec(String s) {

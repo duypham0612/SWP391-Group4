@@ -34,7 +34,7 @@
                 <div class="table-scroll" style="margin-bottom:14px"><table class="table">
                     <thead><tr><th>Biên bản</th><th>Thời điểm</th><th>Số nguyên liệu</th><th>Tổng chênh</th><th>Người kiểm</th></tr></thead>
                     <tbody><c:forEach var="sc" items="${stockCounts}"><tr>
-<td>Batch ${sc.countBatchId}</td>
+                        <td><code class="compact-code" title="Mã đầy đủ: ${sc.countBatchId}">${view.shortCode('KK', sc.countBatchId)}</code></td>
                         <td>${sc.countedAt}</td>
                         <td>${sc.lineCount}</td>
                         <td><strong><c:if test="${sc.totalDiffQty.signum() > 0}">+</c:if>${view.grouped(sc.totalDiffQty)}</strong></td>
@@ -48,7 +48,7 @@
                     <td>#${a.stockAdjustmentId}</td>
                     <%-- null = chỉnh lẻ từ màn pha chế (báo hết nguyên liệu), không thuộc biên bản nào --%>
 <td><c:choose><c:when test="${empty a.countBatchId}"><span class="muted">lẻ</span></c:when>
-<c:otherwise>Batch ${a.countBatchId}</c:otherwise></c:choose></td>
+<c:otherwise><code class="compact-code" title="Mã đầy đủ: ${a.countBatchId}">${view.shortCode('KK', a.countBatchId)}</code></c:otherwise></c:choose></td>
                     <td>${a.ingredientName}</td>
                     <td>${view.grouped(a.systemBaseQty)} ${a.unitNameAtCount}</td><td>${view.grouped(a.actualBaseQty)} ${a.unitNameAtCount}</td>
                     <td><strong><c:if test="${a.diffQty.signum() > 0}">+</c:if>${view.grouped(a.diffQty)}</strong></td>

@@ -14,6 +14,9 @@ import java.time.LocalTime;
  */
 public final class ShiftWindow {
 
+    /** Nhân viên có thể chuẩn bị quầy và vào ca sớm tối đa 15 phút. */
+    public static final Duration CLOCK_IN_EARLY_GRACE = Duration.ofMinutes(15);
+
     /** Tan ca trễ vẫn chấm được trong khoảng này sau giờ kết thúc — dọn quầy, chốt sổ, bàn giao. */
     public static final Duration CLOCK_OUT_GRACE = Duration.ofHours(6);
 
@@ -37,6 +40,24 @@ public final class ShiftWindow {
     public static LocalDateTime scheduledEnd(LocalDate workDate, LocalTime start, LocalTime end) {
         if (workDate == null || end == null) return null;
         return LocalDateTime.of(isOvernight(start, end) ? workDate.plusDays(1) : workDate, end);
+    }
+
+    /** Mốc bắt đầu theo lịch, dùng giờ tường Việt Nam. */
+    public static LocalDateTime scheduledStart(LocalDate workDate, LocalTime start) {
+        return workDate == null || start == null ? null : LocalDateTime.of(workDate, start);
+    }
+
+    /**
+     * Chỉ cho vào ca từ 15 phút trước giờ bắt đầu cho tới trước giờ kết thúc.
+     * Ca qua đêm tự kéo mốc kết thúc sang ngày hôm sau.
+     */
+    public static boolean canClockIn(LocalDate workDate, LocalTime start, LocalTime end,
+                                     LocalDateTime nowVn) {
+        LocalDateTime scheduledStart = scheduledStart(workDate, start);
+        LocalDateTime scheduledEnd = scheduledEnd(workDate, start, end);
+        if (scheduledStart == null || scheduledEnd == null || nowVn == null) return false;
+        LocalDateTime opensAt = scheduledStart.minus(CLOCK_IN_EARLY_GRACE);
+        return !nowVn.isBefore(opensAt) && nowVn.isBefore(scheduledEnd);
     }
 
     /**

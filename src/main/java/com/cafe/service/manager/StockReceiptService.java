@@ -56,6 +56,7 @@ public class StockReceiptService {
 
     /** Schema phẳng không biểu diễn được header rỗng, nên tạo DRAFT cùng dòng đầu tiên. */
     public String createDraftReceipt(StockReceipt receipt, StockReceiptDetail firstLine) throws SQLException {
+        validateSupplier(receipt);
         validateLine(firstLine.getEnteredQuantity(), firstLine.getUnitCost());
         receipt.setReceiptBatchId(UUID.randomUUID().toString());
         receipt.setDocumentDate(LocalDate.now(ZoneOffset.UTC));
@@ -110,7 +111,8 @@ public class StockReceiptService {
     /** DRAFT không ghi ledger; chỉ sau khi toàn batch chuyển CONFIRMED mới cộng tồn. */
     public void confirmReceipt(String batchId, int branchId, int userId) throws SQLException {
         Tx.run(c -> {
-            requireDraft(c, batchId, branchId);
+            StockReceipt receipt = requireDraft(c, batchId, branchId);
+            validateSupplier(receipt);
             List<StockReceiptDetail> details = detailDao.findByReceiptAndBranch(c, batchId, branchId);
             if (details.isEmpty()) throw new BusinessException("Phiếu nhập phải có ít nhất một dòng.");
             if (receiptDao.confirm(c, batchId, branchId) != details.size()) {
@@ -159,6 +161,12 @@ public class StockReceiptService {
         }
         if (unitCost == null || unitCost.signum() <= 0) {
             throw new BusinessException("Đơn giá nhập phải lớn hơn 0.");
+        }
+    }
+
+    static void validateSupplier(StockReceipt receipt) {
+        if (receipt == null || receipt.getSupplierId() == null || receipt.getSupplierId() <= 0) {
+            throw new BusinessException("Vui lòng chọn nhà cung cấp trước khi tạo hoặc xác nhận phiếu nhập kho.");
         }
     }
 

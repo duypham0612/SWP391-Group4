@@ -81,6 +81,12 @@ public class ManagerMenuServlet extends HttpServlet {
                 return;
             }
             service.save(branchId, productId, available, localPrice);
+            if ("setLocalPrice".equals(action)) {
+                req.getSession().setAttribute("flashOk",
+                        localPrice == null
+                                ? "Đã chuyển món về sử dụng giá gốc."
+                                : "Đã cập nhật giá bán tại chi nhánh.");
+            }
             resp.sendRedirect(req.getContextPath() + "/manager/menu");
         } catch (BusinessException e) {
             req.getSession().setAttribute("flashError", e.getMessage());

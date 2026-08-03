@@ -22,7 +22,7 @@
             <tbody>
                 <c:forEach var="t" items="${ledger}">
                     <tr>
-                        <td>${t.inventoryTxnId}</td>
+                        <td>${t.inventoryTransactionId}</td>
                         <td>${t.createdAt}</td>
                         <td><span class="badge badge-served"><c:choose>
                             <c:when test="${t.txnType == 'RECEIPT'}">Nhập kho</c:when>

@@ -72,15 +72,16 @@
                                 <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                 <input type="hidden" name="action" value="edit">
                                 <input type="hidden" name="assignmentId" value="${a.shiftAssignmentId}">
-                                <input type="datetime-local" name="checkInAt"  class="form-control" style="width:185px" value="${a.checkInAt}">
-                                <input type="datetime-local" name="checkOutAt" class="form-control" style="width:185px" value="${a.checkOutAt}">
+                                <input type="datetime-local" name="checkInAt"  class="form-control" style="width:185px" value="${view.dateTimeLocalVn(a.checkInAt)}">
+                                <input type="datetime-local" name="checkOutAt" class="form-control" style="width:185px" value="${view.dateTimeLocalVn(a.checkOutAt)}">
                                 <button type="submit" class="btn btn-ghost btn-sm">Lưu giờ</button>
                             </form>
                         </td>
                         <td>
                             <strong>${a.workHours}</strong>
-                            <c:if test="${a.late}"><div><span class="badge badge-waiting" title="Vào trễ">Trễ ${a.lateMinutes}'</span></div></c:if>
-                            <c:if test="${a.earlyLeave}"><div style="margin-top:3px"><span class="badge badge-making" title="Về sớm">Sớm ${a.earlyLeaveMinutes}'</span></div></c:if>
+                            <c:if test="${a.late}"><div><span class="badge badge-waiting" title="Vào trễ">Trễ ${view.attendanceDuration(a.lateMinutes)}</span></div></c:if>
+                            <c:if test="${a.earlyArrival}"><div><span class="badge badge-ready" title="Vào sớm">Vào sớm ${view.attendanceDuration(a.earlyArrivalMinutes)}</span></div></c:if>
+                            <c:if test="${a.earlyLeave}"><div style="margin-top:3px"><span class="badge badge-making" title="Về sớm">Về sớm ${view.attendanceDuration(a.earlyLeaveMinutes)}</span></div></c:if>
                         </td>
                         <td>
                             <c:choose>

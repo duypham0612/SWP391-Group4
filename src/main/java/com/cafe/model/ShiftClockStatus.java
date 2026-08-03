@@ -10,6 +10,8 @@ public class ShiftClockStatus {
     private boolean canClockIn;
     private boolean canClockOut;
     private boolean clockedOut;
+    private boolean waitingForStart;
+    private boolean clockInExpired;
     private String templateName;
     private LocalDate workDate;
     private LocalTime startTime;
@@ -29,6 +31,12 @@ public class ShiftClockStatus {
 
     public boolean isClockedOut() { return clockedOut; }
     public void setClockedOut(boolean clockedOut) { this.clockedOut = clockedOut; }
+
+    public boolean isWaitingForStart() { return waitingForStart; }
+    public void setWaitingForStart(boolean waitingForStart) { this.waitingForStart = waitingForStart; }
+
+    public boolean isClockInExpired() { return clockInExpired; }
+    public void setClockInExpired(boolean clockInExpired) { this.clockInExpired = clockInExpired; }
 
     public String getTemplateName() { return templateName; }
     public void setTemplateName(String templateName) { this.templateName = templateName; }

@@ -162,6 +162,23 @@ class WebSourceContractTest {
         }
     }
 
+    @Test
+    void inventory_ledger_uses_the_inventory_transaction_bean_property() throws IOException {
+        String source = Files.readString(
+                WEBAPP.resolve("WEB-INF/views/manager/inventory-ledger.jsp"));
+
+        assertTrue(source.contains("${t.inventoryTransactionId}"));
+        assertFalse(source.contains("${t.inventoryTxnId}"));
+    }
+
+    @Test
+    void public_home_uses_the_branch_resolved_price() throws IOException {
+        String source = Files.readString(WEBAPP.resolve("WEB-INF/views/customer/home.jsp"));
+
+        assertTrue(source.contains("${view.grouped(p.price)}"));
+        assertFalse(source.contains("${p.basePrice}"));
+    }
+
     private static List<Path> files(Path root, String suffix) throws IOException {
         try (Stream<Path> stream = Files.walk(root)) {
             return stream.filter(Files::isRegularFile)
