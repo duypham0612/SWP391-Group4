@@ -198,14 +198,15 @@ public class CashierOrderCancellationIT extends SqlServerIntegrationSupport {
     }
 
     @Test
-    void void_order_still_succeeds_when_an_item_is_only_blocked() throws Exception {
+    void void_order_cancels_a_blocked_item_too_instead_of_orphaning_it() throws Exception {
         Fixture f = fixture();
         setItemStatus(f.itemOneId, "BLOCKED");
 
-        // BLOCKED không nằm trong guard R5 (chưa tiêu nguyên liệu), nên huỷ cả đơn vẫn được.
-        // Nhưng vòng lặp huỷ món chỉ đụng món WAITING → món BLOCKED giữ nguyên trạng thái.
+        // BLOCKED không nằm trong guard R5 (chưa tiêu nguyên liệu) nên đơn vẫn huỷ được, và món
+        // BLOCKED phải bị huỷ theo. Bỏ sót nó thì đơn về CANCELLED mà món vẫn hiện trên bảng quầy
+        // pha chế, không có đường nào thoát.
         assertTrue(new OrderService().voidOrder(f.orderId, f.cashierId, f.branchId));
-        assertEquals("BLOCKED", itemStatus(f.itemOneId));
+        assertEquals("CANCELLED", itemStatus(f.itemOneId));
         assertEquals("CANCELLED", itemStatus(f.itemTwoId));
         assertEquals("CANCELLED", orderStatus(f.orderId));
     }

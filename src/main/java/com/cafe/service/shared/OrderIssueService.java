@@ -231,12 +231,16 @@ public final class OrderIssueService {
         return r.length() > 120 ? r.substring(0, 120) : r;
     }
 
-    /** READY → PICKED_UP: Thu ngân/Phục vụ xác nhận đã nhận món khỏi quầy. */
     /**
-     * C4 · Void đơn sai — CHỈ huỷ được khi đơn còn ở giai đoạn chưa pha (mọi món WAITING).
+     * C4 · Void đơn sai — CHỈ huỷ được khi đơn còn ở giai đoạn chưa pha.
      * Nếu barista đã nhận pha (MAKING/READY/PICKED_UP/SERVED) → trả false, KHÔNG đổi gì.
-     * Khi huỷ: chuyển các món WAITING → CANCELLED + đơn → CANCELLED. KHÔNG đụng ledger.
-     * Trả true nếu huỷ thành công.
+     * Khi huỷ: chuyển các món chưa chốt (WAITING, BLOCKED) → CANCELLED + đơn → CANCELLED.
+     * KHÔNG đụng ledger. Trả true nếu huỷ thành công.
+     *
+     * <p>BLOCKED phải nằm trong danh sách huỷ cùng WAITING: nó không bị guard chặn (chưa tiêu
+     * nguyên liệu) nên đơn chứa món BLOCKED vẫn huỷ được. Trước đây vòng huỷ chỉ đụng WAITING, nên
+     * đơn về CANCELLED mà món vẫn nằm BLOCKED — món mồ côi trong đơn đã huỷ, còn hiện trên bảng
+     * quầy pha chế và không có đường nào thoát.
      */
     public boolean voidOrder(int orderId, Integer userId, int branchId) throws SQLException {
         return repository.tx(conn -> {
@@ -249,7 +253,7 @@ public final class OrderIssueService {
                 if ("MAKING".equals(s) || "READY".equals(s) || "PICKED_UP".equals(s) || "SERVED".equals(s)) return false;
             }
             for (OrderItem it : items) {
-                if ("WAITING".equals(it.getStatus())) {
+                if ("WAITING".equals(it.getStatus()) || "BLOCKED".equals(it.getStatus())) {
                     // Món đã qua làm lại có thể đang giữ chỗ nguyên liệu cho lượt kế tiếp — hoàn trước khi huỷ.
                     if (it.isRemakeInventoryReserved()) {
                         repository.inventoryService.releaseRemakeReservation(conn, o.getBranchId(), it.getOrderItemId(), userId);
