@@ -73,11 +73,25 @@ public abstract class SqlServerIntegrationSupport {
                 .migrate();
     }
 
+    /**
+     * Đặt {@code databaseName} vào chuỗi kết nối, thay thế nếu đã có và nối thêm nếu chưa.
+     *
+     * <p>Nhánh "nối thêm" là bắt buộc, không phải phòng xa: {@code MSSQLServerContainer.getJdbcUrl()}
+     * trả về {@code jdbc:sqlserver://localhost:32769;encrypt=false} — KHÔNG có {@code databaseName}.
+     * Trước đây nhánh container chỉ gọi {@code replaceFirst}, nên đó là một phép thay thế không
+     * khớp gì cả: mọi test âm thầm chạy trong {@code master}, còn CafeChain vừa tạo xong thì bỏ
+     * không. Chỉ lộ ra khi {@code DatabaseNormalizationIT} so sánh DB hiện tại với master và thấy
+     * hai bên y hệt nhau.
+     */
+    private static String withDatabaseName(String jdbcUrl, String databaseName) {
+        return jdbcUrl.matches("(?i).*databaseName=[^;]+.*")
+                ? jdbcUrl.replaceFirst("(?i)databaseName=[^;]+", "databaseName=" + databaseName)
+                : jdbcUrl + (jdbcUrl.endsWith(";") ? "" : ";") + "databaseName=" + databaseName;
+    }
+
     private static void createCafeDatabaseIfMissing(String jdbcUrl, String username,
                                                     String password) throws SQLException {
-        String masterUrl = jdbcUrl.matches("(?i).*databaseName=[^;]+.*")
-                ? jdbcUrl.replaceFirst("(?i)databaseName=[^;]+", "databaseName=master")
-                : jdbcUrl + (jdbcUrl.endsWith(";") ? "" : ";") + "databaseName=master";
+        String masterUrl = withDatabaseName(jdbcUrl, "master");
         try (Connection connection = DriverManager.getConnection(masterUrl, username, password);
              Statement statement = connection.createStatement()) {
             statement.execute("IF DB_ID(N'CafeChain') IS NULL CREATE DATABASE CafeChain");
@@ -87,15 +101,9 @@ public abstract class SqlServerIntegrationSupport {
     protected static String cafeJdbcUrl() {
         if (usesExternalDatabase()) {
             if (!INIT_EXTERNAL_SCHEMA) return EXTERNAL_URL;
-            if (EXTERNAL_URL.matches("(?i).*databaseName=[^;]+.*")) {
-                return EXTERNAL_URL.replaceFirst(
-                        "(?i)databaseName=[^;]+", "databaseName=CafeChain");
-            }
-            return EXTERNAL_URL + (EXTERNAL_URL.endsWith(";") ? "" : ";")
-                    + "databaseName=CafeChain";
+            return withDatabaseName(EXTERNAL_URL, "CafeChain");
         }
-        return SQL.getJdbcUrl().replaceFirst(
-                "(?i)databaseName=[^;]+", "databaseName=CafeChain");
+        return withDatabaseName(SQL.getJdbcUrl(), "CafeChain");
     }
 
     private static boolean usesExternalDatabase() {
