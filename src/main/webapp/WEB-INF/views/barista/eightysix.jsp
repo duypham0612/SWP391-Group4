@@ -109,7 +109,8 @@
                                                     <input type="hidden" name="state" value="${filterState}">
                                                     <input type="hidden" name="page" value="${menuPage.page}">
                                                     <input type="hidden" name="pageSize" value="${menuPage.pageSize}">
-                                                    <button type="submit" class="btn btn-sm btn-primary" ${onShift ? '' : 'disabled'}>Xin mở bán lại</button>
+                                                    <button type="submit" class="btn btn-sm btn-primary"
+                                                        ${onShift ? '' : 'disabled'}>Xin mở bán lại</button>
                                                 </form>
                                             </c:otherwise>
                                         </c:choose>
@@ -180,7 +181,8 @@
                     <c:forEach var="pageNumber" items="${menuPage.visiblePages}">
                         <c:url var="e86PageUrl" value="/barista/eightysix">
                             <c:param name="q" value="${filterQuery}" /><c:param name="state" value="${filterState}" />
-                            <c:param name="pageSize" value="${menuPage.pageSize}" /><c:param name="page" value="${pageNumber}" />
+                            <c:param name="pageSize" value="${menuPage.pageSize}" /><c:param name="page"
+                                value="${pageNumber}" />
                         </c:url>
                         <a class="page ${pageNumber == menuPage.page ? 'is-active' : ''}" href="${e86PageUrl}"
                            aria-current="${pageNumber == menuPage.page ? 'page' : 'false'}">${pageNumber}</a>

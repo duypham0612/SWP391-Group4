@@ -466,6 +466,31 @@ ghi gì. Với transaction rỗng thì commit và rollback tương đương, đ�
 
 ---
 
+## 5f. Đợt 8 — Ngắt dòng JSP dài, có kiểm chứng bằng Jasper 🟡 155 → 134 (2026-08-03)
+
+**Chỉ ngắt ở chỗ chứng minh được là an toàn**, không ngắt bừa:
+- **19 dòng**: ngắt **bên trong thẻ mở, giữa hai thuộc tính**. Ở vị trí đó khoảng trắng và xuống dòng
+  là tương đương trong HTML/JSP nên không sinh thêm khoảng trắng văn bản. Script tự assert: ghép lại
+  chỗ vừa chèn phải ra đúng byte của dòng cũ.
+- **2 dòng**: xuống dòng trong `<%-- --%>`. JSP comment bị gỡ hẳn khi dịch trang nên tuyệt đối an toàn.
+
+**134 dòng còn lại KHÔNG ngắt** — và đây là quyết định có lý do, không phải bỏ dở: chúng dài vì
+**nội dung text + EL nằm giữa hai thẻ**. Ngắt ở đó chèn khoảng trắng vào luồng văn bản; HTML thường
+gộp khoảng trắng nên phần lớn vô hại, nhưng cạnh thẻ inline thì thành khe hở nhìn thấy được. Không
+chạy được app để đối chiếu bằng mắt thì không có cách nào phân biệt hai trường hợp đó bằng máy.
+
+**Kiểm chứng (lần đầu dự án có công cụ này):** dịch toàn bộ JSP bằng Jasper của Tomcat 10
+(`org.apache.jasper.JspC`) — **69 trang, 0 lỗi** — rồi so mã servlet sinh ra TRƯỚC và SAU thay đổi.
+Sau khi chuẩn hoá khoảng trắng (kể cả escape `\n` trong chuỗi Java) và bỏ dòng `_jspx_dependants`
+(chứa đường dẫn webapp), **64/69 trang giống hệt**; 5 trang còn lại khác **đúng ở số dòng/cột trong
+nhãn debug EL** (`cards.jsp(112,20)` → `(113,20)`) — hệ quả tất yếu của việc thêm dòng. Không một
+khác biệt nào ở HTML sinh ra, cấu trúc thẻ hay biểu thức EL. **Render giống hệt, chứng minh được.**
+
+**Đính chính con số:** `awk 'length>120'` đếm **byte** nên ra 205; tiếng Việt UTF-8 nhiều byte mỗi ký
+tự. Đếm theo **ký tự** mới đúng là 155. Hai lần đo trước trong dự án lệch nhau cũng vì lý do này.
+
+---
+
 ## 6. Sổ ghi nhận phát sinh
 
 | Ngày | File | Vấn đề | Trạng thái |

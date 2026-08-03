@@ -69,7 +69,8 @@
         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
         <input type="hidden" name="clientRequestId" class="js-waste-request-id" value="${wasteClientRequestId}">
         <input type="hidden" name="action" value="createIngredientWaste">
-        <%-- Bộ lọc + trang nhật ký đang xem: ghi xong redirect (PRG) quay lại đúng chỗ, lỗi validate cũng giữ nguyên. --%>
+        <%-- Bộ lọc + trang nhật ký đang xem: ghi xong redirect (PRG) quay lại đúng chỗ, lỗi validate cũng giữ nguyên.
+        --%>
         <input type="hidden" name="q" value="${fn:escapeXml(wasteLogQuery)}">
         <input type="hidden" name="logType" value="${wasteLogWasteType}">
         <input type="hidden" name="status" value="${wasteLogStatus}">
@@ -295,11 +296,15 @@
                                         <td>
                                             <div class="waste-actions ${onShift ? '' : 'is-viewonly'}">
                                                 <c:if test="${w.editable and w.loggedBy == currentUserId}">
-                                                    <%-- Mang theo bộ lọc + trang đang xem để sửa xong không bị văng về trang 1. --%>
+                                                    <%-- Mang theo bộ lọc + trang đang xem để sửa xong không bị văng
+                                                    về trang 1. --%>
                                                     <c:url var="editWasteUrl" value="/barista/waste">
-                                                        <c:param name="q" value="${wasteLogQuery}" /><c:param name="logType" value="${wasteLogWasteType}" />
-                                                        <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" />
-                                <c:param name="page" value="${wasteLogPage.page}" /><c:param name="edit" value="${w.wasteEntryId}" />
+                                                        <c:param name="q" value="${wasteLogQuery}" /><c:param
+                                                            name="logType" value="${wasteLogWasteType}" />
+                                                        <c:param name="status" value="${wasteLogStatus}" /><c:param
+                                                            name="pageSize" value="${wasteLogPage.pageSize}" />
+                                <c:param name="page" value="${wasteLogPage.page}" /><c:param name="edit"
+                                    value="${w.wasteEntryId}" />
                                                     </c:url>
                                                     <a class="btn btn-ghost btn-sm" href="${editWasteUrl}#editWaste">Sửa</a>
                                                 </c:if>
@@ -338,12 +343,14 @@
                     <div class="pagination" aria-label="Phân trang nhật ký hao hụt">
                         <c:url var="firstWasteLogPageUrl" value="/barista/waste">
                             <c:param name="q" value="${wasteLogQuery}" /><c:param name="logType" value="${wasteLogWasteType}" />
-                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" />
+                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize"
+                                value="${wasteLogPage.pageSize}" />
                             <c:param name="page" value="1" />
                         </c:url>
                         <c:url var="previousWasteLogPageUrl" value="/barista/waste">
                             <c:param name="q" value="${wasteLogQuery}" /><c:param name="logType" value="${wasteLogWasteType}" />
-                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" />
+                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize"
+                                value="${wasteLogPage.pageSize}" />
                             <c:param name="page" value="${wasteLogPage.page - 1}" />
                         </c:url>
                         <a class="page"
@@ -357,7 +364,8 @@
                         <c:forEach var="pageNumber" items="${wasteLogPage.visiblePages}">
                             <c:url var="wasteLogPageUrl" value="/barista/waste">
                                 <c:param name="q" value="${wasteLogQuery}" /><c:param name="logType" value="${wasteLogWasteType}" />
-                                <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" />
+                                <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize"
+                                    value="${wasteLogPage.pageSize}" />
                                 <c:param name="page" value="${pageNumber}" />
                             </c:url>
                             <a class="page ${pageNumber == wasteLogPage.page ? 'is-active' : ''}"
@@ -366,12 +374,14 @@
                         </c:forEach>
                         <c:url var="nextWasteLogPageUrl" value="/barista/waste">
                             <c:param name="q" value="${wasteLogQuery}" /><c:param name="logType" value="${wasteLogWasteType}" />
-                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" />
+                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize"
+                                value="${wasteLogPage.pageSize}" />
                             <c:param name="page" value="${wasteLogPage.page + 1}" />
                         </c:url>
                         <c:url var="lastWasteLogPageUrl" value="/barista/waste">
                             <c:param name="q" value="${wasteLogQuery}" /><c:param name="logType" value="${wasteLogWasteType}" />
-                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize" value="${wasteLogPage.pageSize}" />
+                            <c:param name="status" value="${wasteLogStatus}" /><c:param name="pageSize"
+                                value="${wasteLogPage.pageSize}" />
                             <c:param name="page" value="${wasteLogPage.totalPages}" />
                         </c:url>
                         <a class="page"

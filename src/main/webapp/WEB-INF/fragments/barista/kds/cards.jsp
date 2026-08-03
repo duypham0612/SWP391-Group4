@@ -100,7 +100,8 @@
                value="${ctx}/barista/kds?owner=${board.filterOwner}&amp;station=${board.filterStation}&amp;orderType=${board.filterOrderType}&amp;page=" />
         <div class="kds-queue__foot" id="kdsQueueFoot">
             <p class="kds-queue__range">
-                Đang xem <strong>${board.queuePage.startRow}–${board.queuePage.endRow}</strong> / ${board.queuePage.total} món<c:if test="${board.queuePage.total lt board.queueTotal}"> đã lọc (tổng ${board.queueTotal})</c:if>
+                Đang xem <strong>${board.queuePage.startRow}–${board.queuePage.endRow}</strong> / ${board.queuePage.total} món<c:if
+                    test="${board.queuePage.total lt board.queueTotal}"> đã lọc (tổng ${board.queueTotal})</c:if>
                 <c:if test="${board.queuePage.totalPages gt 1}"> · Trang ${board.queuePage.page}/${board.queuePage.totalPages}</c:if>
             </p>
             <c:if test="${board.queuePage.totalPages gt 1}">

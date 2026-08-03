@@ -94,7 +94,8 @@
         <span class="kds-qrow__tags">
             <c:forEach var="om" items="${cardItem.modifiers}"><span class="kds-qrow__tag"><c:out value="${om.optionName}" /></span></c:forEach>
             <c:if test="${not empty cardItem.note}"><span class="kds-qrow__tag kds-qrow__tag--note">Ghi chú: <c:out value="${cardItem.note}" /></span></c:if>
-            <c:if test="${cardItem.hasIssue and cardItem.status == 'BLOCKED'}"><span class="kds-qrow__tag kds-qrow__tag--issue">⚠ <c:out value="${cardItem.issueReason}" /></span></c:if>
+            <c:if test="${cardItem.hasIssue and cardItem.status == 'BLOCKED'}"><span class="kds-qrow__tag kds-qrow__tag--issue">⚠ <c:out
+                value="${cardItem.issueReason}" /></span></c:if>
             <c:if test="${cardItem.recipeMissing}"><span class="kds-qrow__tag kds-qrow__tag--issue">⚠ Chưa có công thức</span></c:if>
         </span>
     </c:if>
@@ -170,7 +171,8 @@
             </c:when>
             <%-- ĐÃ PHA XONG --%>
             <c:when test="${cardItem.status == 'READY'}">
-                <span class="kds-qrow__by">✓ <c:choose><c:when test="${not empty cardItem.preparedByName}"><c:out value="${cardItem.preparedByName}" /></c:when><c:otherwise>đã pha</c:otherwise></c:choose></span>
+                <span class="kds-qrow__by">✓ <c:choose><c:when test="${not empty cardItem.preparedByName}"><c:out
+                    value="${cardItem.preparedByName}" /></c:when><c:otherwise>đã pha</c:otherwise></c:choose></span>
                 <c:if test="${onShift}">
                     <details class="kds-card-menu"><summary>⋯</summary><div class="kds-card-menu__panel">
                         <button type="button" class="btn btn-ghost btn-sm btn-full js-remake"

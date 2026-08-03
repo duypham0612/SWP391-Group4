@@ -27,7 +27,8 @@
                 aria-pressed="false">Chưa nhận</button>
     </div>
     <details class="kds-more" id="kdsMoreFilters">
-        <summary class="chip-filter">Quầy &amp; loại đơn <span class="kds-filter-badge" id="kdsFilterBadge" hidden></span></summary>
+        <summary class="chip-filter">Quầy &amp; loại đơn <span class="kds-filter-badge" id="kdsFilterBadge"
+            hidden></span></summary>
         <div class="kds-more__panel">
             <label class="kds-filter-field" for="kdsStationFilter"><span>Quầy</span>
                 <select id="kdsStationFilter" data-filter-select="station">
@@ -74,10 +75,12 @@
                     <option value="${r.code}"><c:out value="${r.label}" /></option>
                 </c:forEach>
             </select></label>
-            <label class="kds-field js-other-reason" hidden><span>Lý do khác</span><input type="text" name="otherReason" maxlength="255" autocomplete="off"></label>
+            <label class="kds-field js-other-reason" hidden><span>Lý do khác</span><input type="text"
+                name="otherReason" maxlength="255" autocomplete="off"></label>
             <div class="kds-field js-ingredients" hidden><span>Nguyên liệu đã hết</span><div data-ingredient-slot></div></div>
             <p class="kds-modal__hint js-blocking-note" hidden>Món sẽ chuyển sang mục <strong>Cần xử lý</strong> và rời khỏi hàng chờ pha.</p>
-            <div class="kds-modal__actions"><button type="button" class="btn btn-ghost" data-close>Đóng</button><button type="submit" class="btn btn-danger">Gửi báo sự cố</button></div>
+            <div class="kds-modal__actions"><button type="button" class="btn btn-ghost" data-close>Đóng</button><button
+                type="submit" class="btn btn-danger">Gửi báo sự cố</button></div>
         </form>
     </div>
 </div>
@@ -97,7 +100,8 @@
                     <option value="${r.code}"><c:out value="${r.label}" /></option>
                 </c:forEach>
             </select></label>
-            <div class="kds-modal__actions"><button type="button" class="btn btn-ghost" data-close>Đóng</button><button type="submit" class="btn btn-danger">Xác nhận làm lại</button></div>
+            <div class="kds-modal__actions"><button type="button" class="btn btn-ghost" data-close>Đóng</button><button
+                type="submit" class="btn btn-danger">Xác nhận làm lại</button></div>
         </form>
     </div>
 </div>
@@ -113,7 +117,8 @@
             <input type="hidden" name="recount" value="1">
             <input type="hidden" name="orderItemId" data-item-input>
             <div class="kds-field js-recount"><span>Kiểm kê nguyên liệu</span><div data-recount-slot></div></div>
-            <div class="kds-modal__actions"><button type="button" class="btn btn-ghost" data-close>Đóng</button><button type="submit" class="btn btn-primary">Xác nhận</button></div>
+            <div class="kds-modal__actions"><button type="button" class="btn btn-ghost" data-close>Đóng</button><button
+                type="submit" class="btn btn-primary">Xác nhận</button></div>
         </form>
     </div>
 </div>

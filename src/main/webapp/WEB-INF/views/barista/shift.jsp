@@ -164,7 +164,8 @@
                         <c:forEach var="pageNumber" items="${historyPage.visiblePages}">
                             <c:url var="shiftPageUrl" value="/barista/shift">
                                 <c:param name="month" value="${month}" /><c:param name="q" value="${historyQuery}" />
-                                <c:param name="state" value="${historyState}" /><c:param name="pageSize" value="${historyPage.pageSize}" />
+                                <c:param name="state" value="${historyState}" /><c:param name="pageSize"
+                                    value="${historyPage.pageSize}" />
                                 <c:param name="page" value="${pageNumber}" />
                             </c:url>
                             <a class="page ${pageNumber == historyPage.page ? 'is-active' : ''}"
