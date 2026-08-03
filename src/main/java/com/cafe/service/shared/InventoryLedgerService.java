@@ -1,8 +1,6 @@
 package com.cafe.service.shared;
 
 import com.cafe.common.*;
-import com.cafe.config.DBConnection;
-import com.cafe.dao.admin.IngredientDao;
 import com.cafe.dao.shared.*;
 import com.cafe.model.*;
 

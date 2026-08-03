@@ -6,7 +6,6 @@ import com.cafe.dao.cashier.*;
 import com.cafe.dao.shared.*;
 import com.cafe.model.*;
 
-import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.*;
@@ -29,20 +28,6 @@ public final class OrderQueryService {
 
     // ---------- KDS (Barista) ----------
 
-    public List<OrderItem> getKdsQueue(int branchId) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            List<OrderItem> items = repository.itemDao.findKdsQueue(conn, branchId);
-            java.util.Set<Integer> productIds = new java.util.HashSet<>();
-            for (OrderItem it : items) productIds.add(it.getProductId());
-            java.util.Set<Integer> withRecipe = repository.productRecipeDao.findProductIdsWithRecipe(conn, productIds);
-            attachModifiers(conn, items);
-            for (OrderItem it : items) {
-                it.setRecipeMissing(!withRecipe.contains(it.getProductId()));   // cảnh báo món chưa có công thức
-            }
-            return items;
-        }
-    }
-
     /** Toàn bộ dữ liệu ba cột Quầy pha chế. */
     public List<OrderItem> getBaristaWorkbench(int branchId) throws SQLException {
         return getBaristaWorkbench(branchId, null);
@@ -60,24 +45,6 @@ public final class OrderQueryService {
             for (OrderItem it : items) {
                 it.setRecipeMissing(!withRecipe.contains(it.getProductId()));
             }
-            return items;
-        }
-    }
-
-    /**
-     * Món dang dở thuộc ngày kinh doanh trước — khu "Đơn treo cần xử lý".
-     * Nạp kèm cờ thiếu công thức y như hàng chờ chính: khu này dùng chung dòng thao tác với
-     * hàng chờ, thiếu cờ thì nút "Xong" hiện bình thường rồi mới báo lỗi lúc trừ kho.
-     */
-    public List<OrderItem> getStaleItems(int branchId, java.time.LocalDateTime businessDayStartUtc)
-            throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            List<OrderItem> items = repository.itemDao.findStaleItems(conn, branchId, businessDayStartUtc);
-            java.util.Set<Integer> productIds = new java.util.HashSet<>();
-            for (OrderItem it : items) productIds.add(it.getProductId());
-            java.util.Set<Integer> withRecipe = repository.productRecipeDao.findProductIdsWithRecipe(conn, productIds);
-            attachModifiers(conn, items);
-            for (OrderItem it : items) it.setRecipeMissing(!withRecipe.contains(it.getProductId()));
             return items;
         }
     }
@@ -159,17 +126,6 @@ public final class OrderQueryService {
                         allByOrder.getOrDefault(oid, new ArrayList<>())));
             }
             return tickets;
-        }
-    }
-
-    public Order getOrder(int orderId) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            Order o = repository.orderDao.findById(conn, orderId);
-            if (o == null) return null;
-            List<OrderItem> items = repository.itemDao.findByOrder(conn, orderId);
-            attachModifiers(conn, items);
-            o.setItems(items);
-            return o;
         }
     }
 

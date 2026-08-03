@@ -302,4 +302,4 @@ Tên tiếng Anh trong code là **jargon ngành F&B**, không phải đặt bừ
 | **Prep / PREPPED** | Nguyên liệu pha sẵn (đối lập `RAW`) | `PrepService`, `PrepBatch` |
 | **Ledger / txn bù** | Sổ cái kho — sửa/huỷ ghi giao dịch đối ứng, không xoá cứng | `InventoryService`, `WasteService` |
 | **Business day** | Ngày kinh doanh, cắt theo giờ mở cửa chi nhánh chứ không phải nửa đêm | `BusinessDay`, `WasteScope` |
-| **Stale item** | Món dang dở còn sót từ ngày kinh doanh trước | `getStaleItems` |
+| **Stale item** | Món dang dở còn sót từ ngày kinh doanh trước | `Order.isStale()`, `OrderInboxServlet` (khu "Đơn treo" đã gỡ khỏi màn quầy pha chế; `getStaleItems` đã xoá 2026-08-03) |

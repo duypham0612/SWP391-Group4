@@ -1,13 +1,10 @@
 package com.cafe.service.shared;
 
 import com.cafe.common.*;
-import com.cafe.config.DBConnection;
 import com.cafe.dao.cashier.*;
 import com.cafe.dao.shared.*;
 import com.cafe.model.*;
 
-import java.math.BigDecimal;
-import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.*;
 
@@ -62,30 +59,6 @@ public final class OrderHandoffService {
                 count++;
             }
             return count;
-        });
-    }
-
-    /**
-     * Giao tất cả món đã được nhân viên nhận (PICKED_UP) của một đơn.
-     * Mỗi món PICKED_UP→SERVED nguyên tử; món đã bị đổi/khác chi nhánh bị bỏ qua.
-     */
-    public int serveAllReady(int orderId, Integer userId, int sessionBranchId) throws SQLException {
-        if (userId == null || orderId <= 0) return 0;
-        return repository.tx(conn -> {
-            int done = 0;
-            for (OrderItem it : repository.itemDao.findByOrders(conn, List.of(orderId))) {
-                if (!"PICKED_UP".equals(it.getStatus())) continue;
-                int rows = repository.itemDao.updateStatusIf(conn, it.getOrderItemId(), "SERVED",
-                        new String[]{"PICKED_UP"}, sessionBranchId, false, false, true, false);
-                if (rows == 0) continue;
-                int branchId = repository.branchOf(it);
-            repository.activityLogDao.insertOrderItem(conn, it.getOrderItemId(), branchId, "SERVE",
-                        "PICKED_UP", "SERVED", null, userId);
-                repository.publishStatus(conn, it, "SERVED");
-                done++;
-            }
-            if (done > 0) repository.completeOrderIfDone(conn, orderId, sessionBranchId);
-            return done;
         });
     }
 

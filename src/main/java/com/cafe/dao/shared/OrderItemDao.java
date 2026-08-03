@@ -119,19 +119,6 @@ public class OrderItemDao {
         return out;
     }
 
-    /** Hàng chờ/đang pha, dùng cho dashboard cũ. */
-    public List<OrderItem> findKdsQueue(Connection conn, int branchId) throws SQLException {
-        List<OrderItem> out = new ArrayList<>();
-        final String sql = SELECT +
-            "WHERE o.BranchId=? AND o.Status='ACTIVE' AND oi.Status IN ('WAITING','MAKING') " +
-            "ORDER BY oi.Priority DESC, o.CreatedAt ASC, oi.OrderItemId";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, branchId);
-            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
-        }
-        return out;
-    }
-
     /**
      * Quầy pha chế. Mỗi phần tử là đúng một dòng món, không gom theo đơn.
      * BLOCKED nằm trong danh sách để món bị chặn vẫn hiện ở khu "Cần xử lý" —
@@ -160,24 +147,6 @@ public class OrderItemDao {
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, branchId);
             if (businessDayStartUtc != null) ps.setTimestamp(2, Timestamp.valueOf(businessDayStartUtc));
-            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
-        }
-        return out;
-    }
-
-    /**
-     * Món còn dang dở nhưng thuộc ngày kinh doanh TRƯỚC — khu "Đơn treo cần xử lý" cho quản lý.
-     * Tách ra để hàng chờ hiện tại không bị rác cũ làm đỏ toàn bộ và làm lệch thống kê trễ giờ.
-     */
-    public List<OrderItem> findStaleItems(Connection conn, int branchId,
-                                          java.time.LocalDateTime businessDayStartUtc) throws SQLException {
-        List<OrderItem> out = new ArrayList<>();
-        final String sql = SELECT +
-            "WHERE o.BranchId=? AND o.Status='ACTIVE' AND oi.Status IN ('WAITING','MAKING','READY','BLOCKED') " +
-            "AND o.CreatedAt < ? ORDER BY o.CreatedAt, oi.OrderItemId";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, branchId);
-            ps.setTimestamp(2, Timestamp.valueOf(businessDayStartUtc));
             try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
         }
         return out;

@@ -6,11 +6,9 @@ import com.cafe.dao.cashier.*;
 import com.cafe.dao.shared.*;
 import com.cafe.model.*;
 
-import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
-import java.util.Set;
 
 /** Huỷ bill và nhả các dòng món trong cùng transaction. */
 public final class BillVoidService {
