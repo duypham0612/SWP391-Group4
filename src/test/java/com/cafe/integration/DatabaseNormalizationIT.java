@@ -61,6 +61,7 @@ public class DatabaseNormalizationIT extends SqlServerIntegrationSupport {
     void receipt_uses_purchase_factor_snapshot_after_ingredient_configuration_changes() throws Exception {
         int branchId = createBranch();
         int managerId = createUser(branchId, "BRANCH_MANAGER");
+        int supplierId = createSupplier();
         int ingredientId = createIngredient("receipt-unit", "g");
         execute("UPDATE catalog.Ingredient SET PurchaseUnitName=N'Bag',PurchaseFactorToBase=1000 "
                 + "WHERE IngredientId=?", ingredientId);
@@ -70,6 +71,7 @@ public class DatabaseNormalizationIT extends SqlServerIntegrationSupport {
         StockReceipt receipt = new StockReceipt();
         receipt.setBranchId(branchId);
         receipt.setReceivedBy(managerId);
+        receipt.setSupplierId(supplierId);
         StockReceiptDetail line = new StockReceiptDetail();
         line.setIngredientId(ingredientId);
         line.setEnteredQuantity(new BigDecimal("2"));
@@ -248,6 +250,12 @@ public class DatabaseNormalizationIT extends SqlServerIntegrationSupport {
         String name = unique(prefix);
         execute("INSERT catalog.Ingredient(Name,Unit,IngredientType) VALUES (?,?,'RAW')", name, unit);
         return scalarInt("SELECT IngredientId FROM catalog.Ingredient WHERE Name=?", name);
+    }
+
+    private int createSupplier() throws SQLException {
+        String name = unique("receipt-supplier");
+        execute("INSERT inventory.Supplier(Name,IsActive) VALUES (?,1)", name);
+        return scalarInt("SELECT SupplierId FROM inventory.Supplier WHERE Name=?", name);
     }
 
     private int createBranch() throws SQLException {
