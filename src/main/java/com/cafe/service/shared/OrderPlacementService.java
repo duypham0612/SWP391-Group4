@@ -2,7 +2,6 @@ package com.cafe.service.shared;
 
 import com.cafe.dao.sales.DiningTableDao;
 import com.cafe.common.*;
-import com.cafe.config.DBConnection;
 import com.cafe.model.*;
 
 import java.math.BigDecimal;
@@ -28,9 +27,10 @@ public final class OrderPlacementService {
             throw new BusinessException("Đơn QR không được gắn nhân viên tạo.");
         // Guard cuối dùng chung: cả POS, QR và mọi caller khác đều không thể vượt 20 món cùng loại.
         OrderQuantityValidator.validate(lines);
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
+        // Đi qua repository.tx để hưởng vòng chạy lại khi bị chọn làm nạn nhân deadlock (SQL 1205).
+        // Cấp mã pickup ở đây quét dải SELECT MAX(...) rồi INSERT vào chính bảng đó, nên đây CHÍNH LÀ
+        // đường sinh deadlock — trước kia nó tự quản transaction riêng nên nằm ngoài vùng thử lại.
+        return repository.tx(conn -> {
                 if (tableId != null) {
                     DiningTable table = new DiningTableDao().findByIdForUpdate(conn, tableId);
                     if (table == null || table.getBranchId() != branchId
@@ -132,13 +132,8 @@ public final class OrderPlacementService {
 
                 repository.outboxEventDao.insert(conn, EventType.ORDER_CREATED, String.valueOf(orderId), branchId,
                         "{\"orderId\":" + orderId + ",\"source\":\"" + source + "\"}");
-                conn.commit();
-                return orderId;
-            } catch (SQLException | RuntimeException e) {
-                conn.rollback();
-                throw e;
-            } finally { conn.setAutoCommit(true); }
-        }
+            return orderId;
+        });
     }
 
     private String pickupPrefix(String source, String orderType) {
