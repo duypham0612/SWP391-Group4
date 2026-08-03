@@ -1,0 +1,289 @@
+/* 5/7 · Thanh công cụ + bộ lọc + phân trang cho màn danh sách. admin·barista·manager·cashier.
+   Tách từ cafe-theme.css (1627 dòng) — xem docs/KE_HOACH_CLEAN_CODE_ORDERSERVICE.md §5g.
+   THỨ TỰ NẠP LÀ MỘT PHẦN CỦA ĐÚNG/SAI: header.jsp phát <link> theo đúng thứ tự các khối
+   này vốn nằm trong file gốc. Đảo thứ tự sẽ làm các luật cùng độ đặc hiệu đổi kết quả
+   mà KHÔNG có lỗi nào được báo. */
+
+/* =============== List controls: toolbar + segmented filter + pager =============== */
+.list-toolbar{display:flex; flex-wrap:wrap; align-items:center; gap:var(--s3); margin-bottom:var(--s4)}
+.list-toolbar__search{flex:1 1 240px; min-width:200px; max-width:420px}
+.list-count{color:var(--muted); font-size:var(--fs-sm); white-space:nowrap; font-weight:600}
+.list-count strong{color:var(--ink); font-variant-numeric:tabular-nums}
+.seg{display:inline-flex; background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-pill); padding:3px; gap:2px}
+.seg__btn{
+  border:none; background:transparent; cursor:pointer; font-family:inherit; font-weight:600;
+  font-size:13px; color:var(--ink-soft); padding:7px 15px; border-radius:var(--radius-pill);
+  transition:var(--t-fast); white-space:nowrap;
+}
+.seg__btn:hover{color:var(--brand-700)}
+.seg__btn.is-active{background:var(--brand); color:#fff; box-shadow:var(--shadow-sm)}
+.pager{display:flex; flex-wrap:wrap; gap:var(--s2); justify-content:center; margin-top:var(--s4)}
+.pager__btn{
+  min-width:38px; height:38px; padding:0 10px; border:1px solid var(--line); background:var(--surface);
+  color:var(--ink-soft); border-radius:var(--radius-xs); cursor:pointer; font-family:inherit; font-weight:600;
+  font-size:14px; transition:var(--t-fast); font-variant-numeric:tabular-nums;
+}
+.pager__btn:hover:not(:disabled):not(.is-active){border-color:var(--line-strong); color:var(--brand-700)}
+.pager__btn.is-active{background:var(--brand); color:#fff; border-color:var(--brand); cursor:default}
+.pager__btn:disabled{opacity:.45; cursor:not-allowed}
+.pager__gap{align-self:center; color:var(--muted); padding:0 4px}
+@media (max-width:720px){
+  .list-toolbar__search{max-width:none}
+  .seg{width:100%; justify-content:space-between}
+  .seg__btn{flex:1}
+}
+
+/* ----- Table tools: search/filter/pagination dùng chung ----- */
+.table-toolbar{
+  display:flex; flex-wrap:wrap; align-items:flex-end; gap:var(--s3);
+  margin:0 0 var(--s4);
+}
+.table-toolbar .form-group{margin:0}
+.table-search{position:relative; flex:1 1 260px; min-width:220px}
+.table-search::before{
+  content:"🔍"; position:absolute; left:13px; top:50%; transform:translateY(-50%);
+  color:var(--muted); font-size:14px; line-height:1; pointer-events:none;
+}
+.table-search .form-control{padding-left:38px}
+.tt-filter{min-width:150px}
+.tt-size{width:auto; min-width:92px}
+.table-tools-foot{
+  display:flex; align-items:center; justify-content:space-between; gap:var(--s3);
+  flex-wrap:wrap; margin-top:var(--s4);
+}
+.tt-summary{color:var(--muted); font-size:var(--fs-sm); font-weight:600; white-space:nowrap}
+.pagination{display:flex; align-items:center; justify-content:flex-end; gap:var(--s2); flex-wrap:wrap}
+.pagination .page{
+  min-width:36px; height:36px; padding:0 10px; border:1px solid var(--line);
+  border-radius:var(--radius-pill); background:var(--surface); color:var(--ink-soft);
+  font-family:inherit; font-size:13px; font-weight:700; cursor:pointer;
+  transition:background var(--t-fast),border-color var(--t-fast),color var(--t-fast),transform var(--t-fast);
+  font-variant-numeric:tabular-nums;
+}
+.pagination .page:hover:not(:disabled):not(.is-active){
+  background:var(--surface-2); border-color:var(--line-strong); color:var(--brand-700);
+  transform:translateY(-1px);
+}
+.pagination .page.is-active{background:var(--coffee); border-color:var(--coffee); color:#fff; cursor:default}
+.pagination .page:disabled{opacity:.45; cursor:not-allowed}
+.pagination .page[aria-disabled="true"]{opacity:.45; cursor:not-allowed; pointer-events:none}
+.tt-empty td{
+  text-align:center; color:var(--muted); padding:var(--s6) var(--s4);
+  background:var(--surface); font-weight:600;
+}
+.row-actions{display:flex; align-items:center; gap:6px; flex-wrap:wrap}
+.row-actions .btn{margin:0}
+.admin-user-table{table-layout:fixed; min-width:1220px}
+.admin-user-table th,.admin-user-table td,
+.admin-product-table th,.admin-product-table td,
+.admin-branch-menu-table th,.admin-branch-menu-table td{vertical-align:middle}
+.admin-user-table th,.admin-user-table td{overflow-wrap:anywhere}
+.admin-user-table th:first-child,.admin-user-table td:first-child{
+  width:64px; padding-left:8px; padding-right:8px; text-align:center;
+  white-space:nowrap; overflow-wrap:normal; word-break:normal;
+  font-variant-numeric:tabular-nums;
+}
+.admin-user-table td:nth-child(2),
+.admin-product-table td:nth-child(4),
+.admin-branch-menu-table td:first-child{font-weight:650}
+.admin-user-table td:last-child,
+.admin-product-table td:last-child,
+.admin-branch-menu-table td:last-child{white-space:normal}
+.admin-product-table .prod-thumb,
+.admin-branch-menu-table .prod-thumb{width:58px; height:58px}
+.admin-user-table .row-actions{flex-wrap:nowrap}
+.admin-user-table .row-actions form{display:inline-flex; margin:0}
+.admin-user-table td:last-child{white-space:nowrap}
+.staff-contact{display:grid; gap:5px; min-width:0}
+.staff-contact span{display:block; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.staff-contact span:first-child{font-weight:600}
+.staff-contact span:last-child{color:var(--ink-soft); font-variant-numeric:tabular-nums}
+.form-control-readonly{background:var(--surface-2); color:var(--ink-soft); display:flex; align-items:center}
+.branch-row-actions{flex-wrap:nowrap}
+.branch-row-actions form{display:inline-flex; margin:0}
+.admin-product-table .row-actions{flex-wrap:nowrap}
+.admin-branch-menu-table .form-control{min-height:42px}
+.menu-product-cell{display:flex; align-items:center; gap:12px; min-width:0}
+.menu-product-cell span{min-width:0; overflow-wrap:anywhere}
+.check-cell{display:inline-flex; align-items:center; gap:8px; margin:0; font-weight:650; white-space:nowrap}
+.admin-branch-menu-branches th:last-child,
+.admin-branch-menu-branches td:last-child{text-align:right}
+.recipe-compose__header,
+.recipe-compose__actions{display:flex; align-items:center; justify-content:space-between; gap:12px}
+.recipe-compose__header{margin-bottom:12px}
+.recipe-compose__header h3{margin:0}
+.recipe-compose__actions{justify-content:flex-end; margin-top:14px}
+.recipe-draft-table{min-width:680px}
+.recipe-draft-table td{vertical-align:middle}
+.recipe-draft-table .form-control{min-width:0}
+.recipe-unit{font-weight:650}
+@media (max-width:720px){
+  .table-toolbar{flex-direction:column; align-items:stretch}
+  .table-search,.tt-filter,.tt-size{width:100%; min-width:0}
+  .table-tools-foot{align-items:flex-start; flex-direction:column}
+  .pagination{justify-content:flex-start}
+}
+
+/* ----- Prep (Pha sẵn) ----- */
+.prep-checklist__head{display:flex; align-items:baseline; justify-content:space-between; gap:var(--s3); flex-wrap:wrap}
+.prep-expired{border-left:4px solid var(--st-cancelled)}
+.prep-expired__head{display:flex; justify-content:space-between; align-items:flex-start; gap:var(--s3); flex-wrap:wrap}
+.prep-expired__list{display:flex; flex-direction:column; gap:var(--s2); margin-top:var(--s3)}
+.prep-expired__item{
+  display:flex; justify-content:space-between; align-items:center; gap:var(--s3); flex-wrap:wrap;
+  padding:var(--s3); background:#FCF1EF; border:1px solid #E8B7B7; border-radius:var(--radius-xs);
+}
+.prep-expired__main{display:flex; flex-direction:column; gap:2px; min-width:min(260px,100%)}
+.prep-expired__main span{font-size:var(--fs-sm); color:var(--muted)}
+.prep-expired__form{margin:0}
+.prep-chips{display:flex; flex-wrap:wrap; gap:var(--s2); margin-top:var(--s3)}
+.prep-chip{
+  display:flex; flex-direction:column; gap:1px; text-align:left; cursor:pointer;
+  background:#FCF8F0; border:1px solid var(--line-strong); border-left:3px solid var(--st-waiting);
+  border-radius:var(--radius-xs); padding:8px 12px; font:inherit; color:var(--ink); transition:background var(--t-fast);
+}
+.prep-chip:hover{background:var(--surface-2)}
+.prep-chip strong{font-size:var(--fs-base)}
+.prep-chip span{font-size:var(--fs-xs); color:var(--muted)}
+.prep-chip em{font-size:var(--fs-xs); color:var(--st-cancelled); font-style:normal; font-weight:600}
+.prep-chip--norecipe{border-left-color:var(--st-cancelled); cursor:not-allowed; opacity:.7}
+.prep-card{width:100%; max-width:none}
+.prep-rows{display:flex; flex-direction:column; gap:var(--s2)}
+.prep-row{
+  display:flex; flex-wrap:wrap; gap:var(--s3); align-items:flex-end; max-width:100%;
+  padding:var(--s3); background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-sm);
+}
+.prep-row>.form-group{min-width:0}
+.prep-row__grow{flex:1 1 220px; min-width:min(220px,100%)}
+.prep-row>.form-group:nth-of-type(2){flex:0 1 auto}
+.prep-row>.form-group:nth-of-type(3){flex:1 1 180px; max-width:220px}
+.prep-row__remove{
+  width:38px; height:38px; flex-shrink:0; border:1px solid var(--line-strong); background:var(--surface);
+  border-radius:var(--radius-xs); color:var(--muted); cursor:pointer; font-size:15px; transition:all var(--t-fast);
+}
+.prep-row__remove:hover{color:var(--st-cancelled); border-color:var(--st-cancelled)}
+.prep-row__preview{grid-column:1 / -1; flex:1 0 100%; min-width:0}
+.prep-row--error{border-color:#E8B7B7; background:#FCF1EF}
+.prep-row [aria-invalid="true"]{border-color:var(--st-cancelled); box-shadow:0 0 0 3px rgba(192,57,43,.14)}
+.prep-row__error{flex:1 0 100%; min-width:0; color:#8E1E22; font-size:var(--fs-sm); font-weight:600}
+.prep-row__error[hidden]{display:none}
+.prep-form-foot{display:flex; justify-content:space-between; align-items:center; gap:var(--s3); margin-top:var(--s4); flex-wrap:wrap}
+/* Bộ tăng/giảm sản lượng */
+.qty-stepper{display:flex; align-items:center; gap:6px; max-width:100%}
+.qty-step{
+  width:38px; height:38px; flex-shrink:0; border:1px solid var(--line-strong); background:var(--surface);
+  border-radius:var(--radius-xs); font-size:20px; font-weight:700; line-height:1; color:var(--brand);
+  cursor:pointer; transition:all var(--t-fast);
+}
+.qty-step:hover{background:var(--brand); color:#fff; border-color:var(--brand)}
+.qty-input{width:84px; text-align:center; -moz-appearance:textfield}
+.qty-input::-webkit-outer-spin-button,.qty-input::-webkit-inner-spin-button{-webkit-appearance:none; margin:0}
+.qty-unit{font-size:var(--fs-sm); color:var(--muted); min-width:24px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+@media (max-width:720px){
+  .prep-row{display:grid; grid-template-columns:1fr auto; align-items:end}
+  .prep-row>.form-group{grid-column:1 / -1; width:100%; max-width:none}
+  .prep-row__remove{grid-column:2; justify-self:end}
+  .prep-row__preview{grid-column:1 / -1}
+  .prep-row__error{grid-column:1 / -1}
+}
+.prep-preview{margin-top:var(--s3); padding:var(--s3) var(--s4); background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-xs); font-size:var(--fs-sm)}
+.prep-preview ul{margin:4px 0 0; padding-left:18px}
+.prep-preview__title{color:var(--muted); font-weight:600}
+.prep-preview--warn{background:#FCF1EF; color:#8E1E22; font-weight:600}
+.prep-preview li.prep-lack{color:#8E1E22; font-weight:600}
+.prep-preview__max{margin-top:6px; color:var(--st-ready); font-size:var(--fs-sm)}
+.prep-form-foot__left{display:flex; gap:var(--s2); flex-wrap:wrap}
+.prep-stock-warn{
+  margin-top:var(--s3); padding:var(--s3) var(--s4); border-radius:var(--radius-xs);
+  background:#FCF1EF; border:1px solid #E8B7B7; border-left:3px solid var(--st-cancelled);
+  color:#8E1E22; font-size:var(--fs-sm); font-weight:600;
+}
+.prep-row-form{display:inline-flex; gap:4px; align-items:center}
+.prep-row-qty{width:92px}
+.prep-cancel-btn{color:var(--st-cancelled)}
+.row-muted{opacity:.55}
+
+/* ----- Waste / Remake ----- */
+.waste-scope{
+  display:flex; flex-direction:column; gap:3px; align-items:flex-end; padding:10px 14px;
+  border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface);
+  color:var(--ink-soft); min-width:180px;
+}
+.waste-scope strong{color:var(--brand-700)}
+.waste-scope span{font-size:var(--fs-sm); color:var(--muted)}
+.waste-summary{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:var(--s4); margin-bottom:var(--s5)}
+.waste-summary .stat small{display:block; margin-top:8px; color:var(--muted); font-size:var(--fs-sm)}
+.waste-top-name{font-size:clamp(20px,2vw,28px) !important; word-break:break-word}
+.waste-card{min-width:0}
+.waste-card__head{display:flex; justify-content:space-between; gap:var(--s3); margin-bottom:var(--s4)}
+.waste-card__head h3{margin:0}
+.waste-card__head p{margin:3px 0 0; color:var(--muted); font-size:var(--fs-sm); line-height:1.45}
+.waste-rows{display:flex; flex-direction:column; gap:var(--s3)}
+.waste-row{
+  display:grid; grid-template-columns:minmax(180px,1.4fr) minmax(96px,.5fr) minmax(120px,.6fr);
+  gap:var(--s3); align-items:end; padding:var(--s3); background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-sm);
+}
+.waste-row .form-group{margin:0; min-width:0}
+.waste-row .form-control{width:100%}
+.waste-row__preset{grid-column:1}
+.waste-row__note{grid-column:2}
+.waste-row__remove{
+  width:38px; height:38px; border:1px solid var(--line-strong); background:var(--surface);
+  border-radius:var(--radius-xs); color:var(--muted); cursor:pointer; font-size:18px; line-height:1; transition:all var(--t-fast);
+  grid-column:3; align-self:end; justify-self:end;
+}
+.waste-row__remove:hover{color:var(--st-cancelled); border-color:var(--st-cancelled)}
+.waste-form-actions{display:flex; justify-content:space-between; gap:var(--s3); flex-wrap:wrap; margin-top:var(--s4)}
+.waste-edit-card{margin:var(--s5) 0; display:flex; justify-content:space-between; align-items:flex-end; gap:var(--s4); flex-wrap:wrap}
+.waste-edit-card h3{margin:0}
+.waste-edit-card p{margin:3px 0 0; color:var(--muted)}
+.waste-edit-form{display:grid; grid-template-columns:120px 140px minmax(220px,1fr) auto; gap:var(--s3); align-items:end; flex:1; min-width:min(720px,100%)}
+.waste-edit-form .form-group{margin:0; min-width:0}
+.waste-edit-form__actions{display:flex; gap:var(--s2); flex-wrap:wrap}
+.table-scroll{overflow-x:auto; border-radius:var(--radius)}
+.waste-table{min-width:1040px}
+.waste-table .badge{vertical-align:middle; margin-left:6px}
+.waste-actions{display:flex; gap:var(--s2); align-items:center; flex-wrap:wrap}
+.waste-actions form{margin:0}
+.waste-void-btn{color:var(--st-cancelled)}
+
+@media (max-width:1080px){
+  .waste-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:720px){
+  .waste-scope{align-items:flex-start; width:100%}
+  .waste-summary{grid-template-columns:1fr}
+  .waste-row{grid-template-columns:1fr auto}
+  .waste-row .form-group{grid-column:1 / -1}
+  .waste-row__remove{grid-column:2; justify-self:end}
+  .waste-edit-form{grid-template-columns:1fr}
+  .waste-edit-form__actions{justify-content:flex-start}
+}
+
+/* ----- Pickup (Món chờ giao) — tái dùng .kds-card, nhấn theo trạng thái đủ/thiếu món ----- */
+.pickup-card{border-left-color:var(--st-ready)}
+.pickup-card--partial{border-left-color:var(--st-making)}
+.pickup-card--carrying{border-left-color:var(--caramel)}
+.pickup-line--pending{opacity:.62}                 /* món chưa pha xong: mờ, chỉ để đối chiếu */
+.pickup-line--pending strong{font-weight:600}
+.pickup-line-form{margin-top:var(--s1)}
+.pickup-card__badges{display:flex; flex-direction:column; align-items:flex-end; gap:var(--s2)}
+/* Khách đã thanh toán (phiên đóng) → nhắc giao ngay: nhấn màu espresso đậm */
+.badge-paid{background:var(--espresso)}
+/* SLA chờ giao: mốc riêng (ok xanh · warn hổ phách · crit đỏ) — kể từ lúc pha xong */
+.kds-clock--serve{font-variant-numeric:tabular-nums; font-weight:700}
+.pickup-sla--ok{color:var(--st-ready)}
+.pickup-sla--warn{color:var(--st-waiting)}
+.pickup-sla--crit{color:var(--st-cancelled)}
+/* Cảnh báo món chưa có công thức (KDS) — biến thể đỏ của .kds-note */
+.kds-note--warn{background:var(--kds-late-bg); border-left-color:var(--st-cancelled); color:color-mix(in srgb,var(--st-cancelled) 70%,var(--ink))}
+/* Khu "Vừa giao xong" — hoàn tác giao nhầm */
+.pickup-recent{margin-top:var(--s5); border-top:1px dashed var(--line); padding-top:var(--s4)}
+.pickup-recent__head{font-size:var(--fs-sm); font-weight:700; color:var(--ink-soft); margin-bottom:var(--s3)}
+.pickup-recent__list{display:flex; flex-direction:column; gap:var(--s2)}
+.pickup-recent__item{
+  display:flex; align-items:center; justify-content:space-between; gap:var(--s3);
+  background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-xs); padding:6px 10px;
+}
+.pickup-recent__name{font-size:var(--fs-sm); color:var(--ink-soft)}
+

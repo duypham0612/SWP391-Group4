@@ -1,6 +1,7 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
+<c:set var="cssBundles" value="kds,list-controls,barista" scope="request" />
 <jsp:include page="/WEB-INF/views/layout/header.jsp" />
 
 <div class="page-header">

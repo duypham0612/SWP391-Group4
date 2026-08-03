@@ -33,8 +33,16 @@
     });
   })();
 </script>
-<script src="${pageContext.request.contextPath}/assets/js/admin-money-input.js?v=${applicationScope.assetVersion}" defer></script>
-<script src="${pageContext.request.contextPath}/assets/js/vi-number-input.js?v=${applicationScope.assetVersion}" defer></script>
-<script src="${pageContext.request.contextPath}/assets/js/table-tools.js?v=${applicationScope.assetVersion}" defer></script>
+<%-- JS theo màn. Trang tự khai `jsBundles` ở đầu file, ví dụ:
+       <c:set var="jsBundles" value="admin/table-tools" scope="request" />
+
+     Trước đây ba script này được nạp cho MỌI trang của MỌI role: màn quầy pha chế tải 331 dòng JS
+     nó không bao giờ dùng, và ngược lại. Cả ba đều chỉ gắn vào một thuộc tính data-* riêng
+     (data-tabletools, data-money-input, data-vi-number) nên trang không có thuộc tính đó thì tải về
+     rồi bỏ không. --%>
+<c:set var="_j" value=",${jsBundles}," />
+<c:if test="${_j.contains(',admin/table-tools,')}"><script src="${pageContext.request.contextPath}/assets/js/admin/table-tools.js?v=${applicationScope.assetVersion}" defer></script></c:if>
+<c:if test="${_j.contains(',admin/money-input,')}"><script src="${pageContext.request.contextPath}/assets/js/admin/money-input.js?v=${applicationScope.assetVersion}" defer></script></c:if>
+<c:if test="${_j.contains(',manager/vi-number-input,')}"><script src="${pageContext.request.contextPath}/assets/js/manager/vi-number-input.js?v=${applicationScope.assetVersion}" defer></script></c:if>
 </body>
 </html>

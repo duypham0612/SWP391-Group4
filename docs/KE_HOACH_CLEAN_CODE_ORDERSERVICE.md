@@ -491,6 +491,75 @@ tự. Đếm theo **ký tự** mới đúng là 155. Hai lần đo trước tron
 
 ---
 
+## 5g. Đợt 9+10 — Chia frontend (CSS + JS) theo màn/role 🟢 XONG (2026-08-03)
+
+**Vấn đề:** JSP đã chia theo role từ trước, nhưng **assets thì không**: một file `cafe-theme.css`
+1627 dòng cho cả 8 role, và `footer.jsp` nạp **cả 3 script cho mọi trang của mọi role**.
+
+### CSS: 1 file → 7 file
+
+| File | Dòng | Trang nạp |
+|---|---|---|
+| `core.css` | 376 | mọi trang |
+| `responsive.css` | 105 | mọi trang, **luôn cuối** |
+| `kds.css` | 704 | barista **và** cashier (Pickup/Inbox tái dùng `kds-card`) |
+| `list-controls.css` | 289 | màn có thanh lọc/phân trang |
+| `barista.css` | 94 | chỉ barista |
+| `customer.css` · `auth.css` | 59 · 48 | customer · auth |
+
+Trang tự khai `<c:set var="cssBundles" .../>`; **`header.jsp` quyết định thứ tự `<link>`**, không phải
+thứ tự chữ trong biến.
+
+**Vì sao thứ tự là vấn đề sống còn:** đo chồng lấn selector giữa 12 khối gốc thì `responsive` đụng
+`core`(16 class), `auth`(11), `kds`(8), `recipe`(13). Nạp sai thứ tự thì các luật **cùng độ đặc hiệu**
+đổi kết quả mà **không có lỗi nào được báo**. Ràng buộc đã chứng minh: `core → auth → customer → kds
+→ list-controls → barista → responsive`. Riêng khối banner trực ca (gốc nằm SAU responsive) được đưa
+vào `barista.css` (trước responsive) — an toàn vì mọi luật `.btn` của nó là selector hậu duệ
+`.is-viewonly .btn` (0,2,0) nên thắng `.btn` (0,1,0) bất kể thứ tự.
+
+**Hai chỗ đặt sai có sẵn, do việc tách phơi ra:**
+- `.sidebar-toggle` — nút thu gọn menu ở `sidebar.jsp`/`footer.jsp`, hiện trên **mọi** trang, nhưng
+  luật lại nằm trong khối KDS. Admin/manager/cashier chỉ được cấp CSS nhờ **tình cờ** nạp chung file.
+- `.alert-warn` — biến thể alert dùng ở `manager/prep-list` và 2 màn barista, lại nằm trong khối
+  riêng của barista.
+
+Cả hai đã chuyển về `core.css`.
+
+### JS: gỡ nạp thừa
+
+`table-tools.js`(218) → `js/admin/`, `admin-money-input.js`(59) → `js/admin/money-input.js`,
+`vi-number-input.js`(54) → `js/manager/`. Ba file này chỉ gắn vào một thuộc tính `data-*` riêng, và
+thực tế chỉ 9 màn dùng — nhưng đang được nạp cho **cả 69 trang**. `footer.jsp` nay phát script theo
+`jsBundles`. Tên cũ đánh lừa: `table-tools` nghe như "bàn ăn" của cashier, thật ra là bộ lọc **bảng
+dữ liệu** của admin.
+
+### Kết quả
+
+| Trang | Trước | Sau |
+|---|---|---|
+| `cashier/pos` · `admin/dashboard` · `manager/*` | 1627 | **480** (−70%) |
+| `auth/login` · `customer/menu` | 1627 | ~530 (−68%) |
+| `barista/prep` | 1627 | 861 (−47%) |
+| `barista/kds` | 1627 | 1564 (−4%) |
+
+Barista giảm ít nhất — đúng như kỳ vọng, vì KDS **là** phần lớn nhất của file gốc.
+
+### Kiểm chứng
+
+- **934/934 rule CSS khớp tuyệt đối** giữa file gốc và 7 file mới (so theo selector+thân, bỏ chú
+  thích): không mất, không thêm, không trùng.
+- **Gán bundle bằng máy, không gán tay:** dò class từng trang *có đi theo cả fragment được include*,
+  đối chiếu với selector từng file. Bản dò đầu quá lỏng (báo 42 trang cần `kds` vì `.sidebar-toggle`);
+  bản thứ hai quá chặt (**bỏ sót** `customer/menu.jsp` dùng `.price`). Bản chốt loại đúng các luật bị
+  khoá sau `.page-kds` và thiên về *thừa hơn thiếu*.
+- **EL `${_b.contains(',kds,')}` đã chạy thử thật** bằng chính EL engine của Tomcat 10 — đây là rủi ro
+  Jasper KHÔNG bắt được: nếu EL không gọi được method thì mọi trang mất CSS theo role mà không có lỗi.
+  Kết quả đúng cho cả 5 bundle, không nhầm chuỗi con, trang không khai biến vẫn nạp `core`+`responsive`.
+- Jasper dịch **69 trang, 0 lỗi**. Mọi asset được tham chiếu đều có trong WAR; không file nào mồ côi.
+- `mvn clean verify` 352/352 · WAR OK.
+
+---
+
 ## 6. Sổ ghi nhận phát sinh
 
 | Ngày | File | Vấn đề | Trạng thái |

@@ -3,6 +3,7 @@
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <c:set var="editing" value="${staff.userId > 0}" />
 <c:set var="assigning" value="${assignmentMode}" />
+<c:set var="cssBundles" value="list-controls" scope="request" />
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">

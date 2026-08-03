@@ -1,0 +1,94 @@
+/* 6/7 · Tra công thức + banner trực ca. Chỉ barista. PHẢI nạp sau kds.css.
+   Tách từ cafe-theme.css (1627 dòng) — xem docs/KE_HOACH_CLEAN_CODE_ORDERSERVICE.md §5g.
+   THỨ TỰ NẠP LÀ MỘT PHẦN CỦA ĐÚNG/SAI: header.jsp phát <link> theo đúng thứ tự các khối
+   này vốn nằm trong file gốc. Đảo thứ tự sẽ làm các luật cùng độ đặc hiệu đổi kết quả
+   mà KHÔNG có lỗi nào được báo. */
+
+/* ============================ Recipe lookup ============================= */
+.recipe-filter{max-width:none}
+.recipe-filter__form{display:flex; gap:var(--s3); align-items:flex-end; flex-wrap:wrap}
+.recipe-filter__form .form-group{margin:0}
+.recipe-filter__search{flex:1 1 260px; min-width:220px}
+.recipe-filter__search small{margin-top:6px; color:var(--muted); font-size:12px}
+.recipe-filter__select{flex:0 1 190px; min-width:170px}
+.recipe-filter__branch{display:flex; align-items:center; gap:8px; min-height:42px; margin-bottom:0; white-space:nowrap; font-size:13px; font-weight:650; color:var(--ink-soft)}
+.recipe-filter__branch input{width:17px; height:17px; accent-color:var(--coffee)}
+.recipe-filter__form.is-live-searching #q{border-color:var(--gold); box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 16%,transparent)}
+.recipe-layout{display:grid; grid-template-columns:minmax(300px,.85fr) minmax(390px,1.25fr); gap:var(--s5); align-items:start}
+.recipe-results-card,.recipe-detail-card{min-width:0}
+.recipe-card__head,.recipe-detail-card__head{display:flex; align-items:flex-start; justify-content:space-between; gap:var(--s3); margin-bottom:var(--s4)}
+/* Màu chữ phải theo --ink (đảo theo theme). --espresso là màu cố định #291A0F,
+   dùng làm chữ sẽ chìm hẳn vào nền ở dark mode. */
+.recipe-card__head h2,.recipe-detail-card__head h2{margin:2px 0 0; font:700 23px/1.2 'Playfair Display',serif; color:var(--ink)}
+.recipe-count{display:inline-flex; align-items:center; min-height:28px; padding:3px 10px; border:1px solid var(--line); border-radius:var(--radius-pill); background:var(--surface-2); color:var(--muted); font-size:12px; font-weight:700; white-space:nowrap}
+/* Danh sách món là điều hướng, không phải dữ liệu dạng bảng: dùng <ul> để cả dòng
+   là vùng bấm. Bảng 2 cột cũ bị min-width ép rộng hơn cột trái nên nút "Xem" bị
+   đẩy ra ngoài vùng nhìn thấy. */
+.recipe-product-list{margin:0; padding:0; list-style:none; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); box-shadow:var(--shadow-sm); overflow:hidden}
+.recipe-product-list li + li{border-top:1px solid var(--line)}
+.recipe-product-link{display:block; padding:11px var(--s4); color:inherit; text-decoration:none; transition:background var(--t-fast)}
+.recipe-product-link:hover{background:var(--surface-2)}
+/* offset âm vì <ul> có overflow:hidden — outline dương sẽ bị cắt mất. */
+.recipe-product-link:focus-visible{outline:3px solid color-mix(in srgb,var(--gold) 55%,transparent); outline-offset:-3px}
+.recipe-product-link[aria-current="true"]{background:color-mix(in srgb,var(--latte) 38%,transparent); box-shadow:inset 3px 0 0 var(--gold)}
+[data-theme="dark"] .recipe-product-link[aria-current="true"]{background:color-mix(in srgb,var(--gold) 16%,transparent)}
+.recipe-product-name{display:block; font-weight:750; color:var(--ink)}
+.recipe-product-cat{display:block; margin-top:2px; color:var(--muted)}
+/* --st-waiting nguyên bản chỉ đạt 3.00:1 trên nền thẻ ở light theme (chữ nhỏ cần 4.5:1).
+   --kds-warn-ink là bản đã pha với --ink nên đậm hơn và tự đảo theo theme. */
+.recipe-norecipe-tag{color:var(--kds-warn-ink); font-weight:700}
+/* Danh sách dài thì cuộn trong thẻ, giữ thẻ chi tiết sticky vẫn nằm trong tầm mắt.
+   Chỉ áp dụng khi còn bố cục 2 cột — dưới 820px danh sách chảy tự nhiên. */
+@media (min-width:821px){
+  .recipe-product-scroll{max-height:min(62vh,640px); overflow-y:auto; border-radius:var(--radius)}
+}
+.recipe-detail-card{position:sticky; top:var(--s4)}
+.recipe-detail-card__head{display:block; padding-bottom:var(--s4); border-bottom:1px solid var(--line)}
+.recipe-detail-card__head p{margin:7px 0 0; color:var(--muted); font-size:13px}
+.recipe-section{padding-top:var(--s4); margin-top:var(--s4); border-top:1px solid var(--line)}
+.recipe-detail-card__head + .recipe-section{padding-top:0; margin-top:0; border-top:0}
+.recipe-section h3{margin:0; font:700 16px/1.25 'Be Vietnam Pro',sans-serif; color:var(--ink)}
+.recipe-section__hint{margin:6px 0 var(--s3); color:var(--muted); font-size:12.5px}
+.recipe-muted{margin:var(--s3) 0 0; color:var(--muted)}
+.recipe-table-wrap{overflow-x:auto; border-radius:var(--radius-sm)}
+/* min-width đặt riêng theo số cột thật của từng bảng. Một giá trị chung 520px
+   rộng hơn cột chi tiết ở màn 1280px nên cắt mất cột cuối. */
+.recipe-table-wrap .table{min-width:400px}
+.recipe-table-wrap .recipe-impact-table{min-width:460px}
+.recipe-qty,.recipe-impact-delta{white-space:nowrap; font-variant-numeric:tabular-nums}
+.recipe-impact-delta strong{color:var(--ink)}
+/* .badge mặc định chữ trắng; nền --latte quá sáng nên chỉ đạt 1.48:1 → chữ đậm.
+   Nền badge là màu sáng cố định ở cả 2 theme nên ghim luôn màu chữ tối. */
+.recipe-badge-prepped{background:var(--latte); color:var(--wine-900)}
+.recipe-badge-prepped::before{background:color-mix(in srgb,var(--wine-900) 55%,transparent)}
+.recipe-badge-raw{background:var(--coffee)}
+/* Dark mode: --coffee sáng lên thành #C99A6E, chữ trắng chỉ còn 2.52:1. */
+[data-theme="dark"] .recipe-badge-raw{color:var(--wine-900)}
+[data-theme="dark"] .recipe-badge-raw::before{background:color-mix(in srgb,var(--wine-900) 55%,transparent)}
+.recipe-extra-mark{color:var(--kds-warn-ink); font-weight:800}
+.recipe-section__foot{margin:var(--s3) 0 0; color:var(--muted); font-size:12.5px}
+/* Kẻ đậm mở đầu mỗi nhóm modifier để bảng đọc thành cụm. */
+.recipe-impact-table tbody tr.is-group-start td{border-top:2px solid var(--line-strong)}
+.recipe-prep-card{margin-top:var(--s3); padding:var(--s3); border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface-2)}
+.recipe-prep-card__head{display:flex; justify-content:space-between; align-items:baseline; gap:var(--s3); margin-bottom:var(--s3)}
+.recipe-prep-card__head strong{color:var(--ink)}
+.recipe-prep-card__unit{font-size:12px; color:var(--muted); white-space:nowrap}
+.recipe-prep-card__yield{font-size:12.5px; color:var(--ink-soft); white-space:nowrap}
+.recipe-prep-card__yield strong{color:var(--ink); font-variant-numeric:tabular-nums}
+.recipe-results-card[aria-busy],.recipe-detail-card[aria-busy]{pointer-events:none}
+.recipe-empty{padding:var(--s6) var(--s5)}
+.recipe-empty p{margin:0 auto; max-width:42ch}
+.recipe-empty__hint{margin-top:var(--s2) !important; font-size:12.5px; opacity:.85}
+
+/* ===== Barista trực ca: banner ngoài ca + khoá thao tác view-only ===== */
+.barista-offshift{justify-content:space-between; align-items:center; gap:var(--s4); flex-wrap:wrap}
+.barista-offshift__text{display:flex; flex-direction:column; gap:2px}
+.barista-offshift form{margin:0}
+/* Khoá mọi thao tác khi ngoài ca: vẫn xem/scroll được, không bấm/nhập được */
+.is-viewonly{position:relative}
+.is-viewonly .btn,.is-viewonly button,.is-viewonly a.btn,
+.is-viewonly input,.is-viewonly select,.is-viewonly textarea,
+.is-viewonly form{pointer-events:none !important}
+.is-viewonly .btn,.is-viewonly button:not(.badge){opacity:.5; cursor:not-allowed}
+.is-viewonly input,.is-viewonly select,.is-viewonly textarea{opacity:.6; background:var(--paper-2, #f3ece1)}
+

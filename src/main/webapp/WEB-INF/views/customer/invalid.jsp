@@ -5,7 +5,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${empty invalidTitle ? 'Mã QR không hợp lệ' : invalidTitle}</title>
-<link rel="stylesheet" href="${pageContext.request.contextPath}/assets/css/cafe-theme.css?v=${applicationScope.assetVersion}">
+<link rel="stylesheet" href="${pageContext.request.contextPath}/assets/css/core.css?v=${applicationScope.assetVersion}">
+<link rel="stylesheet" href="${pageContext.request.contextPath}/assets/css/responsive.css?v=${applicationScope.assetVersion}">
 <style>body{background:var(--foam)} .wrap{max-width:480px;margin:40px auto;padding:0 18px;text-align:center}</style>
 </head>
 <body>

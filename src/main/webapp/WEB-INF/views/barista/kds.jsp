@@ -3,6 +3,7 @@
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <c:set var="wideLayout" value="true" scope="request" />
 <c:set var="bodyClass" value="page-kds" scope="request" />
+<c:set var="cssBundles" value="kds,list-controls,barista" scope="request" />
 <jsp:include page="/WEB-INF/views/layout/header.jsp" />
 <h1 class="visually-hidden">Quầy pha chế</h1>
 

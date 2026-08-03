@@ -19,7 +19,21 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="${ctx}/assets/css/cafe-theme.css?v=${applicationScope.assetVersion}">
+    <%-- CSS chia theo màn/role. Trang tự khai `cssBundles` TRƯỚC khi include file này, ví dụ:
+         <c:set var="cssBundles" value="kds,list-controls,barista" scope="request" />
+
+         THỨ TỰ PHÁT <link> DƯỚI ĐÂY LÀ CỐ ĐỊNH VÀ LÀ MỘT PHẦN CỦA ĐÚNG/SAI: nó khớp đúng thứ tự
+         các khối vốn nằm trong cafe-theme.css cũ. Đảo thứ tự thì các luật cùng độ đặc hiệu đổi kết
+         quả mà KHÔNG có lỗi nào được báo. Vì vậy header quyết định thứ tự, không phải thứ tự chữ
+         trong `cssBundles`. responsive.css luôn CUỐI vì nó đè lên mọi khối trên. --%>
+    <c:set var="_b" value=",${cssBundles}," />
+    <link rel="stylesheet" href="${ctx}/assets/css/core.css?v=${applicationScope.assetVersion}">
+    <c:if test="${_b.contains(',auth,')}"><link rel="stylesheet" href="${ctx}/assets/css/auth.css?v=${applicationScope.assetVersion}"></c:if>
+    <c:if test="${_b.contains(',customer,')}"><link rel="stylesheet" href="${ctx}/assets/css/customer.css?v=${applicationScope.assetVersion}"></c:if>
+    <c:if test="${_b.contains(',kds,')}"><link rel="stylesheet" href="${ctx}/assets/css/kds.css?v=${applicationScope.assetVersion}"></c:if>
+    <c:if test="${_b.contains(',list-controls,')}"><link rel="stylesheet" href="${ctx}/assets/css/list-controls.css?v=${applicationScope.assetVersion}"></c:if>
+    <c:if test="${_b.contains(',barista,')}"><link rel="stylesheet" href="${ctx}/assets/css/barista.css?v=${applicationScope.assetVersion}"></c:if>
+    <link rel="stylesheet" href="${ctx}/assets/css/responsive.css?v=${applicationScope.assetVersion}">
 </head>
 <body class="${bodyClass}">
 <div class="app-shell">

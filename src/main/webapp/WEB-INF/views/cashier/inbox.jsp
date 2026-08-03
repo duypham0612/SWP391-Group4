@@ -2,6 +2,7 @@
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
+<c:set var="cssBundles" value="kds,list-controls" scope="request" />
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">

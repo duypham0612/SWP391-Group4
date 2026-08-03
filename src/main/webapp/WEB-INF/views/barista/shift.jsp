@@ -3,6 +3,7 @@
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <%@ taglib prefix="fn" uri="jakarta.tags.functions" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
+<c:set var="cssBundles" value="kds,list-controls" scope="request" />
 <jsp:include page="/WEB-INF/views/layout/header.jsp" />
 
 <div class="page-header">
