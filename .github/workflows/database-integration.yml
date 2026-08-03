@@ -45,9 +45,24 @@ jobs:
         run: test "$(uname -m)" = "x86_64"
 
       - name: Unit and SQL Server integration tests
-        run: >
-          mvn --batch-mode --no-transfer-progress clean verify -Pintegration
-          -Dit.db.url="jdbc:sqlserver://localhost:1433;encrypt=false;trustServerCertificate=true"
-          -Dit.db.username=sa
-          -Dit.db.password="$MSSQL_SA_PASSWORD"
-          -Dit.db.initSchema=true
+        shell: bash
+        run: |
+          set +e
+          mvn --batch-mode --no-transfer-progress clean verify -Pintegration \
+            -Dit.db.url="jdbc:sqlserver://localhost:1433;encrypt=false;trustServerCertificate=true" \
+            -Dit.db.username=sa \
+            -Dit.db.password="$MSSQL_SA_PASSWORD" \
+            -Dit.db.initSchema=true
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            shopt -s nullglob
+            reports=(target/surefire-reports/*.txt target/failsafe-reports/*.txt)
+            if [ "${#reports[@]}" -eq 0 ]; then
+              echo "::error title=Maven failed::No Surefire/Failsafe text reports were created."
+            fi
+            for report in "${reports[@]}"; do
+              message="$(tail -n 120 "$report" | perl -0pe 's/%/%25/g; s/\r/%0D/g; s/\n/%0A/g')"
+              echo "::error file=$report,title=$(basename "$report")::$message"
+            done
+          fi
+          exit "$status"
