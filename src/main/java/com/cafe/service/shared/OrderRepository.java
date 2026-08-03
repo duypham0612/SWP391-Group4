@@ -17,19 +17,13 @@ import com.cafe.dao.shared.OutboxEventDao;
 import com.cafe.dao.admin.ProductModifierGroupDao;
 import com.cafe.dao.admin.RecipeDao;
 import com.cafe.common.*;
-import com.cafe.config.DBConnection;
 import com.cafe.model.*;
 
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
 
 final class OrderRepository {
-
-    /** Mã lỗi SQL Server cho "giao dịch bị chọn làm nạn nhân deadlock". */
-    private static final int SQL_SERVER_DEADLOCK_VICTIM = 1205;
-    private static final int TX_MAX_ATTEMPTS = 3;
 
     final OrderDao orderDao;
     final OrderItemDao itemDao;
@@ -107,67 +101,17 @@ final class OrderRepository {
 
     /** Như {@link #tx} nhưng không trả kết quả. */
     void txVoid(Tx tx) throws SQLException {
-        tx(conn -> { tx.run(conn); return null; });
+        com.cafe.config.Tx.run(tx::run);
     }
 
     interface TxFn<T> { T run(Connection conn) throws SQLException; }
 
     /**
-     * Chạy {@code fn} trong một giao dịch, commit nếu xuôi và rollback nếu ném lỗi.
-     *
-     * <p>BusinessException/IllegalArgumentException là RuntimeException nên PHẢI rollback cùng chỗ
-     * với SQLException: bỏ sót nó thì {@code setAutoCommit(true)} ở finally lại commit phần đã ghi
-     * dở (hợp đồng JDBC: đổi auto-commit mode giữa transaction sẽ commit transaction đó). Trước đây
-     * món chưa có công thức vẫn sang READY rồi mới ném lỗi ở bước trừ kho → READY mà không trừ kho.
-     *
-     * <p>Riêng nạn nhân deadlock thì chạy lại — xem {@link #isDeadlockVictim}.
+     * Chạy {@code fn} trong một giao dịch — nay chỉ là lối vào tiện tay cho các service đã cầm sẵn
+     * repository. Toàn bộ luật (commit/rollback, rollback cả RuntimeException, thử lại khi trúng
+     * deadlock 1205) nằm ở {@link com.cafe.config.Tx} để mọi service dùng chung một bản.
      */
     <T> T tx(TxFn<T> fn) throws SQLException {
-        for (int attempt = 1; ; attempt++) {
-            try (Connection conn = DBConnection.getConnection()) {
-                conn.setAutoCommit(false);
-                try { T r = fn.run(conn); conn.commit(); return r; }
-                catch (SQLException | RuntimeException e) {
-                    conn.rollback();
-                    if (attempt >= TX_MAX_ATTEMPTS || !isDeadlockVictim(e)) throw e;
-                }
-                finally { conn.setAutoCommit(true); }
-            }
-            // Chỉ tới đây khi là nạn nhân deadlock và còn lượt: nghỉ ngắn rồi chạy lại TỪ ĐẦU
-            // với connection mới.
-            backOff(attempt);
-        }
-    }
-
-    /**
-     * Chạy lại cả giao dịch khi SQL Server chọn nó làm nạn nhân deadlock (lỗi 1205).
-     *
-     * <p>Phải chạy lại từ đầu bằng connection mới, KHÔNG thử lại trong cùng connection như vòng lặp
-     * cấp mã pickup ở {@code OrderDao.insert}: 1205 huỷ nguyên giao dịch chứ không chỉ câu lệnh, nên
-     * mọi thao tác đã ghi trước đó trong giao dịch cũng mất theo. Vòng lặp cũ chỉ bắt trùng khoá
-     * (2601/2627) — lỗi cấp câu lệnh, giao dịch còn sống nên thử lại tại chỗ mới hợp lệ.
-     *
-     * <p>Chạy lại an toàn vì mọi {@code fn} đều dựng lại trạng thái của nó bên trong lambda và
-     * rollback đã xoá sạch phần ghi dở. Đường sinh deadlock đã biết: cấp mã pickup quét dải
-     * {@code SELECT MAX(...)} lấy khoá S rồi INSERT nâng lên X.
-     */
-    private static boolean isDeadlockVictim(Exception error) {
-        for (Throwable t = error; t != null; t = t.getCause()) {
-            if (t instanceof SQLException sql) {
-                for (SQLException s = sql; s != null; s = s.getNextException()) {
-                    if (s.getErrorCode() == SQL_SERVER_DEADLOCK_VICTIM) return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    /** Nghỉ lệch nhau giữa các luồng để lượt sau không va lại đúng như lượt trước. */
-    private static void backOff(int attempt) {
-        try {
-            Thread.sleep(ThreadLocalRandom.current().nextLong(10L * attempt, 40L * attempt));
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        return com.cafe.config.Tx.call(fn::run);
     }
 }

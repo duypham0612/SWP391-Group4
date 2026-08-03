@@ -2,6 +2,7 @@ package com.cafe.service.shared;
 
 import com.cafe.common.*;
 import com.cafe.config.DBConnection;
+import com.cafe.config.Tx;
 import com.cafe.model.*;
 
 import java.math.*;
@@ -20,18 +21,12 @@ public final class WasteInventoryService {
         requireIngredientWasteType(wasteType);
         requireWasteQuantity(qty);
         requireReason(reason);
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                WasteEvent event = newEvent(branchId, "INGREDIENT_WASTE", "MANUAL", null, null, null,
-                        causeFromWasteType(wasteType), reason, userId, UUID.randomUUID().toString());
-                long id = logWasteInTx(conn, branchId, ingredientId, qty, wasteType, reason, userId, event);
-                conn.commit();
-                return id;
-            } catch (SQLException e) { conn.rollback(); throw e; }
-            catch (RuntimeException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+        return Tx.call(conn -> {
+            WasteEvent event = newEvent(branchId, "INGREDIENT_WASTE", "MANUAL", null, null, null,
+                    causeFromWasteType(wasteType), reason, userId, UUID.randomUUID().toString());
+            long id = logWasteInTx(conn, branchId, ingredientId, qty, wasteType, reason, userId, event);
+            return id;
+        });
     }
 
     /** Ghi nhiều dòng hao hụt nguyên liệu trong một transaction. */
@@ -42,9 +37,8 @@ public final class WasteInventoryService {
     /** Client request id giúp retry POST không nhân đôi hao hụt. */
     public int logWasteLines(int branchId, List<WasteLogLine> lines, int userId, String requestId) throws SQLException {
         if (lines == null || lines.isEmpty()) throw new BusinessException("Chưa có dòng hao hụt nào để ghi.");
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
+        try {
+            return Tx.call(conn -> {
                 int count = 0;
                 for (WasteLogLine line : lines) {
                     if (line == null) throw new BusinessException("Dòng hao hụt không hợp lệ.");
@@ -53,8 +47,11 @@ public final class WasteInventoryService {
                     requireReason(line.getReason());
                     String eventGroupId = requestId == null || requestId.isBlank()
                             ? UUID.randomUUID().toString() : requestId + "-" + count;
+                    // PHẢI ném chứ không được return: các dòng TRƯỚC trong vòng lặp đã ghi rồi, mà
+                    // trong Tx thì return = commit. Ném ra thì Tx rollback sạch, đúng như bản cũ
+                    // gọi conn.rollback() ngay tại đây.
                     if (repository.wasteEventDao.existsGroup(conn, branchId, eventGroupId)) {
-                        conn.rollback(); return 0;
+                        throw new DuplicateWasteGroup();
                     }
                     WasteEvent event = newEvent(branchId, "INGREDIENT_WASTE", "MANUAL", null, null, null,
                             causeForWasteLine(line), line.getReason(), userId, eventGroupId);
@@ -62,17 +59,23 @@ public final class WasteInventoryService {
                             normalizeWasteType(line.getWasteType()), cleanReason(line.getReason()), userId, event);
                     count++;
                 }
-                conn.commit();
                 return count;
-            } catch (SQLException e) {
-                conn.rollback();
-                // Unique index là chốt cuối khi hai POST cùng request-id chạy song song.
-                if (requestId != null && !requestId.isBlank() && isDuplicateClientRequest(e)) return 0;
-                throw e;
-            }
-            catch (RuntimeException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
+            });
+        } catch (DuplicateWasteGroup e) {
+            return 0;
+        } catch (SQLException e) {
+            // Unique index là chốt cuối khi hai POST cùng request-id chạy song song.
+            if (requestId != null && !requestId.isBlank() && isDuplicateClientRequest(e)) return 0;
+            throw e;
         }
+    }
+
+    /**
+     * Báo "nhóm hao hụt này đã ghi rồi" ra khỏi transaction để {@link Tx} rollback phần đã ghi dở.
+     * Không stack trace vì đây là luồng điều khiển bình thường (POST lặp), không phải lỗi.
+     */
+    private static final class DuplicateWasteGroup extends RuntimeException {
+        DuplicateWasteGroup() { super(null, null, false, false); }
     }
 
     /**
@@ -83,40 +86,34 @@ public final class WasteInventoryService {
         requireWasteQuantity(newQty);
         requireIngredientWasteType(wasteType);
         requireReason(reason);
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                com.cafe.model.WasteEventItem w = repository.wasteEventItemDao.findByIdForBranch(conn, wasteEntryId, branchId);
-                if (w == null) throw new BusinessException("Bản ghi hao hụt không còn khả dụng. Vui lòng tải lại.");
-                requireBaristaCorrectionWindow(w, userId);
-                if (!w.isActive()) throw new BusinessException("Bản ghi đã huỷ — không sửa được.");
-                if (w.isRemake()) throw new BusinessException("Dòng làm lại món không sửa lẻ; hãy huỷ rồi ghi lại nếu cần.");
-                BigDecimal delta = newQty.subtract(w.getQuantity());
-                if (delta.signum() != 0) {
-                    BigDecimal[] beforeState = repository.biDao.findQtyAndThreshold(conn, branchId, w.getIngredientId());
-                    BigDecimal before = beforeState == null || beforeState[0] == null ? BigDecimal.ZERO : beforeState[0];
-                    ledgerService.applyTxn(conn, branchId, w.getIngredientId(), delta.negate(),  // delta>0 trừ thêm tồn
-                            TxnType.WASTE, InventoryReferenceType.WASTE_ENTRY,
-                            wasteEntryId, userId);
-                    // Sửa tăng có thể đẩy tồn xuống âm y như lúc ghi mới — Quản lý phải thấy được ngoại lệ đó.
-                    flagNegativeStock(conn, branchId, w.getIngredientId(), wasteEntryId,
-                            before, before.subtract(delta), reason);
-                }
-                if (repository.wasteEventItemDao.updateForBranch(conn, wasteEntryId, branchId, newQty, normalizeWasteType(wasteType),
-                        cleanReason(reason), w.getQuantity()) != 1) {
-                    throw new BusinessException("Bản ghi hao hụt đã được thay đổi bởi thao tác khác. Vui lòng tải lại.");
-                }
-                if (w.getEventGroupId() != null) {
-                    repository.wasteEventDao.updateCause(conn, branchId, w.getEventGroupId(),
-                            causeFromWasteType(wasteType), cleanReason(reason));
-                }
-            repository.activityLogDao.insertWasteEntry(conn, wasteEntryId, branchId, "UPDATE", w.getQuantity().toPlainString(),
-                        newQty.toPlainString(), cleanReason(reason), userId);
-                conn.commit();
-            } catch (SQLException e) { conn.rollback(); throw e; }
-            catch (RuntimeException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+        Tx.run(conn -> {
+            com.cafe.model.WasteEventItem w = repository.wasteEventItemDao.findByIdForBranch(conn, wasteEntryId, branchId);
+            if (w == null) throw new BusinessException("Bản ghi hao hụt không còn khả dụng. Vui lòng tải lại.");
+            requireBaristaCorrectionWindow(w, userId);
+            if (!w.isActive()) throw new BusinessException("Bản ghi đã huỷ — không sửa được.");
+            if (w.isRemake()) throw new BusinessException("Dòng làm lại món không sửa lẻ; hãy huỷ rồi ghi lại nếu cần.");
+            BigDecimal delta = newQty.subtract(w.getQuantity());
+            if (delta.signum() != 0) {
+                BigDecimal[] beforeState = repository.biDao.findQtyAndThreshold(conn, branchId, w.getIngredientId());
+                BigDecimal before = beforeState == null || beforeState[0] == null ? BigDecimal.ZERO : beforeState[0];
+                ledgerService.applyTxn(conn, branchId, w.getIngredientId(), delta.negate(),  // delta>0 trừ thêm tồn
+                        TxnType.WASTE, InventoryReferenceType.WASTE_ENTRY,
+                        wasteEntryId, userId);
+                // Sửa tăng có thể đẩy tồn xuống âm y như lúc ghi mới — Quản lý phải thấy được ngoại lệ đó.
+                flagNegativeStock(conn, branchId, w.getIngredientId(), wasteEntryId,
+                        before, before.subtract(delta), reason);
+            }
+            if (repository.wasteEventItemDao.updateForBranch(conn, wasteEntryId, branchId, newQty, normalizeWasteType(wasteType),
+                    cleanReason(reason), w.getQuantity()) != 1) {
+                throw new BusinessException("Bản ghi hao hụt đã được thay đổi bởi thao tác khác. Vui lòng tải lại.");
+            }
+            if (w.getEventGroupId() != null) {
+                repository.wasteEventDao.updateCause(conn, branchId, w.getEventGroupId(),
+                        causeFromWasteType(wasteType), cleanReason(reason));
+            }
+        repository.activityLogDao.insertWasteEntry(conn, wasteEntryId, branchId, "UPDATE", w.getQuantity().toPlainString(),
+                    newQty.toPlainString(), cleanReason(reason), userId);
+        });
     }
 
     /**
@@ -124,29 +121,23 @@ public final class WasteInventoryService {
      * KHÔNG hard-delete, KHÔNG UPDATE thẳng tồn. Own tx.
      */
     public void voidWaste(int branchId, long wasteEntryId, int userId) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                com.cafe.model.WasteEventItem w = repository.wasteEventItemDao.findByIdForBranch(conn, wasteEntryId, branchId);
-                if (w == null) throw new BusinessException("Bản ghi hao hụt không còn khả dụng. Vui lòng tải lại.");
-                requireBaristaCorrectionWindow(w, userId);
-                if (!w.isActive()) { conn.rollback(); return; }   // idempotent
-                if (w.isRemake()) {
-                    throw new BusinessException("Dòng làm lại món gắn với ly đã pha nên không huỷ lẻ được. Nếu tồn kho sai, báo Quản lý kiểm kê lại.");
-                }
-                ledgerService.applyTxn(conn, branchId, w.getIngredientId(), w.getQuantity(),  // hoàn lại tồn (+)
-                        TxnType.WASTE, InventoryReferenceType.WASTE_ENTRY,
-                        wasteEntryId, userId);
-                if (repository.wasteEventItemDao.updateStatusForBranch(conn, wasteEntryId, branchId, "VOIDED") != 1) {
-                    throw new BusinessException("Bản ghi hao hụt đã được thay đổi bởi thao tác khác. Vui lòng tải lại.");
-                }
-            repository.activityLogDao.insertWasteEntry(conn, wasteEntryId, branchId, "VOID", w.getQuantity().toPlainString(),
-                        null, null, userId);
-                conn.commit();
-            } catch (SQLException e) { conn.rollback(); throw e; }
-            catch (RuntimeException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+        Tx.run(conn -> {
+            com.cafe.model.WasteEventItem w = repository.wasteEventItemDao.findByIdForBranch(conn, wasteEntryId, branchId);
+            if (w == null) throw new BusinessException("Bản ghi hao hụt không còn khả dụng. Vui lòng tải lại.");
+            requireBaristaCorrectionWindow(w, userId);
+            if (!w.isActive()) { return; }   // idempotent
+            if (w.isRemake()) {
+                throw new BusinessException("Dòng làm lại món gắn với ly đã pha nên không huỷ lẻ được. Nếu tồn kho sai, báo Quản lý kiểm kê lại.");
+            }
+            ledgerService.applyTxn(conn, branchId, w.getIngredientId(), w.getQuantity(),  // hoàn lại tồn (+)
+                    TxnType.WASTE, InventoryReferenceType.WASTE_ENTRY,
+                    wasteEntryId, userId);
+            if (repository.wasteEventItemDao.updateStatusForBranch(conn, wasteEntryId, branchId, "VOIDED") != 1) {
+                throw new BusinessException("Bản ghi hao hụt đã được thay đổi bởi thao tác khác. Vui lòng tải lại.");
+            }
+        repository.activityLogDao.insertWasteEntry(conn, wasteEntryId, branchId, "VOID", w.getQuantity().toPlainString(),
+                    null, null, userId);
+        });
     }
 
     long logWasteInTx(Connection conn, int branchId, int ingredientId, BigDecimal qty,
@@ -381,20 +372,16 @@ public final class WasteInventoryService {
     }
 
     public boolean resolveWasteReview(int branchId, long reviewId, int managerId, String note) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                String cleanedNote = cleanReason(note);
-                Long wasteEntryId = repository.wasteEventReviewDao.resolveReturningEntryId(
-                        conn, branchId, reviewId, managerId, cleanedNote);
-                if (wasteEntryId != null) {
-            repository.activityLogDao.insertWasteEntry(conn, wasteEntryId, branchId, "REVIEW", null,
-                            "RESOLVED", cleanedNote, managerId);
-                }
-                conn.commit(); return wasteEntryId != null;
-            } catch (SQLException | RuntimeException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+        return Tx.call(conn -> {
+            String cleanedNote = cleanReason(note);
+            Long wasteEntryId = repository.wasteEventReviewDao.resolveReturningEntryId(
+                    conn, branchId, reviewId, managerId, cleanedNote);
+            if (wasteEntryId != null) {
+                repository.activityLogDao.insertWasteEntry(conn, wasteEntryId, branchId, "REVIEW", null,
+                        "RESOLVED", cleanedNote, managerId);
+            }
+            return wasteEntryId != null;
+        });
     }
 
     public BigDecimal estimateUnitCost(int branchId, int ingredientId) throws SQLException {

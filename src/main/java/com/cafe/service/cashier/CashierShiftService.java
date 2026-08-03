@@ -3,6 +3,7 @@ package com.cafe.service.cashier;
 import com.cafe.common.BusinessDay;
 import com.cafe.common.EventType;
 import com.cafe.config.DBConnection;
+import com.cafe.config.Tx;
 import com.cafe.dao.cashier.BillDao;
 import com.cafe.dao.cashier.CashierShiftDao;
 import com.cafe.dao.shared.OutboxEventDao;
@@ -32,15 +33,10 @@ public class CashierShiftService {
     /** Mở ca (idempotent: nếu đã có ca mở thì trả về ca đó). */
     public int openShift(int branchId, int cashierId, BigDecimal openingCash) throws SQLException {
         CashierCashReconciliation.requireValidMoney(openingCash, "Quỹ đầu ca");
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                int id = openShift(c, branchId, cashierId, openingCash);
-                c.commit();
-                return id;
-            } catch (SQLException | RuntimeException e) { c.rollback(); throw e; }
-            finally { c.setAutoCommit(true); }
-        }
+        return Tx.call(c -> {
+            int id = openShift(c, branchId, cashierId, openingCash);
+            return id;
+        });
     }
 
     /**
@@ -79,16 +75,9 @@ public class CashierShiftService {
     public void closeShift(int shiftId, int cashierId, int branchId, BigDecimal closingCash,
                            boolean handoverConfirmed)
             throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                closeShift(c, shiftId, cashierId, branchId, closingCash, handoverConfirmed);
-                c.commit();
-            }
-            catch (SQLException e) { c.rollback(); throw e; }
-            catch (RuntimeException e) { c.rollback(); throw e; }
-            finally { c.setAutoCommit(true); }
-        }
+        Tx.run(c -> {
+            closeShift(c, shiftId, cashierId, branchId, closingCash, handoverConfirmed);
+        });
     }
 
     void closeShift(Connection c, int shiftId, int cashierId, int branchId, BigDecimal closingCash,

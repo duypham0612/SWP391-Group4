@@ -1,6 +1,7 @@
 package com.cafe.service.cashier;
 
 import com.cafe.config.DBConnection;
+import com.cafe.config.Tx;
 import com.cafe.dao.cashier.CashierShiftDao;
 import com.cafe.dao.manager.AttendanceDao;
 import com.cafe.model.ShiftAssignment;
@@ -51,39 +52,21 @@ public class CashierDutyService {
     /** Bắt đầu ca = vào ca chấm công + mở két trong cùng transaction. */
     public int startDuty(int userId, int branchId, BigDecimal openingCash) throws SQLException {
         CashierCashReconciliation.requireValidMoney(openingCash, "Quỹ đầu ca");
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                int id = cashierShiftService.openShift(c, branchId, userId, openingCash);
-                attendanceService.clockIn(c, userId, branchId);
-                c.commit();
-                return id;
-            } catch (SQLException | RuntimeException e) {
-                c.rollback();
-                throw e;
-            } finally {
-                c.setAutoCommit(true);
-            }
-        }
+        return Tx.call(c -> {
+            int id = cashierShiftService.openShift(c, branchId, userId, openingCash);
+            attendanceService.clockIn(c, userId, branchId);
+            return id;
+        });
     }
 
     /** Kết ca = đóng két + tan ca trong cùng transaction. */
     public void closeDuty(int userId, int branchId, int shiftId, BigDecimal closingCash,
                           boolean handoverConfirmed) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                cashierShiftService.closeShift(
-                        c, shiftId, userId, branchId, closingCash, handoverConfirmed);
-                attendanceService.clockOut(c, userId, branchId);
-                c.commit();
-            } catch (SQLException | RuntimeException e) {
-                c.rollback();
-                throw e;
-            } finally {
-                c.setAutoCommit(true);
-            }
-        }
+        Tx.run(c -> {
+            cashierShiftService.closeShift(
+                    c, shiftId, userId, branchId, closingCash, handoverConfirmed);
+            attendanceService.clockOut(c, userId, branchId);
+        });
     }
 
     private boolean isClockedIn(Connection c, int userId, int branchId) throws SQLException {

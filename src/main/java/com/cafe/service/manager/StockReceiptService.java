@@ -3,6 +3,7 @@ package com.cafe.service.manager;
 import com.cafe.common.BusinessException;
 import com.cafe.common.InventoryUnitConverter;
 import com.cafe.config.DBConnection;
+import com.cafe.config.Tx;
 import com.cafe.dao.manager.StockReceiptDao;
 import com.cafe.dao.admin.IngredientUnitDao;
 import com.cafe.dao.manager.StockReceiptDetailDao;
@@ -61,18 +62,11 @@ public class StockReceiptService {
         receipt.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC));
         receipt.setStatus("DRAFT");
         firstLine.setReceiptBatchId(receipt.getReceiptBatchId());
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                applyConversionSnapshot(c, firstLine);
-                detailDao.insert(c, receipt, firstLine);
-                c.commit();
-                return receipt.getReceiptBatchId();
-            } catch (SQLException | RuntimeException e) {
-                c.rollback();
-                throw e;
-            } finally { c.setAutoCommit(true); }
-        }
+        return Tx.call(c -> {
+            applyConversionSnapshot(c, firstLine);
+            detailDao.insert(c, receipt, firstLine);
+            return receipt.getReceiptBatchId();
+        });
     }
 
     public void addReceiptLine(String batchId, int branchId, int ingredientId,
@@ -84,98 +78,68 @@ public class StockReceiptService {
         line.setEnteredQuantity(qty);
         line.setUnitCost(unitCost);
         line.setUnitChoice(unitChoice);
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                StockReceipt receipt = requireDraft(c, batchId, branchId);
-                applyConversionSnapshot(c, line);
-                detailDao.insert(c, receipt, line);
-                c.commit();
-            } catch (SQLException | RuntimeException e) { c.rollback(); throw e; }
-            finally { c.setAutoCommit(true); }
-        }
+        Tx.run(c -> {
+            StockReceipt receipt = requireDraft(c, batchId, branchId);
+            applyConversionSnapshot(c, line);
+            detailDao.insert(c, receipt, line);
+        });
     }
 
     public void addReceiptLines(String batchId, int branchId, List<StockReceiptDetail> lines) throws SQLException {
         if (lines == null || lines.isEmpty()) return;
         for (StockReceiptDetail line : lines) validateLine(line.getEnteredQuantity(), line.getUnitCost());
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                StockReceipt receipt = requireDraft(c, batchId, branchId);
-                for (StockReceiptDetail line : lines) {
-                    line.setReceiptBatchId(batchId);
-                    applyConversionSnapshot(c, line);
-                    detailDao.insert(c, receipt, line);
-                }
-                c.commit();
-            } catch (SQLException | RuntimeException e) { c.rollback(); throw e; }
-            finally { c.setAutoCommit(true); }
-        }
+        Tx.run(c -> {
+            StockReceipt receipt = requireDraft(c, batchId, branchId);
+            for (StockReceiptDetail line : lines) {
+                line.setReceiptBatchId(batchId);
+                applyConversionSnapshot(c, line);
+                detailDao.insert(c, receipt, line);
+            }
+        });
     }
 
     public void removeReceiptLine(String batchId, int lineId, int branchId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                requireDraft(c, batchId, branchId);
-                if (detailDao.deleteDraftLine(c, lineId, batchId, branchId) != 1) {
-                    throw new BusinessException("Không thể xoá dòng cuối của phiếu nháp; hãy huỷ cả phiếu nếu không dùng nữa.");
-                }
-                c.commit();
-            } catch (SQLException | RuntimeException e) { c.rollback(); throw e; }
-            finally { c.setAutoCommit(true); }
-        }
+        Tx.run(c -> {
+            requireDraft(c, batchId, branchId);
+            if (detailDao.deleteDraftLine(c, lineId, batchId, branchId) != 1) {
+                throw new BusinessException("Không thể xoá dòng cuối của phiếu nháp; hãy huỷ cả phiếu nếu không dùng nữa.");
+            }
+        });
     }
 
     /** DRAFT không ghi ledger; chỉ sau khi toàn batch chuyển CONFIRMED mới cộng tồn. */
     public void confirmReceipt(String batchId, int branchId, int userId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                requireDraft(c, batchId, branchId);
-                List<StockReceiptDetail> details = detailDao.findByReceiptAndBranch(c, batchId, branchId);
-                if (details.isEmpty()) throw new BusinessException("Phiếu nhập phải có ít nhất một dòng.");
-                if (receiptDao.confirm(c, batchId, branchId) != details.size()) {
-                    throw new BusinessException("Phiếu nhập đã được xử lý bởi yêu cầu khác.");
-                }
-                inventoryService.confirmReceiptStock(c, details, batchId, branchId, userId);
-                c.commit();
-            } catch (SQLException | RuntimeException e) { c.rollback(); throw e; }
-            finally { c.setAutoCommit(true); }
-        }
+        Tx.run(c -> {
+            requireDraft(c, batchId, branchId);
+            List<StockReceiptDetail> details = detailDao.findByReceiptAndBranch(c, batchId, branchId);
+            if (details.isEmpty()) throw new BusinessException("Phiếu nhập phải có ít nhất một dòng.");
+            if (receiptDao.confirm(c, batchId, branchId) != details.size()) {
+                throw new BusinessException("Phiếu nhập đã được xử lý bởi yêu cầu khác.");
+            }
+            inventoryService.confirmReceiptStock(c, details, batchId, branchId, userId);
+        });
     }
 
     public void cancelReceipt(String batchId, int branchId) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                requireDraft(c, batchId, branchId);
-                if (receiptDao.cancel(c, batchId, branchId) <= 0) {
-                    throw new BusinessException("Phiếu nhập đã được xử lý bởi yêu cầu khác.");
-                }
-                c.commit();
-            } catch (SQLException | RuntimeException e) { c.rollback(); throw e; }
-            finally { c.setAutoCommit(true); }
-        }
+        Tx.run(c -> {
+            requireDraft(c, batchId, branchId);
+            if (receiptDao.cancel(c, batchId, branchId) <= 0) {
+                throw new BusinessException("Phiếu nhập đã được xử lý bởi yêu cầu khác.");
+            }
+        });
     }
 
     public void cancelManyReceipts(List<String> batchIds, int branchId) throws SQLException {
         if (batchIds == null || batchIds.isEmpty()) return;
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                for (String batchId : batchIds) {
-                    if (batchId == null || batchId.isBlank()) continue;
-                    requireDraft(c, batchId, branchId);
-                    if (receiptDao.cancel(c, batchId, branchId) <= 0) {
-                        throw new BusinessException("Có phiếu nhập đã được xử lý bởi yêu cầu khác.");
-                    }
+        Tx.run(c -> {
+            for (String batchId : batchIds) {
+                if (batchId == null || batchId.isBlank()) continue;
+                requireDraft(c, batchId, branchId);
+                if (receiptDao.cancel(c, batchId, branchId) <= 0) {
+                    throw new BusinessException("Có phiếu nhập đã được xử lý bởi yêu cầu khác.");
                 }
-                c.commit();
-            } catch (SQLException | RuntimeException e) { c.rollback(); throw e; }
-            finally { c.setAutoCommit(true); }
-        }
+            }
+        });
     }
 
     private StockReceipt requireDraft(Connection c, String batchId, int branchId) throws SQLException {

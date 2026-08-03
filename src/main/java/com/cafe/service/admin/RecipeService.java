@@ -2,6 +2,7 @@ package com.cafe.service.admin;
 
 import com.cafe.common.BusinessException;
 import com.cafe.config.DBConnection;
+import com.cafe.config.Tx;
 import com.cafe.dao.admin.IngredientDao;
 import com.cafe.dao.admin.ProductDao;
 import com.cafe.dao.admin.RecipeDao;
@@ -46,21 +47,15 @@ public class RecipeService {
     public int addRecipeLines(int productId, List<RecipeLineInput> inputs) throws SQLException {
         if (productId <= 0) throw new BusinessException("Sản phẩm không hợp lệ.");
         validateInputCount(inputs);
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
+        try {
+            return Tx.call(conn -> {
                 if (productDao.findById(conn, productId) == null)
                     throw new BusinessException("Không tìm thấy sản phẩm cần tạo công thức.");
                 validateLines(conn, Recipe.OWNER_PRODUCT, productId, inputs, null);
                 insertLines(conn, Recipe.OWNER_PRODUCT, productId, inputs);
-                conn.commit();
                 return inputs.size();
-            } catch (SQLException e) {
-                conn.rollback();
-                throw translateRecipeError(e);
-            } catch (RuntimeException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+            });
+        } catch (SQLException e) { throw translateRecipeError(e); }
     }
 
     public void updateRecipeLine(int productId, int lineId, BigDecimal quantity) throws SQLException {
@@ -77,37 +72,27 @@ public class RecipeService {
             throw new BusinessException("Nguyên liệu pha sẵn không hợp lệ.");
         validateYield(yieldQty);
         validateInputCount(inputs);
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
+        try {
+            return Tx.call(conn -> {
                 Ingredient prepped = requirePrepped(conn, preppedIngredientId);
                 validateLines(conn, Recipe.OWNER_PREPPED, preppedIngredientId, inputs, "RAW");
                 if (ingredientDao.updatePrepYield(conn, preppedIngredientId, yieldQty) != 1)
                     throw new BusinessException("Công thức vừa được thay đổi. Vui lòng tải lại.");
                 insertLines(conn, Recipe.OWNER_PREPPED, preppedIngredientId, inputs);
-                conn.commit();
                 return inputs.size();
-            } catch (SQLException e) {
-                conn.rollback();
-                throw translateRecipeError(e);
-            } catch (RuntimeException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+            });
+        } catch (SQLException e) { throw translateRecipeError(e); }
     }
 
     public void updatePrepRecipeYield(int preppedIngredientId, BigDecimal yieldQty) throws SQLException {
         validateYield(yieldQty);
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
+        try {
+            Tx.run(conn -> {
                 requirePrepped(conn, preppedIngredientId);
                 if (ingredientDao.updatePrepYield(conn, preppedIngredientId, yieldQty) != 1)
                     throw new BusinessException("Công thức vừa được thay đổi. Vui lòng tải lại.");
-                conn.commit();
-            } catch (SQLException e) { conn.rollback(); throw translateRecipeError(e); }
-            catch (RuntimeException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+            });
+        } catch (SQLException e) { throw translateRecipeError(e); }
     }
 
     public void updatePrepRecipeLine(int preppedIngredientId, int lineId, BigDecimal quantity)
@@ -122,29 +107,21 @@ public class RecipeService {
     private void updateLine(String ownerType, int ownerId, int lineId, BigDecimal quantity)
             throws SQLException {
         validateQuantity(quantity);
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
+        try {
+            Tx.run(conn -> {
                 if (recipeDao.update(conn, lineId, ownerType, ownerId, quantity) != 1)
                     throw new BusinessException("Không tìm thấy nguyên liệu trong công thức này.");
-                conn.commit();
-            } catch (SQLException e) { conn.rollback(); throw translateRecipeError(e); }
-            catch (RuntimeException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+            });
+        } catch (SQLException e) { throw translateRecipeError(e); }
     }
 
     private void removeLine(String ownerType, int ownerId, int lineId) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
+        try {
+            Tx.run(conn -> {
                 if (recipeDao.delete(conn, lineId, ownerType, ownerId) != 1)
                     throw new BusinessException("Không tìm thấy nguyên liệu trong công thức này.");
-                conn.commit();
-            } catch (SQLException e) { conn.rollback(); throw translateRecipeError(e); }
-            catch (RuntimeException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+            });
+        } catch (SQLException e) { throw translateRecipeError(e); }
     }
 
     private Ingredient requirePrepped(Connection conn, int ingredientId) throws SQLException {

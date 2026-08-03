@@ -1,6 +1,7 @@
 package com.cafe.service.manager;
 
 import com.cafe.config.DBConnection;
+import com.cafe.config.Tx;
 import com.cafe.common.BusinessDay;
 import com.cafe.common.BusinessException;
 import com.cafe.common.ShiftHours;
@@ -427,20 +428,8 @@ public class AttendanceService {
 
     private interface V{ void run(Connection c) throws SQLException; }
     private void txVoid(V v) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                v.run(c);
-                c.commit();
-            } catch (SQLException e) {
-                c.rollback();
-                throw e;
-            } catch (RuntimeException e) {
-                c.rollback();
-                throw e;
-            } finally {
-                c.setAutoCommit(true);
-            }
-        }
+        Tx.run(c -> {
+            v.run(c);
+        });
     }
 }

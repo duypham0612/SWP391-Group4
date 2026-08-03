@@ -2,6 +2,7 @@ package com.cafe.service.admin;
 
 import com.cafe.common.BusinessException;
 import com.cafe.config.DBConnection;
+import com.cafe.config.Tx;
 import com.cafe.dao.admin.CategoryDao;
 import com.cafe.model.Category;
 
@@ -35,31 +36,27 @@ public class CategoryService {
 
     public int createCategory(Category c) throws SQLException {
         normalize(c);
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try { int id = dao.insert(conn, c); conn.commit(); return id; }
-            catch (SQLException e) { conn.rollback(); throw translateUnique(e); }
-            finally { conn.setAutoCommit(true); }
-        }
+        try {
+            return Tx.call(conn -> {
+                int id = dao.insert(conn, c);
+                return id;
+            });
+        } catch (SQLException e) { throw translateUnique(e); }
     }
 
     public void updateCategory(Category c) throws SQLException {
         normalize(c);
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try { dao.update(conn, c); conn.commit(); }
-            catch (SQLException e) { conn.rollback(); throw translateUnique(e); }
-            finally { conn.setAutoCommit(true); }
-        }
+        try {
+            Tx.run(conn -> {
+                dao.update(conn, c);
+            });
+        } catch (SQLException e) { throw translateUnique(e); }
     }
 
     public void deleteCategory(int id) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try { dao.delete(conn, id); conn.commit(); }
-            catch (SQLException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+        Tx.run(conn -> {
+            dao.delete(conn, id);
+        });
     }
 
     private static void normalize(Category category) {

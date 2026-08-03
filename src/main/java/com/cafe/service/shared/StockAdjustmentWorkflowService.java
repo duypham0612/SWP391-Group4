@@ -2,6 +2,7 @@ package com.cafe.service.shared;
 
 import com.cafe.common.*;
 import com.cafe.config.DBConnection;
+import com.cafe.config.Tx;
 import com.cafe.model.*;
 
 import java.math.*;
@@ -39,18 +40,13 @@ public final class StockAdjustmentWorkflowService {
     public void createAdjustment(int branchId, int ingredientId, BigDecimal countedQuantity,
                                  int conversionId, String reason, int userId) throws SQLException {
         validateActualQty(countedQuantity);
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                String countBatchId = UUID.randomUUID().toString();
-                java.time.LocalDateTime countedAt = java.time.LocalDateTime.now(java.time.ZoneOffset.UTC);
-                applyAdjustmentLine(conn, branchId, countBatchId, countedAt, userId, null,
-                        ingredientId, countedQuantity,
-                        conversionId, reason, userId);
-                conn.commit();
-            } catch (SQLException | RuntimeException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+        Tx.run(conn -> {
+            String countBatchId = UUID.randomUUID().toString();
+            java.time.LocalDateTime countedAt = java.time.LocalDateTime.now(java.time.ZoneOffset.UTC);
+            applyAdjustmentLine(conn, branchId, countBatchId, countedAt, userId, null,
+                    ingredientId, countedQuantity,
+                    conversionId, reason, userId);
+        });
     }
 
     /**
@@ -70,20 +66,15 @@ public final class StockAdjustmentWorkflowService {
                 throw new BusinessException("Một nguyên liệu chỉ được xuất hiện một lần trong biên bản kiểm kê.");
             }
         }
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                String countBatchId = UUID.randomUUID().toString();
-                java.time.LocalDateTime countedAt = java.time.LocalDateTime.now(java.time.ZoneOffset.UTC);
-                for (com.cafe.model.StockAdjustment a : lines) {
-                    applyAdjustmentLine(conn, branchId, countBatchId, countedAt, userId, null,
-                            a.getIngredientId(),
-                            a.getCountedQuantity(), a.getUnitChoice(), a.getReason(), userId);
-                }
-                conn.commit();
-            } catch (SQLException | RuntimeException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+        Tx.run(conn -> {
+            String countBatchId = UUID.randomUUID().toString();
+            java.time.LocalDateTime countedAt = java.time.LocalDateTime.now(java.time.ZoneOffset.UTC);
+            for (com.cafe.model.StockAdjustment a : lines) {
+                applyAdjustmentLine(conn, branchId, countBatchId, countedAt, userId, null,
+                        a.getIngredientId(),
+                        a.getCountedQuantity(), a.getUnitChoice(), a.getReason(), userId);
+            }
+        });
     }
 
     /** Biên bản kiểm kê gần nhất của chi nhánh (kèm số dòng + tổng chênh, tính từ chi tiết). */

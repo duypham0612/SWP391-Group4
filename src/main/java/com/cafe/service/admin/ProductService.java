@@ -2,6 +2,7 @@ package com.cafe.service.admin;
 
 import com.cafe.common.BusinessException;
 import com.cafe.config.DBConnection;
+import com.cafe.config.Tx;
 import com.cafe.dao.admin.BranchMenuDao;
 import com.cafe.dao.admin.BranchDao;
 import com.cafe.dao.admin.ProductChoiceDao;
@@ -60,17 +61,13 @@ public class ProductService {
 
     public int createProduct(Product p, ProductSizeConfig sizeConfig) throws SQLException {
         normalizeAndValidate(p, sizeConfig);
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
+        try {
+            return Tx.call(conn -> {
                 int id = dao.insert(conn, p);
                 saveDrinkChoices(conn, id, sizeConfig);
-                conn.commit();
                 return id;
-            }
-            catch (SQLException e) { conn.rollback(); throw translateUnique(e); }
-            finally { conn.setAutoCommit(true); }
-        }
+            });
+        } catch (SQLException e) { throw translateUnique(e); }
     }
 
     public void updateProduct(Product p) throws SQLException {
@@ -80,54 +77,35 @@ public class ProductService {
     public void updateProduct(Product p, ProductSizeConfig sizeConfig) throws SQLException {
         normalizeAndValidate(p, sizeConfig);
         if (p.getProductId() <= 0) throw new BusinessException("Mã sản phẩm không hợp lệ.");
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
+        try {
+            Tx.run(conn -> {
                 dao.update(conn, p);
                 saveDrinkChoices(conn, p.getProductId(), sizeConfig);
-                conn.commit();
-            }
-            catch (SQLException e) { conn.rollback(); throw translateUnique(e); }
-            finally { conn.setAutoCommit(true); }
-        }
+            });
+        } catch (SQLException e) { throw translateUnique(e); }
     }
 
     public void setProductActive(int id, boolean active) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try { dao.updateActive(conn, id, active); conn.commit(); }
-            catch (SQLException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+        Tx.run(conn -> {
+            dao.updateActive(conn, id, active);
+        });
     }
 
     /** Đảo trạng thái active (đọc + flip trong 1 tx) — bật/tắt 2 chiều. */
     public void toggleActive(int id) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                Product p = dao.findById(conn, id);
-                if (p != null) dao.updateActive(conn, id, !p.isActive());
-                conn.commit();
-            } catch (SQLException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+        Tx.run(conn -> {
+            Product p = dao.findById(conn, id);
+            if (p != null) dao.updateActive(conn, id, !p.isActive());
+        });
     }
 
     /** Publish 1 product vào BranchMenu của 1 chi nhánh (mặc định bán, chưa 86, giá gốc). */
     public void publishToBranch(int productId, int branchId) throws SQLException {
         requirePositiveIds(productId, branchId);
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                requireProductAndBranch(conn, productId, branchId);
-                branchMenuDao.upsert(conn, branchId, productId, true, null);
-                conn.commit();
-            }
-            catch (SQLException e) { conn.rollback(); throw e; }
-            catch (RuntimeException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+        Tx.run(conn -> {
+            requireProductAndBranch(conn, productId, branchId);
+            branchMenuDao.upsert(conn, branchId, productId, true, null);
+        });
     }
 
     /** Publish nhiều product vào BranchMenu của 1 chi nhánh trong cùng 1 transaction. */
@@ -135,21 +113,15 @@ public class ProductService {
         if (productIds == null || productIds.length == 0)
             throw new BusinessException("Vui lòng chọn ít nhất 1 sản phẩm hợp lệ.");
         if (branchId <= 0) throw new BusinessException("Vui lòng chọn chi nhánh.");
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                if (branchDao.findById(conn, branchId) == null)
-                    throw new BusinessException("Chi nhánh không tồn tại.");
-                for (int productId : productIds) {
-                    if (productId <= 0 || dao.findById(conn, productId) == null)
-                        throw new BusinessException("Danh sách sản phẩm chứa lựa chọn không hợp lệ.");
-                    branchMenuDao.upsert(conn, branchId, productId, true, null);
-                }
-                conn.commit();
-            } catch (SQLException e) { conn.rollback(); throw e; }
-            catch (RuntimeException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+        Tx.run(conn -> {
+            if (branchDao.findById(conn, branchId) == null)
+                throw new BusinessException("Chi nhánh không tồn tại.");
+            for (int productId : productIds) {
+                if (productId <= 0 || dao.findById(conn, productId) == null)
+                    throw new BusinessException("Danh sách sản phẩm chứa lựa chọn không hợp lệ.");
+                branchMenuDao.upsert(conn, branchId, productId, true, null);
+            }
+        });
     }
 
     private void saveDrinkChoices(Connection conn, int productId, ProductSizeConfig sizeConfig) throws SQLException {

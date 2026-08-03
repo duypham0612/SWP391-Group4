@@ -2,6 +2,7 @@ package com.cafe.service.manager;
 
 import com.cafe.common.BusinessException;
 import com.cafe.config.DBConnection;
+import com.cafe.config.Tx;
 import com.cafe.dao.manager.SupplierDao;
 import com.cafe.model.Supplier;
 
@@ -61,14 +62,10 @@ public class SupplierService {
         return value == null || value.isBlank() ? null : value.trim().replaceAll("\\s+", " ");
     }
 
-    private interface Fn<T>{ T run(Connection c) throws SQLException; }
-    private interface V{ void run(Connection c) throws SQLException; }
-    private <T> T tx(Fn<T> fn) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try { T r = fn.run(c); c.commit(); return r; }
-            catch (SQLException e){ c.rollback(); throw e; } finally { c.setAutoCommit(true); }
-        }
-    }
-    private void txVoid(V v) throws SQLException { tx(c -> { v.run(c); return null; }); }
+    // Bản tx riêng của file này đã bị gỡ: nó CHỈ bắt SQLException, nên nếu lambda ném
+    // RuntimeException (BusinessException) giữa chừng thì không rollback, rồi
+    // finally setAutoCommit(true) lại COMMIT phần đã ghi dở. Hiện chưa gây hại vì mọi kiểm tra
+    // của service này chạy trước khi vào tx, nhưng đó là bẫy chờ người sau thêm kiểm tra vào trong.
+    private <T> T tx(Tx.Block<T> fn) throws SQLException { return Tx.call(fn); }
+    private void txVoid(Tx.VoidBlock v) throws SQLException { Tx.run(v); }
 }

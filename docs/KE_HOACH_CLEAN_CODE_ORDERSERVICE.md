@@ -432,6 +432,40 @@ bảng `BillLine` đã bị gộp đi khi rút schema 49→25. Tên lớp nói s
 
 ---
 
+## 5e. Đợt 7 — Gom transaction về một chỗ (`config/Tx`) 🟢 XONG (2026-08-03)
+
+**Vấn đề:** 84 khối `setAutoCommit(false) / commit / rollback / finally setAutoCommit(true)` chép tay
+trong 23 file service. Đây là gốc của lần sửa deadlock hụt ở §5c: vòng thử lại 1205 nằm ở
+`OrderRepository.tx`, mà `placeOrder` (và 83 chỗ khác) tự quản transaction nên không đi qua đó.
+
+**Đã làm:** tách `com.cafe.config.Tx` với `Tx.call` / `Tx.run`, giữ nguyên luật cũ (commit/rollback,
+rollback CẢ RuntimeException, thử lại khi trúng 1205). `OrderRepository.tx`/`txVoid` nay chỉ ủy quyền.
+Đặt ở `config` vì luật ArchUnit `common_must_not_depend_on_web_or_jdbc` cấm `common` chạm `java.sql`,
+còn để ở `service` thì thành phụ thuộc chéo giữa các slice.
+
+**Kết quả: `setAutoCommit` chỉ còn xuất hiện ở đúng `config/Tx.java` trong toàn bộ mã nguồn.**
+
+**Bốn chỗ KHÔNG chuyển máy móc được — phải sửa tay, và đây là phần đáng review nhất:**
+
+| Chỗ | Vì sao |
+|---|---|
+| `WasteInventoryService.logWasteLines` | `rollback(); return 0;` nằm TRONG vòng lặp — các dòng trước ĐÃ ghi. Trong `Tx` thì `return` = commit, nên chuyển thẳng sẽ **commit phần ghi dở**. Đổi thành ném `DuplicateWasteGroup` rồi bắt ngoài `Tx` → rollback đúng như cũ. |
+| `BillCreationService` ×2 | `return List.of()` cũ thoát khỏi cả method, đường bình thường rơi xuống `return queryService.get...()` SAU khối tx. Lambda vì thế có nhánh không trả giá trị. Đổi sang cờ `boolean built` rồi `built ? ... : List.of()`. |
+| `SupplierService` | Có bản `tx` riêng **chỉ bắt SQLException** — RuntimeException giữa chừng sẽ không rollback rồi bị `finally setAutoCommit(true)` commit phần ghi dở. Chưa gây hại vì mọi kiểm tra chạy trước khi vào tx, nhưng là bẫy chờ. Đã gỡ, ủy quyền cho `Tx`. |
+| `UserService.setUserStatus` | Biến `targetStatus` bị gán lại nên không capture được vào lambda → tách `normalizedStatus` final. |
+
+**13 lệnh `rollback()` giữa thân đã bỏ đi — kiểm chứng từng cái:** mọi điểm `rollback(); return X;` còn
+lại đều nằm **trước bất kỳ lệnh ghi nào** (chỉ sau `findById`/`findByIdForUpdate`/`hasUnpaidOrders`/
+`existsGroup`), kể cả `PaymentService` chỗ `markPaid` trả 0 — UPDATE không khớp dòng nào nghĩa là chưa
+ghi gì. Với transaction rỗng thì commit và rollback tương đương, đều chỉ nhả khoá.
+
+**Kiểm chứng:**
+- Script đối chiếu diff: mọi dòng bị xoá đều quy về khung transaction, dạng viết gọn được tách dòng,
+  hoặc 5 thay đổi ngữ nghĩa cố ý ở bảng trên. Không mất dòng nghiệp vụ nào ngoài ý định.
+- `mvn clean verify` **352/352** · ArchUnit 8/8 · WAR OK · CI 74/74.
+
+---
+
 ## 6. Sổ ghi nhận phát sinh
 
 | Ngày | File | Vấn đề | Trạng thái |

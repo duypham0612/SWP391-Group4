@@ -2,6 +2,7 @@ package com.cafe.service.customer;
 
 import com.cafe.common.EventType;
 import com.cafe.config.DBConnection;
+import com.cafe.config.Tx;
 import com.cafe.dao.cashier.DiningTableDao;
 import com.cafe.dao.shared.OutboxEventDao;
 import com.cafe.model.DiningTable;
@@ -78,25 +79,16 @@ public class QrOrderService {
     }
 
     public void requestTableOpen(int branchId, int tableId, String tableNumber) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                DiningTable table = tableDao.findByIdForUpdate(conn, tableId);
-                if (table == null || table.getBranchId() != branchId) {
-                    throw new IllegalArgumentException("Bàn không thuộc chi nhánh tương ứng.");
-                }
-                if ("EMPTY".equals(table.getStatus()) && !outboxDao.hasPendingOpenRequest(conn, tableId)) {
-                    outboxDao.insert(conn, EventType.TABLE_OPEN_REQUESTED, String.valueOf(tableId), branchId,
-                            "{\"tableId\":" + tableId + ",\"tableNumber\":\"" + esc(tableNumber) + "\"}");
-                }
-                conn.commit();
-            } catch (SQLException | RuntimeException e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(true);
+        Tx.run(conn -> {
+            DiningTable table = tableDao.findByIdForUpdate(conn, tableId);
+            if (table == null || table.getBranchId() != branchId) {
+                throw new IllegalArgumentException("Bàn không thuộc chi nhánh tương ứng.");
             }
-        }
+            if ("EMPTY".equals(table.getStatus()) && !outboxDao.hasPendingOpenRequest(conn, tableId)) {
+                outboxDao.insert(conn, EventType.TABLE_OPEN_REQUESTED, String.valueOf(tableId), branchId,
+                        "{\"tableId\":" + tableId + ",\"tableNumber\":\"" + esc(tableNumber) + "\"}");
+            }
+        });
     }
 
     public DiningTable getTable(int tableId) throws SQLException {
@@ -144,26 +136,17 @@ public class QrOrderService {
     }
 
     private void publishTableSignal(EventType type, int tableId, int branchId) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                // Khoá bàn tới hết transaction để không ghi tín hiệu sau khi payment vừa quyết định trả bàn.
-                DiningTable table = tableDao.findByIdForUpdate(conn, tableId);
-                if (table == null || table.getBranchId() != branchId
-                        || !"OCCUPIED".equals(table.getStatus())
-                        || !tableDao.hasUnpaidOrders(conn, tableId, branchId)) {
-                    throw new IllegalStateException("Bàn không còn đơn chưa thanh toán.");
-                }
-                outboxDao.insert(conn, type, String.valueOf(tableId), branchId,
-                        "{\"tableId\":" + tableId + "}");
-                conn.commit();
-            } catch (SQLException | RuntimeException e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(true);
+        Tx.run(conn -> {
+            // Khoá bàn tới hết transaction để không ghi tín hiệu sau khi payment vừa quyết định trả bàn.
+            DiningTable table = tableDao.findByIdForUpdate(conn, tableId);
+            if (table == null || table.getBranchId() != branchId
+                    || !"OCCUPIED".equals(table.getStatus())
+                    || !tableDao.hasUnpaidOrders(conn, tableId, branchId)) {
+                throw new IllegalStateException("Bàn không còn đơn chưa thanh toán.");
             }
-        }
+            outboxDao.insert(conn, type, String.valueOf(tableId), branchId,
+                    "{\"tableId\":" + tableId + "}");
+        });
     }
 
     private static String esc(String value) {

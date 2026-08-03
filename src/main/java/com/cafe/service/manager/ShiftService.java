@@ -5,6 +5,7 @@ import com.cafe.common.BusinessException;
 import com.cafe.common.ShiftConflict;
 import com.cafe.common.ShiftHours;
 import com.cafe.config.DBConnection;
+import com.cafe.config.Tx;
 import com.cafe.dao.shared.UserDao;
 import com.cafe.dao.manager.ShiftAssignmentDao;
 import com.cafe.model.ShiftAssignment;
@@ -250,19 +251,10 @@ public class ShiftService {
     private interface V { void run(Connection c) throws SQLException; }
 
     private <T> T tx(Fn<T> fn) throws SQLException {
-        try (Connection c = DBConnection.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                T result = fn.run(c);
-                c.commit();
-                return result;
-            } catch (SQLException | RuntimeException e) {
-                c.rollback();
-                throw e;
-            } finally {
-                c.setAutoCommit(true);
-            }
-        }
+        return Tx.call(c -> {
+            T result = fn.run(c);
+            return result;
+        });
     }
 
     private void txVoid(V action) throws SQLException {

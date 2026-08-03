@@ -2,6 +2,7 @@ package com.cafe.service.admin;
 
 import com.cafe.common.BusinessException;
 import com.cafe.config.DBConnection;
+import com.cafe.config.Tx;
 import com.cafe.dao.admin.ProductDao;
 import com.cafe.dao.admin.BranchDao;
 import com.cafe.model.Branch;
@@ -61,17 +62,12 @@ public class HomeAdminService {
         if (ids == null || ids.length == 0) return;
         if (shows.length != ids.length || orders.length != ids.length)
             throw new IllegalArgumentException("Số phần tử showOnHome/homeSortOrder không khớp danh sách sản phẩm.");
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                for (int i = 0; i < ids.length; i++) {
-                    int order = Math.max(0, orders[i]);
-                    productDao.updateHomeDisplay(conn, ids[i], shows[i], order);
-                }
-                conn.commit();
-            } catch (SQLException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+        Tx.run(conn -> {
+            for (int i = 0; i < ids.length; i++) {
+                int order = Math.max(0, orders[i]);
+                productDao.updateHomeDisplay(conn, ids[i], shows[i], order);
+            }
+        });
     }
 
     /** Lưu nội dung hero trang Home. */
@@ -79,17 +75,10 @@ public class HomeAdminService {
         if (branch == null || branch.getBranchId() <= 0) {
             throw new BusinessException("Vui lòng chọn chi nhánh cần cập nhật hero.");
         }
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                if (branchDao.updateHero(conn, branch) != 1) {
-                    throw new BusinessException("Không tìm thấy chi nhánh cần cập nhật hero.");
-                }
-                conn.commit();
+        Tx.run(conn -> {
+            if (branchDao.updateHero(conn, branch) != 1) {
+                throw new BusinessException("Không tìm thấy chi nhánh cần cập nhật hero.");
             }
-            catch (SQLException e) { conn.rollback(); throw e; }
-            catch (RuntimeException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+        });
     }
 }

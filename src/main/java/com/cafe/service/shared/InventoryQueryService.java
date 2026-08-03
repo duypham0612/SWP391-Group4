@@ -2,6 +2,7 @@ package com.cafe.service.shared;
 
 import com.cafe.common.*;
 import com.cafe.config.DBConnection;
+import com.cafe.config.Tx;
 import com.cafe.model.*;
 
 import java.math.*;
@@ -132,12 +133,9 @@ public final class InventoryQueryService {
     public void setMinThreshold(int branchId, int ingredientId, BigDecimal threshold) throws SQLException {
         if (threshold == null || threshold.signum() < 0)
             throw new BusinessException("Ngưỡng cảnh báo phải lớn hơn hoặc bằng 0.");
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try { repository.biDao.updateThreshold(conn, branchId, ingredientId, threshold); conn.commit(); }
-            catch (SQLException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+        Tx.run(conn -> {
+            repository.biDao.updateThreshold(conn, branchId, ingredientId, threshold);
+        });
     }
 
     public void setPrepPolicy(int branchId, int ingredientId, BigDecimal threshold, BigDecimal target)
@@ -146,12 +144,9 @@ public final class InventoryQueryService {
             throw new BusinessException("Ngưỡng cảnh báo phải lớn hơn hoặc bằng 0.");
         if (target == null || target.compareTo(threshold) <= 0)
             throw new BusinessException("Mức tồn mục tiêu phải lớn hơn ngưỡng cảnh báo.");
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try { repository.biDao.updatePrepPolicy(conn, branchId, ingredientId, threshold, target); conn.commit(); }
-            catch (SQLException | RuntimeException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+        Tx.run(conn -> {
+ repository.biDao.updatePrepPolicy(conn, branchId, ingredientId, threshold, target);
+        });
     }
 
     public List<com.cafe.model.PrepBatch> getRecentPrepBatches(int branchId, int limit) throws SQLException {

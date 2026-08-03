@@ -2,6 +2,7 @@ package com.cafe.service.admin;
 
 import com.cafe.common.BusinessException;
 import com.cafe.config.DBConnection;
+import com.cafe.config.Tx;
 import com.cafe.dao.admin.IngredientDao;
 import com.cafe.dao.admin.IngredientUnitDao;
 import com.cafe.model.Ingredient;
@@ -51,29 +52,22 @@ public class IngredientService {
     }
 
     public int createIngredient(Ingredient i) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
+        try {
+            return Tx.call(conn -> {
                 validateAndNormalize(conn, i);
                 int id = dao.insert(conn, i);
-                conn.commit();
                 return id;
-            }
-            catch (SQLException e) {
-                conn.rollback();
-                if (e.getErrorCode() == 2601 || e.getErrorCode() == 2627)
+            });
+        } catch (SQLException e) {
+            if (e.getErrorCode() == 2601 || e.getErrorCode() == 2627)
                     throw new BusinessException("Tên và đơn vị nguyên liệu đã tồn tại.");
                 throw e;
-            }
-            catch (RuntimeException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
         }
     }
 
     public void updateIngredient(Ingredient i) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
+        try {
+            Tx.run(conn -> {
                 Ingredient existing = dao.findById(conn, i.getIngredientId());
                 if (existing == null) {
                     throw new BusinessException("Không tìm thấy nguyên liệu cần cập nhật.");
@@ -86,16 +80,11 @@ public class IngredientService {
                             "Không thể đổi đơn vị gốc khi nguyên liệu đã có tồn kho/giao dịch; hãy tạo nguyên liệu mới.");
                 }
                 dao.update(conn, i);
-                conn.commit();
-            }
-            catch (SQLException e) {
-                conn.rollback();
-                if (e.getErrorCode() == 2601 || e.getErrorCode() == 2627)
+            });
+        } catch (SQLException e) {
+            if (e.getErrorCode() == 2601 || e.getErrorCode() == 2627)
                     throw new BusinessException("Tên và đơn vị nguyên liệu đã tồn tại.");
                 throw e;
-            }
-            catch (RuntimeException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
         }
     }
 
@@ -113,12 +102,9 @@ public class IngredientService {
     }
 
     public void deleteIngredient(int id) throws SQLException {
-        try (Connection conn = DBConnection.getConnection()) {
-            conn.setAutoCommit(false);
-            try { dao.delete(conn, id); conn.commit(); }
-            catch (SQLException e) { conn.rollback(); throw e; }
-            finally { conn.setAutoCommit(true); }
-        }
+        Tx.run(conn -> {
+            dao.delete(conn, id);
+        });
     }
 
     private void validateAndNormalize(Connection conn, Ingredient ingredient) throws SQLException {
