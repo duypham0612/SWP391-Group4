@@ -1,5 +1,6 @@
 package com.cafe.controller.admin;
 
+import com.cafe.common.BusinessException;
 import com.cafe.web.support.CsrfUtil;
 import com.cafe.model.Branch;
 import com.cafe.service.admin.HomeAdminService;
@@ -32,6 +33,9 @@ public class HomeAdminServlet extends HttpServlet {
             req.setAttribute("setting", service.getHomeBranch(branchId));
             req.setAttribute("pageTitle", "Trang Home");
             req.getRequestDispatcher("/WEB-INF/views/admin/home-editor.jsp").forward(req, resp);
+        } catch (BusinessException e) {
+            req.getSession().setAttribute("flashError", e.getMessage());
+            resp.sendRedirect(req.getContextPath() + "/admin/home");
         } catch (Exception e) { throw new ServletException(e); }
     }
 
@@ -52,14 +56,15 @@ public class HomeAdminServlet extends HttpServlet {
                 s.setHeroTitle(trim(req.getParameter("heroTitle")));
                 s.setHeroSubtitle(trim(req.getParameter("heroSubtitle")));
                 s.setHeroImageUrl(trim(req.getParameter("heroImageUrl")));
-                String error = validateContent(s);
-                if (error != null) {
-                    req.getSession().setAttribute("flashError", error);
-                } else {
-                    service.saveContent(s);
-                    req.getSession().setAttribute("flashOk", "Đã lưu nội dung trang Home.");
-                }
+                service.saveContent(s);
+                req.getSession().setAttribute("flashOk", "Đã lưu nội dung trang Home.");
+            } else {
+                throw new BusinessException("Thao tác cập nhật trang Home không hợp lệ.");
             }
+            Integer branchId = positiveInt(req.getParameter("branchId"));
+            resp.sendRedirect(ctx + "/admin/home" + (branchId == null ? "" : "?branchId=" + branchId));
+        } catch (BusinessException e) {
+            req.getSession().setAttribute("flashError", e.getMessage());
             Integer branchId = positiveInt(req.getParameter("branchId"));
             resp.sendRedirect(ctx + "/admin/home" + (branchId == null ? "" : "?branchId=" + branchId));
         } catch (Exception e) { throw new ServletException(e); }
@@ -67,44 +72,61 @@ public class HomeAdminServlet extends HttpServlet {
 
     private void saveHomeProducts(HttpServletRequest req) throws Exception {
         String[] pids = req.getParameterValues("pid");
-        if (pids == null || pids.length == 0) return;
+        if (pids == null || pids.length == 0) {
+            throw new BusinessException("Không tìm thấy danh sách sản phẩm cần lưu.");
+        }
+        if (pids.length > HomeAdminService.MAX_HOME_PRODUCTS) {
+            throw new BusinessException(
+                    "Mỗi lần chỉ được lưu tối đa " + HomeAdminService.MAX_HOME_PRODUCTS + " sản phẩm.");
+        }
         java.util.List<Integer> idList = new java.util.ArrayList<>();
         java.util.List<Boolean> showList = new java.util.ArrayList<>();
         java.util.List<Integer> orderList = new java.util.ArrayList<>();
         for (String raw : pids) {
-            if (raw == null || raw.isBlank()) continue;
-            int pid;
-            try { pid = Integer.parseInt(raw.trim()); } catch (NumberFormatException e) { continue; }
+            int pid = requiredPositiveInt(raw, "Mã sản phẩm không hợp lệ.");
             idList.add(pid);
             showList.add(req.getParameter("show_" + pid) != null);
-            orderList.add(intParam(req, "order_" + pid, 0));
+            orderList.add(requiredHomeOrder(req.getParameter("order_" + pid)));
         }
         int n = idList.size();
-        if (n == 0) return;
         int[] ids = new int[n];
         boolean[] shows = new boolean[n];
         int[] orders = new int[n];
+        int shownCount = 0;
         for (int i = 0; i < n; i++) {
             ids[i] = idList.get(i);
             shows[i] = showList.get(i);
             orders[i] = orderList.get(i);
+            if (shows[i]) shownCount++;
         }
         service.saveProductHomeBatch(ids, shows, orders);
-        req.getSession().setAttribute("flashOk", "Đã lưu hiển thị và thứ tự các món trên Home.");
+        req.getSession().setAttribute("flashOk",
+                "Đã lưu " + n + " sản phẩm; " + shownCount + " sản phẩm đang hiển thị trên Home.");
     }
 
-    private String validateContent(Branch s) {
-        if (s.getBranchId() <= 0)
-            return "Vui lòng chọn chi nhánh cần cập nhật hero.";
-        if (s.getHeroTitle() == null || s.getHeroTitle().isBlank())
-            return "Tiêu đề trang Home không được để trống.";
-        return null;
+    private int requiredPositiveInt(String value, String message) {
+        if (value == null || value.isBlank()) throw new BusinessException(message);
+        try {
+            int parsed = Integer.parseInt(value.trim());
+            if (parsed <= 0) throw new NumberFormatException();
+            return parsed;
+        } catch (NumberFormatException e) {
+            throw new BusinessException(message);
+        }
     }
 
-    private int intParam(HttpServletRequest req, String name, int def) {
-        String v = req.getParameter(name);
-        if (v == null || v.isBlank()) return def;
-        try { return Integer.parseInt(v.trim()); } catch (NumberFormatException e) { return def; }
+    private int requiredHomeOrder(String value) {
+        if (value == null || value.isBlank()) return 0;
+        try {
+            int parsed = Integer.parseInt(value.trim());
+            if (parsed < 0 || parsed > HomeAdminService.MAX_HOME_SORT_ORDER) {
+                throw new NumberFormatException();
+            }
+            return parsed;
+        } catch (NumberFormatException e) {
+            throw new BusinessException("Thứ tự hiển thị phải là số nguyên từ 0 đến "
+                    + HomeAdminService.MAX_HOME_SORT_ORDER + ".");
+        }
     }
 
     private String trim(String s) { return s == null || s.isBlank() ? null : s.trim(); }

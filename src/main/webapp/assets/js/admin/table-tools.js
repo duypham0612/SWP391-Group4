@@ -21,15 +21,44 @@
 
   function getPageSize(root) {
     var sizeControl = root.querySelector('[data-tt-size]');
-    var parsed = sizeControl ? parseInt(sizeControl.value, 10) : DEFAULT_PAGE_SIZE;
+    var configured = root.getAttribute('data-tt-page-size');
+    var parsed = sizeControl ? parseInt(sizeControl.value, 10) : parseInt(configured, 10);
     return parsed > 0 ? parsed : DEFAULT_PAGE_SIZE;
   }
 
-  function pageButton(label, page, disabled, active) {
+  function pagerIcon(kind) {
+    var ns = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '2');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    svg.setAttribute('aria-hidden', 'true');
+    var paths = kind === 'first' ? ['M11 18l-6-6 6-6', 'M19 18l-6-6 6-6']
+      : kind === 'previous' ? ['M15 18l-6-6 6-6']
+      : kind === 'next' ? ['M9 18l6-6-6-6']
+      : ['M5 18l6-6-6-6', 'M13 18l6-6-6-6'];
+    paths.forEach(function (value) {
+      var path = document.createElementNS(ns, 'path');
+      path.setAttribute('d', value);
+      svg.appendChild(path);
+    });
+    return svg;
+  }
+
+  function pageButton(label, page, disabled, active, icon) {
     var button = document.createElement('button');
     button.type = 'button';
     button.className = 'page';
-    button.textContent = label;
+    if (icon) {
+      button.appendChild(pagerIcon(icon));
+      button.setAttribute('aria-label', label);
+      button.setAttribute('title', label);
+    } else {
+      button.textContent = label;
+    }
     button.disabled = !!disabled;
     if (active) button.classList.add('is-active');
     if (page) button.setAttribute('data-tt-page', String(page));
@@ -110,7 +139,7 @@
     emptyRow.className = 'tt-empty';
     emptyRow.hidden = true;
     emptyCell.colSpan = Math.max(1, headerCells.length);
-    emptyCell.textContent = root.getAttribute('data-tt-empty') || 'Không có kết quả';
+    emptyCell.textContent = root.getAttribute('data-tt-empty') || 'Kh\u00f4ng c\u00f3 k\u1ebft qu\u1ea3';
     emptyRow.appendChild(emptyCell);
     tbody.appendChild(emptyRow);
 
@@ -135,15 +164,15 @@
       pager.innerHTML = '';
       if (totalPages <= 1) return;
 
-      pager.appendChild(pageButton('«', 1, currentPage === 1, false));
-      pager.appendChild(pageButton('‹', Math.max(1, currentPage - 1), currentPage === 1, false));
+      pager.appendChild(pageButton('Trang dau', 1, currentPage === 1, false, 'first'));
+      pager.appendChild(pageButton('Trang truoc', Math.max(1, currentPage - 1), currentPage === 1, false, 'previous'));
 
       pagerPages(totalPages, currentPage).forEach(function (page) {
         pager.appendChild(pageButton(String(page), page, false, page === currentPage));
       });
 
-      pager.appendChild(pageButton('›', Math.min(totalPages, currentPage + 1), currentPage === totalPages, false));
-      pager.appendChild(pageButton('»', totalPages, currentPage === totalPages, false));
+      pager.appendChild(pageButton('Trang sau', Math.min(totalPages, currentPage + 1), currentPage === totalPages, false, 'next'));
+      pager.appendChild(pageButton('Trang cuoi', totalPages, currentPage === totalPages, false, 'last'));
     }
 
     function renderSummary(start, end, total) {

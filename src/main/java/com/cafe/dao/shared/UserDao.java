@@ -74,6 +74,15 @@ public class UserDao {
         }
     }
 
+    public void updateRole(Connection conn, int userId, String roleCode) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE iam.UserAccount SET RoleCode=? WHERE UserId=?")) {
+            ps.setString(1, roleCode);
+            ps.setInt(2, userId);
+            ps.executeUpdate();
+        }
+    }
+
     public List<User> findAll(Connection conn) throws SQLException {
         final String sql = BASE_SELECT + "ORDER BY " + ROLE_ORDER + ", u.Username";
         List<User> out = new ArrayList<>();
@@ -89,6 +98,28 @@ public class UserDao {
         List<User> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, branchId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) out.add(map(rs));
+            }
+        }
+        return out;
+    }
+
+    /** Nhân sự ACTIVE cùng chi nhánh có thể được chọn làm quản lý mới. */
+    public List<User> findManagerReplacementCandidates(Connection conn, int branchId,
+                                                        int currentManagerId) throws SQLException {
+        final String sql = BASE_SELECT
+                + "WHERE u.BranchId=? AND u.Status='ACTIVE' AND u.RoleCode<>'ADMIN' "
+                + "AND u.UserId<>? "
+                + "AND NOT EXISTS(SELECT 1 FROM payment.CashierShift cs "
+                + "WHERE cs.CashierId=u.UserId AND cs.ClosedAt IS NULL) "
+                + "AND NOT EXISTS(SELECT 1 FROM hr.ShiftAssignment sa "
+                + "WHERE sa.UserId=u.UserId AND sa.CheckInAt IS NOT NULL AND sa.CheckOutAt IS NULL) "
+                + "ORDER BY " + ROLE_ORDER + ", u.FullName";
+        List<User> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setInt(2, currentManagerId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) out.add(map(rs));
             }
@@ -167,23 +198,6 @@ public class UserDao {
         }
     }
 
-    /** Trả mã lý do chặn chuyển chi nhánh, null nếu có thể chuyển an toàn. */
-    public String findBranchTransferBlock(Connection conn, int userId) throws SQLException {
-        final String sql = "SELECT CASE " +
-                "WHEN EXISTS(SELECT 1 FROM org.Branch WHERE ManagerUserId=?) THEN 'MANAGER' " +
-                "WHEN EXISTS(SELECT 1 FROM payment.CashierShift WHERE CashierId=? AND ClosedAt IS NULL) THEN 'CASHIER_SHIFT' " +
-                "WHEN EXISTS(SELECT 1 FROM hr.ShiftAssignment sa WHERE sa.UserId=? " +
-                " AND sa.AttendanceStatus IS NOT NULL " +
-                " AND sa.CheckInAt IS NOT NULL AND sa.CheckOutAt IS NULL) THEN 'ATTENDANCE' " +
-                "WHEN EXISTS(SELECT 1 FROM hr.ShiftAssignment WHERE UserId=? AND WorkDate>= " +
-                " CONVERT(date,DATEADD(hour,7,SYSUTCDATETIME()))) " +
-                "THEN 'FUTURE_SHIFT' ELSE NULL END";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            for (int i = 1; i <= 4; i++) ps.setInt(i, userId);
-            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? rs.getString(1) : null; }
-        }
-    }
-
     public boolean usernameExists(Connection conn, String username, int excludeId) throws SQLException {
         final String sql = "SELECT 1 FROM iam.UserAccount WHERE Username = ? AND UserId <> ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -232,20 +246,36 @@ public class UserDao {
         }
     }
 
-    /** Cập nhật hồ sơ (không đổi mật khẩu). */
+    /** Cập nhật nhân sự; BranchId bất biến sau khi tạo. */
     public void update(Connection conn, User u) throws SQLException {
-        final String sql = "UPDATE iam.UserAccount SET FullName=?, Email=?, Phone=?, RoleCode=?, BranchId=?, HourlyRate=?, Status=? WHERE UserId=?";
+        final String sql = "UPDATE iam.UserAccount SET FullName=?, Email=?, Phone=?, RoleCode=?, HourlyRate=?, Status=? WHERE UserId=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, u.getFullName());
             ps.setString(2, u.getEmail());
             ps.setString(3, u.getPhone());
             ps.setString(4, u.getRoleCode());
-            if (u.getBranchId() == null) ps.setNull(5, Types.INTEGER); else ps.setInt(5, u.getBranchId());
-            if (u.getHourlyRate() == null) ps.setNull(6, Types.DECIMAL);
-            else ps.setBigDecimal(6, u.getHourlyRate());
-            ps.setString(7, u.getStatus());
-            ps.setInt(8, u.getUserId());
+            if (u.getHourlyRate() == null) ps.setNull(5, Types.DECIMAL);
+            else ps.setBigDecimal(5, u.getHourlyRate());
+            ps.setString(6, u.getStatus());
+            ps.setInt(7, u.getUserId());
             ps.executeUpdate();
+        }
+    }
+
+    /** Trả lý do chặn đổi quyền khi nhân sự còn nghiệp vụ đang mở. */
+    public String findManagerReplacementBlock(Connection conn, int userId) throws SQLException {
+        final String sql = "SELECT CASE "
+                + "WHEN EXISTS(SELECT 1 FROM payment.CashierShift WITH (UPDLOCK,HOLDLOCK) "
+                + "WHERE CashierId=? AND ClosedAt IS NULL) THEN 'CASHIER_SHIFT' "
+                + "WHEN EXISTS(SELECT 1 FROM hr.ShiftAssignment WITH (UPDLOCK,HOLDLOCK) "
+                + "WHERE UserId=? AND CheckInAt IS NOT NULL AND CheckOutAt IS NULL) "
+                + "THEN 'ATTENDANCE' ELSE NULL END";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            ps.setInt(2, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getString(1) : null;
+            }
         }
     }
 
@@ -300,8 +330,10 @@ public class UserDao {
         u.setBranchName(rs.getString("BranchName"));
         Object branchActive = rs.getObject("BranchActive");
         u.setBranchActive(branchActive == null ? null : rs.getBoolean("BranchActive"));
-        u.setBranchManaged(u.getBranchId() == null
-                ? null : rs.getObject("BranchManagerUserId") != null);
+        Object managerUserId = rs.getObject("BranchManagerUserId");
+        u.setBranchHasManager(u.getBranchId() == null ? null : managerUserId != null);
+        u.setAssignedBranchManager(u.getBranchId() == null
+                ? null : managerUserId != null && rs.getInt("BranchManagerUserId") == u.getUserId());
         return u;
     }
 

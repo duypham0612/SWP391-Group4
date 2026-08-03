@@ -1,6 +1,7 @@
 package com.cafe.controller.admin;
 
 import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.ActiveSessionRegistry;
 import com.cafe.common.BusinessException;
 import com.cafe.model.Branch;
 import com.cafe.service.admin.BranchService;
@@ -42,6 +43,21 @@ public class BranchServlet extends HttpServlet {
                 if (b == null) { resp.sendError(HttpServletResponse.SC_NOT_FOUND); return; }
                 req.setAttribute("branch", b);
                 forwardForm(req, resp, "Sửa chi nhánh");
+            } else if ("replaceManager".equals(action)) {
+                int branchId = parsePositiveInt(req.getParameter("id"));
+                Branch branch = service.getBranch(branchId);
+                if (branch == null) { resp.sendError(HttpServletResponse.SC_NOT_FOUND); return; }
+                if (branch.getManagerUserId() == null) {
+                    req.getSession().setAttribute("flashError",
+                            "Chi nhánh chưa có quản lý; hãy dùng thao tác Phân công.");
+                    resp.sendRedirect(req.getContextPath() + "/admin/branch");
+                    return;
+                }
+                req.setAttribute("branch", branch);
+                req.setAttribute("candidates", service.getManagerReplacementCandidates(branchId));
+                req.setAttribute("pageTitle", "Thay quản lý");
+                req.getRequestDispatcher("/WEB-INF/views/admin/branch-manager-replace.jsp")
+                        .forward(req, resp);
             } else {
                 req.setAttribute("branches", service.getBranchList());
                 req.setAttribute("pageTitle", "Chi nhánh");
@@ -64,6 +80,18 @@ public class BranchServlet extends HttpServlet {
                 resp.sendRedirect(ctx + "/admin/branch");
                 return;
             }
+            if ("replaceManager".equals(action)) {
+                int branchId = parsePositiveInt(req.getParameter("branchId"));
+                int replacementUserId = parsePositiveInt(req.getParameter("replacementUserId"));
+                BranchService.ManagerReplacement result =
+                        service.replaceManager(branchId, replacementUserId);
+                ActiveSessionRegistry.invalidateUserSessions(result.previousManagerId());
+                ActiveSessionRegistry.invalidateUserSessions(result.newManagerId());
+                req.getSession().setAttribute("flashOk",
+                        "Đã thay quản lý, khóa tài khoản quản lý cũ và thu hồi các phiên đăng nhập.");
+                resp.sendRedirect(ctx + "/admin/branch");
+                return;
+            }
             Branch b = BranchForm.from(req).branch();
             if (b.getBranchId() == 0) {
                 service.createBranch(b);
@@ -83,6 +111,16 @@ public class BranchServlet extends HttpServlet {
             throws ServletException, IOException {
         req.setAttribute("pageTitle", title);
         req.getRequestDispatcher("/WEB-INF/views/admin/branch-form.jsp").forward(req, resp);
+    }
+
+    private int parsePositiveInt(String value) {
+        if (value == null || value.isBlank()) return 0;
+        try {
+            int parsed = Integer.parseInt(value.trim());
+            return parsed > 0 ? parsed : 0;
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
 }

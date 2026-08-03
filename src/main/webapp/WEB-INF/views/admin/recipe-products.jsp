@@ -55,7 +55,7 @@
         <div class="card empty-state"><p>Chưa có nguyên liệu pha sẵn.</p></div>
     </c:when>
     <c:otherwise>
-        <div data-tabletools data-tt-page-size="5">
+        <div data-tabletools data-tt-page-size="6">
             <div class="table-toolbar">
                 <div class="form-group table-search">
                     <label for="recipePreppedSearch">Tìm kiếm</label>

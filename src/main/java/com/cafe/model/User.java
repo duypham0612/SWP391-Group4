@@ -25,7 +25,10 @@ public class User implements Serializable {
     private String roleName;
     private String branchName;
     private Boolean branchActive;
-    private Boolean branchManaged;
+    /** Chi nhánh của nhân sự hiện đã có người quản lý phụ trách hay chưa. */
+    private Boolean branchHasManager;
+    /** Chính nhân sự này có phải là người quản lý đang được gán cho chi nhánh hay không. */
+    private Boolean assignedBranchManager;
 
     public int getUserId() { return userId; }
     public void setUserId(int userId) { this.userId = userId; }
@@ -66,6 +69,11 @@ public class User implements Serializable {
     public Boolean getBranchActive() { return branchActive; }
     public void setBranchActive(Boolean branchActive) { this.branchActive = branchActive; }
 
-    public Boolean getBranchManaged() { return branchManaged; }
-    public void setBranchManaged(Boolean branchManaged) { this.branchManaged = branchManaged; }
+    public Boolean getBranchHasManager() { return branchHasManager; }
+    public void setBranchHasManager(Boolean branchHasManager) { this.branchHasManager = branchHasManager; }
+
+    public Boolean getAssignedBranchManager() { return assignedBranchManager; }
+    public void setAssignedBranchManager(Boolean assignedBranchManager) {
+        this.assignedBranchManager = assignedBranchManager;
+    }
 }

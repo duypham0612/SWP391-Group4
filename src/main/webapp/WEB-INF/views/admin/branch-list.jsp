@@ -44,30 +44,31 @@
             </tr></thead>
             <tbody id="branchBody">
                 <c:forEach var="b" items="${branches}" varStatus="status">
-                    <tr data-state="${empty b.managerUserId ? 'unassigned' : (b.active ? 'active' : 'inactive')}">
+                    <tr data-state="${b.active ? 'active' : 'inactive'}" data-unassigned="${empty b.managerUserId}">
                         <td>${status.index + 1}</td>
                         <td>${b.code}</td>
                         <td>${b.name}</td>
                         <td>${b.address}</td>
-                        <td><c:choose><c:when test="${not empty b.managerName}">${b.managerName}</c:when><c:otherwise><span class="muted">(chưa gán)</span></c:otherwise></c:choose></td>
-                        <td><c:choose><c:when test="${empty b.managerUserId}"><span class="badge badge-waiting">Chưa phân công</span></c:when><c:when test="${b.active}"><span class="badge badge-ready">Hoạt động</span></c:when><c:otherwise><span class="badge badge-cancelled">Ngừng</span></c:otherwise></c:choose></td>
+                        <td><c:choose><c:when test="${not empty b.managerName}"><c:out value="${b.managerName}"/></c:when><c:otherwise><span class="badge badge-waiting">Chưa có quản lý</span></c:otherwise></c:choose></td>
+                        <td><c:choose><c:when test="${b.active}"><span class="badge badge-ready">Hoạt động</span></c:when><c:otherwise><span class="badge badge-cancelled">Ngừng hoạt động</span></c:otherwise></c:choose></td>
                         <td>
                             <div class="row-actions branch-row-actions">
                                 <a class="btn btn-ghost btn-sm" href="${ctx}/admin/branch?action=edit&id=${b.branchId}">Sửa</a>
                                 <a class="btn btn-ghost btn-sm" href="${ctx}/admin/branch-menu?branchId=${b.branchId}">Menu</a>
-                                <c:choose>
-                                    <c:when test="${empty b.managerUserId}">
-                                        <a class="btn btn-primary btn-sm" href="${ctx}/admin/user?action=new&amp;branchId=${b.branchId}">Phân công</a>
-                                    </c:when>
-                                    <c:otherwise>
-                                        <form action="${ctx}/admin/branch" method="post" onsubmit="return confirm('Đổi trạng thái chi nhánh này?');">
-                                            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                                            <input type="hidden" name="action" value="toggleActive">
-                                            <input type="hidden" name="id" value="${b.branchId}">
-                                            <button type="submit" class="btn btn-ghost btn-sm">${b.active ? 'Ngừng' : 'Bật'}</button>
-                                        </form>
-                                    </c:otherwise>
-                                </c:choose>
+                                <c:if test="${not empty b.managerUserId}">
+                                    <a class="btn btn-ghost btn-sm" href="${ctx}/admin/branch?action=replaceManager&amp;id=${b.branchId}"
+                                       aria-label="Thay quản lý chi nhánh ${b.name}" title="Thay quản lý">Thay QL</a>
+                                </c:if>
+                                <c:if test="${empty b.managerUserId and b.active}">
+                                    <a class="btn btn-primary btn-sm" href="${ctx}/admin/user?action=new&amp;branchId=${b.branchId}">Phân công</a>
+                                </c:if>
+                                <form action="${ctx}/admin/branch" method="post"
+                                      onsubmit="return confirm('${b.active ? 'Ngừng hoạt động chi nhánh này?' : 'Bật hoạt động chi nhánh này?'}');">
+                                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                                    <input type="hidden" name="action" value="toggleActive">
+                                    <input type="hidden" name="id" value="${b.branchId}">
+                                    <button type="submit" class="btn btn-ghost btn-sm">${b.active ? 'Ngừng' : 'Bật'}</button>
+                                </form>
                             </div>
                         </td>
                     </tr>
@@ -111,7 +112,8 @@
             });
 
             function matches(row) {
-                if (filter !== 'all' && row.getAttribute('data-state') !== filter) return false;
+                if (filter === 'unassigned' && row.getAttribute('data-unassigned') !== 'true') return false;
+                if (filter !== 'all' && filter !== 'unassigned' && row.getAttribute('data-state') !== filter) return false;
                 if (query && row._search.indexOf(query) === -1) return false;
                 return true;
             }
@@ -121,7 +123,24 @@
                 var b = document.createElement('button');
                 b.type = 'button';
                 b.className = 'page' + (opts.active ? ' is-active' : '');
-                b.textContent = label;
+                if (opts.icon) {
+                    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                    svg.setAttribute('viewBox', '0 0 24 24');
+                    svg.setAttribute('fill', 'none');
+                    svg.setAttribute('stroke', 'currentColor');
+                    svg.setAttribute('stroke-width', '2');
+                    svg.setAttribute('stroke-linecap', 'round');
+                    svg.setAttribute('stroke-linejoin', 'round');
+                    svg.setAttribute('aria-hidden', 'true');
+                    var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    path.setAttribute('d', opts.icon === 'previous' ? 'M15 18l-6-6 6-6' : 'M9 18l6-6-6-6');
+                    svg.appendChild(path);
+                    b.appendChild(svg);
+                    b.setAttribute('aria-label', label);
+                    b.setAttribute('title', label);
+                } else {
+                    b.textContent = label;
+                }
                 if (opts.disabled) { b.disabled = true; }
                 else if (!opts.active) { b.addEventListener('click', function(){ page = target; render(); }); }
                 return b;
@@ -131,11 +150,11 @@
                 if (!pager) return;
                 pager.innerHTML = '';
                 if (pageCount <= 1) return;
-                pager.appendChild(pagerBtn('\u2039', page - 1, { disabled: page === 1 }));
+                pager.appendChild(pagerBtn('Trang truoc', page - 1, { disabled: page === 1, icon: 'previous' }));
                 for (var p = 1; p <= pageCount; p++) {
                     pager.appendChild(pagerBtn(String(p), p, { active: p === page }));
                 }
-                pager.appendChild(pagerBtn('\u203a', page + 1, { disabled: page === pageCount }));
+                pager.appendChild(pagerBtn('Trang sau', page + 1, { disabled: page === pageCount, icon: 'next' }));
             }
 
             function render() {

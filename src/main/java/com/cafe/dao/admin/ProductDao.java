@@ -97,13 +97,26 @@ public class ProductDao {
 
     // ===== Trang Home công khai =====
 
-    /** Sản phẩm hiển thị trên Home: đang bán + ShowOnHome, theo danh mục rồi thứ tự Home. */
-    public List<Product> findForHome(Connection conn) throws SQLException {
+    /**
+     * Sản phẩm hiển thị trên Home của một chi nhánh: được chọn nổi bật toàn chuỗi
+     * và đang được mở bán trong BranchMenu của đúng chi nhánh đó.
+     */
+    public List<Product> findForHome(Connection conn, int branchId) throws SQLException {
         List<Product> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(
-                SELECT + "WHERE p.IsActive = 1 AND p.ShowOnHome = 1 ORDER BY c.SortOrder, p.HomeSortOrder, p.Name");
-             ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) out.add(map(rs));
+                "SELECT p.ProductId, p.CategoryId, p.Name, " +
+                "       COALESCE(bm.LocalPrice, p.BasePrice) AS BasePrice, " +
+                "       p.ImageUrl, p.IsActive, p.ShowOnHome, p.HomeSortOrder, " +
+                "       p.PrepSeconds, c.Name AS CategoryName " +
+                "FROM catalog.Product p " +
+                "JOIN catalog.Category c ON c.CategoryId = p.CategoryId " +
+                "JOIN catalog.BranchMenu bm ON bm.ProductId = p.ProductId AND bm.BranchId = ? " +
+                "WHERE p.IsActive = 1 AND c.IsActive = 1 AND p.ShowOnHome = 1 AND bm.IsListed = 1 " +
+                "ORDER BY c.SortOrder, p.HomeSortOrder, p.Name")) {
+            ps.setInt(1, branchId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) out.add(map(rs));
+            }
         }
         return out;
     }
@@ -173,13 +186,13 @@ public class ProductDao {
     }
 
     /** Cập nhật trạng thái hiển thị + thứ tự trên Home cho 1 sản phẩm. */
-    public void updateHomeDisplay(Connection conn, int id, boolean showOnHome, int homeSortOrder) throws SQLException {
+    public int updateHomeDisplay(Connection conn, int id, boolean showOnHome, int homeSortOrder) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE catalog.Product SET ShowOnHome=?, HomeSortOrder=? WHERE ProductId=?")) {
+                "UPDATE catalog.Product SET ShowOnHome=?, HomeSortOrder=? WHERE ProductId=? AND IsActive=1")) {
             ps.setBoolean(1, showOnHome);
             ps.setInt(2, homeSortOrder);
             ps.setInt(3, id);
-            ps.executeUpdate();
+            return ps.executeUpdate();
         }
     }
 

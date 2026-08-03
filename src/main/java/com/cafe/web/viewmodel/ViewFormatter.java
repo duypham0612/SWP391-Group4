@@ -4,6 +4,7 @@ import com.cafe.common.BusinessDay;
 import com.cafe.common.Constants;
 import com.cafe.common.QuantityFormat;
 import com.cafe.common.Reason86;
+import com.cafe.common.StandardModifierPolicy;
 import com.cafe.model.*;
 
 import java.math.BigDecimal;
@@ -35,6 +36,9 @@ public final class ViewFormatter {
         return value == null ? "" : value.setScale(0, RoundingMode.DOWN).toPlainString();
     }
     public String money(BigDecimal value) { return QuantityFormat.groupedVi(value); }
+    public boolean modifierDefault(String groupName, String optionName) {
+        return StandardModifierPolicy.isDefault(groupName, optionName);
+    }
 
     public String shortUtc(LocalDateTime value) { return utc(value, SHORT_UTC); }
     public String timeDateUtc(LocalDateTime value) { return utc(value, TIME_DATE_UTC); }

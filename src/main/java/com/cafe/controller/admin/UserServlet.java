@@ -3,6 +3,7 @@ package com.cafe.controller.admin;
 import com.cafe.common.BusinessException;
 import com.cafe.common.Constants;
 import com.cafe.web.support.CsrfUtil;
+import com.cafe.web.support.ActiveSessionRegistry;
 import com.cafe.model.Branch;
 import com.cafe.model.User;
 import com.cafe.service.admin.BranchService;
@@ -48,6 +49,12 @@ public class UserServlet extends HttpServlet {
                     Branch assignmentBranch = branchService.getBranch(assignmentBranchId);
                     if (assignmentBranch == null) {
                         resp.sendError(HttpServletResponse.SC_NOT_FOUND);
+                        return;
+                    }
+                    if (!assignmentBranch.isActive()) {
+                        req.getSession().setAttribute("flashError",
+                                "Hãy bật hoạt động chi nhánh trước khi phân công quản lý.");
+                        resp.sendRedirect(req.getContextPath() + "/admin/branch");
                         return;
                     }
                     if (assignmentBranch.getManagerUserId() != null) {
@@ -109,8 +116,11 @@ public class UserServlet extends HttpServlet {
         try {
             if ("toggleStatus".equals(action)) {
                 int id = Integer.parseInt(req.getParameter("id"));
-                service.toggleUserStatus(id);
-                req.getSession().setAttribute("flashOk", "Đã cập nhật trạng thái nhân sự.");
+                String target = service.toggleUserStatus(id);
+                if ("LOCKED".equals(target)) ActiveSessionRegistry.invalidateUserSessions(id);
+                req.getSession().setAttribute("flashOk", "LOCKED".equals(target)
+                        ? "Đã khóa tài khoản và đăng xuất các phiên đang hoạt động."
+                        : "Đã mở khóa tài khoản.");
                 resp.sendRedirect(ctx + "/admin/user");
                 return;
             }
@@ -125,6 +135,9 @@ public class UserServlet extends HttpServlet {
                 if (assignmentBranch == null) {
                     resp.sendError(HttpServletResponse.SC_NOT_FOUND);
                     return;
+                }
+                if (!assignmentBranch.isActive()) {
+                    throw new BusinessException("Chỉ có thể phân công quản lý cho chi nhánh đang hoạt động.");
                 }
                 RoleOption managerRole = roleByCode(Constants.ROLE_MANAGER);
                 u.setRoleCode(managerRole.getCode());
@@ -154,7 +167,8 @@ public class UserServlet extends HttpServlet {
                 }
             } else {
                 try {
-                    service.updateUser(u);
+                    boolean revokeSessions = service.updateUser(u);
+                    if (revokeSessions) ActiveSessionRegistry.invalidateUserSessions(u.getUserId());
                     req.getSession().setAttribute("flashOk", "Đã cập nhật nhân sự thành công.");
                 } catch (BusinessException e) {
                     showSaveError(req, resp, u, e.getMessage(), false);
@@ -173,6 +187,10 @@ public class UserServlet extends HttpServlet {
         try {
             req.setAttribute("roles", roleOptions(false));
             req.setAttribute("branches", branchService.getBranchListActive());
+            Object staff = req.getAttribute("staff");
+            if (staff instanceof User user && user.getUserId() > 0) {
+                req.setAttribute("assignedManager", service.isAssignedBranchManager(user.getUserId()));
+            }
         } catch (Exception e) { throw new ServletException(e); }
         req.setAttribute("pageTitle", title);
         req.getRequestDispatcher("/WEB-INF/views/admin/user-form.jsp").forward(req, resp);
@@ -196,6 +214,17 @@ public class UserServlet extends HttpServlet {
     private void showSaveError(HttpServletRequest req, HttpServletResponse resp, User user,
                                String message, boolean creating)
             throws ServletException, IOException {
+        if (!creating && user.getUserId() > 0) {
+            try {
+                User persisted = service.getUser(user.getUserId());
+                if (persisted != null) {
+                    user.setBranchId(persisted.getBranchId());
+                    user.setBranchName(persisted.getBranchName());
+                }
+            } catch (Exception e) {
+                throw new ServletException(e);
+            }
+        }
         req.setAttribute("staff", user);
         req.setAttribute("errorMsg", message);
         forwardForm(req, resp, creating ? "Thêm nhân sự" : "Sửa nhân sự");

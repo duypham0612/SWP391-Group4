@@ -36,19 +36,19 @@
         </div>
         <section style="border:1px solid var(--line);border-radius:var(--radius-sm);margin:0 0 18px;padding:16px">
             <h3 style="margin-top:0">Size</h3>
-            <p class="muted" style="margin-top:-6px">Giá gốc áp dụng cho Size S. Size M/L chỉ cộng thêm số tiền bên dưới. Đường và đá được tạo tự động, không tính phí.</p>
+            <p class="muted" style="margin-top:-6px">Áp dụng cố định cho mọi sản phẩm. Đường và đá được chọn miễn phí.</p>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
                 <div class="form-group" style="margin:0">
                     <label for="sizeSDelta">Size S</label>
-                    <input id="sizeSDelta" class="form-control" value="+0" disabled>
+                    <input id="sizeSDelta" class="form-control" value="Mặc định · +0 ₫" disabled>
                 </div>
                 <div class="form-group" style="margin:0">
-                    <label for="sizeMDelta">Size M cộng thêm (₫)</label>
-                    <input id="sizeMDelta" type="text" name="sizeMDelta" class="form-control" value="${sizeConfig.sizeMDelta}" data-money-input>
+                    <label for="sizeMDelta">Size M</label>
+                    <input id="sizeMDelta" class="form-control" value="+6.000 ₫" disabled>
                 </div>
                 <div class="form-group" style="margin:0">
-                    <label for="sizeLDelta">Size L cộng thêm (₫)</label>
-                    <input id="sizeLDelta" type="text" name="sizeLDelta" class="form-control" value="${sizeConfig.sizeLDelta}" data-money-input>
+                    <label for="sizeLDelta">Size L</label>
+                    <input id="sizeLDelta" class="form-control" value="+10.000 ₫" disabled>
                 </div>
             </div>
         </section>

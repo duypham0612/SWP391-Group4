@@ -109,13 +109,14 @@ public class CatalogReadService {
     // ===== Trang Home công khai: catalog theo danh mục (khách xem, không cần login) =====
 
     /**
-     * Menu công khai: các danh mục (theo SortOrder) + sản phẩm Admin chọn hiển thị
-     * (IsActive + ShowOnHome), trong mỗi danh mục sắp theo HomeSortOrder rồi tên.
+     * Menu công khai của một chi nhánh: món Admin chọn nổi bật toàn chuỗi và
+     * đang mở bán tại chi nhánh, sắp theo HomeSortOrder rồi tên.
      */
-    public List<MenuSection> getPublicMenu() throws SQLException {
+    public List<MenuSection> getPublicMenu(int branchId) throws SQLException {
+        if (branchId <= 0) return List.of();
         try (Connection conn = DBConnection.getConnection()) {
             java.util.LinkedHashMap<Integer, MenuSection> byCat = new java.util.LinkedHashMap<>();
-            for (Product p : productDao.findForHome(conn)) {  // đã lọc Active+ShowOnHome, ORDER BY SortOrder, HomeSortOrder, Name
+            for (Product p : productDao.findForHome(conn, branchId)) {
                 MenuSection s = byCat.get(p.getCategoryId());
                 if (s == null) { s = new MenuSection(); s.name = p.getCategoryName(); byCat.put(p.getCategoryId(), s); }
                 s.products.add(p);
@@ -132,6 +133,13 @@ public class CatalogReadService {
                 if (selected != null) return selected;
             }
             return branchDao.findFirstActive(conn);
+        }
+    }
+
+    /** Các chi nhánh đang hoạt động để khách chuyển trang Home đang xem. */
+    public List<Branch> getPublicHomeBranches() throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            return branchDao.findAllActive(conn);
         }
     }
 

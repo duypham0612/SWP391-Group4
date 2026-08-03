@@ -70,6 +70,30 @@ public class UserService {
         try (Connection conn = DBConnection.getConnection()) { return dao.findById(conn, id); }
     }
 
+    public boolean usernameTaken(String username, int excludeId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            return dao.usernameExists(conn, username, excludeId);
+        }
+    }
+
+    public boolean emailTaken(String email, int excludeId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            return dao.emailExists(conn, email, excludeId);
+        }
+    }
+
+    public boolean phoneTaken(String phone, int excludeId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            return dao.phoneExists(conn, phone, excludeId);
+        }
+    }
+
+    public boolean isAssignedBranchManager(int userId) throws SQLException {
+        try (Connection conn = DBConnection.getConnection()) {
+            return branchDao.isManagerAssigned(conn, userId);
+        }
+    }
+
     public int createUser(User u, String rawPassword) throws SQLException {
         normalizeAndValidate(u, rawPassword, true);
         try {
@@ -77,6 +101,9 @@ public class UserService {
                 if ("ADMIN".equals(u.getRoleCode())) {
                     throw new BusinessException(
                             "Hệ thống chỉ có 1 Admin toàn chuỗi, không thể tạo thêm tài khoản Admin.");
+                }
+                if (branchDao.findActiveById(conn, u.getBranchId()) == null) {
+                    throw new BusinessException("Chỉ có thể tạo nhân sự tại chi nhánh đang hoạt động.");
                 }
                 boolean manager = "BRANCH_MANAGER".equals(u.getRoleCode());
                 ensureManagerSlot(conn, manager, u.getBranchId(), 0);
@@ -88,10 +115,10 @@ public class UserService {
         } catch (SQLException e) { throw translateWriteError(e); }
     }
 
-    public void updateUser(User u) throws SQLException {
+    public boolean updateUser(User u) throws SQLException {
         normalizeAndValidate(u, null, false);
         try {
-            Tx.run(conn -> {
+            return Tx.call(conn -> {
                 User current = dao.findByIdForUpdate(conn, u.getUserId());
                 if (current == null) {
                     throw new BusinessException("Không tìm thấy nhân viên cần cập nhật.");
@@ -101,16 +128,24 @@ public class UserService {
                 }
                 u.setUsername(current.getUsername());
                 if (!Objects.equals(current.getBranchId(), u.getBranchId())) {
-                    requireBranchTransferAllowed(conn, u.getUserId());
+                    throw new BusinessException("Chi nhánh làm việc được cố định sau khi tạo nhân sự.");
+                }
+                // Trạng thái chỉ được thay đổi qua thao tác Khóa/Mở khóa chuyên biệt.
+                // Không tin hidden input của form sửa vì có thể bị thay đổi bằng DevTools.
+                u.setStatus(current.getStatus());
+                boolean assignedManager = branchDao.isManagerAssigned(conn, u.getUserId());
+                boolean roleChanged = !Objects.equals(current.getRoleCode(), u.getRoleCode());
+                if (assignedManager && roleChanged) {
+                    throw new BusinessException(
+                            "Hãy thay quản lý tại màn hình Chi nhánh trước khi đổi vai trò tài khoản này.");
                 }
                 boolean manager = "BRANCH_MANAGER".equals(u.getRoleCode());
                 ensureManagerSlot(conn, manager, u.getBranchId(), u.getUserId());
-                if (manager && "LOCKED".equals(u.getStatus())) {
-                    throw new BusinessException("Không thể khoá quản lý đang phụ trách chi nhánh.");
-                }
                 dao.update(conn, u);
-                branchDao.clearManagerByUser(conn, u.getUserId());
-                if (manager) branchDao.updateManager(conn, u.getBranchId(), u.getUserId());
+                if (manager && !assignedManager) {
+                    branchDao.updateManager(conn, u.getBranchId(), u.getUserId());
+                }
+                return roleChanged;
             });
         } catch (SQLException e) { throw translateWriteError(e); }
     }
@@ -218,35 +253,59 @@ public class UserService {
         }
     }
 
-    private void requireBranchTransferAllowed(Connection conn, int userId) throws SQLException {
-        String block = dao.findBranchTransferBlock(conn, userId);
-        if (block == null) return;
-        if ("MANAGER".equals(block))
-            throw new BusinessException("Hãy gỡ nhân viên khỏi vị trí quản lý chi nhánh trước khi chuyển.");
-        if ("CASHIER_SHIFT".equals(block))
-            throw new BusinessException("Nhân viên còn ca thu ngân đang mở; phải đóng ca trước khi chuyển.");
-        if ("ATTENDANCE".equals(block))
-            throw new BusinessException("Nhân viên đang chấm công và chưa tan ca; phải kết thúc ca trước khi chuyển.");
-        throw new BusinessException("Nhân viên còn lịch làm từ hôm nay trở đi; hãy xử lý lịch trước khi chuyển.");
-    }
-
     public void updateProfile(int userId, String fullName, String email, String phone) throws SQLException {
         Tx.run(conn -> {
             dao.updateProfile(conn, userId, fullName, email, phone);
         });
     }
 
-    public void toggleUserStatus(int userId) throws SQLException {
+    public void setUserStatus(int userId, String status) throws SQLException {
+        String normalizedStatus = clean(status);
+        if (userId <= 0 || normalizedStatus == null
+                || !("ACTIVE".equalsIgnoreCase(normalizedStatus) || "LOCKED".equalsIgnoreCase(normalizedStatus))) {
+            throw new BusinessException("Trạng thái nhân viên không hợp lệ.");
+        }
+        String targetStatus = normalizedStatus.toUpperCase(Locale.ROOT);
         Tx.run(conn -> {
             User current = dao.findByIdForUpdate(conn, userId);
             if (current == null) throw new BusinessException("Không tìm thấy nhân viên.");
             if ("ADMIN".equals(current.getRoleCode()))
                 throw new BusinessException("Tài khoản Admin luôn hoạt động, không thể khoá.");
-            String target = "LOCKED".equals(current.getStatus()) ? "ACTIVE" : "LOCKED";
-            if ("LOCKED".equals(target) && branchDao.isManagerAssigned(conn, userId))
-                throw new BusinessException("Không thể khoá quản lý đang phụ trách chi nhánh.");
-            dao.updateStatus(conn, userId, target);
+            requireStatusChangeAllowed(conn, current, targetStatus);
+            dao.updateStatus(conn, userId, targetStatus);
         });
+    }
+
+    public String toggleUserStatus(int userId) throws SQLException {
+        return Tx.call(conn -> {
+                User current = dao.findByIdForUpdate(conn, userId);
+                if (current == null) throw new BusinessException("Không tìm thấy nhân viên.");
+                if ("ADMIN".equals(current.getRoleCode()))
+                    throw new BusinessException("Tài khoản Admin luôn hoạt động, không thể khoá.");
+                String target = "LOCKED".equals(current.getStatus()) ? "ACTIVE" : "LOCKED";
+                requireStatusChangeAllowed(conn, current, target);
+                dao.updateStatus(conn, userId, target);
+                return target;
+        });
+    }
+
+    private void requireStatusChangeAllowed(Connection conn, User current, String targetStatus)
+            throws SQLException {
+        boolean assignedManager = branchDao.isManagerAssigned(conn, current.getUserId());
+        if ("LOCKED".equals(targetStatus) && assignedManager) {
+            throw new BusinessException(
+                    "Hãy thay quản lý tại màn hình Chi nhánh trước khi khóa tài khoản này.");
+        }
+        if ("ACTIVE".equals(targetStatus)
+                && "BRANCH_MANAGER".equals(current.getRoleCode())
+                && !assignedManager) {
+            throw new BusinessException(
+                    "Nhân sự không còn là quản lý chi nhánh. Hãy đổi vai trò trước khi mở khóa tài khoản.");
+        }
+    }
+
+    public void resetPassword(int userId, String rawPassword) throws SQLException {
+        Tx.run(conn -> dao.updatePassword(conn, userId, PasswordHasher.hashPassword(rawPassword)));
     }
 
 }

@@ -54,6 +54,11 @@
                     <div class="form-control form-control-readonly">${assignmentRole.name}</div>
                     <input id="roleCode" type="hidden" name="roleCode" value="${assignmentRole.code}">
                 </c:when>
+                <c:when test="${assignedManager}">
+                    <div class="form-control form-control-readonly">${staff.roleName}</div>
+                    <input id="roleCode" type="hidden" name="roleCode" value="${staff.roleCode}">
+                    <small class="muted">Muốn đổi vai trò, hãy thay quản lý phụ trách tại màn hình Chi nhánh trước.</small>
+                </c:when>
                 <c:otherwise>
                     <select id="roleCode" name="roleCode" class="form-control" required>
                         <option value="">-- Chọn vai trò --</option>
@@ -70,7 +75,7 @@
                 <c:when test="${editing or assigning}">
                     <div class="form-control form-control-readonly">${staff.branchName}</div>
                     <input id="branchId" type="hidden" name="branchId" value="${staff.branchId}">
-                    <small class="muted"><c:choose><c:when test="${assigning}">Quản lý sẽ được phân công cố định cho chi nhánh này.</c:when><c:otherwise>Chi nhánh làm việc được cố định sau khi tạo nhân sự.</c:otherwise></c:choose></small>
+                    <small class="muted"><c:choose><c:when test="${assigning}">Quản lý sẽ được phân công cố định cho chi nhánh này.</c:when><c:otherwise>Chi nhánh làm việc được xác lập khi tạo và không thể thay đổi.</c:otherwise></c:choose></small>
                 </c:when>
                 <c:otherwise>
                     <select id="branchId" name="branchId" class="form-control" required>
@@ -92,8 +97,10 @@
             <label for="status">Trạng thái</label>
             <c:choose>
                 <c:when test="${editing}">
-                    <input id="statusDisplay" type="text" class="form-control" value="${staff.status}" disabled>
+                    <input id="statusDisplay" type="text" class="form-control"
+                           value="${staff.status == 'ACTIVE' ? 'Hoạt động' : 'Đã khóa'}" disabled>
                     <input type="hidden" name="status" value="${staff.status}">
+                    <small class="muted"><c:choose><c:when test="${assignedManager}">Không thể khóa khi nhân sự đang phụ trách chi nhánh.</c:when><c:otherwise>Khóa hoặc mở khóa tại danh sách Nhân sự.</c:otherwise></c:choose></small>
                 </c:when>
                 <c:otherwise>
                     <select id="status" name="status" class="form-control">

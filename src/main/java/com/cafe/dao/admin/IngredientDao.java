@@ -71,6 +71,18 @@ public class IngredientDao {
         try(PreparedStatement ps=conn.prepareStatement(sql)){ps.setInt(1,ingredientId);ps.setInt(2,ingredientId);try(ResultSet rs=ps.executeQuery()){return rs.next();}}
     }
 
+    public boolean hasTypeSensitiveUsage(Connection conn, int ingredientId) throws SQLException {
+        String sql = "SELECT 1 WHERE "
+                + "EXISTS(SELECT 1 FROM catalog.Recipe WHERE OwnerId=? AND OwnerType='PREPPED') "
+                + "OR EXISTS(SELECT 1 FROM catalog.Recipe WHERE IngredientId=?) "
+                + "OR EXISTS(SELECT 1 FROM inventory.PrepBatch WHERE PreppedIngredientId=?) "
+                + "OR EXISTS(SELECT 1 FROM inventory.BranchInventory WHERE IngredientId=? AND PrepTargetQty IS NOT NULL)";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (int index = 1; index <= 4; index++) ps.setInt(index, ingredientId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next(); }
+        }
+    }
+
     public int insert(Connection conn, Ingredient i) throws SQLException {
         final String sql = "INSERT INTO catalog.Ingredient(Name,Unit,IngredientType,ShelfLifeMinutes,PrepYieldQty," +
                 "PurchaseUnitName,PurchaseFactorToBase,IsActive) VALUES (?,?,?,?,?,?,?,?)";
@@ -115,10 +127,10 @@ public class IngredientDao {
         }
     }
 
-    public void delete(Connection conn, int id) throws SQLException {
+    public int delete(Connection conn, int id) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement("UPDATE catalog.Ingredient SET IsActive=0 WHERE IngredientId=?")) {
             ps.setInt(1, id);
-            ps.executeUpdate();
+            return ps.executeUpdate();
         }
     }
 

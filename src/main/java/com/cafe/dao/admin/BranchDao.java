@@ -45,6 +45,18 @@ public class BranchDao {
         }
     }
 
+    public Branch findByIdForUpdate(Connection conn, int id) throws SQLException {
+        String lockedSelect = SELECT.replace(
+                "FROM org.Branch b ",
+                "FROM org.Branch b WITH (UPDLOCK, HOLDLOCK) ");
+        try (PreparedStatement ps = conn.prepareStatement(lockedSelect + "WHERE b.BranchId=?")) {
+            ps.setInt(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? map(rs) : null;
+            }
+        }
+    }
+
     public Branch findActiveById(Connection conn, int id) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
                 SELECT + "WHERE b.BranchId=? AND b.IsActive=1")) {
@@ -165,14 +177,6 @@ public class BranchDao {
                 int managerId = rs.getInt("ManagerUserId");
                 return rs.wasNull() ? null : managerId;
             }
-        }
-    }
-
-    public void clearManagerByUser(Connection conn, int userId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE org.Branch SET ManagerUserId=NULL WHERE ManagerUserId=?")) {
-            ps.setInt(1, userId);
-            ps.executeUpdate();
         }
     }
 

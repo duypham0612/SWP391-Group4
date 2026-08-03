@@ -12,7 +12,9 @@
         <h1>Chỉnh sửa trang Home</h1>
         <p>Chọn món nổi bật và nội dung giới thiệu cho trang khách hàng.</p>
     </div>
-    <a class="btn btn-ghost" href="${ctx}/home?branchId=${setting.branchId}" target="_blank" rel="noopener">Xem trang Home ↗</a>
+    <c:if test="${not empty setting}">
+        <a class="btn btn-ghost" href="${ctx}/home?branchId=${setting.branchId}" target="_blank" rel="noopener">Xem trang Home ↗</a>
+    </c:if>
 </div>
 
 <c:if test="${not empty sessionScope.flashOk}">
@@ -32,6 +34,15 @@
             </c:forEach>
         </select>
     </div>
+    <c:if test="${not empty setting}">
+        <div class="home-editor-branch" aria-live="polite">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/>
+                <circle cx="12" cy="10" r="2.5"/>
+            </svg>
+            <span><small>Đang chỉnh sửa</small><strong><c:out value="${setting.code}"/> · <c:out value="${setting.name}"/></strong></span>
+        </div>
+    </c:if>
 </form>
 <c:set var="heroImg" value="${empty setting.heroImageUrl ? ctx.concat('/assets/img/login-hero.svg') : (fn:startsWith(fn:toLowerCase(setting.heroImageUrl), 'http') ? setting.heroImageUrl : ctx.concat(setting.heroImageUrl))}" />
 <div class="card form-card">
@@ -71,6 +82,13 @@
                          data-default="${ctx}/assets/img/login-hero.svg"
                          onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
                 </div>
+                <div class="home-branch-context home-branch-context--preview">
+                    <svg class="home-branch-context__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/>
+                        <circle cx="12" cy="10" r="2.5"/>
+                    </svg>
+                    <span><small>Đang xem chi nhánh</small><strong><c:out value="${setting.name}"/></strong></span>
+                </div>
                 <div class="eyebrow" id="pvEyebrow">${fn:escapeXml(setting.heroEyebrow)}</div>
                 <h3 id="pvTitle" style="margin:2px 0">${fn:escapeXml(setting.heroTitle)}</h3>
                 <p class="muted" id="pvSubtitle" style="margin:0"><c:out value="${setting.heroSubtitle}"/></p>
@@ -81,7 +99,8 @@
 
 <%-- ===== Chọn món hiển thị + thứ tự ===== --%>
 <div class="alert alert-info">
-    Tick <strong>Hiện trên Home</strong> để khách nhìn thấy món; bỏ tick để ẩn (món vẫn bán bình thường ở POS/QR).
+    Các món nổi bật được chọn cho <strong>toàn chuỗi</strong>. Trang Home của từng chi nhánh chỉ hiện những món đồng thời đang mở bán trong menu chi nhánh đó.
+    Tick <strong>Hiện trên Home</strong> để khách nhìn thấy món; bỏ tick để ẩn khỏi Home nhưng không ảnh hưởng POS/QR.
     <strong>Thứ tự</strong> nhỏ hơn hiển thị trước trong cùng danh mục. Sửa nhiều dòng rồi bấm <strong>Lưu tất cả</strong> một lần.
     Chỉ liệt kê món <strong>đang bán</strong> (IsActive).
 </div>
@@ -99,12 +118,18 @@
                 <button type="button" class="seg__btn" data-filter="shown">Đang hiện</button>
                 <button type="button" class="seg__btn" data-filter="hidden">Đang ẩn</button>
             </div>
+            <div class="home-bulk-actions" role="group" aria-label="Chọn nhiều sản phẩm">
+                <button type="button" class="btn btn-ghost btn-sm" id="showFiltered">✓ Chọn các món đang lọc</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="hideFiltered">Bỏ chọn đang lọc</button>
+            </div>
             <span class="list-count"><strong id="prodCount">0</strong> món</span>
+            <span class="list-count"><strong id="selectedCount">0</strong> đã chọn</span>
         </div>
 
-        <form action="${ctx}/admin/home" method="post">
+        <form action="${ctx}/admin/home" method="post" id="homeProductsForm">
             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
             <input type="hidden" name="action" value="saveHomeProducts">
+            <c:if test="${not empty setting}"><input type="hidden" name="branchId" value="${setting.branchId}"></c:if>
             <table class="table">
                 <thead><tr>
                     <th>Sản phẩm</th>
@@ -122,7 +147,7 @@
                             <td style="display:flex;align-items:center;gap:10px">
                                 <img class="prod-thumb" src="${imgSrc}" alt="${fn:escapeXml(p.name)}" loading="lazy" onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
                                 <span><c:out value="${p.name}"/>
-                                    <c:if test="${not p.showOnHome}"><span class="badge badge-served" style="margin-left:6px" data-hidden-badge>Đang ẩn</span></c:if>
+                                    <span class="badge badge-served" style="margin-left:6px;${p.showOnHome ? 'display:none' : ''}" data-hidden-badge>Đang ẩn</span>
                                 </span>
                                 <span style="margin-left:auto"><fmt:formatNumber value="${p.basePrice}" maxFractionDigits="0"/> ₫</span>
                             </td>
@@ -132,7 +157,7 @@
                                     <label style="margin:0;display:flex;align-items:center;gap:6px">
                                         <input type="checkbox" name="show_${p.productId}" value="1" <c:if test="${p.showOnHome}">checked</c:if>> Hiện trên Home
                                     </label>
-                                    <input type="number" name="order_${p.productId}" class="form-control" style="width:90px" min="0" step="1"
+                                    <input type="number" name="order_${p.productId}" class="form-control" style="width:110px" min="0" max="1000000" step="1"
                                            value="${p.homeSortOrder}" title="Thứ tự (nhỏ = trước)">
                                 </div>
                             </td>
@@ -152,6 +177,10 @@
 
 <style>
 .hero-preview{border:1px solid var(--line);border-radius:var(--radius);padding:14px;background:var(--surface-2)}
+.home-editor-branch{display:flex;align-items:center;gap:10px;margin-left:auto;padding:8px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface)}
+.home-editor-branch svg{width:20px;height:20px;color:var(--brand);flex:0 0 auto}
+.home-editor-branch span{display:grid;gap:1px}.home-editor-branch small{color:var(--muted);font-size:11px}.home-editor-branch strong{font-size:13px;color:var(--ink)}
+.home-bulk-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .save-bar{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;
     position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--line);padding:12px 4px;margin-top:8px}
 </style>
@@ -185,6 +214,9 @@
     var search = document.getElementById('prodSearch');
     var countEl = document.getElementById('prodCount');
     var noRes = document.getElementById('prodNoResult');
+    var selectedCount = document.getElementById('selectedCount');
+    var showFiltered = document.getElementById('showFiltered');
+    var hideFiltered = document.getElementById('hideFiltered');
     var segBtns = Array.prototype.slice.call(document.querySelectorAll('.seg__btn[data-filter]'));
     var rows = Array.prototype.slice.call(body.querySelectorAll('tr[data-pid]'));
     var filter = 'all';
@@ -224,7 +256,29 @@
         if (header) header.style.display = headerHasVisible ? '' : 'none';
 
         if (countEl) countEl.textContent = total;
+        if (selectedCount) selectedCount.textContent = rows.filter(function(r){
+            var box = r.querySelector('input[type="checkbox"][name^="show_"]');
+            return box && box.checked;
+        }).length;
         if (noRes) noRes.style.display = total === 0 ? '' : 'none';
+    }
+
+    function syncRow(r) {
+        var box = r.querySelector('input[type="checkbox"][name^="show_"]');
+        if (!box) return;
+        r.setAttribute('data-state', box.checked ? 'shown' : 'hidden');
+        var badge = r.querySelector('[data-hidden-badge]');
+        if (badge) badge.style.display = box.checked ? 'none' : '';
+    }
+
+    function setVisibleRows(checked) {
+        rows.forEach(function(r){
+            if (r.style.display === 'none') return;
+            var box = r.querySelector('input[type="checkbox"][name^="show_"]');
+            if (box) box.checked = checked;
+            syncRow(r);
+        });
+        render();
     }
 
     if (search) search.addEventListener('input', function(){ query = norm(this.value.trim()); render(); });
@@ -236,6 +290,12 @@
             render();
         });
     });
+    rows.forEach(function(r){
+        var box = r.querySelector('input[type="checkbox"][name^="show_"]');
+        if (box) box.addEventListener('change', function(){ syncRow(r); render(); });
+    });
+    if (showFiltered) showFiltered.addEventListener('click', function(){ setVisibleRows(true); });
+    if (hideFiltered) hideFiltered.addEventListener('click', function(){ setVisibleRows(false); });
     render();
 })();
 </script>

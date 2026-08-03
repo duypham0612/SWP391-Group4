@@ -1,6 +1,7 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
+<%@ taglib prefix="fn" uri="jakarta.tags.functions" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <c:set var="draft" value="${receipt.status == 'DRAFT'}" />
 <jsp:include page="../layout/header.jsp" />
@@ -15,7 +16,7 @@
                 <c:otherwise><span class="badge badge-cancelled">Đã huỷ</span></c:otherwise>
             </c:choose>
         </h1>
-        <p><c:if test="${not empty receipt.supplierName}">Nhà cung cấp: ${receipt.supplierName} · </c:if>Người nhập: ${receipt.receivedByName}</p>
+        <p><c:if test="${not empty receipt.supplierName}">Nhà cung cấp: <c:out value="${receipt.supplierName}"/> · </c:if>Người nhập: <c:out value="${receipt.receivedByName}"/></p>
     </div>
     <a class="btn btn-ghost" href="${ctx}/manager/receipt">← Danh sách phiếu</a>
 </div>
@@ -35,7 +36,7 @@
             <div class="form-group" style="margin:0;flex:1;min-width:200px"><label>Nguyên liệu</label>
                 <select id="ingSel" name="ingredientId" class="form-control" required>
                     <option value="">-- Chọn --</option>
-                    <c:forEach var="i" items="${ingredients}"><option value="${i.ingredientId}" data-base-unit="${i.unit}">${i.name}</option></c:forEach>
+                    <c:forEach var="i" items="${ingredients}"><option value="${i.ingredientId}" data-base-unit="${fn:escapeXml(i.unit)}"><c:out value="${i.name}"/></option></c:forEach>
                 </select></div>
             <div class="form-group" style="margin:0;width:140px"><label>Đơn vị nhập</label>
                 <select id="unitConversionSel" name="unitConversionId" class="form-control" required disabled>
@@ -43,7 +44,7 @@
                     <c:forEach var="i" items="${ingredients}">
                     <c:forEach var="u" items="${unitChoicesByIngredient[i.ingredientId]}">
                         <option value="${u.choiceCode}" data-ingredient="${i.ingredientId}"
-                                    data-factor="${u.factorToBase}" data-unit="${u.unitName}" hidden>${u.unitName}</option>
+                                    data-factor="${u.factorToBase}" data-unit="${fn:escapeXml(u.unitName)}" hidden><c:out value="${u.unitName}"/></option>
                         </c:forEach>
                     </c:forEach>
                 </select></div>
@@ -105,10 +106,10 @@
                     <c:forEach var="i" items="${ingredients}">
                         <tr>
                             <td><input class="pickbox" type="checkbox" name="pick" value="${i.ingredientId}"></td>
-                            <td>${i.name}</td>
+                            <td><c:out value="${i.name}"/></td>
                             <td><select name="unitConversionId_${i.ingredientId}" class="form-control" required>
                     <c:forEach var="u" items="${unitChoicesByIngredient[i.ingredientId]}">
-                        <option value="${u.choiceCode}" data-factor="${u.factorToBase}">${u.unitName}</option>
+                        <option value="${u.choiceCode}" data-factor="${u.factorToBase}"><c:out value="${u.unitName}"/></option>
                                 </c:forEach>
                             </select></td>
                             <td><input type="number" name="qty_${i.ingredientId}" class="form-control" min="0.000001" step="0.000001"></td>
@@ -132,8 +133,8 @@
             <tbody>
                 <c:forEach var="d" items="${details}">
                     <tr>
-                        <td>${d.ingredientName}</td>
-                        <td>${view.plain(d.enteredQuantity)} ${d.unitNameAtEntry}<c:if test="${d.factorToBaseAtEntry != 1}"><div class="muted">= ${view.plain(d.baseQuantity)} ${d.ingredientUnit}</div></c:if></td>
+                        <td><c:out value="${d.ingredientName}"/></td>
+                        <td>${view.plain(d.enteredQuantity)} <c:out value="${d.unitNameAtEntry}"/><c:if test="${d.factorToBaseAtEntry != 1}"><div class="muted">= ${view.plain(d.baseQuantity)} <c:out value="${d.ingredientUnit}"/></div></c:if></td>
                         <td>${view.grouped(d.unitCost)} ₫</td>
                         <td>${view.grouped(d.lineCost)} ₫</td>
                         <c:if test="${draft}">

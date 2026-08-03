@@ -9,7 +9,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#291A0F">
-    <title>Cà Phê Chain · Thực đơn</title>
+    <title>Cà Phê Chain<c:if test="${not empty home.name}"> · <c:out value="${home.name}"/></c:if></title>
     <script>(function(){try{var t=localStorage.getItem('cafe-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,9 +20,12 @@
 </head>
 <body>
 <div class="site">
+    <c:url var="homeUrl" value="/home">
+        <c:if test="${not empty home}"><c:param name="branchId" value="${home.branchId}"/></c:if>
+    </c:url>
 
     <nav class="site-nav">
-        <a class="brand" href="${ctx}/home">
+        <a class="brand" href="${homeUrl}">
             <span class="logo">C</span>
             <span>Cà Phê Chain</span>
         </a>
@@ -42,6 +45,31 @@
 
     <header class="home-hero">
         <div class="home-hero__text">
+            <c:if test="${not empty home}">
+                <div class="home-branch-context" aria-label="Chi nhánh đang xem">
+                    <svg class="home-branch-context__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/>
+                        <circle cx="12" cy="10" r="2.5"/>
+                    </svg>
+                    <span>
+                        <small>Đang xem chi nhánh</small>
+                        <strong><c:out value="${home.name}"/></strong>
+                        <c:if test="${not empty home.address}"><em><c:out value="${home.address}"/></em></c:if>
+                    </span>
+                    <c:if test="${fn:length(branches) > 1}">
+                        <form action="${ctx}/home" method="get" class="home-branch-switcher">
+                            <label for="publicBranch">Xem Home chi nhánh khác</label>
+                            <select id="publicBranch" name="branchId" onchange="this.form.submit()"
+                                    aria-label="Chọn chi nhánh muốn xem">
+                                <c:forEach var="b" items="${branches}">
+                                    <option value="${b.branchId}" <c:if test="${b.branchId == home.branchId}">selected</c:if>><c:out value="${b.name}"/></option>
+                                </c:forEach>
+                            </select>
+                            <noscript><button type="submit" class="btn btn-gold btn-sm">Xem</button></noscript>
+                        </form>
+                    </c:if>
+                </div>
+            </c:if>
             <div class="eyebrow"><c:out value="${heroEyebrow}"/></div>
             <h1><c:out value="${heroTitle}"/></h1>
             <p><c:out value="${heroSubtitle}"/></p>
@@ -95,7 +123,7 @@
     </main>
 
     <footer class="site-foot">
-        © 2026 Cà Phê Chain · SWP391 — Dine-in &amp; đặt món tại bàn qua QR.
+        © 2026 Cà Phê Chain<c:if test="${not empty home.name}"> · <c:out value="${home.name}"/></c:if> — Dine-in &amp; đặt món tại bàn qua QR.
         <a href="${ctx}/auth/login">Đăng nhập nhân viên</a>
     </footer>
 </div>

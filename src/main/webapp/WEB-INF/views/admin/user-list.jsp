@@ -1,5 +1,6 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
+<%@ taglib prefix="fn" uri="jakarta.tags.functions" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <c:set var="cssBundles" value="kds,list-controls" scope="request" />
 <jsp:include page="../layout/header.jsp" />
@@ -53,14 +54,14 @@
             <div class="table-scroll">
             <table class="table admin-user-table">
                 <colgroup>
-                    <col style="width:64px">
+                    <col style="width:48px">
                     <col style="width:13%">
-                    <col style="width:16%">
-                    <col style="width:21%">
-                    <col style="width:14%">
-                    <col style="width:17%">
-                    <col style="width:10%">
-                    <col style="width:150px">
+                    <col style="width:15%">
+                    <col style="width:20%">
+                    <col style="width:12%">
+                    <col style="width:15%">
+                    <col style="width:104px">
+                    <col style="width:90px">
                 </colgroup>
                 <thead><tr>
                     <th>STT</th>
@@ -80,13 +81,13 @@
                             <td>${s.fullName}</td>
                             <td>
                                 <div class="staff-contact">
-                                    <span><c:out value="${s.email}"/></span>
-                                    <span><c:out value="${s.phone}"/></span>
+                                    <span title="${fn:escapeXml(s.email)}"><c:out value="${s.email}"/></span>
+                                    <span title="${fn:escapeXml(s.phone)}"><c:out value="${s.phone}"/></span>
                                 </div>
                             </td>
-                            <td>${s.roleName}</td>
-                            <td><c:choose><c:when test="${empty s.branchName}"><span class="muted">(toàn chuỗi)</span></c:when><c:otherwise>${s.branchName}</c:otherwise></c:choose></td>
-                            <td><c:choose><c:when test="${s.status == 'ACTIVE'}"><span class="badge badge-ready">ACTIVE</span></c:when><c:otherwise><span class="badge badge-cancelled">LOCKED</span></c:otherwise></c:choose></td>
+                            <td><span class="badge badge-served"><c:out value="${s.roleName}"/></span></td>
+                            <td><c:choose><c:when test="${empty s.branchName}"><span class="muted">(toàn chuỗi)</span></c:when><c:otherwise><c:out value="${s.branchName}"/><c:if test="${s.branchActive == false}"> <span class="badge badge-cancelled">Ngừng</span></c:if></c:otherwise></c:choose></td>
+                            <td><c:choose><c:when test="${s.status == 'ACTIVE'}"><span class="badge badge-ready">Hoạt động</span></c:when><c:otherwise><span class="badge badge-cancelled">Đã khóa</span></c:otherwise></c:choose></td>
                             <td>
                                 <c:choose>
                                     <c:when test="${s.roleCode == 'ADMIN'}">
@@ -94,15 +95,34 @@
                                     </c:when>
                                     <c:otherwise>
                                         <div class="row-actions">
-                                        <a class="btn btn-ghost btn-sm" href="${ctx}/admin/user?action=edit&id=${s.userId}">Sửa</a>
+                                        <a class="icon-btn user-action-btn" href="${ctx}/admin/user?action=edit&id=${s.userId}"
+                                           aria-label="Sửa tài khoản ${fn:escapeXml(s.fullName)}" title="Sửa tài khoản">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z"/>
+                                            </svg>
+                                        </a>
                                         <form action="${ctx}/admin/user" method="post" style="display:inline"
-                                              onsubmit="return confirm('Đổi trạng thái tài khoản này?');">
+                                              onsubmit="return confirm('${s.status == 'ACTIVE' ? 'Khóa tài khoản này? Tài khoản sẽ bị đăng xuất và không thể đăng nhập.' : 'Mở khóa tài khoản này?'}');">
                                             <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                             <input type="hidden" name="action" value="toggleStatus">
                                             <input type="hidden" name="id" value="${s.userId}">
                                             <input type="hidden" name="current" value="${s.status}">
-                                            <button type="submit" class="btn btn-ghost btn-sm">
-                                                <c:choose><c:when test="${s.status == 'ACTIVE'}">Khoá</c:when><c:otherwise>Mở khoá</c:otherwise></c:choose>
+                                            <button type="submit" class="icon-btn user-action-btn user-action-btn--status"
+                                                    <c:if test="${s.assignedBranchManager}">disabled</c:if>
+                                                    aria-label="${s.status == 'ACTIVE' ? 'Khóa tài khoản' : 'Mở khóa tài khoản'} ${fn:escapeXml(s.fullName)}"
+                                                    title="${s.assignedBranchManager ? 'Hãy thay quản lý phụ trách trước khi khóa' : (s.status == 'ACTIVE' ? 'Khóa tài khoản' : 'Mở khóa tài khoản')}">
+                                                <c:choose>
+                                                    <c:when test="${s.status == 'ACTIVE'}">
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                            <rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>
+                                                        </svg>
+                                                    </c:when>
+                                                    <c:otherwise>
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                            <rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2"/>
+                                                        </svg>
+                                                    </c:otherwise>
+                                                </c:choose>
                                             </button>
                                         </form>
                                         </div>
@@ -123,7 +143,9 @@
                             <c:if test="${not empty q}"><c:param name="q" value="${q}" /></c:if>
                             <c:param name="page" value="${page - 1}" />
                         </c:url>
-                        <a class="page" href="${prevUrl}">‹</a>
+                        <a class="page" href="${prevUrl}" aria-label="Trang trước" title="Trang trước">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+                        </a>
                     </c:if>
                     <span class="muted" style="align-self:center">Trang ${page}/${totalPages} · ${total} tài khoản</span>
                     <c:if test="${page < totalPages}">
@@ -133,7 +155,9 @@
                             <c:if test="${not empty q}"><c:param name="q" value="${q}" /></c:if>
                             <c:param name="page" value="${page + 1}" />
                         </c:url>
-                        <a class="page" href="${nextUrl}">›</a>
+                        <a class="page" href="${nextUrl}" aria-label="Trang sau" title="Trang sau">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+                        </a>
                     </c:if>
                 </div>
             </c:if>
