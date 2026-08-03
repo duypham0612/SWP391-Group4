@@ -80,7 +80,7 @@ Chỉ 12 file Java + 6 JSP + 4 fragment + 1 JS dưới đây. Ngoài danh sách 
 - ❌ `dao/**` — không có việc gì ở tầng DAO trong kế hoạch này.
 - ❌ `sql/**`, `src/main/resources/db/migration/**` — **không đổi schema.**
 - ❌ `pom.xml`, `.github/workflows/**`
-- ❌ CSS/theme, layout chung (`views/layout/**`) — trừ `_baristaShiftBanner.jsp` nếu Đợt 3 cần, và phải hỏi trước.
+- ❌ CSS/theme, layout chung (`views/layout/**`) — trừ `fragments/barista/shift-banner.jsp` nếu Đợt 3 cần, và phải hỏi trước.
 - ❌ Viết thêm test mới cho logic chưa có test. (Việc tốt, nhưng là task khác.)
 
 ---

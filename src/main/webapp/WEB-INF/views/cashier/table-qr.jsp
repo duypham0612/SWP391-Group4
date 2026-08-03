@@ -79,7 +79,7 @@
   </c:if>
 </main>
 
-<script src="${ctx}/assets/js/qrcode.min.js"></script>
+<script src="${ctx}/assets/js/vendor/qrcode.min.js"></script>
 <script>
 const QR_SERVER_BASE='${baseUrl}';
 

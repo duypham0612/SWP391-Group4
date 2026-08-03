@@ -19,7 +19,7 @@
     <c:remove var="flashOk" scope="session" />
 </c:if>
 
-<jsp:include page="/WEB-INF/views/layout/_shiftClockCard.jsp" />
+<jsp:include page="/WEB-INF/fragments/barista/shift-clock-card.jsp" />
 
 <c:if test="${not empty monthSummary}">
     <div class="page-header" style="margin-top:var(--s6)">

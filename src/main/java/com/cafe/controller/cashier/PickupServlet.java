@@ -71,7 +71,7 @@ public class PickupServlet extends HttpServlet {
             throws Exception {
         if ("1".equals(req.getParameter("ajax"))) {
             loadBoard(req, branchId);
-            req.getRequestDispatcher("/WEB-INF/views/cashier/handoff/cards.jsp").forward(req, resp);
+            req.getRequestDispatcher("/WEB-INF/fragments/cashier/handoff-cards.jsp").forward(req, resp);
         } else {
             resp.sendRedirect(req.getContextPath() + "/cashier/inbox#handoff");
         }

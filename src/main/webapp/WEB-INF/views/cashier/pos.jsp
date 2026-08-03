@@ -112,7 +112,7 @@
                                         <strong>${it.quantity}× ${it.productName}</strong>
                                         <div class="muted" style="font-size:.85rem">#${it.orderItemId}</div>
                                     </div>
-                                    <jsp:include page="../layout/_statusBadge.jsp">
+                                    <jsp:include page="/WEB-INF/fragments/cashier/status-badge.jsp">
                                         <jsp:param name="status" value="${it.status}" />
                                     </jsp:include>
                                 </div>

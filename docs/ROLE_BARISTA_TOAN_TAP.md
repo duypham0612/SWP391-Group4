@@ -169,7 +169,7 @@ hiện thông báo rồi tự `location.assign(endpoint)` sau 700 ms
 ### Cấu trúc màn hình
 
 ```
-┌─ Banner trực ca (_baristaShiftBanner.jsp) ─────────────────────┐
+┌─ Banner trực ca (fragments/barista/shift-banner.jsp) ─────────────────────┐
 ├─ Toolbar: chip [Tất cả món|Món của tôi|Chưa nhận]              │
 │           details[Quầy ▾ Loại đơn ▾]  ↻ Làm mới  ● Kết nối    │
 ├─ (nếu cao điểm) Dải "Cao điểm · N ly đang dồn"                 │

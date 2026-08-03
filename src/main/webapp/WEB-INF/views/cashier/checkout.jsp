@@ -3,7 +3,7 @@
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <jsp:include page="../layout/header.jsp" />
-<script src="${ctx}/assets/js/qrcode.min.js"></script>
+<script src="${ctx}/assets/js/vendor/qrcode.min.js"></script>
 
 <div class="page-header">
     <div><div class="eyebrow">Bán hàng</div><h1>Thanh toán</h1>

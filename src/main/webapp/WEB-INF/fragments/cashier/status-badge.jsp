@@ -2,7 +2,7 @@
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%--
   Fragment dùng chung hiển thị status badge (Barista/Cashier/QR khách giống hệt nhau).
-  Dùng: <jsp:include page="/WEB-INF/views/layout/_statusBadge.jsp"><jsp:param name="status" value="${item.status}"/></jsp:include>
+  Dùng: <jsp:include page="/WEB-INF/fragments/cashier/status-badge.jsp"><jsp:param name="status" value="${item.status}"/></jsp:include>
 --%>
 <c:set var="st" value="${param.status}" />
 <c:choose>

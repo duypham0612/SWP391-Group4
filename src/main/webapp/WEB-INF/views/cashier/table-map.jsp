@@ -145,7 +145,7 @@
   </div>
 </div>
 
-<script src="${ctx}/assets/js/qrcode.min.js"></script>
+<script src="${ctx}/assets/js/vendor/qrcode.min.js"></script>
 <script>
 // Base do server dựng (đã tính X-Forwarded-* nên bản deploy ra đúng domain công khai).
 var QR_SERVER_BASE = '${baseUrl}';

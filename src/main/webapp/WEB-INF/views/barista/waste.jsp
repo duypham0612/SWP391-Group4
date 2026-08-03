@@ -29,7 +29,7 @@
     <c:remove var="flashOk" scope="session" />
 </c:if>
 
-<jsp:include page="/WEB-INF/views/layout/_baristaShiftBanner.jsp" />
+<jsp:include page="/WEB-INF/fragments/barista/shift-banner.jsp" />
 
 <div class="${onShift ? '' : 'is-viewonly'}">
 <%-- Bốn ô dưới đây tính cho trọn phạm vi đang xem, không đổi theo bộ lọc/phân trang của nhật ký. --%>

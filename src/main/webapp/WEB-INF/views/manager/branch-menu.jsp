@@ -93,6 +93,6 @@
     </c:otherwise>
 </c:choose>
 
-<jsp:include page="menu-block-panel.jsp" />
+<jsp:include page="/WEB-INF/fragments/manager/menu-block-panel.jsp" />
 
 <jsp:include page="../layout/footer.jsp" />

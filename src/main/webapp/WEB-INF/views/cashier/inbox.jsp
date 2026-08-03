@@ -42,7 +42,7 @@
         <h2 style="margin:0">Món sẵn bàn giao</h2>
         <span class="badge badge-ready">${tickets.size() + pickedUpGroups.size()} nhóm đang chờ</span>
     </div>
-    <jsp:include page="handoff/cards.jsp" />
+    <jsp:include page="/WEB-INF/fragments/cashier/handoff-cards.jsp" />
 </section>
 
 <h2 id="orders" style="scroll-margin-top:20px">Đơn đang xử lý</h2>
@@ -97,7 +97,7 @@
                         <section class="kds-ticket-item ${it.status == 'BLOCKED' ? 'kds-issue' : ''}">
                             <div class="kds-ticket-item__head">
                                 <strong>${it.quantity} × <c:out value="${it.productName}" /></strong>
-                                <jsp:include page="../layout/_statusBadge.jsp"><jsp:param name="status" value="${it.status}"/></jsp:include>
+                                <jsp:include page="/WEB-INF/fragments/cashier/status-badge.jsp"><jsp:param name="status" value="${it.status}"/></jsp:include>
                             </div>
                             <c:if test="${it.hasIssue and not empty it.issueReason}">
                                 <div class="kds-note" style="color:var(--st-cancelled)">⚠ <c:out value="${it.issueReason}" /></div>

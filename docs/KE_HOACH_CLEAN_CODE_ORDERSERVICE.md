@@ -560,6 +560,52 @@ Barista giảm ít nhất — đúng như kỳ vọng, vì KDS **là** phần l�
 
 ---
 
+## 5h. Đợt 11 — Chia nốt tầng JSP: tách `fragments/` khỏi `views/` 🟢 XONG (2026-08-03)
+
+**Đợt 9+10 mới chia assets; tầng JSP vẫn còn lẫn.** `views/layout/` không phải thư mục layout mà là
+nơi chứa tạp: 3 trong 6 file ở đó chỉ phục vụ đúng một role.
+
+**Quy tắc áp dụng:** `views/<role>/` = **trang** (có `<head>` hoặc include `header.jsp`);
+`fragments/<role>/` = **mảnh** được trang khác include hoặc servlet forward về dạng partial.
+`views/layout/` chỉ giữ thứ mà **nhiều role** thật sự dùng chung.
+
+| File cũ | Chỗ mới | Ai dùng |
+|---|---|---|
+| `views/layout/_baristaShiftBanner.jsp` | `fragments/barista/shift-banner.jsp` | 4 màn barista |
+| `views/layout/_shiftClockCard.jsp` | `fragments/barista/shift-clock-card.jsp` | `barista/shift` |
+| `views/layout/_statusBadge.jsp` | `fragments/cashier/status-badge.jsp` | `cashier/inbox`, `cashier/pos` |
+| `views/cashier/handoff/cards.jsp` | `fragments/cashier/handoff-cards.jsp` | `cashier/inbox` + `PickupServlet` (partial AJAX) |
+| `views/manager/menu-block-panel.jsp` | `fragments/manager/menu-block-panel.jsp` | `manager/branch-menu` |
+| `assets/js/qrcode.min.js` | `assets/js/vendor/qrcode.min.js` | 3 màn cashier |
+
+`qrcode.min.js` đi vào `vendor/` chứ **không** vào `js/cashier/` dù chỉ cashier dùng: đây là thư viện
+bên thứ ba đã minify, ta không sở hữu và không review nó. Xếp vào thư mục role sẽ ngụ ý quyền sở hữu
+mà ta không có; `vendor/` phát tín hiệu đúng cho người review là "đừng đọc file này".
+
+`header.jsp` · `footer.jsp` · `sidebar.jsp` **ở lại** `views/layout/` — cả 4 role đều dùng thật.
+
+### Cấu trúc sau cùng
+
+```
+views/      admin 17 · manager 15 · cashier 9 · barista 6 · customer 5 · error 3 · auth 2 · layout 3
+fragments/  barista 6 · cashier 2 · manager 1
+assets/css/ core · responsive (mọi trang) + kds · list-controls · barista · customer · auth
+assets/js/  admin 2 · barista 1 · manager 1 · vendor 1
+```
+
+### Kiểm chứng — Jasper KHÔNG đủ ở đợt này
+
+`<jsp:include>` là include **lúc chạy**: Jasper dịch nó thành lời gọi runtime với đường dẫn là chuỗi,
+nên **đường dẫn sai vẫn dịch 0 lỗi** và chỉ vỡ khi người dùng mở trang. Vì vậy phải kiểm riêng:
+
+- **105/105** `<jsp:include>` + `<%@ include %>` trỏ tới file **có thật**; **0** forward hỏng trong
+  servlet (đã quét cả `src/main/java`).
+- Jasper vẫn chạy để bắt lỗi cú pháp: **69 trang, 0 lỗi**.
+- Không còn tham chiếu nào tới 6 đường dẫn cũ trong `src/main` lẫn `docs/`.
+- `mvn clean verify` 352/352 · WAR OK.
+
+---
+
 ## 6. Sổ ghi nhận phát sinh
 
 | Ngày | File | Vấn đề | Trạng thái |
