@@ -2,7 +2,7 @@ package com.cafe.service.manager;
 
 import com.cafe.common.BusinessException;
 import com.cafe.config.DBConnection;
-import com.cafe.dao.manager.SupplierDao;
+import com.cafe.dao.inventory.SupplierDao;
 import com.cafe.model.Supplier;
 
 import java.sql.Connection;

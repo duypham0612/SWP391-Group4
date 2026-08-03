@@ -2,7 +2,6 @@ package com.cafe.service.shared;
 
 import com.cafe.common.*;
 import com.cafe.config.DBConnection;
-import com.cafe.dao.shared.*;
 import com.cafe.model.*;
 
 import java.math.*;

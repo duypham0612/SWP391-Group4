@@ -363,6 +363,48 @@ có caller production — nó có test riêng và là read model có chủ đíc
 
 ---
 
+## 5c. Đợt 5 — Xếp lại `dao/` theo schema DB 🟢 XONG (2026-08-03)
+
+**Yêu cầu gốc:** "tách phần dao của role barista ra riêng như mấy thư mục khác".
+
+**Khảo sát bác bỏ chính tiền đề đó, bằng hai số đo:**
+
+1. **Barista sở hữu 0 DAO.** Không file nào dưới `service/barista/` hay `controller/barista/` chạm
+   DAO trực tiếp — barista đi qua `service/shared/*`. `dao/barista/` sẽ là thư mục rỗng.
+2. **Các thư mục theo role đã sai sẵn: 8/12 DAO bị dùng ngoài role của thư mục chứa nó.**
+   `dao/manager/AttendanceDao` bị cashier dùng, `dao/cashier/BillDao` bị manager + shared dùng,
+   `dao/admin/UserDao` bị auth + manager dùng… Trục "role" không đứng vững ở tầng DAO, vì một bảng
+   phục vụ nhiều màn.
+
+**Trục đúng là schema DB.** Đo lại: mỗi DAO có đúng **một schema chủ đạo**, phân bố cân.
+
+| Package | # | Package | # |
+|---|---|---|---|
+| `dao/inventory` | 12 | `dao/payment` | 3 |
+| `dao/catalog` | 11 | `dao/hr` · `dao/ops` · `dao/org` | 2 mỗi |
+| `dao/sales` | 8 | `dao/iam` | 1 |
+
+**Vì sao cách này hơn hẳn cách cũ:** tên thư mục **chính là tiền tố schema trong câu SQL bên trong**.
+Đặt sai chỗ là kiểm ra được bằng máy, không cần tranh luận — khác với "role", vốn là quy ước trong
+đầu người và trôi ngay khi màn thứ hai dùng chung bảng.
+
+**Kiểm chứng:**
+- Script đối chiếu **41/41** DAO: schema chủ đạo trong SQL khớp đúng tên thư mục.
+- Không còn tham chiếu nào tới 4 package cũ.
+- Git nhận **44 rename** (không phải xoá + tạo mới) nên diff review vẫn đọc được.
+- `mvn clean verify` 352/352 · WAR build OK · CI 74/74.
+- ArchUnit không ảnh hưởng: các luật dùng mẫu `..dao..`, vẫn khớp.
+
+**Chỗ dễ vỡ nhất đã lường trước:** 22 import `com.cafe.dao.*.*` dạng wildcard. Đổi package là chúng
+im lặng gãy hoặc im lặng kéo nhầm lớp, nên đã **khai triển thành import tường minh** của đúng các DAO
+mỗi file dùng, thay vì thêm 8 wildcard mới.
+
+**Ghi nhận, chưa sửa:** `BillLineDao` nằm ở `dao/sales` vì nó thao tác trên `sales.OrderItem.BillId`
+— bảng `BillLine` đã bị gộp đi khi rút schema 49→25. Tên lớp giờ nói sai việc nó làm; đổi tên là
+task riêng.
+
+---
+
 ## 6. Sổ ghi nhận phát sinh
 
 | Ngày | File | Vấn đề | Trạng thái |

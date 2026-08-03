@@ -1,7 +1,7 @@
 package com.cafe.service.shared;
 
 import com.cafe.config.DBConnection;
-import com.cafe.dao.shared.BranchStatusDao;
+import com.cafe.dao.org.BranchStatusDao;
 
 import java.sql.Connection;
 import java.sql.SQLException;

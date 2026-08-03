@@ -1,7 +1,7 @@
 package com.cafe.service.manager;
 
 import com.cafe.config.DBConnection;
-import com.cafe.dao.manager.AttendanceDao;
+import com.cafe.dao.hr.AttendanceDao;
 import com.cafe.model.PayrollRow;
 
 import java.sql.Connection;

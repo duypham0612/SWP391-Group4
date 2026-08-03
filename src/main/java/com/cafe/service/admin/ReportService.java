@@ -2,7 +2,7 @@ package com.cafe.service.admin;
 
 import com.cafe.common.BusinessDay;
 import com.cafe.config.DBConnection;
-import com.cafe.dao.admin.ReportDao;
+import com.cafe.dao.payment.ReportDao;
 import com.cafe.model.ChainSummary;
 import com.cafe.model.ReportRow;
 

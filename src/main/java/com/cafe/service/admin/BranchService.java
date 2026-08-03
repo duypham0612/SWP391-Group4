@@ -2,7 +2,7 @@ package com.cafe.service.admin;
 
 import com.cafe.common.BusinessException;
 import com.cafe.config.DBConnection;
-import com.cafe.dao.shared.BranchDao;
+import com.cafe.dao.org.BranchDao;
 import com.cafe.model.Branch;
 
 import java.sql.Connection;

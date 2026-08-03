@@ -2,10 +2,10 @@ package com.cafe.service.manager;
 
 import com.cafe.common.BusinessDay;
 import com.cafe.config.DBConnection;
-import com.cafe.dao.cashier.BillDao;
-import com.cafe.dao.manager.AttendanceDao;
-import com.cafe.dao.shared.BranchInventoryDao;
-import com.cafe.dao.shared.ShiftAssignmentDao;
+import com.cafe.dao.payment.BillDao;
+import com.cafe.dao.hr.AttendanceDao;
+import com.cafe.dao.inventory.BranchInventoryDao;
+import com.cafe.dao.hr.ShiftAssignmentDao;
 import com.cafe.model.BranchInventory;
 import com.cafe.model.MenuBlockRequest;
 import com.cafe.model.ShiftAssignment;

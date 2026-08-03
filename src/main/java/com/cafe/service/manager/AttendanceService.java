@@ -5,7 +5,7 @@ import com.cafe.common.BusinessDay;
 import com.cafe.common.BusinessException;
 import com.cafe.common.ShiftHours;
 import com.cafe.common.ShiftWindow;
-import com.cafe.dao.manager.AttendanceDao;
+import com.cafe.dao.hr.AttendanceDao;
 import com.cafe.model.MonthlyAttendanceRow;
 import com.cafe.model.MonthlyWorkSummary;
 import com.cafe.model.ShiftAssignment;

@@ -1,6 +1,6 @@
 package com.cafe.service.cashier;
 
-import com.cafe.dao.cashier.CashierShiftDao;
+import com.cafe.dao.payment.CashierShiftDao;
 import com.cafe.model.CashierShift;
 import org.junit.jupiter.api.Test;
 

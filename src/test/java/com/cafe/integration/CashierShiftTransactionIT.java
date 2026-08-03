@@ -1,7 +1,7 @@
 package com.cafe.integration;
 
 import com.cafe.common.BusinessDay;
-import com.cafe.dao.cashier.BillDao;
+import com.cafe.dao.payment.BillDao;
 import com.cafe.service.cashier.BillingService;
 import com.cafe.service.cashier.CashierShiftService;
 import org.junit.jupiter.api.Test;

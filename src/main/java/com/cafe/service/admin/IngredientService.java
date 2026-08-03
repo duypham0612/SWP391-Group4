@@ -2,8 +2,8 @@ package com.cafe.service.admin;
 
 import com.cafe.common.BusinessException;
 import com.cafe.config.DBConnection;
-import com.cafe.dao.admin.IngredientDao;
-import com.cafe.dao.shared.IngredientUnitDao;
+import com.cafe.dao.catalog.IngredientDao;
+import com.cafe.dao.catalog.IngredientUnitDao;
 import com.cafe.model.Ingredient;
 import com.cafe.model.InventoryUnitChoice;
 

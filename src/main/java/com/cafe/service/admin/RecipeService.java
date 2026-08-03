@@ -2,9 +2,9 @@ package com.cafe.service.admin;
 
 import com.cafe.common.BusinessException;
 import com.cafe.config.DBConnection;
-import com.cafe.dao.admin.IngredientDao;
-import com.cafe.dao.admin.ProductDao;
-import com.cafe.dao.shared.RecipeDao;
+import com.cafe.dao.catalog.IngredientDao;
+import com.cafe.dao.catalog.ProductDao;
+import com.cafe.dao.catalog.RecipeDao;
 import com.cafe.model.Ingredient;
 import com.cafe.model.Recipe;
 

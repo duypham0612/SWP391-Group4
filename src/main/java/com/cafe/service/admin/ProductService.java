@@ -2,10 +2,10 @@ package com.cafe.service.admin;
 
 import com.cafe.common.BusinessException;
 import com.cafe.config.DBConnection;
-import com.cafe.dao.shared.BranchMenuDao;
-import com.cafe.dao.shared.BranchDao;
-import com.cafe.dao.shared.ProductChoiceDao;
-import com.cafe.dao.admin.ProductDao;
+import com.cafe.dao.catalog.BranchMenuDao;
+import com.cafe.dao.org.BranchDao;
+import com.cafe.dao.catalog.ProductChoiceDao;
+import com.cafe.dao.catalog.ProductDao;
 import com.cafe.model.Product;
 
 import java.math.BigDecimal;

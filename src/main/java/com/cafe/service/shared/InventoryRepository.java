@@ -1,8 +1,22 @@
 package com.cafe.service.shared;
 
+import com.cafe.dao.ops.ActivityLogDao;
+import com.cafe.dao.inventory.BranchInventoryDao;
+import com.cafe.dao.catalog.IngredientDao;
+import com.cafe.dao.catalog.IngredientUnitDao;
+import com.cafe.dao.inventory.InventoryTransactionDao;
+import com.cafe.dao.sales.OrderItemModifierDao;
+import com.cafe.dao.ops.OutboxEventDao;
+import com.cafe.dao.inventory.PrepBatchApprovalDao;
+import com.cafe.dao.inventory.PrepBatchDao;
+import com.cafe.dao.catalog.RecipeDao;
+import com.cafe.dao.inventory.StockAdjustmentDao;
+import com.cafe.dao.inventory.StockCountDao;
+import com.cafe.dao.inventory.StockReceiptDetailDao;
+import com.cafe.dao.inventory.WasteEventDao;
+import com.cafe.dao.inventory.WasteEventItemDao;
+import com.cafe.dao.inventory.WasteEventReviewDao;
 import com.cafe.common.*;
-import com.cafe.dao.admin.IngredientDao;
-import com.cafe.dao.shared.*;
 import com.cafe.model.*;
 
 import java.math.*;

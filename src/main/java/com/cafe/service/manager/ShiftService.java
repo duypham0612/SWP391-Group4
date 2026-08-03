@@ -5,8 +5,8 @@ import com.cafe.common.BusinessException;
 import com.cafe.common.ShiftConflict;
 import com.cafe.common.ShiftHours;
 import com.cafe.config.DBConnection;
-import com.cafe.dao.admin.UserDao;
-import com.cafe.dao.shared.ShiftAssignmentDao;
+import com.cafe.dao.iam.UserDao;
+import com.cafe.dao.hr.ShiftAssignmentDao;
 import com.cafe.model.ShiftAssignment;
 
 import java.sql.Connection;

@@ -1,9 +1,9 @@
 package com.cafe.integration;
 
 import com.cafe.config.SchemaVersionGuard;
-import com.cafe.dao.cashier.BillLineDao;
-import com.cafe.dao.shared.BranchDao;
-import com.cafe.dao.shared.OrderItemModifierDao;
+import com.cafe.dao.sales.BillLineDao;
+import com.cafe.dao.org.BranchDao;
+import com.cafe.dao.sales.OrderItemModifierDao;
 import com.cafe.model.BillLine;
 import com.cafe.model.Branch;
 import com.cafe.model.OrderItemModifier;
