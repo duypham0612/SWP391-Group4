@@ -11,6 +11,8 @@ public class BillLine {
     private String productName;
     private int quantity;
     private String status;
+    private String selections;
+    private String note;
 
     public int getBillId() { return billId; }
     public void setBillId(int value) { this.billId = value; }
@@ -32,4 +34,8 @@ public class BillLine {
 
     public String getStatus() { return status; }
     public void setStatus(String value) { this.status = value; }
+    public String getSelections() { return selections; }
+    public void setSelections(String value) { this.selections = value; }
+    public String getNote() { return note; }
+    public void setNote(String value) { this.note = value; }
 }

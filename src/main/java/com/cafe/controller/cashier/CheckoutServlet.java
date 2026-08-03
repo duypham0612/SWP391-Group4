@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/** C5 · CheckoutServlet → /cashier/checkout. showBill | setDiscount | splitBill | mergeBill | pay. */
+/** C5 · CheckoutServlet → /cashier/checkout. showBill | splitBill | mergeBill | pay. */
 @WebServlet("/cashier/checkout")
 public class CheckoutServlet extends HttpServlet {
 
@@ -113,10 +113,7 @@ public class CheckoutServlet extends HttpServlet {
         String orderId = req.getParameter("orderId");
         String back = checkoutBack(req, tableId, orderId);
         try {
-            if ("setDiscount".equals(action)) {
-                billingService.setDiscount(Integer.parseInt(req.getParameter("billId")),
-                        parseNonNegativeMoney(req.getParameter("discountAmount")), branchId);
-            } else if ("splitBill".equals(action) && hasText(tableId)) {
+            if ("splitBill".equals(action) && hasText(tableId)) {
                 CashierShift shift = u != null
                         ? shiftService.getCurrentShift(u.getUserId(), branchId) : null;
                 Integer shiftId = shift != null ? shift.getCashierShiftId() : null;
@@ -227,12 +224,6 @@ public class CheckoutServlet extends HttpServlet {
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Tiền khách đưa không hợp lệ.");
         }
-    }
-
-    private BigDecimal parseNonNegativeMoney(String value) {
-        BigDecimal amount = parseMoney(value);
-        if (amount.signum() < 0) throw new IllegalArgumentException("Giảm giá không được âm.");
-        return amount;
     }
 
 }

@@ -71,6 +71,10 @@
                         </div>
                     </c:forEach>
                     <div class="pos-error" style="display:none;color:var(--st-cancelled);font-size:.86rem;margin-top:8px"></div>
+                    <div class="form-group" style="margin:10px 0 0">
+                        <label class="muted" style="font-size:.82rem">Ghi chú cho Barista</label>
+                        <input type="text" class="form-control pos-note" maxlength="255" placeholder="VD: tách đá riêng">
+                    </div>
                     <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
                         <input type="number" class="form-control pos-qty" value="1" min="1" max="20"
                                style="width:70px" ${m.orderable ? '' : 'disabled'}>
@@ -181,6 +185,7 @@ function validateProduct(card){
 function resetProduct(card){
   card.querySelectorAll('.pos-opt').forEach(o => { o.checked = o.dataset.default === 'true'; });
   card.querySelector('.pos-qty').value = 1;
+  card.querySelector('.pos-note').value = '';
   showProductError(card, '');
 }
 
@@ -195,6 +200,7 @@ function addToCart(btn){
   const name = card.dataset.productName;
   const base = parseFloat(card.dataset.price);
   const qty = parseInt(card.querySelector('.pos-qty').value);
+  const note = card.querySelector('.pos-note').value.trim();
   const currentQty = cart
       .filter(line => line.productId === productId)
       .reduce((sum, line) => sum + line.quantity, 0);
@@ -209,7 +215,7 @@ function addToCart(btn){
     optNames.push(o.dataset.name);
   });
   const unit = base + delta;
-  cart.push({productId, name, quantity: qty, unit, optionIds, optNames});
+  cart.push({productId, name, quantity: qty, unit, optionIds, optNames, note});
   resetProduct(card);
   renderCart();
 }
@@ -224,6 +230,7 @@ function renderCart(){
       '<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line)">' +
         '<div><strong>' + l.quantity + '× ' + l.name + '</strong>' +
           (l.optNames.length ? '<br><span class="muted" style="font-size:.85rem">' + l.optNames.join(', ') + '</span>' : '') +
+          (l.note ? '<br><span class="muted" style="font-size:.85rem">Ghi chú: ' + l.note.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>' : '') +
           (l.unavailable ? '<br><span style="color:var(--st-cancelled);font-size:.82rem">⚠ ' + l.unavailableReason + '</span>' : '') +
         '</div>' +
         '<div style="text-align:right;white-space:nowrap">' + fmt(l.unit*l.quantity) +
@@ -240,7 +247,7 @@ function submitOrder(){
   const payload = {
     tableId: tableId ? parseInt(tableId) : null,
     orderType: tableId ? 'DINE_IN' : 'TAKEAWAY',
-    items: cart.map(l => ({productId: l.productId, quantity: l.quantity, optionIds: l.optionIds}))
+    items: cart.map(l => ({productId: l.productId, quantity: l.quantity, optionIds: l.optionIds, note: l.note || null}))
   };
   const msg = document.getElementById('posMsg');
   msg.textContent = 'Đang gửi...';

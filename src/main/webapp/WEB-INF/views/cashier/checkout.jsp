@@ -1,6 +1,7 @@
 <%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
+<c:set var="cssBundles" value="checkout" scope="request" />
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
 <jsp:include page="../layout/header.jsp" />
 <script src="${ctx}/assets/js/vendor/qrcode.min.js"></script>
@@ -86,8 +87,8 @@
         </c:if>
 
         <c:forEach var="b" items="${bills}">
-            <div class="card" style="margin-bottom:18px;border-top:3px solid ${b.status == 'PAID' ? 'var(--st-ready)' : 'var(--coffee)'}">
-                <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="card checkout-bill ${b.status == 'PAID' ? 'checkout-bill--paid' : ''}">
+                <div class="checkout-bill__header">
                     <h3 style="margin:0">Hoá đơn #${b.billId}
                         <c:choose>
                             <c:when test="${b.status == 'PAID'}"><span class="badge badge-ready">Đã thu (${b.paymentMethod})</span></c:when>
@@ -109,7 +110,10 @@
                             <c:forEach var="bi" items="${b.items}">
                                 <tr>
                                     <c:if test="${b.status == 'UNPAID' and not takeawayCheckout}"><td><input type="checkbox" name="orderItemId" value="${bi.orderItemId}"></td></c:if>
-                                    <td>${bi.productName}</td>
+                                    <td>${bi.productName}
+                                        <c:if test="${not empty bi.selections}"><div class="muted" style="font-size:.85rem"><c:out value="${bi.selections}" /></div></c:if>
+                                        <c:if test="${not empty bi.note}"><div class="muted" style="font-size:.85rem">Ghi chú: <c:out value="${bi.note}" /></div></c:if>
+                                    </td>
                                     <td>${bi.quantity}</td>
                                     <td><fmt:formatNumber value="${bi.amount}" maxFractionDigits="0"/> ₫</td>
                                 </tr>
@@ -122,38 +126,27 @@
                 </form>
 
                 <%-- Tổng tiền --%>
-                <div style="max-width:340px;margin-left:auto;font-size:.95rem">
-                    <div style="display:flex;justify-content:space-between"><span>Tạm tính</span><span><fmt:formatNumber value="${b.subtotal}" maxFractionDigits="0"/> ₫</span></div>
+                <div class="bill-summary">
+                    <div class="bill-summary__row"><span>Tạm tính</span><span><fmt:formatNumber value="${b.subtotal}" maxFractionDigits="0"/> ₫</span></div>
                     <c:if test="${b.discountAmount > 0}">
-                        <div style="display:flex;justify-content:space-between;color:var(--st-ready)"><span>Giảm giá</span><span>−<fmt:formatNumber value="${b.discountAmount}" maxFractionDigits="0"/> ₫</span></div>
+                        <div class="bill-summary__row bill-summary__discount"><span>Giảm giá</span><span>−<fmt:formatNumber value="${b.discountAmount}" maxFractionDigits="0"/> ₫</span></div>
                     </c:if>
-                    <div style="display:flex;justify-content:space-between"><span>VAT 8%</span><span><fmt:formatNumber value="${b.vatAmount}" maxFractionDigits="0"/> ₫</span></div>
-                    <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px solid var(--line);padding-top:6px;margin-top:6px"><span>Tổng cộng</span><span><fmt:formatNumber value="${b.totalAmount}" maxFractionDigits="0"/> ₫</span></div>
+                    <div class="bill-summary__row"><span>VAT 8%</span><span><fmt:formatNumber value="${b.vatAmount}" maxFractionDigits="0"/> ₫</span></div>
+                    <div class="bill-summary__total"><span>Tổng cộng</span><strong><fmt:formatNumber value="${b.totalAmount}" maxFractionDigits="0"/> ₫</strong></div>
                 </div>
 
                 <c:if test="${b.status == 'UNPAID'}">
-                    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;align-items:flex-end">
-                        <%-- Giảm giá thủ công; DiscountAmount vẫn là snapshot trên bill. --%>
-                        <form action="${ctx}/cashier/checkout" method="post" style="display:flex;gap:6px;align-items:flex-end">
-                            <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
-                            <input type="hidden" name="action" value="setDiscount">
-                            <input type="hidden" name="tableId" value="${tableId}">
-                            <input type="hidden" name="orderId" value="${orderId}">
-                            <input type="hidden" name="billId" value="${b.billId}">
-                            <div class="form-group" style="margin:0;width:180px"><label>Giảm giá thủ công</label>
-                                <input type="number" name="discountAmount" class="form-control" min="0" step="1000" value="${b.discountAmount}"></div>
-                            <button type="submit" class="btn btn-ghost btn-sm">Cập nhật</button>
-                        </form>
+                    <div class="checkout-actions">
                         <c:choose>
                             <c:when test="${b.readyForPayment}">
                                 <%-- Chỉ mở thanh toán sau khi mọi món trên bill đã SERVED. --%>
-                                <form class="pay-form" action="${ctx}/cashier/checkout" method="post" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+                                <form class="pay-form" action="${ctx}/cashier/checkout" method="post">
                                     <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
                                     <input type="hidden" name="action" value="pay">
                                     <input type="hidden" name="tableId" value="${tableId}">
                                     <input type="hidden" name="orderId" value="${orderId}">
                                     <input type="hidden" name="billId" value="${b.billId}">
-                                    <div class="form-group" style="margin:0;width:150px"><label>Hình thức</label>
+                                    <div class="form-group payment-method"><label>Hình thức thanh toán</label>
                                         <select name="method" class="form-control pay-method" data-bill-id="${b.billId}">
                                             <option value="CASH">Tiền mặt</option>
                                             <option value="TRANSFER">Chuyển khoản</option>
@@ -161,41 +154,40 @@
                                         </select></div>
                                     <div class="cash-pay-panel"
                                          data-payable="${cashPayableAmounts[b.billId]}"
-                                         data-adjustment="${cashRoundingAdjustments[b.billId]}"
-                                         style="display:grid;grid-template-columns:repeat(2,minmax(150px,1fr));gap:8px 14px;padding:12px;border:1px solid var(--line);background:var(--paper);min-width:min(100%,390px)">
-                                        <div>
-                                            <div class="muted" style="font-size:.82rem">Tiền mặt cần thu</div>
-                                            <strong class="cash-payable" style="font-size:1.1rem">
+                                         data-adjustment="${cashRoundingAdjustments[b.billId]}">
+                                        <div class="cash-stat">
+                                            <div class="cash-stat__label">Tiền mặt cần thu</div>
+                                            <strong class="cash-payable cash-stat__amount">
                                                 <fmt:formatNumber value="${cashPayableAmounts[b.billId]}" maxFractionDigits="0"/> ₫
                                             </strong>
                                         </div>
-                                        <div>
-                                            <div class="muted" style="font-size:.82rem">Điều chỉnh làm tròn</div>
-                                            <strong>
+                                        <div class="cash-stat cash-stat--rounding">
+                                            <div class="cash-stat__label">Điều chỉnh làm tròn</div>
+                                            <strong class="cash-stat__rounding">
                                                 <c:if test="${cashRoundingAdjustments[b.billId] > 0}">+</c:if><fmt:formatNumber value="${cashRoundingAdjustments[b.billId]}" maxFractionDigits="0"/> ₫
                                             </strong>
                                         </div>
-                                        <div class="form-group" style="margin:0;grid-column:1/-1">
+                                        <div class="form-group cash-tender-input">
                                             <label>Tiền khách đưa</label>
                                             <input type="number" name="cashTendered" class="form-control cash-tendered"
                                                    min="${cashPayableAmounts[b.billId]}" step="1000"
-                                                   inputmode="numeric" autocomplete="off">
+                                                   inputmode="numeric" autocomplete="off" placeholder="Nhập số tiền khách đưa">
                                         </div>
-                                        <div class="cash-quick" style="grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap">
+                                        <div class="cash-quick">
                                             <button type="button" class="btn btn-ghost btn-sm" data-cash-exact>Đúng số</button>
                                             <button type="button" class="btn btn-ghost btn-sm" data-cash-value="50000">50.000</button>
                                             <button type="button" class="btn btn-ghost btn-sm" data-cash-value="100000">100.000</button>
                                             <button type="button" class="btn btn-ghost btn-sm" data-cash-value="200000">200.000</button>
                                             <button type="button" class="btn btn-ghost btn-sm" data-cash-value="500000">500.000</button>
                                         </div>
-                                        <div style="grid-column:1/-1;display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:8px">
+                                        <div class="cash-change-row">
                                             <span>Tiền thối</span>
                                             <strong class="cash-change">—</strong>
                                         </div>
                                     </div>
                                     <div class="qr-pay-panel" id="qr-panel-${b.billId}" data-payload="<c:out value='${qrPayloads[b.billId]}'/>" style="display:none">
                                         <div class="qr-code" id="qr-code-${b.billId}"></div>
-                                        <div class="muted" style="font-size:.85rem;margin-top:6px">
+                                        <div class="qr-pay-panel__details">
                                             ${vietQrBankName} · ${vietQrAccountNo}<br>
                                             Chủ tài khoản: ${vietQrAccountName}<br>
                                             Nội dung: CAFE BILL ${b.billId}

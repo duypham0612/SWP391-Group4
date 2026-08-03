@@ -49,4 +49,12 @@ class CashierCashReconciliationTest {
                 () -> CashierCashReconciliation.requireValidMoney(
                         new BigDecimal("1.001"), "Quỹ đầu ca"));
     }
+
+    @Test
+    void opening_cash_must_be_strictly_greater_than_500000() {
+        assertThrows(IllegalArgumentException.class,
+                () -> CashierCashReconciliation.requireValidOpeningCash(new BigDecimal("500000")));
+        assertDoesNotThrow(
+                () -> CashierCashReconciliation.requireValidOpeningCash(new BigDecimal("501000")));
+    }
 }

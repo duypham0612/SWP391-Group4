@@ -32,7 +32,7 @@ public class CashierShiftService {
 
     /** Mở ca (idempotent: nếu đã có ca mở thì trả về ca đó). */
     public int openShift(int branchId, int cashierId, BigDecimal openingCash) throws SQLException {
-        CashierCashReconciliation.requireValidMoney(openingCash, "Quỹ đầu ca");
+        CashierCashReconciliation.requireValidOpeningCash(openingCash);
         return Tx.call(c -> {
             int id = openShift(c, branchId, cashierId, openingCash);
             return id;
@@ -45,7 +45,7 @@ public class CashierShiftService {
      */
     public int openShift(Connection c, int branchId, int cashierId, BigDecimal openingCash)
             throws SQLException {
-        CashierCashReconciliation.requireValidMoney(openingCash, "Quỹ đầu ca");
+        CashierCashReconciliation.requireValidOpeningCash(openingCash);
         dao.acquireBranchOpenLock(c, branchId);
         List<CashierShift> openShifts = dao.findOpenByBranchForUpdate(c, branchId);
 

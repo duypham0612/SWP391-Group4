@@ -26,6 +26,7 @@ public class Bill {
 
     // join / computed
     private String tableNumber;
+    private String voucherCode;
     private List<BillLine> items = new ArrayList<>();
 
     public int getBillId() { return billId; }
@@ -77,6 +78,8 @@ public class Bill {
     public void setCreatedAt(LocalDateTime v) { this.createdAt = v; }
     public String getTableNumber() { return tableNumber; }
     public void setTableNumber(String v) { this.tableNumber = v; }
+    public String getVoucherCode() { return voucherCode; }
+    public void setVoucherCode(String v) { this.voucherCode = v; }
 
     public List<BillLine> getItems() { return items; }
     public void setItems(List<BillLine> v) { this.items = v; }

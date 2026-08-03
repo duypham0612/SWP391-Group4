@@ -16,14 +16,14 @@ public class BillLineDao {
 
     /**
      * Gắn dòng vào bill và chốt tiền trong cùng một UPDATE nguyên tử.
-     * Snapshot đúng công thức schema: UnitPrice * Quantity + SUM(PriceDelta).
+     * Modifier là phụ thu trên mỗi ly, nên phải nhân tổng PriceDelta với Quantity.
      */
     public void insert(Connection conn, int billId, int orderItemId) throws SQLException {
         final String sql =
                 "UPDATE oi SET oi.BillId=b.BillId, " +
-                "oi.BilledAmount=CAST(oi.UnitPrice*oi.Quantity + ISNULL((" +
+                "oi.BilledAmount=CAST((oi.UnitPrice + ISNULL((" +
                 " SELECT SUM(oim.PriceDelta) FROM sales.OrderItemModifier oim " +
-                " WHERE oim.OrderItemId=oi.OrderItemId),0) AS DECIMAL(12,2)) " +
+                " WHERE oim.OrderItemId=oi.OrderItemId),0))*oi.Quantity AS DECIMAL(12,2)) " +
                 "FROM sales.OrderItem oi " +
                 "JOIN payment.Bill b ON b.BillId=? AND b.BranchId=oi.BranchId AND b.Status='UNPAID' " +
                 "WHERE oi.OrderItemId=? AND oi.BillId IS NULL";
@@ -70,9 +70,11 @@ public class BillLineDao {
 
     public List<BillLine> findByBill(Connection conn, int billId) throws SQLException {
         final String sql =
-                "SELECT oi.BillId,oi.BranchId,oi.OrderItemId," +
-                "oi.BilledAmount AS Amount,oi.ProductNameAtOrder AS ProductName,oi.Quantity,oi.Status " +
-                "FROM sales.OrderItem oi WHERE oi.BillId=? ORDER BY oi.OrderItemId";
+                "SELECT oi.BillId,oi.BranchId,oi.OrderItemId,oi.BilledAmount AS Amount,oi.ProductNameAtOrder AS ProductName," +
+                "oi.Quantity,oi.Status,oi.Note,mods.Selections FROM sales.OrderItem oi " +
+                "OUTER APPLY (SELECT STRING_AGG(oim.ModifierOptionNameAtOrder, N', ') AS Selections " +
+                "FROM sales.OrderItemModifier oim WHERE oim.OrderItemId=oi.OrderItemId) mods " +
+                "WHERE oi.BillId=? ORDER BY oi.OrderItemId";
         List<BillLine> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, billId);
@@ -86,7 +88,7 @@ public class BillLineDao {
     public BillLine findById(Connection conn, int orderItemId) throws SQLException {
         final String sql =
                 "SELECT BillId,BranchId,OrderItemId," +
-                "BilledAmount AS Amount,NULL AS ProductName,Quantity,Status " +
+                "BilledAmount AS Amount,NULL AS ProductName,Quantity,Status,NULL AS Note,NULL AS Selections " +
                 "FROM sales.OrderItem WHERE OrderItemId=? AND BillId IS NOT NULL";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, orderItemId);
@@ -111,6 +113,8 @@ public class BillLineDao {
         item.setProductName(rs.getString("ProductName"));
         item.setQuantity(rs.getInt("Quantity"));
         item.setStatus(rs.getString("Status"));
+        item.setSelections(rs.getString("Selections"));
+        item.setNote(rs.getString("Note"));
         return item;
     }
 }

@@ -13,7 +13,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-/** Tạo, tách/gộp bill và cập nhật giảm giá thủ công trong transaction use case. */
+/** Tạo và tách/gộp bill trong transaction use case. */
 public final class BillCreationService {
     private final BillingRepository repository;
     private final BillingQueryService queryService;
@@ -144,20 +144,6 @@ public final class BillCreationService {
                 repository.billDao.markVoid(conn, source.getBillId());
             }
             repository.recomputeWithDiscount(conn, target.getBillId(), mergedDiscount);
-        });
-    }
-
-    public void setDiscount(int billId, BigDecimal discount, int branchId) throws SQLException {
-        if (discount == null || discount.signum() < 0) {
-            throw new IllegalArgumentException("Giảm giá không hợp lệ.");
-        }
-        Tx.run(conn -> {
-            Bill bill = repository.billDao.findByIdForUpdate(conn, billId);
-            if (bill == null || bill.getBranchId() != branchId
-                    || !"UNPAID".equals(bill.getStatus())) {
-                throw new IllegalArgumentException("Hoá đơn không còn hợp lệ để cập nhật giảm giá.");
-            }
-            repository.recomputeWithDiscount(conn, billId, discount);
         });
     }
 

@@ -51,7 +51,7 @@ public class CashierDutyService {
 
     /** Bắt đầu ca = vào ca chấm công + mở két trong cùng transaction. */
     public int startDuty(int userId, int branchId, BigDecimal openingCash) throws SQLException {
-        CashierCashReconciliation.requireValidMoney(openingCash, "Quỹ đầu ca");
+        CashierCashReconciliation.requireValidOpeningCash(openingCash);
         return Tx.call(c -> {
             int id = cashierShiftService.openShift(c, branchId, userId, openingCash);
             attendanceService.clockIn(c, userId, branchId);

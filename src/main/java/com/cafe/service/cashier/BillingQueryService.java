@@ -26,7 +26,7 @@ public final class BillingQueryService {
     public Bill getBill(int billId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             Bill bill = repository.billDao.findById(conn, billId);
-            if (bill != null) bill.setItems(repository.billLineDao.findByBill(conn, billId));
+            hydrateBill(conn, bill);
             return bill;
         }
     }
@@ -35,7 +35,7 @@ public final class BillingQueryService {
         try (Connection conn = DBConnection.getConnection()) {
             List<Bill> bills = repository.billDao.findByTable(conn, tableId);
             bills.removeIf(bill -> "VOID".equals(bill.getStatus()));
-            for (Bill bill : bills) bill.setItems(repository.billLineDao.findByBill(conn, bill.getBillId()));
+            for (Bill bill : bills) hydrateBill(conn, bill);
             return bills;
         }
     }
@@ -43,7 +43,7 @@ public final class BillingQueryService {
     public List<Bill> getOrderBills(int orderId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
             List<Bill> bills = repository.billDao.findByOrder(conn, orderId);
-            for (Bill bill : bills) bill.setItems(repository.billLineDao.findByBill(conn, bill.getBillId()));
+            for (Bill bill : bills) hydrateBill(conn, bill);
             return bills;
         }
     }
@@ -97,5 +97,11 @@ public final class BillingQueryService {
         try (Connection conn = DBConnection.getConnection()) {
             return repository.billDao.findByShift(conn, shiftId, 200);
         }
+    }
+
+    private void hydrateBill(Connection conn, Bill bill) throws SQLException {
+        if (bill == null) return;
+        bill.setItems(repository.billLineDao.findByBill(conn, bill.getBillId()));
+        bill.setVoucherCode(repository.voucherRedemptionDao.findCodeByBill(conn, bill.getBillId()));
     }
 }
