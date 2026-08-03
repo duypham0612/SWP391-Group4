@@ -71,7 +71,7 @@ public class PrepBatchDao {
         "pb.RequiresApproval, pb.ReviewedAt, pb.ReviewedBy, " +
         "i.Name AS IngName, i.Unit AS IngUnit, u.FullName AS MadeByName, ru.FullName AS ReviewedByName ";
 
-    private static final String SELECT =
+    static final String SELECT =
         "SELECT " + COLUMNS +
         "FROM inventory.PrepBatch pb " +
         "JOIN catalog.Ingredient i ON i.IngredientId=pb.PreppedIngredientId " +
@@ -311,66 +311,7 @@ public class PrepBatchDao {
         return value != null && !value.isBlank();
     }
 
-    /** Mẻ chờ duyệt vì bất thường — cũ nhất lên trước (barista chờ lâu nhất được xử lý trước). */
-    public List<PrepBatch> findPendingApproval(Connection conn, int branchId) throws SQLException {
-        List<PrepBatch> out = new ArrayList<>();
-        try (PreparedStatement ps = conn.prepareStatement(
-                SELECT + "WHERE pb.BranchId=? AND pb.Status='PENDING' ORDER BY pb.MadeAt ASC")) {
-            ps.setInt(1, branchId);
-            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
-        }
-        return out;
-    }
-
-    /** Hàng đợi hậu kiểm KHÔNG chặn — mẻ thường Manager chưa "đã xem". Mới nhất trước. */
-    public List<PrepBatch> findUnreviewedActive(Connection conn, int branchId) throws SQLException {
-        List<PrepBatch> out = new ArrayList<>();
-        try (PreparedStatement ps = conn.prepareStatement(
-                SELECT + "WHERE pb.BranchId=? AND pb.Status='ACTIVE' AND pb.RequiresApproval=0 "
-                       + "AND pb.ReviewedAt IS NULL ORDER BY pb.MadeAt DESC")) {
-            ps.setInt(1, branchId);
-            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
-        }
-        return out;
-    }
-
-    /** Duyệt mẻ PENDING → ACTIVE. Atomic: UPDATE chỉ khớp đúng 1 dòng đang PENDING, tự làm row-lock. */
-    public int approve(Connection conn, int prepBatchId, int branchId, int reviewerId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE inventory.PrepBatch SET Status='ACTIVE', ReviewedAt=SYSUTCDATETIME(), ReviewedBy=? "
-                        + "WHERE PrepBatchId=? AND BranchId=? AND Status='PENDING'")) {
-            ps.setInt(1, reviewerId);
-            ps.setInt(2, prepBatchId);
-            ps.setInt(3, branchId);
-            return ps.executeUpdate();
-        }
-    }
-
-    /** Từ chối mẻ PENDING → REJECTED. Atomic, cùng điều kiện với approve. */
-    public int reject(Connection conn, int prepBatchId, int branchId, int reviewerId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE inventory.PrepBatch SET Status='REJECTED', ReviewedAt=SYSUTCDATETIME(), ReviewedBy=? "
-                        + "WHERE PrepBatchId=? AND BranchId=? AND Status='PENDING'")) {
-            ps.setInt(1, reviewerId);
-            ps.setInt(2, prepBatchId);
-            ps.setInt(3, branchId);
-            return ps.executeUpdate();
-        }
-    }
-
-    /** Hậu kiểm: đóng dấu "đã xem" cho mẻ ACTIVE thường — KHÔNG đổi tồn kho. */
-    public int markReviewed(Connection conn, int prepBatchId, int branchId, int reviewerId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "UPDATE inventory.PrepBatch SET ReviewedAt=SYSUTCDATETIME(), ReviewedBy=? "
-                        + "WHERE PrepBatchId=? AND BranchId=? AND Status='ACTIVE' AND ReviewedAt IS NULL")) {
-            ps.setInt(1, reviewerId);
-            ps.setInt(2, prepBatchId);
-            ps.setInt(3, branchId);
-            return ps.executeUpdate();
-        }
-    }
-
-    private PrepBatch map(ResultSet rs) throws SQLException {
+    static PrepBatch map(ResultSet rs) throws SQLException {
         PrepBatch b = new PrepBatch();
         b.setPrepBatchId(rs.getInt("PrepBatchId"));
         b.setBranchId(rs.getInt("BranchId"));

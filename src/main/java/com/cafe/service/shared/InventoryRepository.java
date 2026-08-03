@@ -16,6 +16,7 @@ final class InventoryRepository {
     final RecipeDao productRecipeDao; final RecipeDao impactDao;
     final OrderItemModifierDao oimDao; final OutboxEventDao outboxEventDao;
     final RecipeDao prepRecipeDao; final PrepBatchDao prepBatchDao;
+    final PrepBatchApprovalDao prepApprovalDao;
     final WasteEventItemDao wasteEventItemDao; final WasteEventDao wasteEventDao;
     final WasteEventReviewDao wasteEventReviewDao; final ActivityLogDao activityLogDao;
     final IngredientDao ingredientDao;
@@ -23,12 +24,12 @@ final class InventoryRepository {
     InventoryRepository() { this(new BranchInventoryDao(),new InventoryTransactionDao(),new StockReceiptDetailDao(),
             new StockAdjustmentDao(),new IngredientUnitDao(),new StockCountDao(),new RecipeDao(),
             new OrderItemModifierDao(),new OutboxEventDao(),
-            new PrepBatchDao(),new WasteEventItemDao(),new WasteEventDao(),new WasteEventReviewDao(),
+            new PrepBatchDao(),new PrepBatchApprovalDao(),new WasteEventItemDao(),new WasteEventDao(),new WasteEventReviewDao(),
             new ActivityLogDao(),new IngredientDao()); }
     InventoryRepository(BranchInventoryDao biDao,InventoryTransactionDao txnDao,StockReceiptDetailDao detailDao,
             StockAdjustmentDao adjustmentDao,IngredientUnitDao unitDao,StockCountDao stockCountDao,
             RecipeDao recipeDao,OrderItemModifierDao oimDao,
-            OutboxEventDao outboxEventDao,PrepBatchDao prepBatchDao,
+            OutboxEventDao outboxEventDao,PrepBatchDao prepBatchDao,PrepBatchApprovalDao prepApprovalDao,
             WasteEventItemDao wasteEventItemDao,WasteEventDao wasteEventDao,WasteEventReviewDao wasteEventReviewDao,
             ActivityLogDao activityLogDao,IngredientDao ingredientDao){
         this.biDao=Objects.requireNonNull(biDao);this.txnDao=Objects.requireNonNull(txnDao);
@@ -37,6 +38,7 @@ final class InventoryRepository {
         this.productRecipeDao=Objects.requireNonNull(recipeDao);this.impactDao=recipeDao;
         this.oimDao=Objects.requireNonNull(oimDao);this.outboxEventDao=Objects.requireNonNull(outboxEventDao);
         this.prepRecipeDao=recipeDao;this.prepBatchDao=Objects.requireNonNull(prepBatchDao);
+        this.prepApprovalDao=Objects.requireNonNull(prepApprovalDao);
         this.wasteEventItemDao=Objects.requireNonNull(wasteEventItemDao);this.wasteEventDao=Objects.requireNonNull(wasteEventDao);
         this.wasteEventReviewDao=Objects.requireNonNull(wasteEventReviewDao);this.activityLogDao=Objects.requireNonNull(activityLogDao);
         this.ingredientDao=Objects.requireNonNull(ingredientDao);

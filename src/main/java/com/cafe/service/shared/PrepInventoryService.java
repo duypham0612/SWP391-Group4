@@ -258,7 +258,7 @@ public final class PrepInventoryService {
                 if (b.isExpiredWhilePending())
                     throw new BusinessException("Mẻ đã quá hạn dùng trong lúc chờ duyệt — hãy Từ chối, "
                             + "RAW sẽ được hoàn lại; barista cần pha mẻ mới.");
-                if (repository.prepBatchDao.approve(conn, prepBatchId, branchId, reviewerId) != 1)
+                if (repository.prepApprovalDao.approve(conn, prepBatchId, branchId, reviewerId) != 1)
                     throw new BusinessException("Mẻ đã được xử lý bởi thao tác khác. Vui lòng tải lại.");
                 ledgerService.applyTxn(conn, branchId, b.getPreppedIngredientId(), b.getQuantityProduced(),
                         TxnType.PREP_IN, InventoryReferenceType.PREP_BATCH,
@@ -283,7 +283,7 @@ public final class PrepInventoryService {
                 com.cafe.model.PrepBatch b = repository.prepBatchDao.findByIdForBranch(conn, prepBatchId, branchId);
                 if (b == null) throw new BusinessException("Mẻ pha không còn khả dụng. Vui lòng tải lại.");
                 if (!b.isPending()) throw new BusinessException("Mẻ không còn ở trạng thái chờ duyệt. Vui lòng tải lại.");
-                if (repository.prepBatchDao.reject(conn, prepBatchId, branchId, reviewerId) != 1)
+                if (repository.prepApprovalDao.reject(conn, prepBatchId, branchId, reviewerId) != 1)
                     throw new BusinessException("Mẻ đã được xử lý bởi thao tác khác. Vui lòng tải lại.");
                 Map<Integer, BigDecimal> rawApplied = appliedRawOfPrepBatch(conn, branchId, prepBatchId, b);
                 for (Map.Entry<Integer, BigDecimal> e : rawApplied.entrySet()) {
@@ -303,7 +303,7 @@ public final class PrepInventoryService {
     /** Hậu kiểm không chặn: Manager đánh dấu "đã xem, đúng" — KHÔNG đổi kho, chỉ phục vụ audit. */
     public void markPrepBatchReviewed(int branchId, int prepBatchId, int reviewerId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            if (repository.prepBatchDao.markReviewed(conn, prepBatchId, branchId, reviewerId) != 1)
+            if (repository.prepApprovalDao.markReviewed(conn, prepBatchId, branchId, reviewerId) != 1)
                 throw new BusinessException("Mẻ không còn ở trạng thái chờ hậu kiểm. Vui lòng tải lại.");
         }
     }

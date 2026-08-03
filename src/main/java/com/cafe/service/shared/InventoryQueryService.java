@@ -162,13 +162,13 @@ public final class InventoryQueryService {
     }
     public List<com.cafe.model.PrepBatch> getPendingApprovalBatches(int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            return repository.prepBatchDao.findPendingApproval(conn, branchId);
+            return repository.prepApprovalDao.findPendingApproval(conn, branchId);
         }
     }
 
     public List<com.cafe.model.PrepBatch> getUnreviewedBatches(int branchId) throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            return repository.prepBatchDao.findUnreviewedActive(conn, branchId);
+            return repository.prepApprovalDao.findUnreviewedActive(conn, branchId);
         }
     }
 

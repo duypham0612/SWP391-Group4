@@ -352,6 +352,12 @@ thư mục barista. Đã tách **theo mối quan tâm**, soi gương tầng serv
 **Kiểm chứng:** script đối chiếu thân 26 method trước/sau, đọc bản cũ **thẳng từ git** — toàn bộ
 chuỗi SQL giữ nguyên từng ký tự. Thêm `mvn clean verify` 352/352 và CI 74/74.
 
+**`PrepBatchDao` 413 → 344 + `PrepBatchApprovalDao` 90.** Cắt theo ranh giới **QUYỀN HẠN** chứ
+không phải chức năng: barista tạo mẻ, quản lý duyệt. Gộp chung thì một thay đổi ở luật duyệt trông
+giống hệt thay đổi ở luồng tạo mẻ khi review, mà hậu quả hai bên rất khác nhau. Javadoc file mới ghi
+rõ hai đường dễ lẫn: **tiền kiểm** (PENDING, CHƯA cộng tồn) và **hậu kiểm** (đã ACTIVE, đã cộng tồn,
+đóng dấu "đã xem" KHÔNG đụng kho).
+
 **Dọn kèm:** 10 method chết thật trong `dao/**` (xem §6). `loadPreparationMetrics` giữ lại dù không
 có caller production — nó có test riêng và là read model có chủ đích, xoá là quyết định của chủ dự án.
 
