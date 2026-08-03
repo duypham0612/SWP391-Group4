@@ -1,0 +1,215 @@
+package com.cafe.dao.shared;
+
+import com.cafe.model.BranchInventory;
+
+import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+
+/** Số dư tồn theo chi nhánh. CHỈ được sửa qua applyDelta (gọi từ InventoryService). */
+public class BranchInventoryDao {
+
+    public List<BranchInventory> findByBranch(Connection conn, int branchId) throws SQLException {
+        final String sql =
+            "SELECT bi.BranchId, bi.IngredientId, bi.QuantityOnHand, bi.MinThreshold, bi.PrepTargetQty, " +
+            "       i.Name AS IngredientName, i.Unit AS IngredientUnit, i.IngredientType, i.ShelfLifeMinutes " +
+            "FROM inventory.BranchInventory bi JOIN catalog.Ingredient i ON bi.IngredientId = i.IngredientId " +
+            "WHERE bi.BranchId = ? ORDER BY i.IngredientType, i.Name";
+        List<BranchInventory> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
+        }
+        return out;
+    }
+
+    /** Danh sách chọn cho barista: chỉ nguyên liệu đang hoạt động và đã cấu hình tại chi nhánh. */
+    public List<BranchInventory> findActiveByBranch(Connection conn, int branchId) throws SQLException {
+        final String sql =
+            "SELECT bi.BranchId, bi.IngredientId, bi.QuantityOnHand, bi.MinThreshold, bi.PrepTargetQty, i.Name AS IngredientName, i.Unit AS IngredientUnit, i.IngredientType, i.ShelfLifeMinutes " +
+            "FROM inventory.BranchInventory bi JOIN catalog.Ingredient i ON bi.IngredientId=i.IngredientId " +
+            "WHERE bi.BranchId=? AND i.IsActive=1 ORDER BY i.IngredientType,i.Name";
+        List<BranchInventory> out=new ArrayList<>();
+        try(PreparedStatement ps=conn.prepareStatement(sql)){ps.setInt(1,branchId);try(ResultSet rs=ps.executeQuery()){while(rs.next())out.add(map(rs));}}
+        return out;
+    }
+
+    public List<BranchInventory> findLowStock(Connection conn, int branchId) throws SQLException {
+        final String sql =
+            "SELECT bi.BranchId, bi.IngredientId, bi.QuantityOnHand, bi.MinThreshold, bi.PrepTargetQty, " +
+            "       i.Name AS IngredientName, i.Unit AS IngredientUnit, i.IngredientType, i.ShelfLifeMinutes " +
+            "FROM inventory.BranchInventory bi JOIN catalog.Ingredient i ON bi.IngredientId = i.IngredientId " +
+            "WHERE bi.BranchId = ? AND bi.QuantityOnHand <= bi.MinThreshold ORDER BY i.Name";
+        List<BranchInventory> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
+        }
+        return out;
+    }
+
+    /** Tồn âm hiện tại. Outbox stock.oversold là audit trail; màn quản lý đọc số dư cache để phản ánh trạng thái đang còn lệch. */
+    public List<BranchInventory> findOversold(Connection conn, int branchId) throws SQLException {
+        final String sql =
+            "SELECT bi.BranchId, bi.IngredientId, bi.QuantityOnHand, bi.MinThreshold, bi.PrepTargetQty, " +
+            "       i.Name AS IngredientName, i.Unit AS IngredientUnit, i.IngredientType, i.ShelfLifeMinutes " +
+            "FROM inventory.BranchInventory bi JOIN catalog.Ingredient i ON bi.IngredientId = i.IngredientId " +
+            "WHERE bi.BranchId = ? AND bi.QuantityOnHand < 0 ORDER BY i.Name";
+        List<BranchInventory> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            try (ResultSet rs = ps.executeQuery()) { while (rs.next()) out.add(map(rs)); }
+        }
+        return out;
+    }
+
+    /** Trả về [quantityOnHand, minThreshold] hoặc null nếu chưa có dòng. */
+    public BigDecimal[] findQtyAndThreshold(Connection conn, int branchId, int ingredientId) throws SQLException {
+        final String sql = "SELECT QuantityOnHand, MinThreshold FROM inventory.BranchInventory WHERE BranchId=? AND IngredientId=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setInt(2, ingredientId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return new BigDecimal[]{ rs.getBigDecimal(1), rs.getBigDecimal(2) };
+                return null;
+            }
+        }
+    }
+
+    /**
+     * Đọc và khóa số dư đến hết transaction kiểm kê. HOLDLOCK cũng giữ range lock
+     * khi dòng chưa tồn tại, tránh một request khác chèn số dư vào giữa lúc đếm.
+     */
+    public BigDecimal[] findQtyAndThresholdForUpdate(Connection conn, int branchId, int ingredientId)
+            throws SQLException {
+        final String sql = "SELECT QuantityOnHand, MinThreshold " +
+                "FROM inventory.BranchInventory WITH (UPDLOCK, HOLDLOCK, ROWLOCK) " +
+                "WHERE BranchId=? AND IngredientId=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setInt(2, ingredientId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return new BigDecimal[]{rs.getBigDecimal(1), rs.getBigDecimal(2)};
+                return null;
+            }
+        }
+    }
+
+    public BranchInventory findByBranchIngredient(Connection conn, int branchId, int ingredientId)
+            throws SQLException {
+        final String sql =
+                "SELECT bi.BranchId, bi.IngredientId, bi.QuantityOnHand, bi.MinThreshold, bi.PrepTargetQty, "
+              + "i.Name AS IngredientName, i.Unit AS IngredientUnit, i.IngredientType, i.ShelfLifeMinutes "
+              + "FROM inventory.BranchInventory bi JOIN catalog.Ingredient i ON i.IngredientId=bi.IngredientId "
+              + "WHERE bi.BranchId=? AND bi.IngredientId=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setInt(2, ingredientId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next() ? map(rs) : null; }
+        }
+    }
+
+    /**
+     * Đọc tồn kèm khoá dòng — dành cho guard tiền-kiểm phải chặn tồn âm.
+     * Không khoá thì hai request song song cùng đọc tồn cũ rồi cùng trừ, guard bị lọt và tồn xuống âm.
+     * UPDLOCK giữ đến hết transaction của caller nên lần đọc thứ hai phải chờ lần thứ nhất commit.
+     * Chưa có dòng tồn thì trả 0 (không khoá được cái chưa tồn tại) — guard vẫn chặn vì mọi nhu cầu đều > 0.
+     */
+    public BigDecimal findQtyOnHandForUpdate(Connection conn, int branchId, int ingredientId) throws SQLException {
+        final String sql = "SELECT QuantityOnHand FROM inventory.BranchInventory WITH (UPDLOCK, ROWLOCK) "
+                + "WHERE BranchId=? AND IngredientId=?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setInt(2, ingredientId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return BigDecimal.ZERO;
+                BigDecimal onHand = rs.getBigDecimal(1);
+                return onHand == null ? BigDecimal.ZERO : onHand;
+            }
+        }
+    }
+
+    /** Chỉ cho Barista ghi hao hụt vào nguyên liệu active đã được cấu hình tồn tại đúng chi nhánh. */
+    public boolean isActiveConfiguredIngredient(Connection conn, int branchId, int ingredientId) throws SQLException {
+        final String sql = "SELECT 1 FROM inventory.BranchInventory bi "
+                + "JOIN catalog.Ingredient i ON i.IngredientId=bi.IngredientId "
+                + "WHERE bi.BranchId=? AND bi.IngredientId=? AND i.IsActive=1";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            ps.setInt(2, ingredientId);
+            try (ResultSet rs = ps.executeQuery()) { return rs.next(); }
+        }
+    }
+
+    /** Cộng/trừ tồn (upsert). KHÔNG gọi trực tiếp từ controller — đi qua InventoryService.applyTxn. */
+    public void applyDelta(Connection conn, int branchId, int ingredientId, BigDecimal delta) throws SQLException {
+        final String upd = "UPDATE inventory.BranchInventory SET QuantityOnHand = QuantityOnHand + ?, " +
+                "UpdatedAt = SYSUTCDATETIME() WHERE BranchId=? AND IngredientId=?";
+        try (PreparedStatement ps = conn.prepareStatement(upd)) {
+            ps.setBigDecimal(1, delta);
+            ps.setInt(2, branchId);
+            ps.setInt(3, ingredientId);
+            if (ps.executeUpdate() == 0) {
+                final String ins = "INSERT INTO inventory.BranchInventory(BranchId, IngredientId, QuantityOnHand, MinThreshold) VALUES (?,?,?,0)";
+                try (PreparedStatement ins2 = conn.prepareStatement(ins)) {
+                    ins2.setInt(1, branchId);
+                    ins2.setInt(2, ingredientId);
+                    ins2.setBigDecimal(3, delta);
+                    ins2.executeUpdate();
+                }
+            }
+        }
+    }
+
+    public void updateThreshold(Connection conn, int branchId, int ingredientId, BigDecimal threshold) throws SQLException {
+        final String upd = "UPDATE inventory.BranchInventory SET MinThreshold=? WHERE BranchId=? AND IngredientId=?";
+        try (PreparedStatement ps = conn.prepareStatement(upd)) {
+            ps.setBigDecimal(1, threshold);
+            ps.setInt(2, branchId);
+            ps.setInt(3, ingredientId);
+            if (ps.executeUpdate() == 0) {
+                final String ins = "INSERT INTO inventory.BranchInventory(BranchId, IngredientId, QuantityOnHand, MinThreshold) VALUES (?,?,0,?)";
+                try (PreparedStatement ins2 = conn.prepareStatement(ins)) {
+                    ins2.setInt(1, branchId);
+                    ins2.setInt(2, ingredientId);
+                    ins2.setBigDecimal(3, threshold);
+                    ins2.executeUpdate();
+                }
+            }
+        }
+    }
+
+    public void updatePrepPolicy(Connection conn, int branchId, int ingredientId,
+                                 BigDecimal threshold, BigDecimal target) throws SQLException {
+        final String upd = "UPDATE bi SET MinThreshold=?, PrepTargetQty=? "
+                + "FROM inventory.BranchInventory bi JOIN catalog.Ingredient i ON i.IngredientId=bi.IngredientId "
+                + "WHERE bi.BranchId=? AND bi.IngredientId=? AND i.IngredientType='PREPPED'";
+        try (PreparedStatement ps = conn.prepareStatement(upd)) {
+            ps.setBigDecimal(1, threshold);
+            ps.setBigDecimal(2, target);
+            ps.setInt(3, branchId);
+            ps.setInt(4, ingredientId);
+            if (ps.executeUpdate() != 1)
+                throw new com.cafe.common.BusinessException("Nguyên liệu pha sẵn không tồn tại tại chi nhánh.");
+        }
+    }
+
+    private BranchInventory map(ResultSet rs) throws SQLException {
+        BranchInventory bi = new BranchInventory();
+        bi.setBranchId(rs.getInt("BranchId"));
+        bi.setIngredientId(rs.getInt("IngredientId"));
+        bi.setQuantityOnHand(rs.getBigDecimal("QuantityOnHand"));
+        bi.setMinThreshold(rs.getBigDecimal("MinThreshold"));
+        bi.setPrepTargetQty(rs.getBigDecimal("PrepTargetQty"));
+        bi.setIngredientName(rs.getString("IngredientName"));
+        bi.setIngredientUnit(rs.getString("IngredientUnit"));
+        bi.setIngredientType(rs.getString("IngredientType"));
+        int shelfLife = rs.getInt("ShelfLifeMinutes");
+        bi.setIngredientShelfLifeMinutes(rs.wasNull() ? null : shelfLife);
+        return bi;
+    }
+}

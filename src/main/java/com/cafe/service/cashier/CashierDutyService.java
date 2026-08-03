@@ -1,8 +1,8 @@
 package com.cafe.service.cashier;
 
 import com.cafe.config.DBConnection;
-import com.cafe.dao.payment.CashierShiftDao;
-import com.cafe.dao.hr.AttendanceDao;
+import com.cafe.dao.cashier.CashierShiftDao;
+import com.cafe.dao.manager.AttendanceDao;
 import com.cafe.model.ShiftAssignment;
 import com.cafe.service.manager.AttendanceService;
 

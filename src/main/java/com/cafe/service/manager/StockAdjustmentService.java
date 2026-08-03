@@ -2,7 +2,7 @@ package com.cafe.service.manager;
 import com.cafe.service.shared.InventoryService;
 
 import com.cafe.config.DBConnection;
-import com.cafe.dao.inventory.StockAdjustmentDao;
+import com.cafe.dao.manager.StockAdjustmentDao;
 import com.cafe.model.StockAdjustment;
 
 import java.math.BigDecimal;

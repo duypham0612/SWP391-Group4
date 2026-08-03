@@ -1,8 +1,8 @@
 package com.cafe.dao;
 
-import com.cafe.dao.inventory.PrepBatchDao;
-import com.cafe.dao.inventory.WasteEventDao;
-import com.cafe.dao.sales.OrderItemQueryDao;
+import com.cafe.dao.barista.PrepBatchDao;
+import com.cafe.dao.barista.WasteEventDao;
+import com.cafe.dao.shared.OrderItemQueryDao;
 
 import org.junit.jupiter.api.Test;
 

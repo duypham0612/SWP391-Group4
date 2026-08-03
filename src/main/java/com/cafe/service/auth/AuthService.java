@@ -4,7 +4,7 @@ import com.cafe.common.PasswordHasher;
 import com.cafe.common.BusinessException;
 import com.cafe.common.BranchAccessPolicy;
 import com.cafe.config.DBConnection;
-import com.cafe.dao.iam.UserDao;
+import com.cafe.dao.shared.UserDao;
 import com.cafe.model.User;
 
 import java.sql.Connection;

@@ -2,8 +2,8 @@ package com.cafe.service.cashier;
 
 import com.cafe.common.BusinessException;
 import com.cafe.config.DBConnection;
-import com.cafe.dao.sales.DiningTableDao;
-import com.cafe.dao.ops.OutboxEventDao;
+import com.cafe.dao.cashier.DiningTableDao;
+import com.cafe.dao.shared.OutboxEventDao;
 import com.cafe.model.DiningTable;
 
 import java.sql.Connection;

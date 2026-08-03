@@ -363,45 +363,72 @@ có caller production — nó có test riêng và là read model có chủ đíc
 
 ---
 
-## 5c. Đợt 5 — Xếp lại `dao/` theo schema DB 🟢 XONG (2026-08-03)
+## 5c. Đợt 5 — Xếp lại `dao/` theo schema DB 🟡 ĐÃ THAY BẰNG ĐỢT 6 (2026-08-03)
 
-**Yêu cầu gốc:** "tách phần dao của role barista ra riêng như mấy thư mục khác".
+Đợt 5 từng xếp 41 DAO theo 8 schema DB (`catalog`/`sales`/`inventory`/`payment`/`hr`/`ops`/`org`/`iam`).
+Chủ dự án yêu cầu quay lại **trục role** để review theo người phụ trách — xem §5d. Giữ mục này vì
+phần khảo sát của nó vẫn là dữ liệu đầu vào cho §5d.
 
-**Khảo sát bác bỏ chính tiền đề đó, bằng hai số đo:**
+**Hai số đo của Đợt 5 (vẫn đúng):**
+1. **Không role nào chạm DAO trực tiếp ngoài admin/cashier/manager.** `service/barista/` và
+   `service/customer/` đi vòng qua `service/shared/*`, nên nếu xét "ai import DAO" thì
+   `dao/barista/` là thư mục rỗng.
+2. **Các thư mục role cũ đã sai sẵn: 8/12 DAO bị dùng ngoài role của thư mục chứa nó.**
 
-1. **Barista sở hữu 0 DAO.** Không file nào dưới `service/barista/` hay `controller/barista/` chạm
-   DAO trực tiếp — barista đi qua `service/shared/*`. `dao/barista/` sẽ là thư mục rỗng.
-2. **Các thư mục theo role đã sai sẵn: 8/12 DAO bị dùng ngoài role của thư mục chứa nó.**
-   `dao/manager/AttendanceDao` bị cashier dùng, `dao/cashier/BillDao` bị manager + shared dùng,
-   `dao/admin/UserDao` bị auth + manager dùng… Trục "role" không đứng vững ở tầng DAO, vì một bảng
-   phục vụ nhiều màn.
+---
 
-**Trục đúng là schema DB.** Đo lại: mỗi DAO có đúng **một schema chủ đạo**, phân bố cân.
+## 5d. Đợt 6 — Xếp lại `dao/` theo role, dùng luật "vai sở hữu" 🟢 XONG (2026-08-03)
 
-| Package | # | Package | # |
-|---|---|---|---|
-| `dao/inventory` | 12 | `dao/payment` | 3 |
-| `dao/catalog` | 11 | `dao/hr` · `dao/ops` · `dao/org` | 2 mỗi |
-| `dao/sales` | 8 | `dao/iam` | 1 |
+**Yêu cầu:** "dao phải chia theo từng role để dễ review".
 
-**Vì sao cách này hơn hẳn cách cũ:** tên thư mục **chính là tiền tố schema trong câu SQL bên trong**.
-Đặt sai chỗ là kiểm ra được bằng máy, không cần tranh luận — khác với "role", vốn là quy ước trong
-đầu người và trôi ngay khi màn thứ hai dùng chung bảng.
+**Vì sao không dùng được luật máy móc "chỉ một role dùng → role đó, nhiều role → shared":** đã đo cả
+hai cách, cả hai đều sập về `shared`.
+
+| Cách đo | Kết quả |
+|---|---|
+| Tham chiếu trực tiếp (`import`) | 35/41 vào `shared` |
+| Với tới được (đi xuyên `service/shared`) | 34/41 vào `shared` |
+
+Lý do: `OrderRepository` và `InventoryRepository` là **hub giữ toàn bộ field DAO**, nên hễ một role
+chạm hub là "với tới" mọi DAO trong đó. Đo ở mức class là vô nghĩa.
+
+**Đo lại ở mức đúng — ai dùng `repository.<field>`:** lấy 28 field DAO trong 3 hub rồi tìm service
+nào thực sự gọi tới từng field, sau đó quy service `shared/*` về role qua servlet gọi nó. Đây mới là
+dữ liệu phân vai.
+
+**Luật đã chốt: vai sở hữu = role có màn hình QUẢN LÝ dữ liệu đó.** Role chỉ *đọc* thì không sở hữu.
+Bảng thực sự liên vai (đơn hàng, sổ kho, người dùng) nằm ở `shared` chứ không ép vào một role.
+
+| Package | # | Nội dung |
+|---|---|---|
+| `dao/admin` | 12 | Danh mục: sản phẩm, nguyên liệu, công thức, chi nhánh, báo cáo |
+| `dao/manager` | 9 | Nhập kho, kiểm kê, NCC, ca/chấm công, **duyệt** mẻ pha & hao hụt |
+| `dao/barista` | 5 | KDS workflow, sự cố món, mẻ pha sẵn, ghi hao hụt |
+| `dao/cashier` | 4 | Hóa đơn, ca thu ngân, bàn |
+| `dao/shared` | 11 | Đơn hàng, sổ kho, log/outbox, user — dùng thật ở nhiều vai |
+
+**Barista giờ có thư mục riêng đúng như yêu cầu ban đầu** (5 DAO), nhờ đo ở mức field thay vì mức
+class — điều Đợt 5 kết luận là "không thể" chỉ vì đo sai mức.
+
+**Một coupling thật bị lộ ra khi tách** — đây là giá trị phụ của đợt này: `PrepBatchApprovalDao`
+(manager) dùng `PrepBatchDao.SELECT` + `map()` vốn package-private, mà hai file nay ở hai gói khác
+nhau → **không biên dịch được**. Đã nới hai thành viên đó thành `public` kèm javadoc giải thích,
+thay vì chép câu SELECT sang gói manager: chép thì thêm một cột vào `COLUMNS` sẽ làm màn duyệt của
+quản lý đọc thiếu cột mà không ai báo lỗi. Đây là cặp DAO **duy nhất** cắt ngang gói.
 
 **Kiểm chứng:**
-- Script đối chiếu **41/41** DAO: schema chủ đạo trong SQL khớp đúng tên thư mục.
-- Không còn tham chiếu nào tới 4 package cũ.
-- Git nhận **44 rename** (không phải xoá + tạo mới) nên diff review vẫn đọc được.
-- `mvn clean verify` 352/352 · WAR build OK · CI 74/74.
-- ArchUnit không ảnh hưởng: các luật dùng mẫu `..dao..`, vẫn khớp.
+- 41/41 DAO khớp bảng phân vai, không trùng, không sót (script đối chiếu với `find`).
+- Không còn tham chiếu nào tới 8 package schema cũ trong toàn repo (kể cả test, docs, cấu hình).
+- `mvn clean test` **352/352 xanh** — đúng bằng số trước khi chuyển, không test nào phải sửa.
+- ArchUnit 8/8: các luật dùng mẫu `..dao..` nên không phụ thuộc tên gói con.
+- Không có import trùng lặp phát sinh; 2 test DAO cũng đã chuyển theo (`dao/catalog` → `dao/admin`).
 
-**Chỗ dễ vỡ nhất đã lường trước:** 22 import `com.cafe.dao.*.*` dạng wildcard. Đổi package là chúng
-im lặng gãy hoặc im lặng kéo nhầm lớp, nên đã **khai triển thành import tường minh** của đúng các DAO
-mỗi file dùng, thay vì thêm 8 wildcard mới.
+**Đánh đổi đã biết, chấp nhận:** `dao/shared` là gói lớn nhất (11). Đây là sự thật của miền nghiệp
+vụ chứ không phải lỗi phân loại — một đơn hàng do thu ngân/khách tạo, barista đổi trạng thái, quản lý
+đọc báo cáo. Ép nó vào một role sẽ khiến người review role đó tưởng mình sở hữu thứ không phải của mình.
 
-**Ghi nhận, chưa sửa:** `BillLineDao` nằm ở `dao/sales` vì nó thao tác trên `sales.OrderItem.BillId`
-— bảng `BillLine` đã bị gộp đi khi rút schema 49→25. Tên lớp giờ nói sai việc nó làm; đổi tên là
-task riêng.
+**Ghi nhận, chưa sửa:** `BillLineDao` (nay ở `dao/cashier`) thao tác trên `sales.OrderItem.BillId` —
+bảng `BillLine` đã bị gộp đi khi rút schema 49→25. Tên lớp nói sai việc nó làm; đổi tên là task riêng.
 
 ---
 

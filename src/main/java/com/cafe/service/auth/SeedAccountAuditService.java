@@ -1,7 +1,7 @@
 package com.cafe.service.auth;
 
 import com.cafe.config.DBConnection;
-import com.cafe.dao.iam.UserDao;
+import com.cafe.dao.shared.UserDao;
 
 import java.sql.Connection;
 import java.sql.SQLException;

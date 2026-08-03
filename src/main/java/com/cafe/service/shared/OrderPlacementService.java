@@ -1,6 +1,6 @@
 package com.cafe.service.shared;
 
-import com.cafe.dao.sales.DiningTableDao;
+import com.cafe.dao.cashier.DiningTableDao;
 import com.cafe.common.*;
 import com.cafe.model.*;
 

@@ -3,9 +3,9 @@ package com.cafe.service.cashier;
 import com.cafe.common.BusinessDay;
 import com.cafe.common.EventType;
 import com.cafe.config.DBConnection;
-import com.cafe.dao.payment.BillDao;
-import com.cafe.dao.payment.CashierShiftDao;
-import com.cafe.dao.ops.OutboxEventDao;
+import com.cafe.dao.cashier.BillDao;
+import com.cafe.dao.cashier.CashierShiftDao;
+import com.cafe.dao.shared.OutboxEventDao;
 import com.cafe.model.CashierShift;
 
 import java.math.BigDecimal;

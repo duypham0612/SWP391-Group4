@@ -2,15 +2,15 @@ package com.cafe.service.cashier;
 
 import com.cafe.common.BillCalculator;
 import com.cafe.common.BusinessException;
-import com.cafe.dao.payment.BillDao;
-import com.cafe.dao.sales.BillLineDao;
-import com.cafe.dao.payment.CashierShiftDao;
-import com.cafe.dao.sales.DiningTableDao;
-import com.cafe.dao.sales.OrderDao;
-import com.cafe.dao.sales.OrderItemDao;
-import com.cafe.dao.sales.OrderItemQueryDao;
-import com.cafe.dao.sales.OrderItemModifierDao;
-import com.cafe.dao.ops.OutboxEventDao;
+import com.cafe.dao.cashier.BillDao;
+import com.cafe.dao.cashier.BillLineDao;
+import com.cafe.dao.cashier.CashierShiftDao;
+import com.cafe.dao.cashier.DiningTableDao;
+import com.cafe.dao.shared.OrderDao;
+import com.cafe.dao.shared.OrderItemDao;
+import com.cafe.dao.shared.OrderItemQueryDao;
+import com.cafe.dao.shared.OrderItemModifierDao;
+import com.cafe.dao.shared.OutboxEventDao;
 import com.cafe.model.Bill;
 import com.cafe.model.BillLine;
 

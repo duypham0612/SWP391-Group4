@@ -2,8 +2,8 @@ package com.cafe.service.customer;
 
 import com.cafe.common.EventType;
 import com.cafe.config.DBConnection;
-import com.cafe.dao.sales.DiningTableDao;
-import com.cafe.dao.ops.OutboxEventDao;
+import com.cafe.dao.cashier.DiningTableDao;
+import com.cafe.dao.shared.OutboxEventDao;
 import com.cafe.model.DiningTable;
 import com.cafe.model.Order;
 import com.cafe.model.OrderItem;

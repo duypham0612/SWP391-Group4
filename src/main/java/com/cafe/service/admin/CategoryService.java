@@ -2,7 +2,7 @@ package com.cafe.service.admin;
 
 import com.cafe.common.BusinessException;
 import com.cafe.config.DBConnection;
-import com.cafe.dao.catalog.CategoryDao;
+import com.cafe.dao.admin.CategoryDao;
 import com.cafe.model.Category;
 
 import java.sql.Connection;
