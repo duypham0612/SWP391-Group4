@@ -2,6 +2,7 @@
 <%@ taglib prefix="c" uri="jakarta.tags.core" %>
 <%@ taglib prefix="fmt" uri="jakarta.tags.fmt" %>
 <c:set var="ctx" value="${pageContext.request.contextPath}" />
+<c:set var="cssBundles" value="pos" scope="request" />
 <jsp:include page="../layout/header.jsp" />
 
 <div class="page-header">
@@ -31,11 +32,19 @@
         <c:if test="${empty menu}">
             <div class="card empty-state"><div class="icon">∅</div><p>Chưa có món nào bán ở chi nhánh (Admin publish + Manager bật bán, Barista chưa 86).</p></div>
         </c:if>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px">
+        <div class="pos-search-bar">
+            <label class="pos-search" for="menuSearch">
+                <span aria-hidden="true">&#128269;</span>
+                <input id="menuSearch" type="search" class="form-control" autocomplete="off"
+                       placeholder="T&#236;m m&#243;n theo t&#234;n..." aria-label="T&#236;m m&#243;n">
+            </label>
+            <span id="menuSearchCount" class="muted"></span>
+        </div>
+        <div id="menuGrid" class="pos-menu-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px">
             <c:forEach var="m" items="${menu}">
                 <c:set var="imgSrc" value="${empty m.imageUrl ? ctx.concat('/assets/img/products/_placeholder.svg') : (m.imageUrl.startsWith('http') ? m.imageUrl : ctx.concat(m.imageUrl))}" />
                 <div class="card pos-product" data-product-id="${m.productId}" data-product-name="${m.name}"
-                     data-price="${m.price}" data-orderable="${m.orderable}"
+                     data-price="${m.price}" data-orderable="${m.orderable}" data-search="${m.name}"
                      style="${m.orderable ? '' : 'opacity:.72;border-color:var(--st-cancelled)'}">
                     <img class="pos-product__img" src="${imgSrc}" alt="${m.name}" loading="lazy"
                          onerror="this.src='${ctx}/assets/img/products/_placeholder.svg'">
@@ -53,6 +62,7 @@
                     <c:if test="${m.availabilityState == 'EIGHTY_SIX'}">
                         <div class="badge badge-cancelled" style="margin-top:8px"><c:out value="${view.stockMessage(m)}" /></div>
                     </c:if>
+                    <div class="pos-product__config" hidden>
                     <c:forEach var="g" items="${m.groups}">
                         <div class="pos-group" style="margin-top:8px"
                              data-group-name="${g.name}" data-required="${g.required}" data-min="${g.minSelect}" data-max="${g.maxSelect}">
@@ -70,6 +80,7 @@
                             </c:forEach>
                         </div>
                     </c:forEach>
+                    </div>
                     <div class="pos-error" style="display:none;color:var(--st-cancelled);font-size:.86rem;margin-top:8px"></div>
                     <div class="form-group" style="margin:10px 0 0">
                         <label class="muted" style="font-size:.82rem">Ghi chú cho Barista</label>
@@ -78,7 +89,7 @@
                     <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
                         <input type="number" class="form-control pos-qty" value="1" min="1" max="20"
                                style="width:70px" ${m.orderable ? '' : 'disabled'}>
-                        <button type="button" class="btn btn-primary btn-sm" onclick="addToCart(this)"
+                        <button type="button" class="btn btn-primary btn-sm" onclick="openModifierModal(this)"
                                 ${m.orderable ? '' : 'disabled'}>${m.orderable ? 'Thêm vào giỏ' : 'Không thể thêm'}</button>
                     </div>
                   </div>
@@ -148,10 +159,113 @@
     <input type="hidden" name="cartJson" id="draftCartJson" value="">
 </form>
 
+<div id="modifierModal" class="pos-modal" hidden>
+    <div class="pos-modal__backdrop" data-modal-close></div>
+    <section class="pos-modal__panel" role="dialog" aria-modal="true" aria-labelledby="modifierModalTitle">
+        <button type="button" class="icon-btn pos-modal__close" data-modal-close aria-label="&#272;&#243;ng">&times;</button>
+        <p class="eyebrow">T&#249;y ch&#7885;n m&#243;n</p>
+        <h2 id="modifierModalTitle"></h2>
+        <p id="modifierModalPrice" class="muted"></p>
+        <div id="modifierModalOptions" class="pos-modal__options"></div>
+        <p id="modifierModalError" class="pos-error" role="alert"></p>
+        <div class="pos-modal__fields">
+            <label class="form-group"><span>S&#7889; l&#432;&#7907;ng</span><input id="modifierModalQty" type="number" class="form-control" value="1" min="1" max="20"></label>
+            <label class="form-group"><span>Ghi ch&#250; cho Barista</span><input id="modifierModalNote" type="text" class="form-control" maxlength="255" placeholder="VD: t&#225;ch &#273;&#225; ri&#234;ng"></label>
+        </div>
+        <div class="pos-modal__actions">
+            <button type="button" class="btn btn-ghost" data-modal-close>H&#7911;y</button>
+            <button id="modifierModalAdd" type="button" class="btn btn-primary">Th&#234;m v&#224;o gi&#7887;</button>
+        </div>
+    </section>
+</div>
+
 <script>
 const CSRF = '${sessionScope.csrfToken}';
 const CTX = '${ctx}';
 let cart = ${empty draftCartJson ? '[]' : draftCartJson};
+let activeProduct = null;
+
+const modifierModal = document.getElementById('modifierModal');
+const modifierModalOptions = document.getElementById('modifierModalOptions');
+const modifierModalError = document.getElementById('modifierModalError');
+
+function optionKey(optionIds){ return optionIds.slice().sort((a, b) => a - b).join(','); }
+
+function showModalError(text){
+  modifierModalError.textContent = text || '';
+  modifierModalError.style.display = text ? 'block' : 'none';
+}
+
+function validateModalModifiers(){
+  for (const group of modifierModalOptions.querySelectorAll('.pos-group')) {
+    const name = group.dataset.groupName || 'tuy chon';
+    const min = parseInt(group.dataset.min || '0');
+    const max = parseInt(group.dataset.max || '0');
+    const required = group.dataset.required === 'true';
+    const checked = group.querySelectorAll('.pos-opt:checked').length;
+    if ((required || min > 0) && checked < min) {
+      showModalError('Vui l\u00f2ng ch\u1ecdn ' + name + '.');
+      return false;
+    }
+    if (max > 0 && checked > max) {
+      showModalError(name + ' ch\u1ec9 \u0111\u01b0\u1ee3c ch\u1ecdn t\u1ed1i \u0111a ' + max + ' t\u00f9y ch\u1ecdn.');
+      return false;
+    }
+  }
+  showModalError('');
+  return true;
+}
+
+function openModifierModal(btn){
+  const card = btn.closest('.pos-product');
+  if (!card || card.dataset.orderable !== 'true') return;
+  activeProduct = card;
+  modifierModalOptions.innerHTML = card.querySelector('.pos-product__config').innerHTML;
+  document.getElementById('modifierModalTitle').textContent = card.dataset.productName;
+  document.getElementById('modifierModalPrice').textContent = fmt(parseFloat(card.dataset.price));
+  document.getElementById('modifierModalQty').value = 1;
+  document.getElementById('modifierModalNote').value = '';
+  showModalError('');
+  modifierModal.hidden = false;
+  document.body.classList.add('pos-modal-open');
+  document.getElementById('modifierModalQty').focus();
+}
+
+function closeModifierModal(){
+  modifierModal.hidden = true;
+  activeProduct = null;
+  document.body.classList.remove('pos-modal-open');
+}
+
+function addModalToCart(){
+  if (!activeProduct || !validateModalModifiers()) return;
+  const productId = parseInt(activeProduct.dataset.productId);
+  const name = activeProduct.dataset.productName;
+  const base = parseFloat(activeProduct.dataset.price);
+  const qty = parseInt(document.getElementById('modifierModalQty').value);
+  const note = document.getElementById('modifierModalNote').value.trim();
+  const currentQty = cart.filter(line => line.productId === productId)
+      .reduce((sum, line) => sum + line.quantity, 0);
+  if (!Number.isInteger(qty) || qty < 1 || qty > 20 || currentQty + qty > 20) {
+    showModalError('M\u1ed7i lo\u1ea1i m\u00f3n ch\u1ec9 \u0111\u01b0\u1ee3c \u0111\u1eb7t t\u1ed1i \u0111a 20 trong m\u1ed9t \u0111\u01a1n.');
+    return;
+  }
+  let delta = 0;
+  const optionIds = [];
+  const optNames = [];
+  modifierModalOptions.querySelectorAll('.pos-opt:checked').forEach(option => {
+    delta += parseFloat(option.dataset.delta);
+    optionIds.push(parseInt(option.dataset.optionId));
+    optNames.push(option.dataset.name);
+  });
+  const key = optionKey(optionIds);
+  const existing = cart.find(line => line.productId === productId
+      && (line.note || '').trim() === note && optionKey(line.optionIds || []) === key);
+  if (existing) existing.quantity += qty;
+  else cart.push({productId, name, quantity: qty, unit: base + delta, optionIds, optNames, note});
+  closeModifierModal();
+  renderCart();
+}
 
 function fmt(n){ return new Intl.NumberFormat('vi-VN').format(n) + ' ₫'; }
 
@@ -309,6 +423,41 @@ document.querySelectorAll('.pos-opt[type="checkbox"]').forEach(opt => {
 });
 document.querySelectorAll('.pos-opt[type="radio"]').forEach(opt => {
   opt.addEventListener('change', function(){ validateProduct(this.closest('.pos-product')); });
+});
+
+modifierModal.addEventListener('click', function(event){
+  if (event.target.closest('[data-modal-close]')) closeModifierModal();
+});
+document.getElementById('modifierModalAdd').addEventListener('click', addModalToCart);
+modifierModalOptions.addEventListener('change', function(event){
+  const option = event.target;
+  if (!option.classList.contains('pos-opt')) return;
+  const group = option.closest('.pos-group');
+  const max = parseInt(group.dataset.max || '0');
+  if (option.type === 'checkbox' && max > 0 && group.querySelectorAll('.pos-opt:checked').length > max) {
+    option.checked = false;
+  }
+  validateModalModifiers();
+});
+document.addEventListener('keydown', function(event){
+  if (event.key === 'Escape' && !modifierModal.hidden) closeModifierModal();
+});
+
+function normalized(value){
+  return (value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+const menuSearch = document.getElementById('menuSearch');
+const menuSearchCount = document.getElementById('menuSearchCount');
+menuSearch.addEventListener('input', function(){
+  const query = normalized(menuSearch.value.trim());
+  const cards = Array.from(document.querySelectorAll('.pos-product'));
+  let visible = 0;
+  cards.forEach(card => {
+    const matches = !query || normalized(card.dataset.search).includes(query);
+    card.hidden = !matches;
+    if (matches) visible++;
+  });
+  menuSearchCount.textContent = query ? visible + ' m\u00f3n ph\u00f9 h\u1ee3p' : '';
 });
 renderCart();
 </script>
