@@ -11,7 +11,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Objects;
 
-/** Web policy dùng chung cho các màn Barista; không giữ state theo request. */
+/** Shared web policy for Barista screens; holds no per-request state. */
 public final class BaristaShiftSupport {
     public static final String OFF_SHIFT_MESSAGE =
             "Bạn đang ngoài ca — cần vào ca trước khi thao tác.";

@@ -39,8 +39,8 @@ public class PrepBatchDao {
     }
 
     /**
-     * Luồng có kiểm tra bất thường (Contract #2 mở rộng): {@code requiresApproval=true} ghi
-     * Status='PENDING' — PREP_IN chưa được caller áp dụng cho tới khi Manager duyệt.
+     * Flow with anomaly checking (extended Contract #2): {@code requiresApproval=true} writes
+     * Status='PENDING' — PREP_IN is not applied by the caller until the Manager approves it.
      */
     public int insert(Connection conn, int branchId, int preppedIngredientId, BigDecimal qtyProduced,
                       java.time.LocalDateTime expiresAt, int madeBy, String clientRequestId,
@@ -72,10 +72,11 @@ public class PrepBatchDao {
         "i.Name AS IngName, i.Unit AS IngUnit, u.FullName AS MadeByName, ru.FullName AS ReviewedByName ";
 
     /**
-     * Public vì {@code dao.manager.PrepBatchApprovalDao} dùng lại — barista tạo mẻ, quản lý duyệt,
-     * hai DAO nay nằm ở hai gói role khác nhau nên package-private không còn với tới nhau.
-     * Dùng chung câu SELECT + {@link #map} thay vì chép sang bên kia: chép thì thêm một cột vào
-     * {@code COLUMNS} sẽ làm màn duyệt của quản lý đọc thiếu cột mà không ai báo lỗi.
+     * Public because {@code dao.manager.PrepBatchApprovalDao} reuses it — barista creates the
+     * batch, manager approves it, and the two DAOs now live in different role packages so
+     * package-private can no longer reach across. Shared SELECT + {@link #map} instead of
+     * duplicating it on the other side: duplicating it means adding a column to {@code COLUMNS}
+     * would leave the manager's approval screen silently missing that column.
      */
     public static final String SELECT =
         "SELECT " + COLUMNS +
@@ -117,7 +118,7 @@ public class PrepBatchDao {
         }
     }
 
-    /** Mẻ pha tạo HÔM NAY (theo ngày VN, quy về cửa sổ UTC) — mọi trạng thái, mới nhất trước. */
+    /** Prep batches created TODAY (by VN calendar day, converted to a UTC window) — every status, newest first. */
     public List<PrepBatch> findTodayByBranch(Connection conn, int branchId) throws SQLException {
         Timestamp[] range = todayRange();
         List<PrepBatch> out = new ArrayList<>();
@@ -130,7 +131,7 @@ public class PrepBatchDao {
         return out;
     }
 
-    /** Lấy mẻ pha hôm nay theo trang; việc tìm/lọc và OFFSET/FETCH đều thực hiện tại database. */
+    /** Fetches today's prep batches page by page; searching/filtering and OFFSET/FETCH are both done at the database. */
     public List<PrepBatch> findTodayPageByBranch(Connection conn, int branchId, String query, int ingredientId,
                                                   String expiry, String status, int offset, int pageSize) throws SQLException {
         Timestamp[] range = todayRange();
@@ -177,9 +178,11 @@ public class PrepBatchDao {
     }
 
     /**
-     * Me ACTIVE da qua han va CHUA ghi hao hut, cat theo ExpiresAt thay vi MadeAt de bat ca me pha tu ngay truoc.
-     * Loc WrittenOffAt IS NULL de me da xu ly roi khoi treo mai o banner Prep va banner ban giao ca.
-     * Thu tu ExpiresAt ASC la dau vao cua phan bo FIFO trong ExpiryWasteCalculator - khong doi thu tu nay.
+     * ACTIVE batches that are past expiry and NOT yet written off as waste; cuts on ExpiresAt
+     * instead of MadeAt to also catch batches prepped the day before.
+     * Filters WrittenOffAt IS NULL so already-handled batches stop lingering on the Prep banner
+     * and the shift handover banner.
+     * The ExpiresAt ASC order feeds the FIFO allocation in ExpiryWasteCalculator - do not change this order.
      */
     public List<PrepBatch> findExpiredActive(Connection conn, int branchId) throws SQLException {
         final String sql =
@@ -218,7 +221,7 @@ public class PrepBatchDao {
         }
     }
 
-    /** Đánh dấu trạng thái (CANCELLED kèm VoidedAt). KHÔNG hard-delete — tồn hoàn qua txn bù. */
+    /** Marks the status (CANCELLED comes with VoidedAt). NOT a hard-delete — stock is restored via a compensating txn. */
     public int updateStatus(Connection conn, int prepBatchId, String status) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
                 "UPDATE inventory.PrepBatch SET Status=?, VoidedAt=CASE WHEN ?='CANCELLED' THEN SYSUTCDATETIME() ELSE NULL END WHERE PrepBatchId=? AND Status='ACTIVE'")) {
@@ -243,8 +246,9 @@ public class PrepBatchDao {
     }
 
     /**
-     * Đóng vòng đời mẻ quá hạn: gắn dòng hao hụt đã ghi. Điều kiện WrittenOffAt IS NULL là chốt
-     * nguyên tử — bấm hai lần hoặc hai barista cùng xử lý một mẻ thì chỉ một lần trừ tồn được ghi nhận.
+     * Closes out the lifecycle of an expired batch: attaches the recorded waste entry. The
+     * WrittenOffAt IS NULL condition is the atomic gate — a double click or two baristas handling
+     * the same batch at once still results in only one stock deduction being recorded.
      */
     public int markWrittenOff(Connection conn, int prepBatchId, int branchId, long wasteEntryId) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
@@ -317,7 +321,7 @@ public class PrepBatchDao {
         return value != null && !value.isBlank();
     }
 
-    /** Public cùng lý do với {@link #SELECT} — dùng chung với gói {@code dao.manager}. */
+    /** Public for the same reason as {@link #SELECT} — shared with the {@code dao.manager} package. */
     public static PrepBatch map(ResultSet rs) throws SQLException {
         PrepBatch b = new PrepBatch();
         b.setPrepBatchId(rs.getInt("PrepBatchId"));

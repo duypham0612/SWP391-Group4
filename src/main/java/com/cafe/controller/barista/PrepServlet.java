@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-/** B4 · PrepServlet → /barista/prep. Pha sẵn (RAW→PREPPED, Contract #2) + checklist + guard tồn. */
+/** B4 · PrepServlet → /barista/prep. Pre-prep (RAW→PREPPED, Contract #2) + checklist + stock guard. */
 @WebServlet("/barista/prep")
 public class PrepServlet extends HttpServlet {
 
@@ -44,7 +44,7 @@ public class PrepServlet extends HttpServlet {
             throws ServletException, IOException {
         int branchId = BranchContext.requireBranchId(req);
         try {
-            if ("1".equals(req.getParameter("stock"))) {        // làm mới tồn RAW (AJAX, không reload form)
+            if ("1".equals(req.getParameter("stock"))) {        // refresh RAW stock (AJAX, no form reload)
                 resp.setContentType("application/json;charset=UTF-8");
                 resp.getWriter().write(service.getRawOnHandJson(branchId));
                 return;
@@ -66,7 +66,7 @@ public class PrepServlet extends HttpServlet {
             resp.sendRedirect(req.getContextPath() + "/barista/prep");
             return;
         }
-        if (shiftSupport.guardWrite(req, resp, "/barista/prep")) return;   // ngoài ca → chặn ghi
+        if (shiftSupport.guardWrite(req, resp, "/barista/prep")) return;   // off-shift → block writes
         try {
             if ("createBatch".equals(action)) {
                 int ingredientId = RequestParams.positiveInt(req, "preppedIngredientId", 0);
@@ -90,14 +90,14 @@ public class PrepServlet extends HttpServlet {
                         "Đã loại bỏ phần pha sẵn quá hạn — tồn kho đã cập nhật.");
             }
             resp.sendRedirect(req.getContextPath() + "/barista/prep");
-        } catch (BusinessException e) {                         // vi phạm nghiệp vụ → flash, không 500
+        } catch (BusinessException e) {                         // business rule violation → flash, not 500
             req.getSession().setAttribute("flashError", e.getMessage());
             resp.sendRedirect(req.getContextPath() + "/barista/prep");
         } catch (NumberFormatException e) {
             req.getSession().setAttribute("flashError", "Sản lượng không hợp lệ.");
             resp.sendRedirect(req.getContextPath() + "/barista/prep");
         } catch (Exception e) {
-            // SQL lỗi thật (timeout/mất kết nối) không được biến thành stack trace hoặc lộ dữ liệu nội bộ.
+            // A genuine SQL error (timeout/lost connection) must not turn into a stack trace or leak internal data.
             req.getSession().setAttribute("flashError", "Không thể cập nhật mẻ pha lúc này. Vui lòng thử lại.");
             resp.sendRedirect(req.getContextPath() + "/barista/prep");
         }
@@ -117,7 +117,7 @@ public class PrepServlet extends HttpServlet {
         req.setAttribute("rawOnHandJson", service.getRawOnHandJson(branchId));
         req.setAttribute("clientRequestId", UUID.randomUUID().toString());
         req.setAttribute("pageTitle", "Pha sẵn nguyên liệu");
-        shiftSupport.expose(req, "/barista/prep");   // trực ca: banner + khoá thao tác
+        shiftSupport.expose(req, "/barista/prep");   // on-shift: banner + block writes
         req.getRequestDispatcher("/WEB-INF/views/barista/prep.jsp").forward(req, resp);
     }
 

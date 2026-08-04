@@ -17,13 +17,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-/** B6 · RecipeLookupServlet → /barista/recipe. Tra cứu công thức + tác động modifier (read-only). */
+/** B6 · RecipeLookupServlet → /barista/recipe. Recipe lookup + modifier impact (read-only). */
 @WebServlet("/barista/recipe")
 public class RecipeLookupServlet extends HttpServlet {
 
-    // Danh sách món nằm cạnh khung công thức nên chỉ chiếm nửa màn: 5 dòng/trang vừa hết
-    // khung, barista không phải cuộn trong lúc pha. Lọc + tìm theo tên vẫn là đường chính
-    // để thu hẹp danh sách, phân trang chỉ dùng khi duyệt lần lượt.
+    // The product list sits next to the recipe panel and only takes up half the screen: 5 rows/page
+    // just fills the panel, so the barista doesn't have to scroll while brewing. Filtering + searching
+    // by name is still the main way to narrow the list; pagination is only for browsing one by one.
     private static final int PAGE_SIZE = 5;
 
     private final CatalogReadService catalogReadService;
@@ -63,7 +63,7 @@ public class RecipeLookupServlet extends HttpServlet {
                     Product selected = catalogReadService.getRecipeProductForLookup(
                             productId, q, categoryId, recipeState, branchId);
                     if (selected == null) {
-                        // Không tiết lộ món ngoài phạm vi CN / bộ lọc qua productId đoán được.
+                        // Don't reveal products outside the branch scope / filter via a guessed productId.
                         req.setAttribute("recipeLookupNotice",
                                 "Món được chọn không còn thuộc phạm vi tra cứu hiện tại.");
                     } else {
@@ -81,7 +81,7 @@ public class RecipeLookupServlet extends HttpServlet {
                         }
                         req.setAttribute("impacts", impacts);
                         req.setAttribute("hasExtraIngredient", hasExtraIngredient);
-                        // Định mức pha sẵn cho từng nguyên liệu PREPPED trong công thức.
+                        // Prep yield ratio for each PREPPED ingredient in the recipe.
                         List<PrepSection> preps = new ArrayList<>();
                         for (Recipe r : recipe) {
                             if ("PREPPED".equalsIgnoreCase(r.getIngredientType())) {
@@ -137,7 +137,7 @@ public class RecipeLookupServlet extends HttpServlet {
         return value.trim();
     }
 
-    /** Nhóm định mức pha sẵn của 1 nguyên liệu PREPPED (cho view). */
+    /** Groups the prep yield info for one PREPPED ingredient (for the view). */
     public static class PrepSection {
         public String name;
         public String unit;
@@ -148,9 +148,9 @@ public class RecipeLookupServlet extends HttpServlet {
         public List<Recipe> getLines() { return lines; }
 
         /**
-         * Sản lượng 1 mẻ để hiển thị ở đầu thẻ thay vì lặp lại trên từng dòng nguyên liệu.
+         * Yield of one batch, shown at the top of the card instead of being repeated on every ingredient row.
          *
-         * YieldQty là thuộc tính duy nhất của header nên mọi dòng nguyên liệu dùng cùng sản lượng.
+         * YieldQty is a header-only attribute, so every ingredient row shares the same yield value.
          */
         public java.math.BigDecimal getSharedYield() {
             return sharedYield;

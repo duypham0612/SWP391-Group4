@@ -5,19 +5,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-/**
- * Chuyển trạng thái PHA CHẾ của một dòng món: nhận pha → pha xong, và các đường trả món về hàng chờ.
- *
- * <p>Điểm chung của cả file, và là lý do nó đứng riêng: <b>mọi câu UPDATE ở đây đều mang điều kiện
- * chống tranh chấp ngay trong mệnh đề WHERE</b> — trạng thái đang kỳ vọng, chi nhánh, và với các
- * thao tác cá nhân là cả {@code BaristaId}. Không method nào ở đây được đọc rồi mới ghi. Số dòng
- * trả về (0 hoặc 1) chính là kết quả cuộc đua: caller chỉ được đi tiếp khi nhận 1.
- *
- * <p>Nhờ vậy hai barista bấm cùng lúc thì đúng một người thắng, và bên thua không trừ kho lần hai.
- */
 public class OrderItemWorkflowDao {
 
-    /** WAITING → MAKING, lưu chủ sở hữu trong cùng câu UPDATE để khóa claim. */
+    // EN: Atomic UPDATE, only succeeds if item is still WAITING in an ACTIVE order of this branch. Returns rows affected (0/1).
     public int claim(Connection conn, int orderItemId, int branchId, int baristaId) throws SQLException {
         final String sql = "UPDATE oi SET oi.Status='MAKING',oi.BaristaId=?,oi.StartedAt=SYSUTCDATETIME() "
                 + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
@@ -28,7 +18,7 @@ public class OrderItemWorkflowDao {
         }
     }
 
-    /** Chỉ người đã nhận món mới được hoàn thành. */
+    // EN: Atomic UPDATE, only succeeds if item is MAKING and owned by this barista. Returns rows affected (0/1); caller only deducts stock when this returns 1.
     public int completeClaimed(Connection conn, int orderItemId, int branchId, int baristaId) throws SQLException {
         final String sql = "UPDATE oi SET oi.Status='READY',oi.DoneAt=SYSUTCDATETIME(),oi.PreparedBy=?,"
                 + "oi.HasIssue=0,oi.IssueReason=NULL,oi.RemakeInventoryReserved=0 "
@@ -41,11 +31,6 @@ public class OrderItemWorkflowDao {
         }
     }
 
-    /**
-     * Số dòng món barista này đang giữ ở trạng thái đang pha — cổng tan ca đọc con số này.
-     * Chỉ đếm MAKING: món BLOCKED đã rời hàng chờ và không còn mang tên ai, tính vào sẽ khoá
-     * barista bằng thứ chính họ không gỡ được (phải chờ nhập nguyên liệu hoặc Thu ngân huỷ).
-     */
     public int countMakingByBarista(Connection conn, int branchId, int baristaId) throws SQLException {
         final String sql = "SELECT COUNT(*) FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
                 + "WHERE o.BranchId=? AND o.Status='ACTIVE' AND oi.Status='MAKING' AND oi.BaristaId=?";
@@ -55,11 +40,7 @@ public class OrderItemWorkflowDao {
         }
     }
 
-    /**
-     * Thu hồi món của barista ĐÃ RỜI CA về hàng chờ. Khác {@link #returnToQueue} ở chỗ người bấm
-     * không phải chủ món; vẫn guard theo chủ món ĐANG kỳ vọng để không thắng cuộc đua với chính
-     * họ vừa bấm Xong (khi đó BaristaId/Status đã đổi, affected=0 → caller báo conflict).
-     */
+    // EN: Atomic UPDATE, only succeeds if item is still MAKING and owned by expectedBaristaId (the old owner, not the caller). Returns rows affected (0/1).
     public int reclaim(Connection conn, int orderItemId, int branchId, int expectedBaristaId) throws SQLException {
         final String sql = "UPDATE oi SET oi.Status='WAITING',oi.BaristaId=NULL,oi.StartedAt=NULL "
                 + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
@@ -71,7 +52,7 @@ public class OrderItemWorkflowDao {
         }
     }
 
-    /** Chính chủ trả món đang pha về hàng chờ cho người khác nhận. */
+    // EN: Atomic UPDATE, only succeeds if item is MAKING and owned by this barista. Returns rows affected (0/1).
     public int returnToQueue(Connection conn, int orderItemId, int branchId, int baristaId) throws SQLException {
         final String sql = "UPDATE oi SET oi.Status='WAITING',oi.BaristaId=NULL,oi.StartedAt=NULL "
                 + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "

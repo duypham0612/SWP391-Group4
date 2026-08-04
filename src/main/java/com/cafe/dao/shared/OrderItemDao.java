@@ -29,6 +29,9 @@ import java.util.List;
  */
 public class OrderItemDao {
 
+    /** Lượng món chưa trừ kho, dùng để giữ chỗ tồn khi nhận thêm đơn. */
+    public record StockCommitment(int orderItemId, int productId, int quantity) { }
+
     /**
      * Danh sách cột dùng chung cho mọi truy vấn đọc món, kể cả ở ba DAO chuyên biệt cùng package.
      * Để một bản duy nhất ở đây vì {@link #map} đọc đúng bộ cột này — tách đôi là kiểu gì cũng có
@@ -83,6 +86,30 @@ public class OrderItemDao {
             ps.setInt(1, orderId);
             return mapAll(ps);
         }
+    }
+
+    /**
+     * Các món đang chờ/đang pha/bị chặn chưa từng trừ tồn. Remake đã giữ tồn từ trước nên loại ra
+     * để không tính hai lần. Caller phải khóa các dòng tồn liên quan trước khi gọi để lần đọc này
+     * và lần insert đơn mới tạo thành một thao tác giữ chỗ nguyên tử.
+     */
+    public List<StockCommitment> findOutstandingStockCommitments(Connection conn, int branchId)
+            throws SQLException {
+        final String sql = "SELECT oi.OrderItemId,oi.ProductId,oi.Quantity "
+                + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
+                + "WHERE o.BranchId=? AND o.Status='ACTIVE' "
+                + "AND oi.Status IN ('WAITING','MAKING','BLOCKED') AND oi.RemakeInventoryReserved=0";
+        List<StockCommitment> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, branchId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new StockCommitment(rs.getInt("OrderItemId"), rs.getInt("ProductId"),
+                            rs.getInt("Quantity")));
+                }
+            }
+        }
+        return out;
     }
 
     /** READY → PICKED_UP: nhân viên nhận món khỏi quầy để mang ra cho khách. */

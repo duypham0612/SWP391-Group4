@@ -9,7 +9,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
 
-/** Truy vấn metadata event đã được lặp trực tiếp trên inventory.WasteEntry. */
+/** Queries for event metadata, implemented directly against inventory.WasteEntry. */
 public class WasteEventDao {
     public record EventMetrics(int myRemakes, int myIngredientWastes, int branchRemakes) { }
 

@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/** B4 · PrepService — pha sẵn (RAW→PREPPED qua InventoryService.createPrepBatch, Contract #2). */
+/** B4 · PrepService — prep-ahead (RAW→PREPPED via InventoryService.createPrepBatch, Contract #2). */
 public class PrepService {
 
     private final InventoryService inventoryService;
@@ -37,7 +37,7 @@ public class PrepService {
         return inventoryService.getExpiredActivePrepBatches(branchId);
     }
 
-    /** Checklist "cần pha hôm nay": PREPPED tồn ≤ ngưỡng. */
+    /** "Needs prepping today" checklist: PREPPED stock ≤ threshold. */
     public List<PrepChecklistRow> getPrepChecklist(int branchId) throws SQLException {
         return inventoryService.getPrepChecklist(branchId);
     }
@@ -49,11 +49,11 @@ public class PrepService {
     }
 
     /**
-     * Loại bỏ phần pha sẵn quá hạn theo đúng lượng hệ thống gợi ý: ghi hao hụt + đóng vòng đời mẻ
-     * trong một transaction. Trả về WasteEntryId.
+     * Discards the expired prep-ahead portion using exactly the system-suggested quantity: records
+     * the waste + closes out the batch lifecycle in a single transaction. Returns the WasteEntryId.
      *
-     * <p>Lượng loại bỏ lấy từ chính mẻ đang còn hạn-quá chứ không nhận từ client — barista chỉ bấm
-     * xác nhận, không nhập số, nên không có đường ghi khống.
+     * <p>The discarded quantity is taken from the still-expired batch itself, not from the client —
+     * the barista only clicks confirm and never enters a number, so there's no way to fake it.
      */
     public long writeOffExpiredBatchSuggested(int branchId, int prepBatchId, int userId) throws SQLException {
         for (PrepBatch batch : inventoryService.getExpiredActivePrepBatches(branchId)) {
@@ -71,8 +71,8 @@ public class PrepService {
     }
 
     /**
-     * JSON công thức cho preview phía client: {preppedId:[{n:rawName,u:unit,q:qty,y:yield}]}.
-     * Dùng để hiển thị "sẽ trừ bao nhiêu RAW" khi barista nhập sản lượng.
+     * Recipe JSON for the client-side preview: {preppedId:[{n:rawName,u:unit,q:qty,y:yield}]}.
+     * Used to show "how much RAW will be deducted" as the barista enters the output quantity.
      */
     public String getRecipeJson(List<Ingredient> preppedIngredients) throws SQLException {
         List<Integer> ids = new ArrayList<>();
@@ -107,7 +107,7 @@ public class PrepService {
         return sb.append('}').toString();
     }
 
-    /** Tồn RAW hiện tại của chi nhánh cho preview/cảnh báo client: {rawId: onHand}. */
+    /** Branch's current RAW stock on hand for client-side preview/warnings: {rawId: onHand}. */
     public String getRawOnHandJson(int branchId) throws SQLException {
         StringBuilder sb = new StringBuilder("{");
         boolean first = true;
@@ -122,13 +122,14 @@ public class PrepService {
     }
 
     /**
-     * Escape cho chuỗi JSON được nhúng THẲNG vào {@code <script>} của {@code prep.jsp}
+     * Escaping for a JSON string embedded DIRECTLY into the {@code <script>} of {@code prep.jsp}
      * ({@code var recipes = ${recipeJson};}).
      *
-     * <p>CỐ Ý tự viết chứ không dùng Jackson: ngoài ký tự JSON bắt buộc, hàm này còn đổi
-     * {@code < > & '} thành {@code \\uXXXX} — nếu không, một tên nguyên liệu chứa
-     * {@code </script>} sẽ đóng sớm thẻ script và biến dữ liệu thành mã chạy được.
-     * Jackson mặc định KHÔNG escape mấy ký tự đó, nên thay bằng Jackson là hạ cấp bảo mật.
+     * <p>DELIBERATELY hand-rolled instead of using Jackson: besides the required JSON characters,
+     * this function also converts {@code < > & '} to {@code \\uXXXX} — otherwise an ingredient
+     * name containing {@code </script>} would close the script tag early and turn data into
+     * executable code. Jackson does NOT escape those characters by default, so swapping in
+     * Jackson here would be a security downgrade.
      */
     private static String esc(String s) {
         return s == null ? "" : s.replace("\\", "\\\\").replace("\"", "\\\"")

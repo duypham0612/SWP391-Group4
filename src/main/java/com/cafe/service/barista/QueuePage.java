@@ -6,11 +6,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Một trang của hàng chờ quầy pha — thuần phép cắt danh sách, không truy vấn lại DB.
+ * One page of the barista counter queue — a pure list slice, no re-querying the DB.
  *
- * <p>Dựng qua {@link KdsService#paginate(List, int, int)} trên danh sách ĐÃ sắp thứ tự pha và ĐÃ
- * đánh số thứ tự, nên số hiện trên mỗi dòng là vị trí thật trong cả hàng chờ chứ không bị đánh lại
- * theo từng trang.
+ * <p>Built via {@link KdsService#paginate(List, int, int)} over a list that is ALREADY ordered
+ * for making and ALREADY numbered, so the number shown on each row is its real position in the
+ * whole queue rather than being renumbered per page.
  */
 public class QueuePage {
 
@@ -21,7 +21,7 @@ public class QueuePage {
     private final int totalPages;
     private final int startRow;
 
-    /** Số trang ngoài phạm vi được kéo về biên: sau mỗi thao tác hàng chờ ngắn đi, trang đang xem có thể không còn. */
+    /** A page number outside range is clamped to the boundary: after any action shortens the queue, the page being viewed may no longer exist. */
     QueuePage(List<OrderItem> all, int page, int pageSize) {
         this.total = all.size();
         this.pageSize = Math.max(1, pageSize);
@@ -35,12 +35,14 @@ public class QueuePage {
     }
 
     /**
-     * Cắt trang theo KHỐI ĐƠN: các dòng liền nhau cùng một đơn không bao giờ bị tách sang hai
-     * trang — pha hết trang 1 mà đơn còn hai ly ở trang 2 là cách chắc chắn nhất để giao thiếu.
+     * Splits into pages by ORDER BLOCK: consecutive rows belonging to the same order are never
+     * split across two pages — finishing page 1 while the order still has two cups on page 2 is
+     * the surest way to under-deliver an order.
      *
-     * <p>Trang nhận trọn khối chừng nào chưa đạt {@code pageSize}, nên trang có thể dài hơn
-     * mức chuẩn đúng bằng phần dôi của khối cuối (khung hàng chờ vốn đã cuộn được). Trang rỗng
-     * luôn nhận khối, kể cả khối lớn hơn cả trang — nếu không vòng lặp không bao giờ tiến.
+     * <p>A page keeps taking whole blocks as long as it hasn't reached {@code pageSize}, so a
+     * page can end up longer than the standard size by exactly the overflow of its last block
+     * (the queue panel already scrolls anyway). An empty page always takes a block, even one
+     * bigger than the page itself — otherwise the loop would never advance.
      */
     private static List<List<OrderItem>> splitPages(List<OrderItem> all, int pageSize) {
         List<List<OrderItem>> pages = new ArrayList<>();
@@ -70,7 +72,7 @@ public class QueuePage {
     public int getStartRow() { return startRow; }
     public int getEndRow() { return total == 0 ? 0 : startRow + items.size() - 1; }
 
-    /** Tối đa 5 số trang quanh trang hiện tại để pager không phình khi hàng chờ dài. */
+    /** At most 5 page numbers around the current page so the pager doesn't balloon when the queue is long. */
     public List<Integer> getVisiblePages() {
         List<Integer> pages = new ArrayList<>();
         int start = Math.max(1, page - 2);

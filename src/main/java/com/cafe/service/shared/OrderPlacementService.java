@@ -1,6 +1,7 @@
 package com.cafe.service.shared;
 
 import com.cafe.dao.cashier.DiningTableDao;
+import com.cafe.dao.shared.BranchInventoryDao;
 import com.cafe.common.*;
 import com.cafe.model.*;
 
@@ -12,8 +13,13 @@ import java.util.*;
 /** Đặt đơn COUNTER/QR và chốt snapshot giá, tên, modifier trong một transaction. */
 public final class OrderPlacementService {
     private final OrderRepository repository;
-    public OrderPlacementService() { this(new OrderRepository()); }
-    OrderPlacementService(OrderRepository repository) { this.repository = Objects.requireNonNull(repository); }
+    private final BranchInventoryDao inventoryDao;
+    public OrderPlacementService() { this(new OrderRepository(), new BranchInventoryDao()); }
+    OrderPlacementService(OrderRepository repository) { this(repository, new BranchInventoryDao()); }
+    OrderPlacementService(OrderRepository repository, BranchInventoryDao inventoryDao) {
+        this.repository = Objects.requireNonNull(repository);
+        this.inventoryDao = Objects.requireNonNull(inventoryDao);
+    }
 
     /**
      * Đặt đơn (COUNTER hoặc QR) — tạo Order + OrderItem(WAITING) + OrderItemModifier, publish order.created.
@@ -56,23 +62,12 @@ public final class OrderPlacementService {
                 Map<Integer, ProductStockStatus> stockByProduct =
                         repository.productRecipeDao.findProductStockStatuses(conn, branchId);
 
-                Order o = new Order();
-                o.setBranchId(branchId);
-                o.setDiningTableId(tableId);
-                o.setSource(source);
-                o.setOrderType(orderType == null ? "DINE_IN" : orderType);
-                o.setStatus("ACTIVE");
-                o.setCreatedBy(createdBy);
-                com.cafe.model.Branch branch = repository.branchDao.findById(conn, branchId);
-                java.time.LocalDate businessDate = com.cafe.common.BusinessDay.businessDate(
-                        branch == null ? null : branch.getOpenTime());
-                int pickupSequence = repository.orderDao.reservePickupSequence(conn, branchId, businessDate);
-                o.setBusinessDate(businessDate);
-                o.setPickupCode(pickupPrefix(o.getSource(), o.getOrderType()) + pickupSequence);
-                int orderId = repository.orderDao.insert(conn, o);
-
+                List<PreparedLine> preparedLines = new ArrayList<>();
+                Map<Integer, BigDecimal> requiredByIngredient = new LinkedHashMap<>();
+                Map<Integer, String> ingredientNameById = new HashMap<>();
+                Map<Integer, String> ingredientUnitById = new HashMap<>();
+                Map<Integer, Integer> productByIngredient = new HashMap<>();
                 for (CartLine line : lines) {
-                    if (line.quantity <= 0) continue;
                     BigDecimal base = priceByProduct.get(line.productId);
                     // Chưa có trong menu chi nhánh (hoặc product không còn active) — lỗi phía client gửi lên,
                     // ném IllegalArgumentException để PosServlet/QrMenuServlet trả 400 kèm lời nhắn, không phải 500.
@@ -113,20 +108,109 @@ public final class OrderPlacementService {
                         nameByOption.put(optId, opt.getName());
                     }
 
+                    List<Recipe> recipe = repository.productRecipeDao.findByProduct(conn, line.productId);
+                    List<Recipe> impacts = new ArrayList<>();
+                    for (Integer optId : optionIds) {
+                        impacts.addAll(repository.productRecipeDao.findByOption(conn, optId));
+                    }
+                    for (Recipe ingredient : recipe) {
+                        ingredientNameById.put(ingredient.getIngredientId(), ingredient.getIngredientName());
+                        ingredientUnitById.put(ingredient.getIngredientId(), ingredient.getIngredientUnit());
+                    }
+                    for (Recipe ingredient : impacts) {
+                        ingredientNameById.put(ingredient.getIngredientId(), ingredient.getIngredientName());
+                        ingredientUnitById.put(ingredient.getIngredientId(), ingredient.getIngredientUnit());
+                    }
+                    for (Map.Entry<Integer, BigDecimal> requirement
+                            : DeductionCalculator.computeRequired(recipe, impacts, line.quantity).entrySet()) {
+                        requiredByIngredient.merge(requirement.getKey(), requirement.getValue(), BigDecimal::add);
+                        productByIngredient.put(requirement.getKey(), line.productId);
+                    }
+                    preparedLines.add(new PreparedLine(line, base, nameByProduct.get(line.productId), optionIds,
+                            deltaByOption, nameByOption));
+                }
+
+                // Khóa theo IngredientId cố định, đồng thời tính cả món đã nhận nhưng chưa hoàn thành,
+                // để không nhận vượt số lượng có thể phục vụ. Việc ghi trừ tồn vẫn ở bước Barista hoàn thành.
+                Map<Integer, BigDecimal> onHandByIngredient = new HashMap<>();
+                for (Integer ingredientId : new TreeSet<>(requiredByIngredient.keySet())) {
+                    onHandByIngredient.put(ingredientId,
+                            inventoryDao.findQtyOnHandForUpdate(conn, branchId, ingredientId));
+                }
+                // Đặt lock trước khi đọc commitments để request thứ hai chỉ đọc sau khi request thứ nhất
+                // đã insert đơn. Vì thế tồn còn lại không thể bị hai request cùng sử dụng.
+                Map<Integer, BigDecimal> committedByIngredient = new HashMap<>();
+                for (com.cafe.dao.shared.OrderItemDao.StockCommitment commitment
+                        : repository.itemDao.findOutstandingStockCommitments(conn, branchId)) {
+                    List<Recipe> committedRecipe = repository.productRecipeDao.findByProduct(conn,
+                            commitment.productId());
+                    List<Recipe> committedImpacts = new ArrayList<>();
+                    for (Integer optionId : repository.oimDao.findOptionIds(conn, commitment.orderItemId())) {
+                        committedImpacts.addAll(repository.productRecipeDao.findByOption(conn, optionId));
+                    }
+                    for (Map.Entry<Integer, BigDecimal> commitmentRequirement
+                            : DeductionCalculator.computeRequired(committedRecipe, committedImpacts,
+                                    commitment.quantity()).entrySet()) {
+                        if (onHandByIngredient.containsKey(commitmentRequirement.getKey())) {
+                            committedByIngredient.merge(commitmentRequirement.getKey(),
+                                    commitmentRequirement.getValue(), BigDecimal::add);
+                        }
+                    }
+                }
+                for (Map.Entry<Integer, BigDecimal> commitment : committedByIngredient.entrySet()) {
+                    onHandByIngredient.merge(commitment.getKey(), commitment.getValue().negate(), BigDecimal::add);
+                }
+                List<OrderStockValidator.Shortfall> shortfalls =
+                        OrderStockValidator.findShortfalls(requiredByIngredient, onHandByIngredient);
+                if (!shortfalls.isEmpty()) {
+                    OrderStockValidator.Shortfall first = shortfalls.get(0);
+                    int productId = productByIngredient.getOrDefault(first.ingredientId(), 0);
+                    String productName = nameByProduct.getOrDefault(productId, "Món trong đơn");
+                    List<String> details = new ArrayList<>();
+                    for (OrderStockValidator.Shortfall shortfall : shortfalls) {
+                        String ingredientName = ingredientNameById.getOrDefault(shortfall.ingredientId(),
+                                "Nguyên liệu #" + shortfall.ingredientId());
+                        String unit = ingredientUnitById.getOrDefault(shortfall.ingredientId(), "");
+                        details.add(ingredientName + ": cần " + QuantityFormat.plain(shortfall.required())
+                                + " / còn " + QuantityFormat.plain(shortfall.onHand())
+                                + (unit.isBlank() ? "" : " " + unit));
+                    }
+                    throw new ItemUnavailableException(productId, productName, "INSUFFICIENT_STOCK",
+                            "Không đủ tồn kho để đặt đơn: " + String.join("; ", details) + ".");
+                }
+
+                Order o = new Order();
+                o.setBranchId(branchId);
+                o.setDiningTableId(tableId);
+                o.setSource(source);
+                o.setOrderType(orderType == null ? "DINE_IN" : orderType);
+                o.setStatus("ACTIVE");
+                o.setCreatedBy(createdBy);
+                com.cafe.model.Branch branch = repository.branchDao.findById(conn, branchId);
+                java.time.LocalDate businessDate = com.cafe.common.BusinessDay.businessDate(
+                        branch == null ? null : branch.getOpenTime());
+                int pickupSequence = repository.orderDao.reservePickupSequence(conn, branchId, businessDate);
+                o.setBusinessDate(businessDate);
+                o.setPickupCode(pickupPrefix(o.getSource(), o.getOrderType()) + pickupSequence);
+                int orderId = repository.orderDao.insert(conn, o);
+
+                for (PreparedLine prepared : preparedLines) {
+                    CartLine line = prepared.line();
+
                     OrderItem it = new OrderItem();
                     it.setOrderId(orderId);
                     it.setProductId(line.productId);
                     it.setQuantity(line.quantity);
-                    it.setUnitPrice(base);
+                    it.setUnitPrice(prepared.basePrice());
                     it.setNote(line.note);
                     it.setStatus("WAITING");
-                    it.setProductNameAtOrder(nameByProduct.get(line.productId));
+                    it.setProductNameAtOrder(prepared.productName());
                     int itemId = repository.itemDao.insert(conn, it);
 
-                    for (Integer optId : optionIds) {
+                    for (Integer optId : prepared.optionIds()) {
                         repository.oimDao.insert(conn, itemId, optId,
-                                deltaByOption.getOrDefault(optId, BigDecimal.ZERO),
-                                nameByOption.get(optId));
+                                prepared.deltaByOption().getOrDefault(optId, BigDecimal.ZERO),
+                                prepared.nameByOption().get(optId));
                     }
                 }
 
@@ -146,6 +230,10 @@ public final class OrderPlacementService {
                 ? "nguyên liệu chưa xác định"
                 : String.join(", ", stock.getOutIngredients());
     }
+
+    private record PreparedLine(CartLine line, BigDecimal basePrice, String productName,
+                                List<Integer> optionIds, Map<Integer, BigDecimal> deltaByOption,
+                                Map<Integer, String> nameByOption) { }
 
     private List<Integer> validateOptions(Connection conn, int productId, List<Integer> optionIds) throws SQLException {
         List<Integer> selected = optionIds == null ? List.of() : optionIds;

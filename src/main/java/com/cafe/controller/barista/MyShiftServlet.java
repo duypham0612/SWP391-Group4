@@ -22,7 +22,7 @@ import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 
-/** B7 · MyShiftServlet -> /barista/shift. Chấm công vào/tan ca + bảng công tháng của chính barista. */
+/** B7 · MyShiftServlet -> /barista/shift. Clock in/out + the barista's own monthly attendance table. */
 @WebServlet("/barista/shift")
 public class MyShiftServlet extends HttpServlet {
 
@@ -48,7 +48,7 @@ public class MyShiftServlet extends HttpServlet {
         try {
             shiftSupport.expose(req, PATH);
             if (u != null) {
-                // Tổng hợp tháng đọc cả tháng; bảng lịch sử chỉ lấy đúng trang đang xem từ DB.
+                // Monthly summary reads the whole month; the history table only fetches the currently viewed page from DB.
                 List<MonthlyAttendanceRow> monthRows =
                         attendanceService.getMyMonthlyHistory(u.getUserId(), branchId, ym);
                 req.setAttribute("hasMonthRows", !monthRows.isEmpty());
@@ -81,7 +81,7 @@ public class MyShiftServlet extends HttpServlet {
         resp.sendRedirect(req.getContextPath() + (redirect == null ? PATH : redirect));
     }
 
-    /** Tháng từ URL; rác hoặc rỗng -> tháng hiện tại. Không để 500 vì người dùng sửa URL. */
+    /** Month from the URL; garbage or blank -> current month. Must not 500 just because the user edited the URL. */
     private static YearMonth parseMonth(String s) {
         try {
             return s == null || s.isBlank() ? YearMonth.now(BusinessDay.VN_ZONE) : YearMonth.parse(s);
@@ -91,8 +91,8 @@ public class MyShiftServlet extends HttpServlet {
     }
 
     /**
-     * Bộ lọc trạng thái chỉ nhận đúng các mục có trên giao diện; giá trị lạ coi như "Tất cả".
-     * ABSENT/OPEN là trạng thái suy ra từ mốc chấm công, không chỉ từ AttendanceStatus.
+     * The status filter only accepts values present in the UI; unrecognized values are treated as "All".
+     * ABSENT/OPEN are statuses inferred from clock-in/out timestamps, not derived from AttendanceStatus alone.
      */
     private static String stateParam(HttpServletRequest req) {
         return RequestParams.allowed(req, "state", "APPROVED", "PENDING", "REJECTED", "OPEN", "ABSENT");
@@ -102,7 +102,7 @@ public class MyShiftServlet extends HttpServlet {
         return normalizePageSize(RequestParams.positiveInt(req, "pageSize", 10));
     }
 
-    /** Chỉ nhận đúng các mức có trên giao diện; giá trị lạ (kể cả rất lớn) rơi về mặc định. */
+    /** Only accepts the values present in the UI; unrecognized values (even very large ones) fall back to the default. */
     static int normalizePageSize(int value) {
         return value == 5 || value == 20 || value == 50 ? value : 10;
     }

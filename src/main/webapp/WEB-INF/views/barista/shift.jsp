@@ -25,7 +25,7 @@
     <div class="page-header" style="margin-top:var(--s6)">
         <div><h2 style="margin:0">Giờ làm tháng ${month}</h2><p>Lịch đi làm và giờ công đã ghi nhận</p></div>
         <div style="display:flex;gap:8px;align-items:center">
-            <%-- Đổi tháng giữ nguyên từ khoá + bộ lọc, chỉ về trang 1 vì số dòng mỗi tháng khác nhau. --%>
+            <%-- Changing month keeps the search term + filters, and only resets to page 1 since row counts differ by month. --%>
             <c:url var="prevMonthUrl" value="/barista/shift">
                 <c:param name="month" value="${prevMonth}" /><c:param name="q" value="${historyQuery}" />
                 <c:param name="state" value="${historyState}" /><c:param name="pageSize" value="${historyPage.pageSize}" />
@@ -72,7 +72,7 @@
             <div class="card empty-state"><div class="icon">∅</div><p>Tháng này bạn chưa được xếp ca nào.</p></div>
         </c:when>
         <c:otherwise>
-            <%-- Tìm kiếm, lọc và phân trang đều chạy ở server: form GET tự gửi lại khi gõ/đổi lựa chọn. --%>
+            <%-- Search, filtering, and pagination all run server-side: the GET form resubmits itself when you type or change a selection. --%>
             <form id="shiftHistoryFilters" class="table-toolbar" action="${ctx}/barista/shift" method="get">
                 <input type="hidden" name="month" value="${month}">
                 <input type="hidden" name="page" value="1">

@@ -107,8 +107,8 @@
                             </c:url>
                             <a class="page" href="${prevUrl}">Trước</a>
                         </c:if>
-                        <%-- 5 món/trang nên số trang có thể lên hàng chục: chỉ hiện cửa sổ 5 số
-                             quanh trang hiện tại, hai đầu đã có nút Trước/Sau. --%>
+                        <%-- 5 items/page means the page count can run into the tens: only show a window of 5
+                             numbers around the current page; Previous/Next buttons already cover both ends. --%>
                         <c:set var="winStart" value="${page - 2 lt 1 ? 1 : page - 2}" />
                         <c:set var="winStart" value="${winStart + 4 gt totalPages ? (totalPages - 4 lt 1 ? 1 : totalPages - 4) : winStart}" />
                         <c:set var="winEnd" value="${winStart + 4 gt totalPages ? totalPages : winStart + 4}" />
@@ -260,14 +260,14 @@
                             <div class="recipe-table-wrap"><table class="table recipe-impact-table recipe-stack-table">
                                 <thead><tr><th>Nhóm</th><th>Tuỳ chọn</th><th>Nguyên liệu</th><th style="width:130px">Thay đổi</th></tr></thead>
                                 <tbody>
-                                    <%-- Kẻ đậm giữa các nhóm để 8 dòng đọc thành 3 cụm Size / Đường / Đá. --%>
+                                    <%-- Bold divider between groups so the 8 rows read as 3 clusters: Size / Sugar / Ice. --%>
                                     <c:set var="prevGroup" value="" />
                                     <c:forEach var="im" items="${impacts}">
                                         <tr <c:if test="${not empty prevGroup and im.groupName ne prevGroup}">class="is-group-start"</c:if>>
                                             <td data-label="Nhóm"><c:out value="${im.groupName}"/></td>
                                             <td data-label="Tuỳ chọn"><c:out value="${im.optionName}"/></td>
-                                            <%-- Bọc trong 1 span để ở chế độ thẻ (mobile) tên và dấu * không bị
-                                                 tách thành 2 flex item riêng, tránh khoảng hở giữa chúng. --%>
+                                            <%-- Wrap in a single span so that in card mode (mobile) the name and the * mark don't
+                                                 get split into 2 separate flex items, which would leave a gap between them. --%>
                                             <td data-label="Nguyên liệu"><span><c:out value="${im.ingredientName}"/><c:if test="${not im.inBaseRecipe}"><sup
                                                 class="recipe-extra-mark" title="Không có trong định mức chuẩn của món">*</sup></c:if></span></td>
                                             <td class="recipe-impact-delta" data-label="Thay đổi"><strong><c:out

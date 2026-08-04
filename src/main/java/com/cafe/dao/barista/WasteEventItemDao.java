@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-/** DAO inventory.WasteEntry; tên class được giữ để tránh đổi kiến trúc ngoài cụm inventory. */
+/** DAO for inventory.WasteEntry; the class name is kept to avoid an architectural change outside the inventory cluster. */
 public class WasteEventItemDao {
     public long insert(Connection conn, WasteEvent event, int ingredientId, BigDecimal quantity,
                        String wasteType, String reason, int loggedBy,

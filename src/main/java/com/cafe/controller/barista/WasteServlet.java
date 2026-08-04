@@ -29,8 +29,8 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * B5 · WasteServlet → /barista/waste. Màn báo hao hụt NGUYÊN LIỆU của quầy: ghi/sửa/huỷ qua ledger.
- * Hao hụt do làm lại món không thuộc màn này — KDS ghi tự động và Quản lý đối soát ở báo cáo hao hụt.
+ * B5 · WasteServlet → /barista/waste. The counter's INGREDIENT waste-reporting screen: log/edit/void via the ledger.
+ * Waste from remaking items is out of scope here — KDS logs it automatically and Manager reconciles it in the waste report.
  */
 @WebServlet("/barista/waste")
 public class WasteServlet extends HttpServlet {
@@ -71,14 +71,14 @@ public class WasteServlet extends HttpServlet {
             resp.sendRedirect(req.getContextPath() + "/barista/waste");
             return;
         }
-        if (shiftSupport.guardWrite(req, resp, "/barista/waste")) return;   // ngoài ca → chặn ghi
+        if (shiftSupport.guardWrite(req, resp, "/barista/waste")) return;   // off-shift → block writes
         String editId = null;
 
         try {
             if ("createIngredientWaste".equals(action)) {
                 WasteBatchForm form = WasteBatchForm.from(req);
-                // Một vòng duyệt dựng cả hai dạng: WasteRowForm để vẽ lại form khi có lỗi,
-                // WasteLineInput để đẩy xuống Service.
+                // One pass builds both shapes: WasteRowForm to re-render the form on error,
+                // WasteLineInput to pass down to the Service.
                 List<WasteRowForm> submitted = new ArrayList<>(form.lines().size());
                 List<WasteService.WasteLineInput> lines = new ArrayList<>(form.lines().size());
                 for (WasteBatchForm.Line row : form.lines()) {
@@ -108,7 +108,7 @@ public class WasteServlet extends HttpServlet {
             } else {
                 throw new BusinessException("Thao tác không hợp lệ.");
             }
-            // Dòng vừa ghi nằm trên cùng (LoggedAt DESC) nên về trang 1 mới thấy; sửa/huỷ thì giữ nguyên trang.
+            // A newly logged row sits at the top (LoggedAt DESC), so only going to page 1 shows it; edit/void keeps the current page.
             resp.sendRedirect(selfUrlKeepingFilters(req, "createIngredientWaste".equals(action) ? 1 : null));
         } catch (BusinessException | FormBindingException e) {
             req.setAttribute("flashError", e.getMessage());
@@ -120,7 +120,7 @@ public class WasteServlet extends HttpServlet {
             req.setAttribute("flashError", e.getMessage());
             forwardAfterError(req, resp, branchId, userId, editId);
         } catch (Exception e) {
-            // Hạ tầng lỗi thì redirect an toàn; không forward lại để tránh truy vấn DB hỏng lần thứ hai.
+            // On an infrastructure error, redirect safely; don't forward again to avoid a second broken DB query.
             req.getSession().setAttribute("flashError", "Không thể cập nhật hao hụt lúc này. Vui lòng thử lại.");
             resp.sendRedirect(selfUrlKeepingFilters(req, null));
         }
@@ -144,7 +144,7 @@ public class WasteServlet extends HttpServlet {
         int logPageSize = pageSizeParam(req);
         int requestedLogPage = RequestParams.positiveInt(req, "page", 1);
 
-        // Tổng quan giữ nguyên toàn bộ phạm vi; bảng nhật ký thì chỉ lấy đúng trang từ DB.
+        // The overview keeps the full scope; the log table only fetches the current page from DB.
         List<WasteEventItem> scopedLogs = service.getWasteLogs(branchId, scope);
         InventoryService.WasteLogPage wasteLogPage = service.getWasteLogPage(branchId, scope,
                 logQuery, logWasteType, logStatus, requestedLogPage, logPageSize);
@@ -158,7 +158,7 @@ public class WasteServlet extends HttpServlet {
         req.setAttribute("summary", service.summarize(scopedLogs));
         req.setAttribute("pageTitle", "Hao hụt nguyên liệu");
         req.setAttribute("currentUserId", userId);
-        shiftSupport.expose(req, "/barista/waste");   // trực ca: banner + khoá thao tác
+        shiftSupport.expose(req, "/barista/waste");   // on-shift: banner + block writes
 
         if (req.getAttribute("submittedWasteRows") == null) {
             req.setAttribute("submittedWasteRows", List.of(new WasteRowForm("", "", "SPILL", "", "")));
@@ -197,7 +197,7 @@ public class WasteServlet extends HttpServlet {
                     String.valueOf(parsedIngredientId), parsedQty.stripTrailingZeros().toPlainString(),
                     "EXPIRED", "Hết hạn", "")));
         } catch (NumberFormatException ignored) {
-            // Tham số prefill nằm trên URL nên người dùng sửa được; giá trị rác thì rơi về form trống.
+            // The prefill params live in the URL, so a user can edit them; garbage values just fall back to an empty form.
         }
     }
 
@@ -222,30 +222,30 @@ public class WasteServlet extends HttpServlet {
         return RequestParams.isBlank(value);
     }
 
-    /** Nhật ký mặc định 5 dòng/trang cho dễ theo dõi tại quầy; barista chọn được 10/20/50 khi cần soát lại. */
+    /** The log defaults to 5 rows/page for easy tracking at the counter; barista can pick 10/20/50 when reviewing. */
     private static int pageSizeParam(HttpServletRequest req) {
         return normalizePageSize(RequestParams.positiveInt(req, "pageSize", 5));
     }
 
-    /** Chỉ nhận đúng các mức có trên giao diện; giá trị lạ (kể cả rất lớn) rơi về mặc định. */
+    /** Only accepts the values present in the UI; unrecognized values (even very large ones) fall back to the default. */
     static int normalizePageSize(int value) {
         return value == 10 || value == 20 || value == 50 ? value : 5;
     }
 
     /**
-     * Bộ lọc loại hao hụt của nhật ký đi bằng tên "logType", không dùng chung "wasteType" với form ghi:
-     * form ghi gửi nhiều giá trị wasteType (mỗi dòng một giá trị), lấy nhầm là nhật ký tự lọc sai.
+     * The log's waste-type filter travels under the name "logType", not shared with the log form's "wasteType":
+     * the log form submits multiple wasteType values (one per row), so reusing the name would filter the log incorrectly.
      *
-     * <p>Chỉ ba loại của hao hụt nguyên liệu; REMAKE không nằm trong phạm vi màn này nên có gõ tay
-     * vào URL cũng bị bỏ qua (rơi về "tất cả" của phần hao hụt nguyên liệu).
+     * <p>Only the three ingredient-waste types; REMAKE is out of scope for this screen, so even typing it
+     * into the URL by hand gets ignored (falls back to "all" for the ingredient-waste section).
      */
     private static String logTypeParam(HttpServletRequest req) {
         return RequestParams.allowed(req, "logType", "SPILL", "EXPIRED", "OTHER");
     }
 
     /**
-     * URL quay lại chính màn này kèm bộ lọc + trang nhật ký đang xem, dùng cho redirect sau POST (PRG).
-     * Không có nó thì ghi/sửa/huỷ xong là văng về trang 1 và mất hết điều kiện đang lọc.
+     * URL back to this same screen with the current filters + log page, used for the post-POST redirect (PRG).
+     * Without it, logging/editing/voiding would bounce back to page 1 and lose all active filter conditions.
      */
     private static String selfUrlKeepingFilters(HttpServletRequest req, Integer forcePage) {
         return buildSelfUrl(req.getContextPath(), RequestParams.text(req, "q", 100), logTypeParam(req),
@@ -253,7 +253,7 @@ public class WasteServlet extends HttpServlet {
                 forcePage != null ? forcePage : RequestParams.positiveInt(req, "page", 1));
     }
 
-    /** Phần thuần của {@link #selfUrlKeepingFilters} — tách ra để test được mà không cần dựng request. */
+    /** Pure part of {@link #selfUrlKeepingFilters} — factored out so it can be tested without building a request. */
     static String buildSelfUrl(String contextPath, String query, String logType, String status, int pageSize, int page) {
         StringBuilder qs = new StringBuilder();
         appendParam(qs, "q", query);

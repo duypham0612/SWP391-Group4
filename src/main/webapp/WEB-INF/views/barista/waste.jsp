@@ -32,7 +32,7 @@
 <jsp:include page="/WEB-INF/fragments/barista/shift-banner.jsp" />
 
 <div class="${onShift ? '' : 'is-viewonly'}">
-<%-- Bốn ô dưới đây tính cho trọn phạm vi đang xem, không đổi theo bộ lọc/phân trang của nhật ký. --%>
+<%-- The four tiles below are computed for the whole scope currently in view; they don't change with the log's filter/pagination. --%>
 <section class="waste-summary">
     <div class="card stat">
         <span class="label">${view.scopeLabel(scope.kind)}</span>
@@ -70,7 +70,7 @@
         <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
         <input type="hidden" name="clientRequestId" class="js-waste-request-id" value="${wasteClientRequestId}">
         <input type="hidden" name="action" value="createIngredientWaste">
-        <%-- Bộ lọc + trang nhật ký đang xem: ghi xong redirect (PRG) quay lại đúng chỗ, lỗi validate cũng giữ nguyên.
+        <%-- Filter + log page currently in view: after saving, the redirect (PRG) returns to the same spot, and validation errors preserve it too.
         --%>
         <input type="hidden" name="q" value="${fn:escapeXml(wasteLogQuery)}">
         <input type="hidden" name="logType" value="${wasteLogWasteType}">
@@ -215,10 +215,10 @@
         </form>
     </div>
 </c:if>
-</div><%-- /is-viewonly: hết phần ghi dữ liệu --%>
+</div><%-- /is-viewonly: end of the data-entry section --%>
 
-<%-- Nhật ký chỉ để đọc/tra cứu nên vẫn tìm và lật trang được khi ngoài ca;
-     riêng nút Sửa/Huỷ từng dòng vẫn bị khoá bên dưới. --%>
+<%-- The log is read-only/lookup, so search and pagination still work while off shift;
+     the Edit/Void buttons for each row remain locked below. --%>
 <h3 class="section-title">Nhật ký hao hụt · ${view.scopeLabel(scope.kind)}</h3>
 <div>
             <form id="wasteLogFilters" class="table-toolbar" action="${ctx}/barista/waste" method="get">
@@ -230,8 +230,8 @@
                 </div>
                 <div class="form-group">
                     <label for="wasteTypeFilter">Loại ghi nhận</label>
-                    <%-- Tên "logType" chứ không phải "wasteType": form ghi hao hụt bên trên đã dùng
-                         "wasteType" cho từng dòng, trùng tên là bộ lọc ăn nhầm giá trị của form. --%>
+                    <%-- Named "logType", not "wasteType": the waste-entry form above already uses
+                         "wasteType" for each row; reusing the name would let the filter pick up the form's value by mistake. --%>
                     <select id="wasteTypeFilter" name="logType" class="form-control tt-filter">
                         <option value="">Tất cả</option>
                         <option value="SPILL" ${wasteLogWasteType == 'SPILL' ? 'selected' : ''}>Đổ/rơi</option>
@@ -297,8 +297,8 @@
                                         <td>
                                             <div class="waste-actions ${onShift ? '' : 'is-viewonly'}">
                                                 <c:if test="${w.editable and w.loggedBy == currentUserId}">
-                                                    <%-- Mang theo bộ lọc + trang đang xem để sửa xong không bị văng
-                                                    về trang 1. --%>
+                                                    <%-- Carry the current filter + page along so that after editing you
+                                                    aren't bounced back to page 1. --%>
                                                     <c:url var="editWasteUrl" value="/barista/waste">
                                                         <c:param name="q" value="${wasteLogQuery}" /><c:param
                                                             name="logType" value="${wasteLogWasteType}" />
@@ -396,7 +396,7 @@
                     </div>
                 </c:if>
             </div>
-</div><%-- /nhật ký --%>
+</div><%-- /log --%>
 
 <script>
 (function(){

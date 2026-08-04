@@ -6,23 +6,25 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 /**
- * Sự cố của một dòng món: gắn cờ, chặn/bỏ chặn, và vòng làm lại.
+ * Issue handling for a single order item line: flagging, block/unblock, and remake cycle.
  *
- * <p>Ba mức độ, đọc từ nhẹ tới nặng và ĐỪNG lẫn vào nhau:
+ * <p>Three severity levels, read from lightest to heaviest and DO NOT mix them up:
  * <ul>
- *   <li>{@link #reportIssue} — chỉ gắn cờ, món GIỮ NGUYÊN trạng thái và vẫn nằm trong hàng chờ;</li>
- *   <li>{@link #blockItem} — món RỜI hàng chờ sang BLOCKED, nhả luôn người nhận, nên người khác
- *       không bấm "Nhận pha" rồi lại gặp đúng vấn đề đó;</li>
- *   <li>{@link #beginRemake} / {@link #finishRemake} — món đã pha xong nhưng phải pha lại từ đầu.</li>
+ *   <li>{@link #reportIssue} — only flags the item, its status STAYS THE SAME and it remains in
+ *       the queue;</li>
+ *   <li>{@link #blockItem} — the item LEAVES the queue for BLOCKED and releases its owner, so
+ *       someone else doesn't click "Take" and run into the exact same problem;</li>
+ *   <li>{@link #beginRemake} / {@link #finishRemake} — the item was already made but must be
+ *       remade from scratch.</li>
  * </ul>
  *
- * <p>REMAKE là trạng thái CHUYỂN TIẾP, chỉ tồn tại giữa {@code beginRemake} và {@code finishRemake}
- * trong cùng một giao dịch — giao dịch khác không bao giờ quan sát được nó. Nó ở đó để hai người
- * không cùng tạo một lượt làm lại.
+ * <p>REMAKE is a TRANSITIONAL state that only exists between {@code beginRemake} and
+ * {@code finishRemake} within the same transaction — other transactions never observe it. It
+ * exists so two people can't create the same remake at once.
  */
 public class OrderItemIssueDao {
 
-    /** Gắn cờ sự cố nhưng giữ trạng thái để card không biến mất khỏi người đang xử lý. */
+    /** Flags the issue but keeps the status so the card doesn't disappear from whoever is handling it. */
     public int reportIssue(Connection conn, int orderItemId, int branchId, int userId, String reason) throws SQLException {
         final String sql = "UPDATE oi SET oi.HasIssue=1,oi.IssueReason=?,oi.IssueReportedBy=?,oi.IssueReportedAt=SYSUTCDATETIME() "
                 + "FROM sales.OrderItem oi JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId "
@@ -36,9 +38,10 @@ public class OrderItemIssueDao {
     }
 
     /**
-     * WAITING/MAKING → BLOCKED: món không pha được (hết nguyên liệu, hỏng máy, ngừng bán).
-     * Nhả luôn người nhận + mốc bắt đầu vì món đã rời khỏi luồng pha; giữ lý do để hiện ở khu "Cần xử lý".
-     * Guard giống reportIssue: món đang pha thì chỉ chính chủ được chặn.
+     * WAITING/MAKING → BLOCKED: item cannot be made (out of ingredients, equipment broken, item
+     * discontinued). Releases the owner + start timestamp since the item left the making flow;
+     * keeps the reason so it shows in the "Needs attention" area.
+     * Same guard as reportIssue: if the item is being made, only its own owner can block it.
      */
     public int blockItem(Connection conn, int orderItemId, int branchId, int userId, String reason) throws SQLException {
         final String sql = "UPDATE oi SET oi.Status='BLOCKED',oi.HasIssue=1,oi.IssueReason=?,"
@@ -53,7 +56,7 @@ public class OrderItemIssueDao {
         }
     }
 
-    /** BLOCKED → WAITING: nguyên liệu/máy đã có lại, trả món về hàng chờ và xoá sạch cờ sự cố. */
+    /** BLOCKED → WAITING: ingredient/equipment is available again, return item to the queue and clear the issue flags. */
     public int unblockItem(Connection conn, int orderItemId, int branchId) throws SQLException {
         final String sql = "UPDATE oi SET oi.Status='WAITING',oi.HasIssue=0,oi.IssueReason=NULL,"
                 + "oi.IssueReportedBy=NULL,oi.IssueReportedAt=NULL "
@@ -65,7 +68,7 @@ public class OrderItemIssueDao {
         }
     }
 
-    /** Đếm các dòng món BLOCKED còn lại trong chi nhánh có dùng một trong các nguyên liệu vừa kiểm kê. */
+    /** Counts remaining BLOCKED item lines in the branch that use one of the ingredients just stocktaken. */
     public int countBlockedUsingIngredients(Connection conn, int branchId,
                                             java.util.Collection<Integer> ingredientIds) throws SQLException {
         if (ingredientIds == null || ingredientIds.isEmpty()) return 0;
@@ -86,7 +89,7 @@ public class OrderItemIssueDao {
         }
     }
 
-    /** READY → REMAKE là claim chuyển tiếp, chống hai người tạo remake trùng. */
+    /** READY → REMAKE is a transitional claim, prevents two people from creating a duplicate remake. */
     public int beginRemake(Connection conn, int orderItemId, int branchId) throws SQLException {
         final String sql = "UPDATE oi SET oi.Status='REMAKE' FROM sales.OrderItem oi "
                 + "JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId WHERE oi.OrderItemId=? AND o.BranchId=? AND oi.Status='READY'";
@@ -95,7 +98,7 @@ public class OrderItemIssueDao {
         }
     }
 
-    /** MAKING → REMAKE chỉ barista đang giữ món được báo pha lỗi/làm lại. */
+    /** MAKING → REMAKE only the barista currently holding the item can report it as wrong/needing a remake. */
     public int beginRemakeClaimed(Connection conn, int orderItemId, int branchId, int baristaId) throws SQLException {
         final String sql = "UPDATE oi SET oi.Status='REMAKE' FROM sales.OrderItem oi "
                 + "JOIN sales.SalesOrder o ON o.OrderId=oi.OrderId WHERE oi.OrderItemId=? AND o.BranchId=? AND oi.Status='MAKING' AND oi.BaristaId=?";
@@ -105,8 +108,9 @@ public class OrderItemIssueDao {
     }
 
     /**
-     * REMAKE → WAITING với ưu tiên làm lại. {@code inventoryReserved} quyết định lần bấm Xong kế
-     * tiếp có trừ kho nữa hay không — quy tắc ở {@link com.cafe.common.RemakeReservation}.
+     * REMAKE → WAITING with remake priority. {@code inventoryReserved} decides whether the next
+     * "Done" click deducts stock again or not — the rule lives in
+     * {@link com.cafe.common.RemakeReservation}.
      */
     public void finishRemake(Connection conn, int orderItemId, int branchId, boolean inventoryReserved)
             throws SQLException {

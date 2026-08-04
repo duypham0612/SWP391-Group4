@@ -27,10 +27,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-/**
- * Quầy pha chế: MỘT hàng chờ xếp theo thứ tự pha, kèm dải số liệu bốn trạng thái
- * (chờ pha · đang pha · sẵn sàng · cần xử lý). Không phải bảng ba cột kéo-thả.
- */
 @WebServlet("/barista/kds")
 public class KdsServlet extends HttpServlet {
 
@@ -54,12 +50,8 @@ public class KdsServlet extends HttpServlet {
             throws ServletException, IOException {
         int branchId = BranchContext.requireBranchId(req);
         try {
-            // Danh sách nguyên liệu của một món — nạp theo yêu cầu khi mở modal "Hết nguyên liệu",
-            // thay vì nhúng sẵn vào mọi card (60 card × N nguyên liệu sẽ phình DOM lúc đông khách).
             if ("recipe".equals(req.getParameter("partial"))) {
                 Integer productId = RequestParams.optionalInt(req, "productId");
-                // Thiếu/sai productId thì trả fragment rỗng để modal hiện lời nhắc,
-                // không để NumberFormatException đội lên thành trang lỗi 500.
                 req.setAttribute("recipeLines", productId == null
                         ? List.of() : service.getRecipeIngredients(productId));
                 req.getRequestDispatcher("/WEB-INF/fragments/barista/kds/ingredient-picker.jsp")
@@ -75,8 +67,6 @@ public class KdsServlet extends HttpServlet {
                 return;
             }
             loadBoard(req, branchId);
-            // Dropdown lý do dựng từ enum để mã + nhãn chỉ khai ở MỘT nơi; blockingCodes cho JS
-            // biết lý do nào cần hiện cảnh báo "món sẽ rời hàng chờ".
             req.setAttribute("issueReasons", IssueReason.selectableValues());
             req.setAttribute("remakeReasons", RemakeReason.selectableValues());
             req.setAttribute("blockingReasonCodes", IssueReason.blockingCodesCsv());
@@ -102,9 +92,6 @@ public class KdsServlet extends HttpServlet {
             rejectInvalidAction(req, resp, branchId);
             return;
         }
-        // Chấm công KHÔNG nhận ở màn này — banner ngoài ca chỉ trỏ sang "Ca làm của tôi".
-        // Ngoài ca thì chặn ghi, nhưng trả lời bằng ĐÚNG định dạng client đang chờ (fragment khi AJAX)
-        // thay vì redirect — xem BaristaShift.blockedOffShift.
         if (shiftSupport.blockedOffShift(req)) {
             if ("1".equals(req.getParameter("ajax"))) {
                 resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
@@ -119,16 +106,12 @@ public class KdsServlet extends HttpServlet {
         try {
             dispatch(action, req, userId, branchId, u);
         } catch (NumberFormatException e) {
-            // Bắt TRƯỚC IllegalArgumentException (là lớp cha): nếu không, message máy móc kiểu
-            // "For input string: ..." của intParam sẽ hiện thẳng lên banner của barista.
             req.getSession().setAttribute("flashError", "Dữ liệu món không hợp lệ. Vui lòng tải lại và thử lại.");
         } catch (IllegalArgumentException | BusinessException e) {
             req.getSession().setAttribute("flashError", e.getMessage());
         } catch (Exception e) {
             req.getSession().setAttribute("flashError", "Không thể cập nhật món lúc này. Vui lòng tải lại và thử lại.");
         }
-        // Vẽ lại bảng ở MỌI nhánh — thành công hay lỗi nghiệp vụ đều trả về đúng định dạng
-        // client đang chờ, nên chỉ gọi ở một chỗ duy nhất thay vì lặp trong từng khối catch.
         try {
             renderResult(req, resp, branchId);
         } catch (Exception e) {
@@ -136,47 +119,56 @@ public class KdsServlet extends HttpServlet {
         }
     }
 
-    /** Điều phối action đã qua allowlist tới đúng use case. Lỗi để {@link #doPost} bắt tập trung. */
     private void dispatch(String action, HttpServletRequest req, Integer userId, int branchId, User actor)
             throws Exception {
         switch (action) {
+            // EN: "Nhận pha" button on queue-row.jsp. Claims 1 item WAITING->MAKING. -> KdsService.startItem()
             case "start" -> {
                 if (!service.startItem(intParam(req, "orderItemId"), userId, branchId)) flashConflict(req);
             }
+            // EN: "Nhận pha cả đơn" button on queue-row.jsp. Claims all WAITING items of an order at once. -> startOrder() below
             case "startOrder" -> startOrder(req, userId, branchId);
+            // EN: "Xong cả đơn" button on queue-row.jsp. Completes all MY MAKING items of an order. -> markOrderReady() below
             case "markOrderReady" -> markOrderReady(req, userId, branchId);
+            // EN: "Xong" button on queue-row.jsp. Completes 1 item MAKING->READY + auto stock deduction. -> KdsService.markReady()
             case "markReady" -> {
                 if (!service.markReady(intParam(req, "orderItemId"), userId, branchId)) flashConflict(req);
             }
+            // EN: "Thu hồi món" button on queue-row.jsp. Rescues an item stuck under an off-shift owner. -> reclaim() below
             case "reclaim" -> reclaim(req, userId, branchId, actor);
+            // EN: "Trả lại chờ" button on queue-row.jsp. Owner voluntarily releases item MAKING->WAITING. -> KdsService.returnToQueue()
             case "returnQueue" -> {
                 if (!service.returnToQueue(intParam(req, "orderItemId"), userId, branchId)) flashConflict(req);
             }
+            // EN: "Báo sự cố" modal on kds.jsp (#issueModal). Reports a problem with 1 item. -> reportIssue() below
             case "reportIssue" -> reportIssue(req, userId, branchId);
+            // EN: "Trả về chờ pha" button/modal on queue-row.jsp / kds.jsp (#unblockModal). Clears BLOCKED->WAITING. -> unblock() below
             case "unblock" -> unblock(req, userId, branchId);
+            // EN: "Làm lại" modal on kds.jsp (#remakeModal). Redoes item, back to WAITING with priority. -> KdsService.remakeItem()
             case "remake" -> {
                 if (!service.remakeItem(intParam(req, "orderItemId"), remakeReason(req), userId, branchId))
                     flashConflict(req);
                 else flashOk(req, "Đã đưa món về hàng chờ với ưu tiên làm lại.");
             }
-            default -> { /* BaristaWritePolicy đã chặn trước, nhánh này không tới được. */ }
+            // EN: unreachable — BaristaWritePolicy already rejected unknown actions before dispatch() is called.
+            default -> { }
         }
     }
 
-    /** Cả đơn thường do một người pha trọn; gộp lại để khỏi bấm N lần trên N ly. */
+    // EN: Builds the flash message for a bulk claim; claimed==0 means every item was already taken. -> KdsService.startOrder()
     private void startOrder(HttpServletRequest req, Integer userId, int branchId) throws Exception {
         int claimed = service.startOrder(intParam(req, "orderId"), userId, branchId);
         if (claimed == 0) flashConflict(req);
         else flashOk(req, "Đã nhận pha " + claimed + " món của đơn này.");
     }
 
+    // EN: Builds the flash message for bulk complete; shows a warning when some items lack a recipe. -> KdsService.markOrderReady()
     private void markOrderReady(HttpServletRequest req, Integer userId, int branchId) throws Exception {
         KdsOrderWorkflowService.BulkReadyResult result =
                 service.markOrderReady(intParam(req, "orderId"), userId, branchId);
         if (result.getCompleted() == 0 && result.getSkippedNoRecipe() == 0) {
             flashConflict(req);
         } else if (result.getSkippedNoRecipe() > 0) {
-            // Nói rõ phần chưa xong và lối thoát — món thiếu công thức sẽ không bao giờ tự xong được.
             req.getSession().setAttribute("flashError", "Đã hoàn thành " + result.getCompleted()
                     + " món. Còn " + result.getSkippedNoRecipe()
                     + " món chưa có công thức — hãy bấm Báo sự cố cho từng món đó.");
@@ -185,10 +177,7 @@ public class KdsServlet extends HttpServlet {
         }
     }
 
-    /**
-     * Thu hồi món của người đã rời ca. Điều kiện "đã rời ca" kiểm lại ở SERVER, không tin nút hiện
-     * trên màn: bảng có thể đã cũ vài phút và chủ món vừa quay lại quầy.
-     */
+    // EN: Reads current on-duty barista IDs to pass to the service, which re-checks the off-shift condition. -> KdsService.reclaimItem()
     private void reclaim(HttpServletRequest req, Integer userId, int branchId, User actor) throws Exception {
         boolean done = service.reclaimItem(intParam(req, "orderItemId"), userId, branchId,
                 actor == null ? null : actor.getFullName(), attendance.getOnDutyUserIds(branchId));
@@ -196,28 +185,28 @@ public class KdsServlet extends HttpServlet {
         else flashOk(req, "Đã thu hồi món về hàng chờ — ai cũng nhận pha tiếp được.");
     }
 
-    /**
-     * Ba nhóm lý do có phạm vi ảnh hưởng khác nhau nên dẫn tới ba hành động khác nhau, thay vì
-     * cùng ghi một cờ như trước (khi đó báo sự cố không đổi hành vi hệ thống).
-     */
+    // EN: Reads reason code from the modal form, then routes to 1-of-3 issue-report use cases below.
     private void reportIssue(HttpServletRequest req, Integer userId, int branchId) throws Exception {
         IssueReason reason = IssueReason.fromCode(req.getParameter("reason"));
         int itemId = intParam(req, "orderItemId");
-        if (reason == IssueReason.OUT_OF_STOCK) {                     // Nhóm A: sửa sổ kho rồi chặn món
+        // EN: Out-of-stock case. Zeroes the chosen ingredients' stock AND blocks this item. -> KdsService.blockItemForDepletedIngredients()
+        if (reason == IssueReason.OUT_OF_STOCK) {
             if (!service.blockItemForDepletedIngredients(itemId, ingredientIds(req),
                     issueReason(req), userId, branchId)) flashConflict(req);
             else flashOk(req, "Đã ghi hết nguyên liệu vào sổ kho — các món dùng nguyên liệu này "
                     + "tự ẩn khỏi POS/QR, tự hiện lại khi có tồn.");
-        } else if (reason != null && reason.isBlocking()) {           // Nhóm B: chặn món
+        // EN: Other blocking reason (broken machine etc). Item leaves the queue, status becomes BLOCKED. -> KdsService.blockItem()
+        } else if (reason != null && reason.isBlocking()) {
             if (!service.blockItem(itemId, issueReason(req), userId, branchId)) flashConflict(req);
             else flashOk(req, "Đã chuyển món sang mục Cần xử lý.");
-        } else {                                                      // Nhóm C: chỉ gắn cờ cho Thu ngân
+        // EN: Non-blocking reason. Just flags a warning for cashier/manager, item keeps brewing. -> KdsService.reportIssue()
+        } else {
             if (!service.reportIssue(itemId, issueReason(req), userId, branchId)) flashConflict(req);
             else flashOk(req, "Đã báo sự cố cho Thu ngân/Quản lý. Món chưa bị hủy.");
         }
     }
 
-    /** Bỏ chặn món; kèm kiểm kê nhanh khi barista khai lại tồn thật cho nguyên liệu vừa có lại. */
+    // EN: Simple path if no recount param; otherwise parses ingredientId[]/actualQty[] for a stock recount. -> KdsService.unblockItem()
     private void unblock(HttpServletRequest req, Integer userId, int branchId) throws Exception {
         int itemId = intParam(req, "orderItemId");
         if (!"1".equals(req.getParameter("recount"))) {
@@ -254,7 +243,6 @@ public class KdsServlet extends HttpServlet {
         }
     }
 
-    /** KDS AJAX nhận JSON 400 để client hiện lỗi mà không gửi lại form lần thứ hai. */
     private void rejectInvalidAction(HttpServletRequest req, HttpServletResponse resp, int branchId)
             throws IOException {
         String message = BaristaWritePolicy.invalidActionMessage();
@@ -269,11 +257,6 @@ public class KdsServlet extends HttpServlet {
         resp.sendRedirect(req.getContextPath() + "/barista/kds");
     }
 
-    /**
-     * Nạp hàng chờ + dải số liệu. Thống kê chính đếm theo SỐ LY (khối lượng việc pha thật), kèm
-     * số đơn đang mở làm thông tin phụ. Hàng chờ cắt theo NGÀY KINH DOANH của chi nhánh nên món
-     * dang dở của ngày trước không lọt vào — để rác cũ không làm đỏ toàn bộ và lệch số trễ giờ.
-     */
     private void loadBoard(HttpServletRequest req, int branchId) throws Exception {
         User current = SessionUtil.currentUser(req);
         Integer currentUserId = current == null ? null : current.getUserId();
@@ -283,17 +266,14 @@ public class KdsServlet extends HttpServlet {
         req.setAttribute("board", service.loadBoard(branchId, query));
     }
 
-    /** Trang đang xem; thiếu/không phải số/nhỏ hơn 1 → trang đầu. Vượt trần thì QueuePage kéo về biên. */
     private static int pageParam(HttpServletRequest req) {
         return RequestParams.positiveInt(req, "page", 1);
     }
 
-    /** Món đã bị thao tác khác đổi trạng thái trước — báo cho barista biết bảng vừa được làm mới. */
     private static void flashConflict(HttpServletRequest req) {
         req.getSession().setAttribute("flashError", "Món vừa được cập nhật bởi thao tác khác — bảng đã làm mới.");
     }
 
-    /** Nguyên liệu barista tick là đã hết, lấy từ modal "Hết nguyên liệu". Bỏ qua giá trị rác. */
     private static List<Integer> ingredientIds(HttpServletRequest req) {
         String[] raw = req.getParameterValues("ingredientId");
         List<Integer> out = new ArrayList<>();
@@ -301,15 +281,11 @@ public class KdsServlet extends HttpServlet {
         for (String s : raw) {
             if (s == null || s.isBlank()) continue;
             try { out.add(Integer.valueOf(s.trim())); }
-            catch (NumberFormatException ignored) { /* tick hỏng → bỏ qua, Service sẽ báo nếu rỗng */ }
+            catch (NumberFormatException ignored) { }
         }
         return out;
     }
 
-    /**
-     * Chữ lý do sẽ ghi vào nhật ký món. Mã lạ → chuỗi rỗng (Service tự quyết có bắt buộc hay không),
-     * riêng OTHER thì lấy nguyên văn barista gõ tay.
-     */
     private static String issueReason(HttpServletRequest req) {
         IssueReason reason = IssueReason.fromCode(req.getParameter("reason"));
         if (reason == null) return "";

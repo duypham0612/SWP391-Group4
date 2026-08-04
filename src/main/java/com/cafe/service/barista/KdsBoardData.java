@@ -1,15 +1,17 @@
 package com.cafe.service.barista;
 
 /**
- * Dữ liệu một lần vẽ màn Quầy pha chế — chỉ đọc, dựng xong là đẩy thẳng ra JSP.
+ * Data for a single render of the Barista Counter screen — read-only, built once and pushed
+ * straight to the JSP.
  *
- * <p>Thống kê đếm theo SỐ LY ({@code *Count}) vì đó mới là khối lượng việc pha thật; số đơn đang mở
- * chỉ là thông tin phụ. Bốn con số trạng thái tính trên TOÀN hàng chờ, không phải trên trang đang
- * xem, nên đổi bộ lọc hay lật trang không làm chúng nhảy.
+ * <p>Stats are counted by CUP COUNT ({@code *Count}) since that's the real making workload; the
+ * open order count is just supplementary info. The four status counts are computed over the
+ * WHOLE queue, not just the page being viewed, so changing the filter or flipping pages doesn't
+ * make them jump around.
  *
- * <p>Cố ý KHÔNG chuyển sang {@code record}: dự án chạy Jakarta EE 9 (Servlet 5.0 / JSP 3.0) tức
- * EL 4.0, mà EL chỉ đọc được accessor kiểu record từ EL 6.0. Chuyển sang record là gãy toàn bộ
- * {@code ${board.waitingCount}} trong JSP.
+ * <p>Deliberately NOT converted to a {@code record}: the project runs on Jakarta EE 9 (Servlet
+ * 5.0 / JSP 3.0), i.e. EL 4.0, and EL only reads record-style accessors from EL 6.0 onward.
+ * Switching to a record would break every {@code ${board.waitingCount}} in the JSPs.
  */
 public final class KdsBoardData {
 

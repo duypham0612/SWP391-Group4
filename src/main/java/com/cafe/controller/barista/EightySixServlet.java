@@ -25,7 +25,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 
-/** B3 · EightySixServlet → /barista/eightysix. Bật/tắt hết món (khoá khỏi POS + QR). */
+/** B3 · EightySixServlet → /barista/eightysix. Toggles item availability (86'd = locked out of POS + QR). */
 @WebServlet("/barista/eightysix")
 public class EightySixServlet extends HttpServlet {
 
@@ -53,14 +53,14 @@ public class EightySixServlet extends HttpServlet {
             req.setAttribute("items", menuPage.getItems());
             req.setAttribute("filterQuery", query);
             req.setAttribute("filterState", state);
-            req.setAttribute("suggest86", service.getSuggested86(branchId));   // gợi ý 86 (soft): nguyên liệu đã cạn
+            req.setAttribute("suggest86", service.getSuggested86(branchId));   // suggested 86 (soft): ingredient is depleted
             req.setAttribute("openRequests", service.getOpenRequestsMap(branchId));
-            req.setAttribute("reasons", Reason86.selectableValues());   // chỉ nhóm "sự cố" — kho tự lo phần hết tồn
+            req.setAttribute("reasons", Reason86.selectableValues());   // "issue" group only — stock handles the out-of-inventory case itself
             LocalDateTime now = LocalDateTime.now();
             req.setAttribute("etaMin", now.plusMinutes(Constants.MENU86_ETA_MIN_MINUTES).format(HTML_DT));
             req.setAttribute("etaMax", now.plusDays(Constants.MENU86_ETA_MAX_DAYS).format(HTML_DT));
             req.setAttribute("pageTitle", "Báo hết món");
-            shiftSupport.expose(req, "/barista/eightysix");   // trực ca: banner + khoá thao tác khi ngoài ca
+            shiftSupport.expose(req, "/barista/eightysix");   // on-shift: banner + block writes when off-shift
             req.getRequestDispatcher("/WEB-INF/views/barista/eightysix.jsp").forward(req, resp);
         } catch (Exception e) { throw new ServletException(e); }
     }
@@ -76,7 +76,7 @@ public class EightySixServlet extends HttpServlet {
             resp.sendRedirect(redirect);
             return;
         }
-        if (shiftSupport.guardWrite(req, resp, "/barista/eightysix")) return;   // ngoài ca → chặn ghi
+        if (shiftSupport.guardWrite(req, resp, "/barista/eightysix")) return;   // off-shift → block writes
         int branchId = BranchContext.requireBranchId(req);
         User u = SessionUtil.currentUser(req);
         int userId = u != null ? u.getUserId() : 0;

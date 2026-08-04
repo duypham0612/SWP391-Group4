@@ -3,11 +3,12 @@ package com.cafe.web.support;
 import java.util.Set;
 
 /**
- * Allowlist duy nhất cho mọi POST của khu vực Barista.
+ * Single allowlist for every POST in the Barista area.
  *
- * <p>Controller vẫn chịu trách nhiệm chọn phản hồi phù hợp (redirect trang thường hay fragment
- * AJAX của KDS), còn lớp này chỉ quyết định action có được phép đi tiếp vào service hay không.
- * Điều này chặn POST tự soạn/typo biến thành một request im lặng không làm gì.
+ * <p>The controller is still responsible for choosing the right response (a normal page
+ * redirect or a KDS AJAX fragment); this class only decides whether an action is allowed to
+ * proceed into the service. This stops a hand-crafted or mistyped POST from silently turning
+ * into a no-op request.
  */
 public final class BaristaWritePolicy {
     private static final Set<String> CLOCK = Set.of("clockIn", "clockOut");
@@ -29,12 +30,12 @@ public final class BaristaWritePolicy {
     public static boolean isEightySixAction(String action) { return contains(EIGHTY_SIX, action); }
 
     /**
-     * Chấm công chỉ nhận ở màn "Ca làm của tôi" — không màn vận hành nào khác.
+     * Clock actions are only accepted on the "My Shift" screen — no other operational screen.
      *
-     * <p>Vào ca là bước có ngữ cảnh: barista phải thấy ca được xếp rồi mới nhận quầy. Trước đây
-     * mọi màn đều nhận clockIn/clockOut nên thao tác đó rút gọn thành một cú bấm giữa lúc đứng
-     * máy, bỏ qua toàn bộ ngữ cảnh. Giới hạn ở đây là chốt thật phía server, không chỉ là
-     * chuyện ẩn nút trên giao diện.
+     * <p>Clocking in is a context-dependent step: a barista should see their assigned shift
+     * before taking the counter. Previously every screen accepted clockIn/clockOut, so the
+     * action collapsed into a single tap while standing at the machine, skipping all that
+     * context. This restriction is a real server-side gate, not just a hidden button in the UI.
      */
     public static boolean isShiftAction(String action) { return isClockAction(action); }
 
